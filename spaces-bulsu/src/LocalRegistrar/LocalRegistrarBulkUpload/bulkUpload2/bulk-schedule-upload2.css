@@ -1,0 +1,257 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Lexend', sans-serif;
+}
+
+body {
+  background-color: #F8F7F5;
+}
+
+.bulk-upload-page {
+  background-color: #F8F7F5;
+  min-height: 100vh;
+  padding: 80px 50px 100px 50px;
+  position: relative;
+}
+
+.bulk-header h1 {
+  font-weight: 900;
+  margin-top: 50px;
+  font-size: 40px;
+  color: #1a1a1a;
+}
+
+.bulk-header p {
+  margin-top: 10px;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 40px;
+  margin-bottom: 32px;
+  gap: 0;
+}
+
+.step-wrapper {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-circle {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.step-circle.active {
+  background-color: #FEF0E7;
+  border: 1px solid #F2690D;
+  color: #F2690D;
+}
+
+.step-circle.completed {
+  background-color: #F97316;
+  color: #fff;
+  border-color: #F97316;
+}
+
+.step-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9ca3af;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.step-label.active {
+  color: #F2690D;
+  font-weight: 700;
+}
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  background-color: #e5e7eb;
+  margin: 0 12px;
+  min-width: 40px;
+  align-self: center;
+  margin-bottom: 24px;
+}
+
+.step-line.completed {
+  background-color: #F97316;
+}
+
+.form-card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 40px 48px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.upload-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.upload-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 4px;
+  font-weight: 300;
+}
+
+.drop-zone {
+  border: 2px dashed #F2690D;
+  border-radius: 12px;
+  padding: 60px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background-color: #fffaf7;
+  transition: background-color 0.2s ease;
+}
+
+.drop-zone.dragging {
+  background-color: #FEF0E7;
+}
+
+.drop-zone.has-file {
+  background-color: #f0fdf4;
+  border-color: #22c55e;
+}
+
+.drop-icon {
+  width: 52px;
+  height: 52px;
+  background-color: #FEF0E7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F2690D;
+  font-size: 20px;
+}
+
+.drop-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.drop-subtext {
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #22c55e;
+}
+
+.browse-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #F97316;
+  color: #fff;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.browse-btn:hover {
+  background-color: #ea6c0a;
+}
+
+.bulk-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 60px;
+}
+
+.step2-footer {
+  justify-content: space-between;
+}
+
+.btn-back {
+  background-color: transparent;
+  color: #F97316;
+  border: 1.5px solid #F97316;
+  padding: 14px 40px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  
+}
+
+.btn-back:hover {
+  background-color: #FEF0E7;
+}
+
+.btn-next {
+  background-color: #F97316;
+  color: #fff;
+  border: none;
+  padding: 14px 40px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+  letter-spacing: 0.01em;
+}
+
+.btn-next:hover {
+  background-color: #ea6c0a;
+  transform: translateY(-1px);
+}
+
+.btn-next:active {
+  transform: translateY(0);
+}

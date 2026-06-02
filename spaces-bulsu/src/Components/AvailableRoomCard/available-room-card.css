@@ -1,0 +1,62 @@
+.available-room-card {
+  background-color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  border: 2px solid #16A34A;
+  width: 250px;
+  height: 300px;
+}
+
+.available-room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.available-room-name {
+  font-size: 20px;
+  font-weight: 900;
+  color: #333333;
+}
+
+.available-room-badge {
+  color: #E9FAEF;
+  background-color: #16A34A;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.available-room-details {
+  display: flex;
+  align-items: center;
+  justify-content: center;  
+  gap: 8px;
+  font-size: 13px;
+  color: #64748B;
+  flex: 1;  
+}
+
+.available-room-icon {
+  color: #64748B;
+  font-size: 14px;
+}
+
+.quick-reserve-btn {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background-color: #F2690D;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  margin-top: auto;  
+}

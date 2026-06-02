@@ -1,0 +1,455 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
+
+* { 
+  box-sizing: border-box; 
+  font-family: 'Lexend', sans-serif; 
+}
+body {
+  overflow-x: hidden;
+}
+html, body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.wir-page {
+  background-color: #F8F7F5;
+  min-height: 100vh;
+  padding: 48px 24px 80px 24px;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.wir-title {
+  font-size: 36px;
+  font-weight: 900;
+  color: #1a1a1a;
+}
+
+.wir-subtitle {
+  font-size: 13px;
+  color: #9ca3af;
+  font-weight: 400;
+  margin-top: 4px;
+  margin-bottom: 24px;
+}
+
+.wir-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+  max-width: 100%;
+}
+.wir-input,
+.wir-textarea,
+.wir-plain-input {
+  width: 100%;
+  max-width: 100%;
+}
+.wir-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 32px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wir-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.wir-section-bar {
+  display: inline-block;
+  width: 4px;
+  height: 20px;
+  background: #F97316;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.wir-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.wir-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.wir-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.wir-input {
+  padding: 12px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #F8F7F5;
+  outline: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: border-color 0.2s;
+}
+
+.wir-input:focus { border-color: #F97316; background: #fff; }
+.wir-input::placeholder { color: #9ca3af; font-weight: 300; }
+
+.wir-icon-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background: #F8F7F5;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: border-color 0.2s;
+}
+
+.wir-icon-input:focus-within { border-color: #F97316; background: #fff; }
+.wir-icon-input i { color: #9ca3af; font-size: 14px; flex-shrink: 0; }
+
+.wir-plain-input {
+  border: none;
+  outline: none;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: transparent;
+  flex: 1;
+}
+
+.wir-plain-input::placeholder { color: #9ca3af; font-weight: 300; }
+
+.wir-textarea {
+  padding: 12px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #F8F7F5;
+  outline: none;
+  resize: none;
+  height: 90px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: border-color 0.2s;
+}
+
+.wir-textarea:focus { border-color: #F97316; background: #fff; }
+.wir-textarea::placeholder { color: #9ca3af; font-weight: 300; }
+
+.wir-slots-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wir-slots-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.wir-floor-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #F97316;
+  color: #fff;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wir-floor-pill i { font-size: 10px; }
+
+.wir-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wir-slot {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  border: 1.5px solid;
+  transition: all 0.15s;
+}
+
+.wir-slot.available {
+  background: #DCFCE7;
+  border-color: #4ADE80;
+  color: #15803D;
+}
+
+.wir-slot.available:hover, .wir-slot.available.selected {
+  background: #BBF7D0;
+  border-color: #22C55E;
+}
+
+.wir-slot.occupied {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #DC2626;
+  cursor: not-allowed;
+}
+
+.wir-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wir-quick-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #FEF0E7;
+  border: 1px solid #FDE8C8;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.wir-quick-note i { color: #F97316; font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+
+.wir-note-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #F97316;
+  margin-bottom: 4px;
+}
+
+.wir-note-text {
+  font-size: 12px;
+  color: #9a6031;
+  font-weight: 300;
+  line-height: 1.5;
+}
+
+.wir-availability-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wir-avail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wir-avail-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.wir-live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.wir-avail-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.06em;
+}
+
+.wir-avail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wir-avail-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.wir-avail-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.wir-avail-label { font-size: 13px; font-weight: 500; }
+
+.wir-avail-item.reserved  { background: #f9fafb; color: #374151; border-left: 3px solid #e5e7eb; }
+.wir-avail-item.booking   { background: #FEF0E7; color: #F97316; border-left: 3px solid #F97316; font-weight: 700; }
+.wir-avail-item.available { background: #F0FDF4; color: #15803D; border-left: 3px solid #4ADE80; }
+
+.wir-view-btn {
+  background: #F97316;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.2s;
+  margin-top: 4px;
+}
+
+.wir-view-btn:hover { background: #ea6c0a; }
+
+.wir-footer {
+  margin-top: 24px;
+  display: grid;
+  gap: 24px;
+}
+
+.wir-confirm-btn {
+  background: #F97316;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.2s;
+}
+
+.wir-confirm-btn:hover { background: #ea6c0a; }
+
+.wir-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.wir-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 36px 32px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.wir-modal-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #FEF0E7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F97316;
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.wir-modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.wir-modal-text {
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
+  font-weight: 300;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.wir-modal-cancel {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1.5px solid #F97316;
+  background: #FEF0E7;
+  color: #F97316;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.wir-modal-cancel:hover { background: #fde8d5; }
+
+.wir-modal-confirm {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  border: none;
+  background: #F97316;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.wir-modal-confirm:hover { background: #ea6c0a; }
+
+@media (max-width: 1024px) {
+  .wir-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .wir-right-col {
+    order: 2;
+  }
+
+  .wir-footer {
+    grid-template-columns: 1fr;
+  }
+}

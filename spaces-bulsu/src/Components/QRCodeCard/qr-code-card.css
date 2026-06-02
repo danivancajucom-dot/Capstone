@@ -1,0 +1,51 @@
+.qr-code-card {
+  background-color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  width: 300px;
+}
+
+.qr-code-image {
+  background-color: #F8F7F5;
+  height: 350px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-code-info {
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qr-room-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+}
+
+.qr-floor {
+  font-size: 13px;
+  color: #64748B;
+}
+
+.qr-download-btn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background-color: #F2690D;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}

@@ -1,0 +1,150 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #F8F7F5;
+}
+
+h1 {
+  font-weight: 900;
+  margin-top: 50px;
+  margin-left: 50px;
+  font-size: 40px;
+}
+
+.faculty-view-pending-box {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 50px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 550px;
+}
+
+.faculty-view-pending-sections {
+  display: flex;
+  margin: 40px 20px;
+  gap: 100px;
+}
+
+.faculty-view-pending-section {
+  flex: 1;
+}
+
+.faculty-view-pending-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 30px;
+}
+
+.faculty-view-pending-form-group label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.faculty-view-pending-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #FEF0E7;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: #64748B;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.faculty-view-pending-icon-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.faculty-view-pending-icon-wrapper .faculty-view-pending-input {
+  width: 100%;
+  padding-left: 35px;
+}
+
+.faculty-view-pending-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748B;
+}
+
+.faculty-view-pending-icon-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.faculty-view-pending-time-fields {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+  width: 100%;
+}
+
+.faculty-view-pending-time-fields .faculty-view-pending-form-group {
+  flex: 1;
+  margin-top: 0;
+}
+
+.faculty-view-pending-time-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.faculty-view-pending-time-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748B;
+}
+
+.faculty-view-pending-time-input {
+  width: 100%;
+  padding-left: 35px;
+}
+
+.faculty-view-pending-time-input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.faculty-view-pending-footer {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 50px 20px 50px;
+}
+
+.faculty-view-pending-back-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: 1.5px solid #F2690D;
+  background-color: #F8F7F5;
+  color: #F2690D;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  cursor: pointer;
+}
+
+.faculty-view-pending-edit-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: none;
+  background-color: #F2690D;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}

@@ -1,0 +1,133 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #F8F7F5;
+}
+
+.back-arrow {
+  margin-top: 50px;
+  margin-left: 50px;
+  font-size: 25px;
+  cursor: pointer;
+  display: block;
+}
+
+.clerk-view-online-reservation {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 50px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 650px;
+}
+
+.reservation-header {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 30px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.reservation-header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.reservation-profile {
+  width: 100px;
+  height: 100px;
+  border-radius: 10px;
+  background-color: #F2690D;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 20px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.reservation-faculty-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.reservation-header-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.deny-request-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  background-color: #DC2626;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.approve-request-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  background-color: #F2690D;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.reservation-info-boxes {
+  display: flex;
+  margin-top: 20px;
+  gap: 50px;
+}
+
+.reservation-info-box {
+  flex: 1;
+  background-color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  min-height: 210px;
+}
+
+.info-box-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #F2690D;
+  padding: 15px 20px;
+  border-bottom: 2px solid #FBDFC2;
+}
+
+.info-box-content {
+  padding: 10px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #333333;
+}
+
+.info-box-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.conflict-check-box {
+  background-color: #FFFBEB;
+}

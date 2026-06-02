@@ -1,0 +1,35 @@
+.upcoming-sched-card {
+  display: flex;
+  gap: 12px;
+  padding: 20px 0;
+}
+
+.upcoming-sched-border {
+  width: 3px;
+  border-radius: 3px;
+  background-color: #F2690D;
+  flex-shrink: 0;
+}
+
+.upcoming-sched-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.upcoming-sched-time {
+  font-size: 12px;
+  color: #94A3B8;
+  font-weight: 600;
+}
+
+.upcoming-sched-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.upcoming-sched-details {
+  font-size: 12px;
+  color: #64748B;
+}

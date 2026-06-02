@@ -1,0 +1,240 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #F8F7F5;
+}
+
+h1 {
+  font-weight: 900;
+  margin-top: 50px;
+  margin-left: 50px;
+  font-size: 40px;
+}
+
+p {
+  margin-top: 10px;
+  margin-left: 50px;
+  color: #64748B;
+}
+
+.faculty-submit-box {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 50px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 550px;
+}
+
+.faculty-submit-sections {
+  display: flex;
+  margin: 40px 20px;
+  gap: 100px;
+}
+
+.faculty-submit-section:first-child {
+  flex: 1;
+}
+
+.faculty-submit-section:last-child {
+  flex: 1;
+}
+
+.faculty-submit-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 30px;
+}
+
+.faculty-submit-form-group label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.faculty-submit-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #FEF0E7;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: #64748B;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.faculty-submit-input:focus {
+  border-color: #F2690D;
+}
+
+.faculty-submit-icon-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.faculty-submit-icon-wrapper .faculty-submit-input {
+  width: 100%;
+  padding-left: 35px;
+}
+
+.faculty-submit-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: all;
+  cursor: pointer;
+  z-index: 1;
+  color: #64748B;
+}
+
+.faculty-submit-icon-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.faculty-submit-time-fields {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+  width: 100%;
+}
+
+.faculty-submit-time-fields .faculty-submit-form-group {
+  flex: 1;
+  margin-top: 0;
+}
+
+.faculty-submit-time-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.faculty-submit-time-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: all;
+  cursor: pointer;
+  z-index: 1;
+  color: #64748B;
+}
+
+.faculty-submit-time-input {
+  width: 100%;
+  padding-left: 35px;
+}
+
+.faculty-submit-time-input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.faculty-submit-dropdown-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.faculty-submit-dropdown {
+  width: 100%;
+  appearance: none;
+  cursor: pointer;
+}
+
+.faculty-submit-dropdown-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748B;
+  font-size: 14px;
+}
+
+.faculty-submit-venue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.faculty-submit-venue-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.faculty-submit-venue-dropdown-wrapper {
+  position: relative;
+}
+
+.faculty-submit-venue-dropdown {
+  padding: 6px 30px 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  outline: none;
+  appearance: none;
+  color: #64748B;
+}
+
+.faculty-submit-venue-dropdown-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748B;
+  font-size: 12px;
+}
+
+.faculty-submit-footer {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 50px 20px 50px;
+}
+
+.faculty-submit-back-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: 1.5px solid #F2690D;
+  background-color: #F8F7F5;
+  color: #F2690D;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  cursor: pointer;
+}
+
+.faculty-submit-confirm-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: none;
+  background-color: #F2690D;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 200px;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.faculty-submit-section:last-child .faculty-submit-form-group {
+  margin-top: 156px;
+}
+
+.faculty-submit-section:last-child .faculty-submit-input {
+  width: 100%;
+}
+
+.faculty-submit-section:last-child .faculty-submit-dropdown-wrapper {
+  width: 100%;
+}

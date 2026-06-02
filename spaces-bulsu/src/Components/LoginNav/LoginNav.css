@@ -1,0 +1,110 @@
+.site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 40px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e9e4de;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  gap: 32px;
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #fff1e6;
+  color: #e87a1a;
+  font-size: 18px;
+}
+
+.brand-name {
+  margin: 0;
+  font-weight: 800;
+  font-size: 16px;
+  color: #141b2d;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.nav-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #4f566b;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: #e87a1a;
+}
+
+.nav-icon-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  border: none;
+  background: #f8f9fb;
+  display: grid;
+  place-items: center;
+  color: #4f566b;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.nav-icon-btn:hover {
+  background: #eef2f7;
+  transform: translateY(-1px);
+}
+
+.nav-signin-text {
+  padding: 10px 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(232, 122, 26, 0.18);
+  background: rgba(232, 122, 26, 0.08);
+  color: #e87a1a;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: 'Lexend', sans-serif;
+  transition: background 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .site-nav {
+    padding: 12px 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .nav-right {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-top: 8px;
+  }
+}

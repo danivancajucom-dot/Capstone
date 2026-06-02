@@ -1,0 +1,173 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #F8F7F5;
+}
+
+.white-box-edit-reservation {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 50px;
+  margin-top: 50px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 650px;
+}
+
+.reassign-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 10px 20px;
+}
+
+.reassign-sections {
+  display: flex;
+  margin: 40px 20px;
+  gap: 40px;
+}
+
+.reassign-section {
+  width: 50%;
+}
+
+.reassign-section-label {
+  border-left: 3px solid #F2690D;
+  padding-left: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+
+.reassign-footer {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 50px 20px 50px;
+}
+
+.back-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: none;
+  background-color: #F8F7F5;
+  color: #F2690D;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  border: 1.5px solid #F2690D;
+  cursor: pointer;
+}
+
+.confirm-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: none;
+  background-color: #F2690D;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 50px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #FEF0E7;
+  font-size: 14px;
+  outline: none;
+  width: 90%;
+  color: #64748B;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.form-input:focus {
+  border-color: #F2690D;
+}
+
+.input-icon-wrapper {
+  position: relative;
+  width: 90%;
+}
+
+.input-icon-wrapper .form-input {
+  width: 100%;
+  padding-left: 45px;
+}
+
+.input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.venue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 50px;
+}
+
+.venue-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dropdown-wrapper-venue {
+  position: relative;
+}
+
+.dropdown-venue {
+  padding: 6px 30px 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  outline: none;
+  appearance: none;
+  color: #64748B;
+}
+
+.dropdown-icon-venue {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748B;
+  font-size: 12px;
+}
+
+.time-fields {
+  display: flex;
+  gap: 30px;
+  margin-top: 192px;
+}
+
+.time-fields .form-group {
+  flex: 1;
+  margin-top: 0;
+}
+
+.time-fields .form-input {
+  width: 100%;
+}

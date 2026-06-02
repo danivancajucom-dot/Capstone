@@ -1,0 +1,82 @@
+.class-details-card {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  width: 300px;
+  background-color: #ffffff;
+}
+
+.class-details-header {
+  background-color: #FEF0E7;
+  padding: 20px;
+  position: relative;
+}
+
+.class-details-title {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #F2690D;
+}
+
+.class-details-date {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #F2690D;
+  margin-top: 4px;
+}
+
+.class-details-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  color: #F2690D;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.class-details-body {
+  padding: 15px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.class-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.class-detail-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #F8F7F5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #555;
+  flex-shrink: 0;
+}
+
+.class-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.class-detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.5px;
+}
+
+.class-detail-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+}

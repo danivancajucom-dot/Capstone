@@ -1,0 +1,234 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #F8F7F5;
+}
+
+h1 {
+  font-weight: 900;
+  margin-top: 50px;
+  margin-left: 50px;
+  font-size: 40px;
+}
+
+.faculty-edit-pending-box {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 50px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 550px;
+}
+
+.faculty-edit-pending-sections {
+  display: flex;
+  margin: 40px 20px;
+  gap: 100px;
+}
+
+.faculty-edit-pending-section:first-child {
+  flex: 1;
+}
+
+.faculty-edit-pending-section:last-child {
+  flex: 1;
+}
+
+.faculty-edit-pending-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 30px;
+}
+
+.faculty-edit-pending-form-group label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.faculty-edit-pending-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #FEF0E7;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: #64748B;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.faculty-edit-pending-input:focus {
+  border-color: #F2690D;
+}
+
+.faculty-edit-pending-icon-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.faculty-edit-pending-icon-wrapper .faculty-edit-pending-input {
+  width: 100%;
+  padding-left: 35px;
+}
+
+.faculty-edit-pending-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: all;
+  cursor: pointer;
+  z-index: 1;
+  color: #64748B;
+}
+
+.faculty-edit-pending-icon-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.faculty-edit-pending-time-fields {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+  width: 100%;
+}
+
+.faculty-edit-pending-time-fields .faculty-edit-pending-form-group {
+  flex: 1;
+  margin-top: 0;
+}
+
+.faculty-edit-pending-time-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.faculty-edit-pending-time-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: all;
+  cursor: pointer;
+  z-index: 1;
+  color: #64748B;
+}
+
+.faculty-edit-pending-time-input {
+  width: 100%;
+  padding-left: 35px;
+}
+
+.faculty-edit-pending-time-input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.faculty-edit-pending-dropdown-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.faculty-edit-pending-dropdown {
+  width: 100%;
+  appearance: none;
+  cursor: pointer;
+}
+
+.faculty-edit-pending-dropdown-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748B;
+  font-size: 14px;
+}
+
+.faculty-edit-pending-venue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.faculty-edit-pending-venue-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.faculty-edit-pending-venue-dropdown-wrapper {
+  position: relative;
+}
+
+.faculty-edit-pending-venue-dropdown {
+  padding: 6px 30px 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  outline: none;
+  appearance: none;
+  color: #64748B;
+}
+
+.faculty-edit-pending-venue-dropdown-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748B;
+  font-size: 12px;
+}
+
+.faculty-edit-pending-footer {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 50px 20px 50px;
+}
+
+.faculty-edit-pending-back-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: 1.5px solid #F2690D;
+  background-color: #F8F7F5;
+  color: #F2690D;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  cursor: pointer;
+}
+
+.faculty-edit-pending-save-btn {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: none;
+  background-color: #F2690D;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  cursor: pointer;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.faculty-edit-pending-section:last-child .faculty-edit-pending-form-group {
+  margin-top: 156px;
+}
+
+.faculty-edit-pending-section:last-child .faculty-edit-pending-input {
+  width: 100%;
+}
+
+.faculty-edit-pending-section:last-child .faculty-edit-pending-dropdown-wrapper {
+  width: 100%;
+}

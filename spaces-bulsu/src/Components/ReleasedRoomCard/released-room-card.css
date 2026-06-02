@@ -1,0 +1,71 @@
+.released-room-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+}
+
+.released-room-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.rrc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rrc-room-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background-color: #FEF0E7;
+  color: #F2690D;
+  font-size: 11px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.rrc-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.rrc-time {
+  font-size: 13px;
+  font-weight: 600;
+  color: #F2690D;
+}
+
+.rrc-subject {
+  font-size: 13px;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rrc-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.rrc-ago {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.rrc-image {
+  width: 160px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+}

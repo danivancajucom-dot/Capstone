@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Lexend', sans-serif;
+}
+
+body {
+  background-color: #F8F7F5;
+}
+
+.page {
+  background-color: #F8F7F5;
+  min-height: 100vh;
+  padding: 40px 50px 100px 50px;
+}
+
+.back-arrow {
+  font-size: 20px;
+  color: #1a1a1a;
+  cursor: pointer;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.page h1 {
+  font-size: 32px;
+  font-weight: 900;
+  color: #1a1a1a;
+  margin-bottom: 24px;
+}
+
+.list-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.load-more-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.btn-load-more {
+  background-color: #F97316;
+  color: #ffffff;
+  border: none;
+  padding: 12px 40px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+.btn-load-more:hover {
+  background-color: #ea6c0a;
+  transform: translateY(-1px);
+}
+
+.btn-load-more:active {
+  transform: translateY(0);
+}
