@@ -56,7 +56,7 @@
 
 .registrar-nav a.active{
   background:#f57c00;
-  width: 240px;
+  width: max-content;
   color:white;
   justify-content: center;
     transition:.5s;
