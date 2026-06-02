@@ -1,142 +1,71 @@
-.clerk-layout{
-  display: flex;
-  min-height: 100vh;
-  background: #f5f6fa;
-  font-family: 'Lexend', sans-serif;
+.registrar-layout{
+  display:fixed;
+  min-height:100vh;
+  background:#f5f6fa;
+  font-family:'Lexend',sans-serif;
 }
+
 
 /* SIDEBAR */
-.clerk-sidebar{
-  width: 260px;
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: white;
-  border-right: 1px solid #eee;
+.registrar-sidebar{ 
+    width:260px; 
+    position:fixed; 
+    left:0; 
+    top:0; 
+    bottom:0; 
+    background:white; 
+    border-right:1px solid #eee; }
+
+.registrar-logo{ 
+    padding:24px; 
+    font-size:24px; 
+    font-weight:700; }
+
+.registrar-logo h2{
+  margin:0;
+  color:#f57c00;
+  font-size:28px;
 }
 
-/* LOGO */
-.clerk-logo{
-  padding: 24px;
-  font-size: 24px;
-  font-weight: 700;
+.registrar-logo span{
+  color:#777;
+  font-size:13px;
 }
 
-.clerk-logo h2{
-  margin: 0;
-  color: #f57c00;
-  font-size: 28px;
+.registrar-nav{
+  display:flex;
+  flex-direction:row;
+  padding:12px;
 }
 
-.clerk-logo span{
-  color: #777;
-  font-size: 13px;
+.registrar-nav a{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:16px;
+  margin-bottom:8px;
+  text-decoration:none;
+  color:#5a6474;
+  border-radius:16px;
+  transition:.2s;
 }
 
-/* NAV (MATCH REGISTRAR STYLE - ROW STYLE) */
-.clerk-nav{
-  display: flex;
-  flex-direction: row;
-  padding: 12px;
-  flex-wrap: wrap;
-  gap: 10px;
+.registrar-nav a:hover{
+  background:#f4f4f4;
 }
 
-.clerk-nav a{
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  padding: 16px;
-  margin-bottom: 8px;
-
-  text-decoration: none;
-  color: #5a6474;
-
-  border-radius: 16px;
-  transition: .2s;
-
-  width: 100%;
-}
-
-.clerk-nav a:hover{
-  background: #f4f4f4;
-}
-
-.clerk-nav a.active{
-  background: #f57c00;
+.registrar-nav a.active{
+  background:#f57c00;
   width: 240px;
-  color: white;
+  color:white;
   justify-content: center;
-  transition: .5s;
-}
+    transition:.5s;
 
-/* =========================
-   DROPDOWN (CLEAN VERSION)
-========================= */
-
-.sidebar-group{
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* parent same look as nav item */
-.sidebar-parent{
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-
-  padding: 16px;
-  margin-bottom: 8px;
-
-  border-radius: 16px;
-  cursor: pointer;
-
-  color: #5a6474;
-  background: transparent;
-  border: none;
-
-  transition: .2s;
-  font-family: inherit;
-  font-size: 14px;
-}
-
-.sidebar-parent:hover{
-  background: #f4f4f4;
-}
-
-/* child container */
-.sidebar-child{
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-/* child links */
-.sidebar-child a{
-  border-radius: 12px;
-  text-decoration: none;
-  color: #5a6474;
-  font-size: 13px;
-
-  transition: .2s;
-}
-
-.sidebar-child a:hover{
-  background: #f4f4f4;
-}
-
-.sidebar-child a.active{
-  background: #f57c00;
-  width: 200px;
-  color: white;
 }
 
 /* MAIN */
-.clerk-main{
+
+.registrar-main{
   margin-left: 260px;
   height: 100vh;
   display: flex;
@@ -144,73 +73,207 @@
 }
 
 /* HEADER */
-.clerk-header{
-  position: fixed;
-  top: 0;
-  left: 260px;
-  right: 0;
-  height: 80px;
 
-  background: white;
-  border-bottom: 1px solid #ececec;
+.registrar-header{
+  position:fixed;
+  top:0;
+  left:260px;
+  right:0;
+  height:80px;
+  background:white;
+  border-bottom:1px solid #ececec;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 30px;
+  z-index:90;
+}
 
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* SEARCH */
 
-  padding: 0 30px;
-  z-index: 90;
+.header-search{
+  width:450px;
+  position:relative;
+}
+
+.header-search i{
+  position:absolute;
+  left:18px;
+  top:50%;
+  transform:translateY(-50%);
+  color:#8f96a3;
+}
+
+.header-search input{
+  width:100%;
+  height:54px;
+
+  border:none;
+  outline:none;
+
+  border-radius:18px;
+
+  background:#eef1f5;
+
+  padding-left:50px;
+
+  font-family:'Lexend',sans-serif;
+}
+
+/* ACTIONS */
+
+.header-actions{
+  display:flex;
+  gap:12px;
+}
+
+.header-btn{
+  width:52px;
+  height:52px;
+
+  border:none;
+  border-radius:16px;
+
+  background:#eef1f5;
+
+  font-size:18px;
+
+  cursor:pointer;
+}
+
+.header-btn:hover{
+  background:#e4e8ed;
 }
 
 /* CONTENT */
-.clerk-content{
-  margin-top: 80px;
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-  box-sizing: border-box;
+
+.registrar-content{
+  margin-top:40px;
+  min-height:calc(100vh - 80px);
+  flex: 1;  
+  padding:20px;
+  overflow-y:auto;
 }
 
 /* LOGOUT MODAL */
+
 .modal-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.35);
+  position:fixed;
+  inset:0;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background:rgba(0,0,0,.35);
 
-  z-index: 999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  z-index:999;
 }
 
 .logout-modal{
-  width: 420px;
-  background: white;
-  border-radius: 24px;
-  padding: 32px;
-  text-align: center;
+  width:420px;
+  background:white;
+
+  border-radius:24px;
+
+  padding:32px;
+
+  text-align:center;
+}
+
+.modal-icon{
+  width:70px;
+  height:70px;
+
+  margin:auto;
+
+  border-radius:50%;
+
+  background:#fff3e8;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  color:#f57c00;
+  font-size:28px;
+}
+
+.logout-modal h2{
+  margin:20px 0;
 }
 
 .modal-actions{
-  display: flex;
-  gap: 12px;
+  display:flex;
+  gap:12px;
 }
 
 .modal-btn{
-  flex: 1;
-  height: 50px;
-  border: none;
-  border-radius: 14px;
-  font-weight: 600;
-  cursor: pointer;
+  flex:1;
+  height:50px;
+
+  border:none;
+  border-radius:14px;
+
+  cursor:pointer;
+  font-weight:600;
 }
 
 .modal-btn.cancel{
-  background: #eee;
+  background:#eeeeee;
 }
 
 .modal-btn.confirm{
-  background: #f57c00;
-  color: white;
+  background:#f57c00;
+  color:white;
+}
+
+/* RESPONSIVE */
+
+@media(max-width:992px){
+
+  .registrar-sidebar{
+    width:90px;
+  }
+
+  .registrar-logo span{
+    display:none;
+  }
+
+  .registrar-nav a{
+    justify-content:center;
+  }
+
+  .registrar-nav a i{
+    margin:0;
+  }
+
+  .registrar-nav a{
+    font-size:0;
+  }
+
+  .registrar-nav a i{
+    font-size:18px;
+  }
+
+  .registrar-main{
+    margin-left:90px;
+  }
+
+  .registrar-header{
+    left:90px;
+  }
+
+}
+
+@media(max-width:768px){
+
+  .header-search{
+    width:220px;
+  }
+
+  .registrar-content{
+    padding:16px;
+  }
+
 }

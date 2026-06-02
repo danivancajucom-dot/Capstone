@@ -10,7 +10,7 @@ export default function Login() {
 
   const handleSignIn = () => {
     if (selectedRole === "Local Registrar") {
-      navigate("/registrar");
+      navigate("/local-registrar");
     } else if (selectedRole === "Clerk") {
       navigate("/clerk");
     } else if (selectedRole === "Department Head") {
