@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './department-head-activity-log.css';
+import { useNavigate } from "react-router-dom";
 
 const tabs = ['All Activities', 'System Changes', 'Security Events'];
 
@@ -66,19 +67,20 @@ const actionIcon = (type) => {
   }
 };
 
-export default function DepartmentHeadActivityLog({ onBack }) {
+export default function DepartmentHeadActivityLog() {
   const [activeTab, setActiveTab] = useState('All Activities');
   const [dateRange, setDateRange] = useState('Last 7 Days');
   const [userRole, setUserRole] = useState('All Roles');
   const [actionType, setActionType] = useState('All Actions');
   const [currentPage, setCurrentPage] = useState(1);
+  const navigate = useNavigate();
 
   return (
     <div className="activity-log">
       {/* PAGE HEADER */}
       <div className="log-page-header">
         <div className="log-title-row">
-          <button className="back-btn" onClick={onBack}>
+          <button className="back-btn" onClick={() => navigate("/department-head")}>
             <i className="fa-solid fa-arrow-left"></i>
           </button>
 

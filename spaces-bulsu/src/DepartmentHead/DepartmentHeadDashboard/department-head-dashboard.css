@@ -5,6 +5,9 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
 }
 
 /* STATS ROW */
@@ -61,7 +64,7 @@
 /* BOTTOM GRID */
 .bottom-grid {
   display: grid;
-  grid-template-columns: 1fr 320px 280px;
+  grid-template-columns: 1fr 340px;
   gap: 20px;
   align-items: start;
 }
@@ -158,6 +161,13 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   margin-bottom: 16px;
+}
+.room-status-panel{
+  min-width:0;
+}
+
+.activity-panel{
+  width:100%;
 }
 
 .room-card {
@@ -399,27 +409,96 @@
   opacity: 0.9;
 }
 
-/* RESPONSIVE */
-@media (max-width: 1200px) {
-  .stats-row {
-    grid-template-columns: repeat(3, 1fr);
+/* ==========================
+   RESPONSIVE
+========================== */
+
+@media (max-width: 1400px){
+
+  .stats-row{
+    grid-template-columns:repeat(3,minmax(0,1fr));
   }
 
-  .bottom-grid {
-    grid-template-columns: 1fr;
+  .bottom-grid{
+    grid-template-columns:minmax(0,1fr) 300px;
   }
+
 }
 
-@media (max-width: 768px) {
-  .dh-dashboard {
-    padding: 20px;
+@media (max-width: 1200px){
+
+  .bottom-grid{
+    grid-template-columns:1fr;
   }
 
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
+  .activity-panel{
+    width:100%;
   }
 
-  .rooms-grid {
-    grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 992px){
+
+  .stats-row{
+    grid-template-columns:repeat(2,minmax(0,1fr));
   }
+
+  .rooms-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .panel-header{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:12px;
+  }
+
+  .legend{
+    flex-wrap:wrap;
+  }
+
+}
+
+@media (max-width: 768px){
+
+  .dh-dashboard{
+    padding:16px;
+  }
+
+  .stats-row{
+    grid-template-columns:1fr;
+  }
+
+  .rooms-grid{
+    grid-template-columns:1fr;
+  }
+
+  .panel{
+    padding:18px;
+  }
+
+  .room-card-img{
+    height:120px;
+  }
+
+}
+
+@media (max-width: 480px){
+
+  .dh-dashboard{
+    padding:12px;
+  }
+
+  .panel{
+    padding:14px;
+  }
+
+  .stat-value{
+    font-size:24px;
+  }
+
+  .room-card-img{
+    height:100px;
+  }
+
 }

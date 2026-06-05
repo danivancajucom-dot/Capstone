@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './department-head-dashboard.css';
+import { useNavigate } from "react-router-dom";
 
 const statsData = [
   { icon: 'fa-solid fa-building', label: 'Total Rooms', value: 22, color: 'orange' },
@@ -39,6 +40,7 @@ const barData = [
 
 export default function DepartmentHeadDashboard() {
   const [activeFloor, setActiveFloor] = useState('1st Floor');
+  const navigate = useNavigate();
 
   return (
     <div className="dh-dashboard">
@@ -134,8 +136,7 @@ export default function DepartmentHeadDashboard() {
               </div>
             ))}
           </div>
-
-          <button className="view-all-btn">View All Activity</button>
+          <button className="view-all-btn" onClick={() => navigate("/department-head/activity-log")}> View All Activity </button>
         </div>
 
       </div>

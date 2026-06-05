@@ -12,15 +12,10 @@ import BulkScheduleUpload3 from "./LocalRegistrar/LocalRegistrarBulkUpload/bulkU
 import BulkScheduleUpload4 from "./LocalRegistrar/LocalRegistrarBulkUpload/bulkUpload4/BulkScheduleUpload4";
 import MySubmittedSchedules from "./LocalRegistrar/LocalRegistrarMySubmittedSchedules/MySubmittedSchedules";
 import LocalRegistrarDashboard from "./LocalRegistrar/LocalRegistrarDashboard/LocalRegistrarDashboard";
-//Nav
-import LoginNav from "./Components/LoginNav/LoginNav";
-import ClerkNav from "./Components/ClerkNav/ClerkNav";
-import DepartmentHeadNav from "./Components/DepartmentHeadNav/DepartmentHeadNav";
-import FacultyNav from "./Components/FacultyNav/FacultyNav";
-import LocalRegistrarNav from "./Components/LocalRegistrarNav/LocalRegistrarNav";
 
 // Department Head
 import DepartmentHeadConflicts from "./DepartmentHead/DepartmentHeadConflicts/DepartmentHeadConflicts";
+import DepartmentHeadLayout from "./DepartmentHead/DepartmentHeadLayout/DepartmentHeadLayout";
 import DepartmentHeadReassignRoom from "./DepartmentHead/DepartmentHeadConflicts/DepartmentHeadReassignRoom";
 import DepartmentHeadReservations from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadReservations";
 import DepartmentHeadViewReservation from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservation";
@@ -32,6 +27,8 @@ import DepartmentHeadRoomManagement from "./DepartmentHead/DepartmentHeadRoomMan
 import RoomActivity from "./DepartmentHead/DepartmentHeadRoomActivity/RoomActivity";
 import UserManagement from "./DepartmentHead/DepartmentHeadUserManagement/UserManagement";
 import NotificationManagement from "./DepartmentHead/HeadDepartmentNotificationManagement/NotificationManagement";
+import DepartmentHeadDashboard from "./DepartmentHead/DepartmentHeadDashboard/DepartmentHeadDashboard";
+import DepartmentHeadActivityLog from "./DepartmentHead/DepartmentHeadActivityLog/DepartmentHeadActivityLog";
 
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
@@ -65,26 +62,80 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Components */}
-        <Route path="/login-nav" element={<LoginNav activePage="login" onSignIn={() => {}} onChangePage={() => {}} onLogout={() => {}} />} />
-        <Route path="/clerk-nav" element={<ClerkNav activePage="login" />} />
-        <Route path="/department-head-nav" element={<DepartmentHeadNav activePage="login" />} />
-        <Route path="/faculty-nav" element={<FacultyNav activePage="login" />} />
-        <Route path="/local-registrar-nav" element={<LocalRegistrarNav activePage="login" onNotification={() => {}} onLogout={() => {}} />} />
-
         {/* Department Head */}
-        <Route path="/conflicts" element={<DepartmentHeadConflicts />} />
-        <Route path="/reassign-room" element={<DepartmentHeadReassignRoom />} />
-        <Route path="/dept-reservations" element={<DepartmentHeadReservations />} />
-        <Route path="/dept-view-reservation" element={<DepartmentHeadViewReservation />} />
-        <Route path="/dept-view-reservation-approved" element={<DepartmentHeadViewReservationApproved />} />
-        <Route path="/dept-edit-approved-reservation" element={<DepartmentHeadEditApprovedReservation />} />
-        <Route path="/dept-view-reservation-denied" element={<DepartmentHeadViewReservationDenied/>} />
-        <Route path="/dept-schedule" element={<DepartmentHeadSchedule />} />
-        <Route path="/dept-room-management" element={<DepartmentHeadRoomManagement />} />
-        <Route path="/room-activity" element={<RoomActivity />} />
-        <Route path="/user-management" element={<UserManagement />} />
-        <Route path="/notification-management" element={<NotificationManagement />} />
+        <Route path="/department-head" element={<DepartmentHeadLayout />}>
+
+        <Route
+          index
+          element={<DepartmentHeadDashboard />}
+        />
+
+        <Route
+          path="activity-log"
+          element={<DepartmentHeadActivityLog />}
+        />
+
+        <Route
+          path="conflicts"
+          element={<DepartmentHeadConflicts />}
+        />
+
+        <Route
+          path="reassign-room"
+          element={<DepartmentHeadReassignRoom />}
+        />
+
+        <Route
+          path="reservations"
+          element={<DepartmentHeadReservations />}
+        />
+
+        <Route
+          path="view-reservation"
+          element={<DepartmentHeadViewReservation />}
+        />
+
+        <Route
+          path="view-reservation-approved"
+          element={<DepartmentHeadViewReservationApproved />}
+        />
+
+        <Route
+          path="edit-approved-reservation"
+          element={<DepartmentHeadEditApprovedReservation />}
+        />
+
+        <Route
+          path="view-reservation-denied"
+          element={<DepartmentHeadViewReservationDenied />}
+        />
+
+        <Route
+          path="schedule"
+          element={<DepartmentHeadSchedule />}
+        />
+
+        <Route
+          path="room-management"
+          element={<DepartmentHeadRoomManagement />}
+        />
+
+        <Route
+          path="room-activity"
+          element={<RoomActivity />}
+        />
+
+        <Route
+          path="user-management"
+          element={<UserManagement />}
+        />
+
+        <Route
+          path="notification-management"
+          element={<NotificationManagement />}
+        />
+
+      </Route>
 
         {/* Local Registrar */}
         <Route path="/local-registrar" element={<LocalRegistrarLayout />}>
@@ -117,6 +168,7 @@ function App() {
           <Route path="released-rooms" element={<ReleasedRooms />} />
           <Route path="room-details" element={<RoomDetails />} />
         </Route>
+
         {/* Faculty */}
         <Route path="/faculty" element={<FacultyLayout />}>
           <Route index element={<FacultyDashboard />}/>
