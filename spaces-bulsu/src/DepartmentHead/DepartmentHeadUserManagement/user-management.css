@@ -571,3 +571,47 @@ body { background-color: #F8F7F5; }
   color: #15803D;
   font-weight: 600;
 }
+
+/* ── Temp Password Column ──────────────────────────────────────────────────── */
+
+.um-pw-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.um-pw-value {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #374151;
+  letter-spacing: 0.05em;
+}
+
+.um-pw-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.um-pw-toggle:hover { color: #374151; background: #f3f4f6; }
+
+.um-pw-reset-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.um-pw-na {
+  color: #d1d5db;
+  font-size: 1rem;
+}

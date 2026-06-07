@@ -1,0 +1,19 @@
+[debug] [2026-06-07T09:08:02.559Z] ----------------------------------------------------------------------
+[debug] [2026-06-07T09:08:02.563Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\markw\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-06-07T09:08:02.564Z] CLI Version:   15.19.1
+[debug] [2026-06-07T09:08:02.564Z] Platform:      win32
+[debug] [2026-06-07T09:08:02.564Z] Node Version:  v22.18.0
+[debug] [2026-06-07T09:08:02.565Z] Time:          Sun Jun 07 2026 17:08:02 GMT+0800 (Philippine Standard Time)
+[debug] [2026-06-07T09:08:02.565Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\markw\Capstone
+
