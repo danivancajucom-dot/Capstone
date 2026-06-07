@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import './faculty-dashboard.css';
+import { useNavigate } from "react-router-dom";
+
 
 export default function FacultyDashboard({ onLogout }) {
+  const navigate = useNavigate();
 
 
   const upcomingClasses = [
@@ -39,7 +42,7 @@ export default function FacultyDashboard({ onLogout }) {
 
           {/* RESERVE BUTTON */}
           <div className="reserve-wrapper">
-            <button className="reserve-btn">
+              <button className="reserve-btn" onClick={() => navigate("/faculty/submit-reservation")}> 
               <i className="fa-solid fa-plus"></i>
               Reserve Room
             </button>
