@@ -10,12 +10,22 @@
   z-index: 1000;
   gap: 32px;
 }
+.brand-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
 
 .brand-block {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-shrink: 0;
+}
+
+.brand-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .brand-icon {
@@ -28,13 +38,6 @@
   background: #fff1e6;
   color: #e87a1a;
   font-size: 18px;
-}
-
-.brand-name {
-  margin: 0;
-  font-weight: 800;
-  font-size: 16px;
-  color: #141b2d;
 }
 
 .nav-right {
