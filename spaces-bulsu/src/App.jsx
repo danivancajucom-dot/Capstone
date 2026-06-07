@@ -55,8 +55,11 @@ import FacultyViewApprovedReservation from "./Faculty/FacultyReservations/Facult
 import FacultyViewPendingReservation from "./Faculty/FacultyReservations/FacultyViewPendingReservation";
 import FacultyRoom from "./Faculty/FacultyRoom/FacultyRoom";
 import FacultySchedule from "./Faculty/FacultySchedule/FacultySchedule";
+
 //Login
 import Login from "./Login/Login";
+
+import ResetPassword from "./ResetPassword/ResetPassword";
 
 function App() {
   return (
@@ -154,6 +157,8 @@ function App() {
         {/* Login */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
+        {/* Reset Password */}
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Clerk */}
         <Route path="/clerk" element={<ClerkLayout />} >

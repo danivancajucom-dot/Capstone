@@ -294,6 +294,15 @@
 .footer-link:hover {
   color: #f97316;
 }
+.login-error {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 10px;
+}
 
 @media (max-width: 1100px) {
   .login-page-shell {
@@ -322,4 +331,3 @@
     padding: 24px;
   }
 }
-
