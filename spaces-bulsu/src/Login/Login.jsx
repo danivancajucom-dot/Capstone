@@ -209,6 +209,21 @@ export default function Login() {
               </div>
             </div>
 
+            <div className="form-actions-row">
+            <label className="checkbox-label">
+              <input type="checkbox" />
+              Remember this device
+            </label>
+
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => navigate("/reset-password")}
+            >
+              Forgot Password?
+            </button>
+          </div>
+
             {/* ERROR */}
             {error && <div className="login-error">{error}</div>}
 
