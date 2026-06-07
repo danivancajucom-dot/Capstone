@@ -145,86 +145,300 @@ function UserList({ onCreateAccount }) {
   );
 }
 
-function CreateAccountStep1({ form, setForm, onNext, onBack }) {
+function CreateAccountStep1({ 
+  form,
+  setForm,
+  entryMode,
+  setEntryMode,
+  excelFile,
+  setExcelFile,
+  onNext,
+  onBack
+}) {
   return (
     <div className="um-page">
       <div className="um-create-header">
         <h1 className="um-title">Create New Account</h1>
-        <p className="um-subtitle">Invite a new faculty member or administrator to the university management platform. They will receive an email with login credentials.</p>
+        <p className="um-subtitle">
+          Create users either individually or through bulk Excel upload.
+        </p>
       </div>
 
       <Stepper current={1} />
 
       <div className="um-form-card">
-        <div className="um-form-group">
-          <label>Full Name</label>
-          <input
-            className="um-input"
-            placeholder="Enter full name"
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          />
-        </div>
-        <div className="um-form-group">
-          <label>Email Address</label>
-          <input
-            className="um-input"
-            placeholder="Enter email address"
-            value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-          />
-        </div>
-        <div className="um-form-group">
-          <label>Department/ Role</label>
-          <select
-            className="um-input um-select"
-            value={form.role}
-            onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+
+        <div className="um-mode-selector">
+          <button
+            className={`um-mode-btn ${
+              entryMode === "manual" ? "active" : ""
+            }`}
+            onClick={() => setEntryMode("manual")}
           >
-            <option value="">Select a designation</option>
-            <option>Faculty</option>
-            <option>Local Registrar</option>
-            <option>Clerk</option>
-            <option>Admin</option>
-          </select>
+            <i className="fa-solid fa-user" />
+            Individual Entry
+          </button>
+
+          <button
+            className={`um-mode-btn ${
+              entryMode === "excel" ? "active" : ""
+            }`}
+            onClick={() => setEntryMode("excel")}
+          >
+            <i className="fa-solid fa-file-excel" />
+            Upload Excel
+          </button>
         </div>
+
+        {entryMode === "manual" && (
+          <>
+            <div className="um-form-group">
+              <label>First Name</label>
+              <input
+                className="um-input"
+                placeholder="Enter first name"
+                value={form.firstName}
+                onChange={e =>
+                  setForm(f => ({
+                    ...f,
+                    firstName: e.target.value
+                  }))
+                }
+              />
+            </div>
+
+            <div className="um-form-group">
+              <label>Last Name</label>
+              <input
+                className="um-input"
+                placeholder="Enter last name"
+                value={form.lastName}
+                onChange={e =>
+                  setForm(f => ({
+                    ...f,
+                    lastName: e.target.value
+                  }))
+                }
+              />
+            </div>
+
+            <div className="um-form-group">
+              <label>Gender</label>
+              <select
+                className="um-input um-select"
+                value={form.gender}
+                onChange={e =>
+                  setForm(f => ({
+                    ...f,
+                    gender: e.target.value
+                  }))
+                }
+              >
+                <option value="">Select gender</option>
+                <option>Male</option>
+                <option>Female</option>
+              </select>
+            </div>
+
+            <div className="um-form-group">
+              <label>Email Address</label>
+              <input
+                className="um-input"
+                placeholder="Enter email"
+                value={form.email}
+                onChange={e =>
+                  setForm(f => ({
+                    ...f,
+                    email: e.target.value
+                  }))
+                }
+              />
+            </div>
+
+            <div className="um-form-group">
+              <label>Role</label>
+              <select
+                className="um-input um-select"
+                value={form.role}
+                onChange={e =>
+                  setForm(f => ({
+                    ...f,
+                    role: e.target.value
+                  }))
+                }
+              >
+                <option value="">Select role</option>
+                <option>Faculty</option>
+                <option>Local Registrar</option>
+                <option>Clerk</option>
+                <option>Admin</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {entryMode === "excel" && (
+          <>
+            <div className="um-upload-info">
+              <h3>Bulk User Upload</h3>
+
+              <p>
+                Upload an Excel (.xlsx) file containing the
+                following columns:
+              </p>
+
+              <ul>
+                <li>First Name</li>
+                <li>Last Name</li>
+                <li>Gender</li>
+                <li>Email Address</li>
+                <li>Role</li>
+              </ul>
+
+              <p>
+                Each row in the file represents one user account
+                that will be created by the system.
+              </p>
+            </div>
+
+            <div className="um-form-group">
+              <label>Upload Excel File</label>
+
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="um-input"
+                onChange={(e) =>
+                  setExcelFile(e.target.files[0])
+                }
+              />
+            </div>
+
+            {excelFile && (
+              <div className="um-file-preview">
+                <i className="fa-solid fa-file-excel" />
+                <span>{excelFile.name}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className="um-footer step2">
-        <button className="um-back-btn" onClick={onBack}>Back</button>
-        <button className="um-next-btn" onClick={onNext}>Next</button>
+        <button
+          className="um-back-btn"
+          onClick={onBack}
+        >
+          Back
+        </button>
+
+        <button
+          className="um-next-btn"
+          onClick={onNext}
+          disabled={!entryMode}
+        >
+          Next
+        </button>
       </div>
     </div>
   );
 }
 
-function CreateAccountStep2({ form, onBack, onConfirm }) {
+function CreateAccountStep2({
+  form,
+  entryMode,
+  excelFile,
+  onBack,
+  onConfirm
+}) {
   return (
     <div className="um-page">
       <div className="um-create-header">
         <h1 className="um-title">Create New Account</h1>
-        <p className="um-subtitle">Invite a new faculty member or administrator to the university management platform. They will receive an email with login credentials.</p>
+        <p className="um-subtitle">
+          Review the information before proceeding.
+        </p>
       </div>
 
       <Stepper current={2} />
 
       <div className="um-form-card">
-        <h2 className="um-confirm-title">Account Details</h2>
+        <h2 className="um-confirm-title">
+          Account Details
+        </h2>
+
         <hr className="um-confirm-divider" />
+
         <div className="um-confirm-body">
-          <p><strong>Name:</strong> {form.name || "Juan Dela Cruz"}</p>
-          <p><strong>Email:</strong> {form.email || "j.delacruz@university.edu"}</p>
-          <p><strong>Role:</strong> {form.role || "Admin"}</p>
+
+          {entryMode === "manual" ? (
+            <>
+              <p>
+                <strong>First Name:</strong>{" "}
+                {form.firstName}
+              </p>
+
+              <p>
+                <strong>Last Name:</strong>{" "}
+                {form.lastName}
+              </p>
+
+              <p>
+                <strong>Gender:</strong>{" "}
+                {form.gender}
+              </p>
+
+              <p>
+                <strong>Email:</strong>{" "}
+                {form.email}
+              </p>
+
+              <p>
+                <strong>Role:</strong>{" "}
+                {form.role}
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>Upload Type:</strong>
+                {" "}Bulk Excel Upload
+              </p>
+
+              <p>
+                <strong>File:</strong>{" "}
+                {excelFile?.name}
+              </p>
+            </>
+          )}
+
         </div>
+
         <div className="um-info-box">
           <i className="fa-solid fa-circle-info" />
-          <span>An automated email will be sent to the user with a temporary password and a link to verify their account. For security, this link will expire in 24 hours.</span>
+          <span>
+            An automated email will be sent to
+            the created users containing login
+            credentials and account verification
+            instructions.
+          </span>
         </div>
       </div>
 
       <div className="um-footer step2">
-        <button className="um-back-btn" onClick={onBack}>Back</button>
-        <button className="um-next-btn" onClick={onConfirm}>Confirm</button>
+        <button
+          className="um-back-btn"
+          onClick={onBack}
+        >
+          Back
+        </button>
+
+        <button
+          className="um-next-btn"
+          onClick={onConfirm}
+        >
+          Confirm
+        </button>
       </div>
     </div>
   );
@@ -249,14 +463,33 @@ function ConfirmModal({ onCancel, onConfirm }) {
 export default function UserManagement() {
   const [view, setView]         = useState("list"); // list | step1 | step2
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm]         = useState({ name: "", email: "", role: "" });
+  const [form, setForm] = useState({
+  firstName: "",
+  lastName: "",
+  gender: "",
+  email: "",
+  role: ""
+});
+
+const [entryMode, setEntryMode] = useState("");
+const [excelFile, setExcelFile] = useState(null);
 
   const handleFinalConfirm = () => {
-    setShowModal(false);
-    setView("list");
-    setForm({ name: "", email: "", role: "" });
-  };
+      setShowModal(false);
+      setView("list");
 
+      setForm({
+        firstName: "",
+        lastName: "",
+        gender: "",
+        email: "",
+        role: ""
+      });
+
+      setEntryMode("");
+      setExcelFile(null);
+    };
+    
   return (
     <div style={{ position: "relative" }}>
       {view === "list"  && <UserList onCreateAccount={() => setView("step1")} />}
@@ -264,13 +497,20 @@ export default function UserManagement() {
         <CreateAccountStep1
           form={form}
           setForm={setForm}
+          entryMode={entryMode}
+          setEntryMode={setEntryMode}
+          excelFile={excelFile}
+          setExcelFile={setExcelFile}
           onNext={() => setView("step2")}
           onBack={() => setView("list")}
         />
+
       )}
       {view === "step2" && (
         <CreateAccountStep2
           form={form}
+          entryMode={entryMode}
+          excelFile={excelFile}
           onBack={() => setView("step1")}
           onConfirm={() => setShowModal(true)}
         />
