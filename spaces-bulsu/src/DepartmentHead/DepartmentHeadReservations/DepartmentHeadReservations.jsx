@@ -2,7 +2,6 @@ import "./department-head-reservations.css";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
 import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
 import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 function DepartmentHeadReservations() {
   return (
@@ -10,7 +9,6 @@ function DepartmentHeadReservations() {
       <DenialPopup />
       <h1>Reservation Requests</h1>
 
-      <DepartmentHeadNav activePage="reservations" />
       <div className="white-box-reservations">
   <div className="reservations-nav">
     <div className="reservations-nav-item active">Pending</div>

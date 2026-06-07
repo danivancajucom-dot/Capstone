@@ -1,6 +1,5 @@
 import { useState } from "react";
 import "./room-usage-tracking.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 const PLACEHOLDER_HISTORY = [
   { date: "Oct 24, 2026", time: "11:00 AM - 02:00 PM", subject: "PERDEV",   faculty: "Juan Dela Cruz", status: "COMPLETED" },
@@ -17,7 +16,6 @@ export default function RoomUsageTracking() {
 
   return (
     <>
-      <DepartmentHeadNav activePage="room-usage-tracking" />
     <div className="rut-page">
 
       <div className="rut-header">

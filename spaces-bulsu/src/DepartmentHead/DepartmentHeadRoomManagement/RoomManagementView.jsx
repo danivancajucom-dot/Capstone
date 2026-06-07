@@ -3,7 +3,6 @@ import './Shared/room-management-topbar.css';
 import RoomManagementModals from './Modals/RoomManagementModals';
 import { useDeactivationModals } from './hooks/useDeactivationModals';
 import './room-management-view.css';
-import DepartmentHeadNav from '../../Components/DepartmentHeadNav/DepartmentHeadNav';
 
 function PageTopbar() {
   return (
@@ -139,7 +138,6 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
 
   return (
     <>
-      <DepartmentHeadNav activePage="room-management" />
       <RoomManagementModals
         roomName={modals.roomName}
         showWarningModal={modals.showWarningModal}

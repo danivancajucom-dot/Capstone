@@ -1,6 +1,5 @@
 import { useState } from "react";
 import "./notification-management.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 const PLACEHOLDER_NOTIFICATIONS = [
   { id: 1, content: "Maintenance Alert: Room SDL3",      group: "All Staff", status: "Requested", readDate: "--",  sentDate: "Today, 10:24AM",      reads: null, unread: null },
@@ -25,7 +24,6 @@ export default function NotificationManagement() {
 
   return (
     <>
-      <DepartmentHeadNav activePage="notification-management" />
     <div className="nm-page">
 
       <div className="nm-header">

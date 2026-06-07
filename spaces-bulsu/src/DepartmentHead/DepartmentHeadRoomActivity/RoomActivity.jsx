@@ -1,6 +1,5 @@
 import { useState } from "react";
 import "./room-activity.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 const PLACEHOLDER_CONFLICTS = [
   { id: 1, code: "PERDEV",  time: "07:00 AM - 10:00 AM" },
@@ -29,7 +28,6 @@ export default function RoomActivity() {
 
   return (
     <>
-      <DepartmentHeadNav activePage="room-activity" />
     <div className="ra-page">
       <h1 className="ra-title">Room Activity</h1>
 

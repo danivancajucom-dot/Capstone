@@ -1,10 +1,8 @@
 import "./department-head-view-reservation-denied.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 function DepartmentHeadViewReservationDenied() {
   return (
     <>
-      <DepartmentHeadNav activePage="reservations" />
     <div className="container">
       <div className="white-box-denied">
         <h2 className="denied-title">Reservation Details</h2>

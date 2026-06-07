@@ -1,6 +1,5 @@
 import { useState } from "react";
 import "./department-head-schedule.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
 
@@ -10,7 +9,6 @@ function DepartmentHeadSchedule() {
 
   return (
     <>
-      <DepartmentHeadNav activePage="schedule" />
     <div className="container">
           <h1>CICT Master Schedule</h1>
       <div className="dept-schedule-top">

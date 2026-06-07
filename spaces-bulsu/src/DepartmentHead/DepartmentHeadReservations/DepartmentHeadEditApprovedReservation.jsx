@@ -2,12 +2,10 @@ import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
 import SavePopup from "../../Popup/SavePopup/SavePopup";
 import "./department-head-edit-approved-reservation.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 function DepartmentHeadEditApprovedReservation() {
   return (
     <>
-      <DepartmentHeadNav activePage="reservations" />
     <div className="container">
       {/* lagay ko lang dito para makita popup */}
       {/* <ConfirmPopup/> */}

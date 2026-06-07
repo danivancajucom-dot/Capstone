@@ -1,10 +1,8 @@
 import "./department-head-view-reservation-approved.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 function DepartmentHeadViewReservationApproved() {
   return (
     <>
-      <DepartmentHeadNav activePage="reservations" />
     <div className="container">
       <div className="white-box-approved">
         <h2 className="approved-title">Reservation Details</h2>

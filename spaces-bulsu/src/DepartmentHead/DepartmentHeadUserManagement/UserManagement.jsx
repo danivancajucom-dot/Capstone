@@ -1,6 +1,5 @@
 import { useState } from "react";
 import "./user-management.css";
-import DepartmentHeadNav from '../../Components/DepartmentHeadNav/DepartmentHeadNav';
 
 const PLACEHOLDER_USERS = [
   { id: 1, name: "Juan Dela Cruz", email: "j.delacruz@university.edu", role: "Faculty",         status: "Active"    },
@@ -53,7 +52,6 @@ function UserList({ onCreateAccount }) {
 
   return (
     <>
-      <DepartmentHeadNav activePage="user-management" />
     <div className="um-page">
       <div className="um-header">
         <div>

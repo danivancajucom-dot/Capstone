@@ -1,10 +1,8 @@
 import "./department-head-view-reservation.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 
 function DepartmentHeadViewReservation() {
   return (
     <>
-      <DepartmentHeadNav activePage="reservations" />
     <div className="container">
       <i className="fa-solid fa-arrow-left back-arrow"></i>
 
