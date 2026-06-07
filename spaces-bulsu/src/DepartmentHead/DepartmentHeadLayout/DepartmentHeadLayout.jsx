@@ -10,6 +10,7 @@ export default function DepartmentHeadLayout() {
     <>
       <div className="dept-layout">
 
+        {/* SIDEBAR */}
         <aside className="dept-sidebar">
 
           <div className="dept-logo">
@@ -20,49 +21,50 @@ export default function DepartmentHeadLayout() {
           <nav className="dept-nav">
 
             <NavLink end to="/department-head">
+              <i className="fa-solid fa-house"></i>
               Dashboard
             </NavLink>
 
             <NavLink to="/department-head/conflicts">
+              <i className="fa-solid fa-triangle-exclamation"></i>
               Conflicts
             </NavLink>
 
-            <NavLink to="/department-head/reassign-room">
-              Reassign Room
-            </NavLink>
-
-            <NavLink to="/department-head/dept-reservations">
+            <NavLink to="/department-head/reservations">
+              <i className="fa-solid fa-bookmark"></i>
               Reservations
             </NavLink>
 
-            <NavLink to="/department-head/dept-schedule">
+            <NavLink to="/department-head/schedule">
+              <i className="fa-solid fa-calendar-days"></i>
               Schedule
             </NavLink>
 
-            <NavLink to="/department-head/dept-room-management">
+            <NavLink to="/department-head/room-management">
+              <i className="fa-solid fa-building"></i>
               Room Management
             </NavLink>
 
             <NavLink to="/department-head/room-activity">
+              <i className="fa-solid fa-chart-line"></i>
               Room Activity
             </NavLink>
 
             <NavLink to="/department-head/user-management">
+              <i className="fa-solid fa-users"></i>
               User Management
             </NavLink>
 
             <NavLink to="/department-head/notification-management">
+              <i className="fa-solid fa-bell"></i>
               Notifications
-            </NavLink>
-
-            <NavLink to="/department-head/activity-log">
-              Activity Log
             </NavLink>
 
           </nav>
 
         </aside>
 
+        {/* MAIN */}
         <div className="dept-main">
 
           <header className="dept-header">
@@ -72,7 +74,7 @@ export default function DepartmentHeadLayout() {
 
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search users, rooms, schedules..."
               />
             </div>
 
@@ -106,7 +108,13 @@ export default function DepartmentHeadLayout() {
 
           <div className="logout-modal">
 
-            <h2>Are you sure you want to log out?</h2>
+            <div className="modal-icon">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+
+            <h2>
+              Are you sure you want to log out?
+            </h2>
 
             <div className="modal-actions">
 

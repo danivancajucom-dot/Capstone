@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
-
+import Toast from "../Popup/Toast/Toast";
 import heroBackground from "../assets/backgroundlogin.png";
 import LoginNav from "../Components/LoginNav/LoginNav";
 import "./login.css";
@@ -13,8 +13,31 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+      const showToast = (type, title, message) => {
+      setToast({
+        show: true,
+        type,
+        title,
+        message,
+      });
+
+      if (type !== "loading") {
+        setTimeout(() => {
+          setToast((prev) => ({
+            ...prev,
+            show: false,
+          }));
+        }, 4000);
+      }
+    };
 
   const navigate = useNavigate();
 
@@ -33,13 +56,42 @@ export default function Login() {
   ];
 
   const handleSignIn = async () => {
-    setError("");
+  
 
-    if (!selectedRole) return setError("Please select your role.");
-    if (!email) return setError("Please enter your email.");
-    if (!password) return setError("Please enter your password.");
+        if (!selectedRole) {
+      showToast(
+        "error",
+        "Role Required",
+        "Please select your role."
+      );
+      return;
+    }
+
+    if (!email) {
+      showToast(
+        "error",
+        "Email Required",
+        "Please enter your email."
+      );
+      return;
+    }
+
+    if (!password) {
+      showToast(
+        "error",
+        "Password Required",
+        "Please enter your password."
+      );
+      return;
+    }
 
     setLoading(true);
+
+    showToast(
+      "loading",
+      "Signing In",
+      "Please wait while we verify your account."
+    );
 
     try {
       const credential = await signInWithEmailAndPassword(
@@ -54,7 +106,11 @@ export default function Login() {
 
       if (!snap.exists()) {
         await auth.signOut();
-        setError("Account not found. Contact administrator.");
+        showToast(
+          "error",
+          "Account Not Found",
+          "Contact your administrator."
+        );
         setLoading(false);
         return;
       }
@@ -63,17 +119,35 @@ export default function Login() {
 
       if (userData.role !== selectedRole) {
         await auth.signOut();
-        setError(`This account is not registered as ${selectedRole}.`);
+        showToast(
+          "error",
+          "Role Mismatch",
+          `This account is not registered as ${selectedRole}.`
+        );
         setLoading(false);
         return;
       }
 
       if (userData.status === "Disabled") {
         await auth.signOut();
-        setError("Your account has been disabled.");
+        showToast(
+          "error",
+          "Account Disabled",
+          "Your account has been disabled."
+        );
         setLoading(false);
         return;
       }
+      showToast(
+        "success",
+        "Login Successful",
+        `Welcome ${userData.role}!`
+      );
+
+      setTimeout(() => {
+        navigate(ROLE_ROUTES[userData.role] ?? "/");
+      }, 1000);
+      return;
 
       navigate(ROLE_ROUTES[userData.role] ?? "/");
     } catch (err) {
@@ -85,7 +159,11 @@ export default function Login() {
         "auth/invalid-credential": "Invalid email or password.",
       };
 
-      setError(MSG[err.code] || "Sign-in failed. Please try again.");
+      showToast(
+        "error",
+        "Login Failed",
+        MSG[err.code] || "Sign-in failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -94,6 +172,18 @@ export default function Login() {
   return (
     <>
       <LoginNav activePage="login" />
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() =>
+          setToast((prev) => ({
+            ...prev,
+            show: false,
+          }))
+        }
+      />
 
       <div className="login-page-shell">
         {/* HERO SIDE */}
@@ -223,9 +313,6 @@ export default function Login() {
               Forgot Password?
             </button>
           </div>
-
-            {/* ERROR */}
-            {error && <div className="login-error">{error}</div>}
 
             {/* SIGN IN */}
             <button

@@ -7,6 +7,7 @@ import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth } from "../../firebase";
 import "./user-management.css";
+import * as XLSX from "xlsx";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAQRQ0DcO-giGzZN46w91TJb2NGZ1S8ykQ",
@@ -37,10 +38,12 @@ async function createUserSecondaryApp(email, password) {
   }
 }
 
+
 function generateTempPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
+
 
 function Stepper({ current }) {
   return (
@@ -81,6 +84,7 @@ function PasswordCell({ tempPassword, passwordReset }) {
     </div>
   );
 }
+
 
 function UserList({ onCreateAccount }) {
   const [search, setSearch]   = useState("");
@@ -235,8 +239,29 @@ function UserList({ onCreateAccount }) {
   );
 }
 
-function CreateAccountStep1({ form, setForm, onNext, onBack }) {
-  const canProceed = form.firstName && form.lastName && form.gender && form.email && form.role;
+function CreateAccountStep1({
+  form,
+  setForm,
+  entryMode,
+  setEntryMode,
+  excelFile,
+  setExcelFile,
+  onNext,
+  onBack
+}) {
+  const canProceed =
+  entryMode === "manual"
+    ? (
+        form.firstName &&
+        form.lastName &&
+        form.gender &&
+        form.email &&
+        form.role
+      )
+    : (
+        entryMode === "excel" &&
+        excelFile
+      );
   return (
     <div className="um-page">
       <div className="um-create-header">
@@ -245,40 +270,175 @@ function CreateAccountStep1({ form, setForm, onNext, onBack }) {
       </div>
       <Stepper current={1} />
       <div className="um-form-card">
-        {[
-          { label: "First Name", key: "firstName", placeholder: "Enter first name" },
-          { label: "Last Name",  key: "lastName",  placeholder: "Enter last name"  },
-        ].map(f => (
-          <div className="um-form-group" key={f.key}>
-            <label>{f.label}</label>
-            <input className="um-input" placeholder={f.placeholder}
-              value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} />
+        <div className="um-form-group">
+          <label>Select Account Creation Method</label>
+
+          <div className="um-mode-selector">
+
+            <button
+              type="button"
+              className={`um-mode-btn ${
+                entryMode === "manual" ? "active" : ""
+              }`}
+              onClick={() => setEntryMode("manual")}
+            >
+              <i className="fa-solid fa-user" />
+              Individual Entry
+            </button>
+
+            <button
+              type="button"
+              className={`um-mode-btn ${
+                entryMode === "excel" ? "active" : ""
+              }`}
+              onClick={() => setEntryMode("excel")}
+            >
+              <i className="fa-solid fa-file-excel" />
+              Upload Excel
+            </button>
+
           </div>
-        ))}
-        <div className="um-form-group">
-          <label>Gender</label>
-          <select className="um-input um-select" value={form.gender}
-            onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}>
-            <option value="">Select gender</option>
-            <option>Male</option>
-            <option>Female</option>
-          </select>
         </div>
-        <div className="um-form-group">
-          <label>Email Address</label>
-          <input className="um-input" type="email" placeholder="Enter email address"
-            value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
-        </div>
-        <div className="um-form-group">
-          <label>Role</label>
-          <select className="um-input um-select" value={form.role}
-            onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>
-            <option value="">Select role</option>
-            <option>Faculty</option>
-            <option>Local Registrar</option>
-            <option>Clerk</option>
-          </select>
-        </div>
+        {entryMode === "manual" && (
+    <>
+          {[
+            {
+              label: "First Name",
+              key: "firstName",
+              placeholder: "Enter first name"
+            },
+            {
+              label: "Last Name",
+              key: "lastName",
+              placeholder: "Enter last name"
+            }
+          ].map(f => (
+            <div
+              className="um-form-group"
+              key={f.key}
+            >
+              <label>{f.label}</label>
+
+              <input
+                className="um-input"
+                placeholder={f.placeholder}
+                value={form[f.key]}
+                onChange={(e) =>
+                  setForm(prev => ({
+                    ...prev,
+                    [f.key]: e.target.value
+                  }))
+                }
+              />
+            </div>
+          ))}
+
+          <div className="um-form-group">
+            <label>Gender</label>
+
+            <select
+              className="um-input um-select"
+              value={form.gender}
+              onChange={(e) =>
+                setForm(prev => ({
+                  ...prev,
+                  gender: e.target.value
+                }))
+              }
+            >
+              <option value="">
+                Select gender
+              </option>
+
+              <option>Male</option>
+              <option>Female</option>
+            </select>
+          </div>
+
+          <div className="um-form-group">
+            <label>Email Address</label>
+
+            <input
+              className="um-input"
+              type="email"
+              placeholder="Enter email address"
+              value={form.email}
+              onChange={(e) =>
+                setForm(prev => ({
+                  ...prev,
+                  email: e.target.value
+                }))
+              }
+            />
+          </div>
+
+          <div className="um-form-group">
+            <label>Role</label>
+
+            <select
+              className="um-input um-select"
+              value={form.role}
+              onChange={(e) =>
+                setForm(prev => ({
+                  ...prev,
+                  role: e.target.value
+                }))
+              }
+            >
+              <option value="">
+                Select role
+              </option>
+
+              <option>Faculty</option>
+              <option>Local Registrar</option>
+              <option>Clerk</option>
+              <option>Department Head</option>
+            </select>
+          </div>
+        </>
+      )}
+      {entryMode === "excel" && (
+  <>
+    <div className="um-upload-info">
+      <h3>Required Excel Columns</h3>
+
+      <ul>
+        <li>firstName</li>
+        <li>lastName</li>
+        <li>gender</li>
+        <li>email</li>
+        <li>role</li>
+      </ul>
+
+      <p>
+        Every row will automatically create
+        a new user account.
+      </p>
+    </div>
+
+    <div className="um-form-group">
+      <label>Upload Excel File</label>
+
+      <input
+        type="file"
+        accept=".xlsx,.xls"
+        className="um-input"
+        onChange={(e) =>
+          setExcelFile(
+            e.target.files?.[0] || null
+          )
+        }
+      />
+    </div>
+
+    {excelFile && (
+      <div className="um-file-preview">
+        <i className="fa-solid fa-file-excel" />
+        {excelFile.name}
+      </div>
+    )}
+  </>
+)}
       </div>
       <div className="um-footer step2">
         <button className="um-back-btn" onClick={onBack}>Back</button>
@@ -288,36 +448,103 @@ function CreateAccountStep1({ form, setForm, onNext, onBack }) {
   );
 }
 
-function CreateAccountStep2({ form, onBack, onConfirm }) {
+function CreateAccountStep2({
+  form,
+  entryMode,
+  excelFile,
+  onBack,
+  onConfirm
+}) {
   return (
     <div className="um-page">
       <div className="um-create-header">
-        <h1 className="um-title">Create New Account</h1>
-        <p className="um-subtitle">Review the information before proceeding.</p>
+        <h1 className="um-title">
+          Create New Account
+        </h1>
+
+        <p className="um-subtitle">
+          Review the information before proceeding.
+        </p>
       </div>
+
       <Stepper current={2} />
+
       <div className="um-form-card">
-        <h2 className="um-confirm-title">Account Details</h2>
+        <h2 className="um-confirm-title">
+          Account Details
+        </h2>
+
         <hr className="um-confirm-divider" />
+
         <div className="um-confirm-body">
-          <p><strong>First Name:</strong> {form.firstName}</p>
-          <p><strong>Last Name:</strong> {form.lastName}</p>
-          <p><strong>Gender:</strong> {form.gender}</p>
-          <p><strong>Email:</strong> {form.email}</p>
-          <p><strong>Role:</strong> {form.role}</p>
+
+          {entryMode === "manual" ? (
+            <>
+              <p>
+                <strong>First Name:</strong>{" "}
+                {form.firstName}
+              </p>
+
+              <p>
+                <strong>Last Name:</strong>{" "}
+                {form.lastName}
+              </p>
+
+              <p>
+                <strong>Gender:</strong>{" "}
+                {form.gender}
+              </p>
+
+              <p>
+                <strong>Email:</strong>{" "}
+                {form.email}
+              </p>
+
+              <p>
+                <strong>Role:</strong>{" "}
+                {form.role}
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>Upload Type:</strong>
+                {" "}Bulk Excel Upload
+              </p>
+
+              <p>
+                <strong>File:</strong>{" "}
+                {excelFile?.name}
+              </p>
+            </>
+          )}
+
         </div>
+
         <div className="um-info-box">
           <i className="fa-solid fa-circle-info" />
+
           <span>
-            A temporary password will be auto-generated and visible in the user table.
-            A formal onboarding email with login credentials will be sent to the user.
-            Once the user sets their own password, the temporary password will be hidden.
+            An automated email will be sent
+            to all created users.
           </span>
         </div>
       </div>
+
       <div className="um-footer step2">
-        <button className="um-back-btn" onClick={onBack}>Back</button>
-        <button className="um-next-btn" onClick={onConfirm}>Confirm</button>
+        <button
+          className="um-back-btn"
+          onClick={onBack}
+        >
+          Back
+        </button>
+
+        <button
+          className="um-next-btn"
+          onClick={onConfirm}
+        >
+          Confirm
+        </button>
       </div>
     </div>
   );
@@ -346,39 +573,225 @@ export default function UserManagement() {
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating]   = useState(false);
   const [form, setForm]           = useState(EMPTY_FORM);
+  const [entryMode, setEntryMode] = useState("");
+  const [excelFile, setExcelFile] = useState(null);
 
-  const reset = () => { setForm(EMPTY_FORM); setView("list"); };
+  const reset = () => {
+    setForm(EMPTY_FORM);
+    setEntryMode("");
+    setExcelFile(null);
+    setView("list");
+  };
 
-  const handleFinalConfirm = async () => {
+    const parseExcelFile = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+          try {
+            const data = e.target.result;
+
+            const workbook = XLSX.read(data, {
+              type: "array",
+            });
+
+            const sheetName = workbook.SheetNames[0];
+
+            const sheet =
+              workbook.Sheets[sheetName];
+
+            const rows =
+              XLSX.utils.sheet_to_json(sheet);
+
+            resolve(rows);
+          } catch (err) {
+            reject(err);
+          }
+        };
+
+        reader.onerror = reject;
+
+        reader.readAsArrayBuffer(file);
+      });
+    };
+
+    const handleFinalConfirm = async () => {
     setCreating(true);
+
     try {
-      const tempPassword = generateTempPassword();
-      const uid = await createUserSecondaryApp(form.email, tempPassword);
 
-      await setDoc(doc(db, "users", uid), {
-        firstName:     form.firstName,
-        lastName:      form.lastName,
-        gender:        form.gender,
-        email:         form.email,
-        role:          form.role,
-        status:        "Active",
-        tempPassword,
-        passwordReset: false,
-        createdAt:     new Date().toISOString(),
-      });
+      // ==========================
+      // MANUAL ACCOUNT CREATION
+      // ==========================
+      if (entryMode === "manual") {
 
-      await sendPasswordResetEmail(auth, form.email, {
-        url: `${window.location.origin}/reset-password`,
-        handleCodeInApp: false,
-      });
+        const tempPassword =
+          generateTempPassword();
+
+        const uid =
+          await createUserSecondaryApp(
+            form.email,
+            tempPassword
+          );
+
+        await setDoc(
+          doc(db, "users", uid),
+          {
+            firstName: form.firstName,
+            lastName: form.lastName,
+            gender: form.gender,
+            email: form.email,
+            role: form.role,
+            status: "Active",
+            tempPassword,
+            passwordReset: false,
+            createdAt:
+              new Date().toISOString(),
+          }
+        );
+
+        await sendPasswordResetEmail(
+          auth,
+          form.email,
+          {
+            url:
+              `${window.location.origin}/reset-password`,
+            handleCodeInApp: false,
+          }
+        );
+
+        alert(
+          `Account created for ${form.email}`
+        );
+      }
+
+      // ==========================
+      // BULK EXCEL CREATION
+      // ==========================
+      else {
+
+        const rows =
+          await parseExcelFile(excelFile);
+
+          const normalizedRows = rows.map(row => ({
+              firstName:
+                row["First Name"] ||
+                row["firstName"],
+
+              lastName:
+                row["Last Name"] ||
+                row["lastName"],
+
+              gender:
+                row["Gender"] ||
+                row["gender"],
+
+              email:
+                row["Email"] ||
+                row["email"],
+
+              role:
+                row["Role"] ||
+                row["role"],
+            }));
+
+        let successCount = 0;
+        let failedRows = [];
+
+        for (let i = 0; i < normalizedRows.length; i++) {
+            
+          const row = normalizedRows[i];
+
+          try {
+
+            if (
+              !row.firstName ||
+              !row.lastName ||
+              !row.gender ||
+              !row.email ||
+              !row.role
+            ) {
+              throw new Error(
+                "Missing required fields"
+              );
+            }
+
+            const tempPassword =
+              generateTempPassword();
+
+            const uid =
+              await createUserSecondaryApp(
+                row.email,
+                tempPassword
+              );
+
+            await setDoc(
+              doc(db, "users", uid),
+              {
+                firstName: row.firstName,
+                lastName: row.lastName,
+                gender: row.gender,
+                email: row.email,
+                role: row.role,
+                status: "Active",
+                tempPassword,
+                passwordReset: false,
+                createdAt:
+                  new Date().toISOString(),
+              }
+            );
+
+            await sendPasswordResetEmail(
+              auth,
+              row.email,
+              {
+                url:
+                  `${window.location.origin}/reset-password`,
+                handleCodeInApp: false,
+              }
+            );
+
+            successCount++;
+
+          } catch (err) {
+
+            console.error(err);
+
+            failedRows.push({
+              row: i + 2,
+              email: row.email,
+              error:
+                err.code ||
+                err.message
+            });
+
+          }
+        }
+
+        alert(
+          `Bulk upload completed.\n\n` +
+          `Created: ${successCount}\n` +
+          `Failed: ${failedRows.length}`
+        );
+
+        console.log(
+          "Failed Rows:",
+          failedRows
+        );
+      }
 
       setShowModal(false);
       reset();
-      alert(`Account created! Login credentials have been sent to ${form.email}.`);
+
     } catch (err) {
+
       console.error(err);
-      alert("Failed to create account: " + (err.message ?? err.code));
-      setShowModal(false);
+
+      alert(
+        "Failed: " +
+        (err.message || err.code)
+      );
+
     } finally {
       setCreating(false);
     }
@@ -387,8 +800,27 @@ export default function UserManagement() {
   return (
     <div style={{ position: "relative" }}>
       {view === "list"  && <UserList onCreateAccount={() => setView("step1")} />}
-      {view === "step1" && <CreateAccountStep1 form={form} setForm={setForm} onNext={() => setView("step2")} onBack={reset} />}
-      {view === "step2" && <CreateAccountStep2 form={form} onBack={() => setView("step1")} onConfirm={() => setShowModal(true)} />}
+      {view === "step1" && (
+  <CreateAccountStep1
+    form={form}
+    setForm={setForm}
+    entryMode={entryMode}
+    setEntryMode={setEntryMode}
+    excelFile={excelFile}
+    setExcelFile={setExcelFile}
+    onNext={() => setView("step2")}
+    onBack={reset}
+  />
+)}
+      {view === "step2" && (
+  <CreateAccountStep2
+    form={form}
+    entryMode={entryMode}
+    excelFile={excelFile}
+    onBack={() => setView("step1")}
+    onConfirm={() => setShowModal(true)}
+  />
+)}
       {showModal && <ConfirmModal loading={creating} onCancel={() => setShowModal(false)} onConfirm={handleFinalConfirm} />}
     </div>
   );

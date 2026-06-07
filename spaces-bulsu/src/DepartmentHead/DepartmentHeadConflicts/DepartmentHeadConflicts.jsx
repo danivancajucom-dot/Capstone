@@ -1,12 +1,10 @@
 import "./department-head-conflicts.css";
-import DepartmentHeadNav from "../../Components/DepartmentHeadNav/DepartmentHeadNav";
 import ConflictCard from "../../Components/ConflictCard/ConflictCard";
 import RoomReassignCard from "../../Components/RoomReassignCard/RoomReassignCard";
 
 function DepartmentHeadConflicts() {
   return (
    <>
-    <DepartmentHeadNav activePage="conflicts" />
    <div className="container">
   <div className="page-header">
     <div>

@@ -105,11 +105,13 @@ body { background-color: #F8F7F5; }
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.07);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .um-table {
   width: 100%;
+  min-width: 1100px;
   border-collapse: collapse;
 }
 
@@ -123,6 +125,18 @@ body { background-color: #F8F7F5; }
   letter-spacing: 0.07em;
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
+}
+.um-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.um-table td:last-child,
+.um-table th:last-child {
+  width: 120px;
+  min-width: 120px;
 }
 
 .um-table td {
@@ -614,4 +628,59 @@ body { background-color: #F8F7F5; }
 .um-pw-na {
   color: #d1d5db;
   font-size: 1rem;
+}
+
+@media (max-width: 1200px) {
+
+  .um-page {
+    padding: 24px;
+  }
+
+  .um-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .um-create-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .um-title {
+    font-size: 28px;
+  }
+
+  .um-form-card {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+
+  .um-page {
+    padding: 16px;
+  }
+
+  .um-title {
+    font-size: 24px;
+  }
+
+  .um-step-line {
+    width: 60px;
+  }
+
+  .um-mode-selector {
+    flex-direction: column;
+  }
+
+  .um-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .um-back-btn,
+  .um-next-btn {
+    width: 100%;
+  }
 }

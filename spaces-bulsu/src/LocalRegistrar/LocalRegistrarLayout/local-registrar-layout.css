@@ -1,95 +1,126 @@
 .registrar-layout{
-  display:fixed;
+  display:flex;
   min-height:100vh;
   background:#f5f6fa;
   font-family:'Lexend',sans-serif;
 }
 
-
 /* SIDEBAR */
-.registrar-sidebar{ 
-    width:260px; 
-    position:fixed; 
-    left:0; 
-    top:0; 
-    bottom:0; 
-    background:white; 
-    border-right:1px solid #eee; }
+.registrar-sidebar{
+  width:260px;
+  position:fixed;
+  left:0;
+  top:0;
+  bottom:0;
+  background:white;
+  border-right:1px solid #eee;
+}
 
-.registrar-logo{ 
-    padding:24px; 
-    font-size:24px; 
-    font-weight:700; }
+.registrar-logo{
+  padding:24px;
+}
 
 .registrar-logo h2{
   margin:0;
   color:#f57c00;
-  font-size:28px;
 }
 
 .registrar-logo span{
-  color:#777;
   font-size:13px;
+  color:#777;
 }
 
+/* NAV */
 .registrar-nav{
   display:flex;
-  flex-direction:row;
+  flex-direction:column;
   padding:12px;
 }
 
-.registrar-nav a{
+/* LINKS */
+.registrar-nav a,
+.nav-parent{
   display:flex;
   align-items:center;
   gap:12px;
+
   padding:16px;
   margin-bottom:8px;
+
+  border-radius:16px;
   text-decoration:none;
   color:#5a6474;
-  border-radius:16px;
-  transition:.2s;
+
+  background:none;
+  border:none;
+  width:100%;
+  cursor:pointer;
+
+  font-family:'Lexend',sans-serif;
+  font-size:14px;
 }
 
-.registrar-nav a:hover{
+.registrar-nav a:hover,
+.nav-parent:hover{
   background:#f4f4f4;
 }
 
 .registrar-nav a.active{
   background:#f57c00;
-  width: max-content;
   color:white;
-  justify-content: center;
-    transition:.5s;
+}
 
+/* ARROW */
+.arrow{
+  margin-left:auto;
+  transition:0.2s;
+}
+
+.arrow.open{
+  transform:rotate(180deg);
+}
+
+/* SUBMENU */
+.submenu{
+  display:none;
+  flex-direction:column;
+  padding-left:20px;
+}
+
+.submenu.open{
+  display:flex;
+}
+
+.submenu a{
+  padding:10px 12px;
+  font-size:13px;
 }
 
 /* MAIN */
-
 .registrar-main{
-  margin-left: 260px;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+  margin-left:270px;
+  flex:1;
+  min-width:0;
 }
 
 /* HEADER */
-
 .registrar-header{
   position:fixed;
   top:0;
-  left:260px;
+  left:270px;
   right:0;
+
   height:80px;
   background:white;
   border-bottom:1px solid #ececec;
+
   display:flex;
-  align-items:center;
   justify-content:space-between;
+  align-items:center;
+
   padding:0 30px;
   z-index:90;
 }
-
-/* SEARCH */
 
 .header-search{
   width:450px;
@@ -107,129 +138,70 @@
 .header-search input{
   width:100%;
   height:54px;
-
   border:none;
   outline:none;
-
   border-radius:18px;
-
   background:#eef1f5;
-
   padding-left:50px;
-
-  font-family:'Lexend',sans-serif;
-}
-
-/* ACTIONS */
-
-.header-actions{
-  display:flex;
-  gap:12px;
-}
-
-.header-btn{
-  width:52px;
-  height:52px;
-
-  border:none;
-  border-radius:16px;
-
-  background:#eef1f5;
-
-  font-size:18px;
-
-  cursor:pointer;
-}
-
-.header-btn:hover{
-  background:#e4e8ed;
 }
 
 /* CONTENT */
-
 .registrar-content{
-  margin-top:40px;
+  margin-top:80px;
+  padding:30px;
   min-height:calc(100vh - 80px);
-  flex: 1;  
-  padding:20px;
-  overflow-y:auto;
+  overflow-x:hidden;
 }
 
-/* LOGOUT MODAL */
-
+/* MODAL */
 .modal-overlay{
   position:fixed;
   inset:0;
-
   background:rgba(0,0,0,.35);
-
   display:flex;
   align-items:center;
   justify-content:center;
-
-  z-index:999;
 }
 
 .logout-modal{
   width:420px;
   background:white;
-
-  border-radius:24px;
-
   padding:32px;
-
+  border-radius:24px;
   text-align:center;
 }
 
 .modal-icon{
   width:70px;
   height:70px;
-
   margin:auto;
-
-  border-radius:50%;
-
   background:#fff3e8;
-
+  color:#f57c00;
   display:flex;
   align-items:center;
   justify-content:center;
-
-  color:#f57c00;
+  border-radius:50%;
   font-size:28px;
-}
-
-.logout-modal h2{
-  margin:20px 0;
 }
 
 .modal-actions{
   display:flex;
   gap:12px;
+  margin-top:20px;
 }
 
 .modal-btn{
   flex:1;
   height:50px;
-
   border:none;
   border-radius:14px;
-
   cursor:pointer;
-  font-weight:600;
 }
 
-.modal-btn.cancel{
-  background:#eeeeee;
-}
+.modal-btn.cancel{ background:#eee; }
+.modal-btn.confirm{ background:#f57c00; color:white; }
 
-.modal-btn.confirm{
-  background:#f57c00;
-  color:white;
-}
-
-/* RESPONSIVE */
-
+/* RESPONSIVE (ICON ONLY MODE) */
 @media(max-width:992px){
 
   .registrar-sidebar{
@@ -240,20 +212,20 @@
     display:none;
   }
 
-  .registrar-nav a{
+  .registrar-nav a,
+  .nav-parent{
     justify-content:center;
-  }
-
-  .registrar-nav a i{
-    margin:0;
-  }
-
-  .registrar-nav a{
     font-size:0;
   }
 
-  .registrar-nav a i{
+  .registrar-nav a i,
+  .nav-parent i{
     font-size:18px;
+    margin:0;
+  }
+
+  .arrow{
+    display:none;
   }
 
   .registrar-main{
@@ -264,6 +236,14 @@
     left:90px;
   }
 
+  /* submenu still works but floats nicer */
+  .submenu{
+    padding-left:0;
+  }
+
+  .submenu a{
+    font-size:12px;
+  }
 }
 
 @media(max-width:768px){
@@ -275,5 +255,4 @@
   .registrar-content{
     padding:16px;
   }
-
 }
