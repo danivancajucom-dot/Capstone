@@ -16,43 +16,44 @@ export default function ClerkLayout() {
 
           <div className="clerk-logo">
             <h2>SpaceS</h2>
-            <span>Clerk</span>
+            <span>Clerk Panel</span>
           </div>
 
           <nav className="clerk-nav">
 
             <NavLink end to="/clerk">
+              <i className="fa-solid fa-house"></i>
               Dashboard
             </NavLink>
 
             <NavLink to="/clerk/schedule">
+              <i className="fa-solid fa-calendar"></i>
               Schedule
             </NavLink>
 
-            {/* DROPDOWN GROUP */}
-            <div className="sidebar-group">
+            {/* DROPDOWN */}
+            <div className="nav-group">
 
-              <div
-                className="sidebar-parent"
+              <button
+                className="nav-parent"
                 onClick={() => setOpenReservations(!openReservations)}
               >
+                <i className="fa-solid fa-bookmark"></i>
                 Reservations
+                <i className={`fa-solid fa-chevron-down arrow ${openReservations ? "open" : ""}`}></i>
+              </button>
+
+              <div className={`submenu ${openReservations ? "open" : ""}`}>
+
+                <NavLink to="/clerk/online-reservations">
+                  Online Reservations
+                </NavLink>
+
+                <NavLink to="/clerk/walk-in-reservation">
+                  Walk-in Reservations
+                </NavLink>
+
               </div>
-
-              {openReservations && (
-                <div className="sidebar-child">
-
-                  <NavLink to="/clerk/online-reservations">
-                    Online Reservations
-                  </NavLink>
-
-                  <NavLink to="/clerk/walk-in-reservation">
-                    Walk-in Reservations
-                  </NavLink>
-
-                </div>
-              )}
-
             </div>
 
           </nav>
@@ -65,14 +66,23 @@ export default function ClerkLayout() {
           <header className="clerk-header">
 
             <div className="header-search">
+              <i className="fa-solid fa-magnifying-glass"></i>
               <input type="text" placeholder="Search..." />
             </div>
 
             <div className="header-actions">
-              <button className="header-btn">🔔</button>
-              <button className="header-btn" onClick={() => setShowLogout(true)}>
-                ⎋
+
+              <button className="header-btn">
+                <i className="fa-regular fa-bell"></i>
               </button>
+
+              <button
+                className="header-btn logout"
+                onClick={() => setShowLogout(true)}
+              >
+                <i className="fa-solid fa-right-from-bracket"></i>
+              </button>
+
             </div>
 
           </header>
@@ -90,9 +100,14 @@ export default function ClerkLayout() {
         <div className="modal-overlay">
           <div className="logout-modal">
 
+            <div className="modal-icon">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+
             <h2>Are you sure you want to logout?</h2>
 
             <div className="modal-actions">
+
               <button
                 className="modal-btn cancel"
                 onClick={() => setShowLogout(false)}
@@ -106,6 +121,7 @@ export default function ClerkLayout() {
               >
                 Confirm
               </button>
+
             </div>
 
           </div>

@@ -8,6 +8,8 @@ import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth } from "../../firebase";
 import "./user-management.css";
 import * as XLSX from "xlsx";
+import emailjs from "@emailjs/browser";
+import { deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAQRQ0DcO-giGzZN46w91TJb2NGZ1S8ykQ",
@@ -91,6 +93,25 @@ function UserList({ onCreateAccount }) {
   const [users, setUsers]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const handleDeleteUser = (user) => {
+    setDeleteTarget(user);
+  };
+  const confirmDeleteUser = async () => {
+  if (!deleteTarget) return;
+
+  try {
+    await deleteDoc(doc(db, "users", deleteTarget.id));
+
+    setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
+
+    alert("User deleted successfully.");
+  } catch (e) {
+    alert("Failed to delete user: " + e.message);
+  } finally {
+    setDeleteTarget(null);
+  }
+};
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -215,6 +236,13 @@ function UserList({ onCreateAccount }) {
                     <td>
                       <div className="um-actions">
                         <button
+                              className="um-action-icon danger"
+                              title="Delete User"
+                              onClick={() => handleDeleteUser(u)}
+                            >
+                              <i className="fa-solid fa-trash" />
+                            </button>
+                        <button
                           className="um-action-icon"
                           title="Send password reset email"
                           onClick={() => handleResetPassword(u)}
@@ -235,6 +263,40 @@ function UserList({ onCreateAccount }) {
           </table>
         )}
       </div>
+      {deleteTarget && (
+      <div className="um-modal-overlay">
+        <div className="um-modal">
+
+          <div className="um-modal-icon">
+            <i className="fa-solid fa-trash" />
+          </div>
+
+          <h3 className="um-modal-title">Delete User</h3>
+
+          <p className="um-modal-text">
+            Are you sure you want to permanently delete<br />
+            <strong>{deleteTarget.email}</strong>?
+            <br /><br />
+            This action cannot be undone.
+          </p>
+
+          <button
+            className="um-modal-cancel"
+            onClick={() => setDeleteTarget(null)}
+          >
+            Cancel
+          </button>
+
+          <button
+            className="um-modal-confirm"
+            onClick={confirmDeleteUser}
+          >
+            Yes, Delete
+          </button>
+
+        </div>
+      </div>
+    )}
     </div>
   );
 }
@@ -652,10 +714,9 @@ export default function UserManagement() {
 
         await sendPasswordResetEmail(
           auth,
-          form.email,
+          row.email,
           {
-            url:
-              `${window.location.origin}/reset-password`,
+            url: `${window.location.origin}/reset-password`,
             handleCodeInApp: false,
           }
         );
@@ -742,15 +803,14 @@ export default function UserManagement() {
             );
 
             await sendPasswordResetEmail(
-              auth,
-              row.email,
-              {
-                url:
-                  `${window.location.origin}/reset-password`,
-                handleCodeInApp: false,
-              }
-            );
-
+            auth,
+            row.email,
+            {
+              url: `${window.location.origin}/reset-password`,
+              handleCodeInApp: false,
+            }
+          );
+          
             successCount++;
 
           } catch (err) {

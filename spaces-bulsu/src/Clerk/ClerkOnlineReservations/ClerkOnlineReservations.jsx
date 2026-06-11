@@ -7,7 +7,6 @@ function ClerkOnlineReservations() {
   return (
     <>
       <div className="container">
-      <DenialPopup />
       <h1>Online Reservation</h1>
 
       <div className="clerk-online-reservations">

@@ -21,6 +21,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import "./reset-password.css";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -33,20 +34,100 @@ export default function ResetPassword() {
   const [showCf, setShowCf]         = useState(false);
   const [error, setError]           = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code   = params.get("oobCode");
-    if (!code) { setStage("error"); return; }
 
+    const code = params.get("oobCode");
+    const mode = params.get("mode");
+
+    console.log("URL:", window.location.href);
+    console.log("MODE:", mode);
+    console.log("CODE:", code);
+
+    // Normal visit -> Forgot Password screen
+    if (!code) {
+      setStage("request");
+      return;
+    }
+
+    // Firebase reset link validation
     verifyPasswordResetCode(auth, code)
-      .then(userEmail => {
+      .then((userEmail) => {
         setOobCode(code);
         setEmail(userEmail);
         setStage("form");
       })
-      .catch(() => setStage("error"));
+      .catch((err) => {
+        console.error("VERIFY ERROR:", err);
+
+        if (
+          err.code === "auth/expired-action-code" ||
+          err.code === "auth/invalid-action-code"
+        ) {
+          setError(
+            "This password reset link has expired or has already been used."
+          );
+        }
+
+        setStage("error");
+      });
   }, []);
+
+  const handleSendResetLink = async () => {
+    try {
+      setError("");
+
+      if (!resetEmail.trim()) {
+        setError("Please enter your email address.");
+        return;
+      }
+
+      const q = query(
+        collection(db, "users"),
+        where("email", "==", resetEmail.trim())
+      );
+
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        setError(
+          "No account found with that email address."
+        );
+        return;
+      }
+
+      await sendPasswordResetEmail(
+        auth,
+        resetEmail.trim(),
+        {
+          url: `${window.location.origin}/reset-password`,
+          handleCodeInApp: true,
+        }
+      );
+
+      setStage("email-sent");
+
+    } catch (err) {
+      console.error(err);
+
+      const errors = {
+        "auth/user-not-found":
+          "No account found with that email.",
+        "auth/invalid-email":
+          "Invalid email address.",
+        "auth/too-many-requests":
+          "Too many attempts. Please try again later.",
+      };
+
+      setError(
+        errors[err.code] ||
+        "Unable to send reset email."
+      );
+    }
+  };
 
   const getStrength = (pw) => {
     let score = 0;
@@ -93,6 +174,51 @@ export default function ResetPassword() {
       setSubmitting(false);
     }
   };
+      if (stage === "request") {
+      return (
+        <div className="rp-shell">
+          <div className="rp-card">
+
+            <div className="rp-logo">
+              <i className="fa-solid fa-envelope" />
+            </div>
+
+            <h1 className="rp-title">
+              Forgot Password
+            </h1>
+
+            <p className="rp-subtitle">
+              Enter your email address and we'll send
+              you a password reset link.
+            </p>
+
+            <input
+              className="rp-input"
+              type="email"
+              placeholder="Email Address"
+              value={resetEmail}
+              onChange={(e) =>
+                setResetEmail(e.target.value)
+              }
+            />
+
+            {error && (
+              <div className="rp-error-box">
+                {error}
+              </div>
+            )}
+
+            <button
+              className="rp-btn rp-btn-primary"
+              onClick={handleSendResetLink}
+            >
+              Send Reset Link
+            </button>
+
+          </div>
+        </div>
+      );
+    }
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (stage === "loading") {
@@ -111,23 +237,72 @@ export default function ResetPassword() {
     return (
       <div className="rp-shell">
         <div className="rp-card">
+
           <div className="rp-icon-wrap rp-icon-error">
             <i className="fa-solid fa-triangle-exclamation" />
           </div>
-          <h1 className="rp-title">Invalid Reset Link</h1>
+
+          <h1 className="rp-title">
+            Invalid Reset Link
+          </h1>
+
           <p className="rp-subtitle">
-            This password reset link is invalid or has already expired.
-            Please contact your system administrator to request a new one.
+            {error ||
+              "This password reset link is invalid or has expired."}
           </p>
-          <button className="rp-btn rp-btn-secondary" onClick={() => navigate("/")}>
+
+          <button
+            className="rp-btn rp-btn-primary"
+            onClick={() => {
+              setError("");
+              setStage("request");
+            }}
+          >
+            Request New Link
+          </button>
+
+          <button
+            className="rp-btn rp-btn-secondary"
+            onClick={() => navigate("/")}
+          >
             Back to Login
           </button>
+
         </div>
       </div>
     );
   }
 
   // ── Success ────────────────────────────────────────────────────────────────
+  if (stage === "email-sent") {
+  return (
+    <div className="rp-shell">
+      <div className="rp-card">
+
+        <div className="rp-icon-wrap rp-icon-success">
+          <i className="fa-solid fa-envelope-circle-check" />
+        </div>
+
+        <h1 className="rp-title">
+          Email Sent
+        </h1>
+
+        <p className="rp-subtitle">
+          Check your inbox and click the password
+          reset link to continue.
+        </p>
+
+        <button
+          className="rp-btn rp-btn-primary"
+          onClick={() => navigate("/")}
+        >
+          Back to Login
+        </button>
+
+      </div>
+    </div>
+  );
+}
   if (stage === "success") {
     return (
       <div className="rp-shell">
@@ -149,7 +324,10 @@ export default function ResetPassword() {
   }
 
   // ── Form ───────────────────────────────────────────────────────────────────
+console.log("STAGE =", stage);
+console.log("EMAIL =", email);
   return (
+    
     <div className="rp-shell">
       <div className="rp-card rp-card-form">
 
@@ -203,6 +381,9 @@ export default function ResetPassword() {
             </div>
           )}
         </div>
+        <h2 style={{color:"red"}}>
+          CONFIRM PASSWORD SECTION
+        </h2>
 
         {/* Confirm password */}
         <div className="rp-form-group">
