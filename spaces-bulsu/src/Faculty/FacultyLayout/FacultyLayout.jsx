@@ -5,6 +5,8 @@ import "./faculty-layout.css";
 export default function FacultyLayout() {
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showNotifications, setShowNotifications] =
+  useState(false);
 
   return (
     <>
