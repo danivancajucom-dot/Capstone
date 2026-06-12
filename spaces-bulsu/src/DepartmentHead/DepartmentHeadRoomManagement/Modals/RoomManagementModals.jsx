@@ -5,13 +5,18 @@ function RoomManagementModals({
   showWarningModal,
   showDeactivationModal,
   showActivationModal,
+  showDeleteModal,
+
   closeWarningModal,
   closeDeactivationModal,
   closeActivationModal,
+  closeDeleteModal,
+
   handleConfirmDeactivation,
   onConfirmDeactivation,
   onActivateConfirm,
   onViewAffectedSchedules,
+  onDeleteConfirm
 }) {
   return (
     <>
@@ -157,6 +162,43 @@ function RoomManagementModals({
           </div>
         </div>
       )}
+      {showDeleteModal && (
+      <div className="modal-overlay" onClick={closeDeleteModal}>
+        <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
+
+          <div className="delete-modal-icon">
+            <i className="fa-solid fa-trash" />
+          </div>
+
+          <h3>Delete Room</h3>
+
+          <p>
+            Are you sure you want to delete <strong>{roomName}</strong>?
+            <br />
+            This action cannot be undone.
+          </p>
+
+          <div className="delete-modal-actions">
+            <button
+              type="button"
+              className="modal-btn modal-btn--outline"
+              onClick={closeDeleteModal}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              className="modal-btn modal-btn--danger"
+              onClick={onDeleteConfirm}
+            >
+              Delete
+            </button>
+          </div>
+
+        </div>
+      </div>
+    )}
     </>
   );
 }

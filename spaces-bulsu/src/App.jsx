@@ -29,7 +29,8 @@ import UserManagement from "./DepartmentHead/DepartmentHeadUserManagement/UserMa
 import NotificationManagement from "./DepartmentHead/HeadDepartmentNotificationManagement/NotificationManagement";
 import DepartmentHeadDashboard from "./DepartmentHead/DepartmentHeadDashboard/DepartmentHeadDashboard";
 import DepartmentHeadActivityLog from "./DepartmentHead/DepartmentHeadActivityLog/DepartmentHeadActivityLog";
-
+import DepartmentHeadAddRoom from "./DepartmentHead/DepartmentHeadRoomManagement/AddRoom/RoomManagementAddRoom";
+import DepartmentHeadEditRoom from "./DepartmentHead/DepartmentHeadRoomManagement/EditDetails/RoomManagementEditDetails";
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
 import ClerkDashboard from "./Clerk/ClerkDashboard/ClerkDashboard";
@@ -72,6 +73,7 @@ function App() {
           index
           element={<DepartmentHeadDashboard />}
         />
+        
 
         <Route
           path="activity-log"
@@ -121,6 +123,14 @@ function App() {
         <Route
           path="room-management"
           element={<DepartmentHeadRoomManagement />}
+        />
+        <Route
+          path="add-room"
+          element={<DepartmentHeadAddRoom />}
+        />
+        <Route
+          path="edit-room/:id"
+          element={<DepartmentHeadEditRoom />}
         />
 
         <Route

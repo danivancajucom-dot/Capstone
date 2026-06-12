@@ -1,61 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import './department-head-activity-log.css';
 import { useNavigate } from "react-router-dom";
-
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { db } from "../../firebase";
+import Toast from "../../Popup/Toast/Toast";
 const tabs = ['All Activities', 'System Changes', 'Security Events'];
-
-const logs = [
-  {
-    user: 'Juan Dela Cruz',
-    role: 'Department Head',
-    action: 'Approved Reservation',
-    actionType: 'success',
-    target: 'Room A1',
-    date: 'Oct 21, 2026',
-    time: '9:44 AM',
-    status: 'SUCCESS',
-  },
-  {
-    user: 'Juan Dela Cruz',
-    role: 'Department Head',
-    action: 'Updated User Roles',
-    actionType: 'edit',
-    target: 'User: Juan Dela Cruz',
-    date: 'Oct 21, 2026',
-    time: '11:00 AM',
-    status: 'SUCCESS',
-  },
-  {
-    user: 'Juan Dela Cruz',
-    role: 'Faculty',
-    action: 'Request Reservation',
-    actionType: 'denied',
-    target: 'Room SDL1',
-    date: 'Oct 21, 2026',
-    time: '11:51 AM',
-    status: 'DENIED',
-  },
-  {
-    user: 'Juan Dela Cruz',
-    role: 'Clerk',
-    action: 'Failed Login Attempt',
-    actionType: 'failed',
-    target: 'Auth: IP 192.168.1.1',
-    date: 'Oct 21, 2026',
-    time: '3:03 PM',
-    status: 'FAILED',
-  },
-  {
-    user: 'Juan Dela Cruz',
-    role: 'Department Head',
-    action: 'Approved Reservation',
-    actionType: 'success',
-    target: 'Room CT8',
-    date: 'Oct 21, 2026',
-    time: '4:00 PM',
-    status: 'SUCCESS',
-  },
-];
 
 const actionIcon = (type) => {
   switch (type) {
@@ -74,6 +23,118 @@ export default function DepartmentHeadActivityLog() {
   const [actionType, setActionType] = useState('All Actions');
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
+  const [logs, setLogs] = useState([]);
+  const [todayCount, setTodayCount] = useState(0);
+  const [alertCount, setAlertCount] = useState(0);
+
+
+  const [toast, setToast] = useState({
+    show: false,
+    message: "",
+    type: "loading",
+  });
+
+  const showToast = (message, type = "success") => {
+    setToast({ show: true, message, type });
+
+    if (type !== "loading") {
+      setTimeout(() => {
+        setToast({ show: false, message: "", type: "loading" });
+      }, 2500);
+    }
+  };
+
+  const filteredLogs = logs.filter((log) => {
+  if (activeTab === "All Activities") return true;
+
+  if (activeTab === "System Changes") {
+    return log.actionType === "edit" || log.actionType === "success";
+  }
+
+  if (activeTab === "Security Events") {
+    return log.actionType === "failed" || log.actionType === "denied";
+  }
+
+  return true;
+});
+
+ const exportCSV = async () => {
+    try {
+      showToast("Exporting CSV...", "loading");
+
+      await new Promise(res => setTimeout(res, 800));
+
+      const headers = ["User", "Role", "Action", "Target", "Date", "Status"];
+
+      const rows = logs.map(log => {
+        const date = log.timestamp?.toDate?.().toLocaleDateString?.() || "";
+        return [
+          log.user || "",
+          log.role || "",
+          log.action || "",
+          log.target || "",
+          date,
+          log.status || "",
+        ];
+      });
+
+      const csv = [headers, ...rows]
+        .map(r => r.map(v => `"${v}"`).join(","))
+        .join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "activity_logs.csv";
+      a.click();
+
+      showToast("Export successful!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Export failed!", "error");
+    }
+  };
+
+  useEffect(() => {
+  const q = query(
+    collection(db, "activityLogs"),
+    orderBy("timestamp", "desc")
+  );
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setLogs(data);
+
+    // TODAY COUNT
+    const today = new Date().toDateString();
+
+    const todayLogs = data.filter((log) =>
+      log.timestamp?.toDate?.().toDateString() === today
+    );
+
+    setTodayCount(todayLogs.length);
+
+    // ALERTS COUNT
+    const alerts = data.filter(
+      (log) =>
+        log.actionType === "failed" ||
+        log.actionType === "denied"
+    );
+
+    setAlertCount(alerts.length);
+  });
+
+  return () => unsubscribe();
+}, []);
+
+
+
 
   return (
     <div className="activity-log">
@@ -93,7 +154,7 @@ export default function DepartmentHeadActivityLog() {
         </div>
 
         <div className="log-actions">
-          <button className="action-btn outline">
+          <button className="action-btn outline" onClick={exportCSV}>
             <i className="fa-solid fa-download"></i>
             Export CSV
           </button>
@@ -113,7 +174,7 @@ export default function DepartmentHeadActivityLog() {
           </div>
           <div>
             <p className="log-stat-label">TOTAL ACTIONS TODAY</p>
-            <h2 className="log-stat-value">50</h2>
+            <h2 className="log-stat-value">{todayCount}</h2>
             <span className="log-stat-change green">↑ 12% from yesterday</span>
           </div>
         </div>
@@ -124,7 +185,7 @@ export default function DepartmentHeadActivityLog() {
           </div>
           <div>
             <p className="log-stat-label">ALERTS FLAGGED</p>
-            <h2 className="log-stat-value">2</h2>
+            <h2 className="log-stat-value">{alertCount}</h2>
             <span className="log-stat-change gray">Requires manual review</span>
           </div>
         </div>
@@ -212,35 +273,49 @@ export default function DepartmentHeadActivityLog() {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log, i) => (
-              <tr key={i}>
-                <td>
-                  <div className="user-cell">
-                    <div className="user-avatar"></div>
-                    <div>
-                      <p className="user-name">{log.user}</p>
-                      <p className="user-role">{log.role}</p>
+            {logs.map((log) => {
+              const date = log.timestamp?.toDate?.().toLocaleDateString?.() || "N/A";
+              const time = log.timestamp?.toDate?.().toLocaleTimeString?.([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }) || "";
+
+              return (
+                <tr key={log.id}>
+                  <td>
+                    <div className="user-cell">
+                      <div className="user-avatar">
+                        {log.user?.split(" ")?.map(n => n[0]).join("").toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="user-name">{log.user}</p>
+                        <p className="user-role">{log.role}</p>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <div className="action-cell">
-                    {actionIcon(log.actionType)}
-                    <span>{log.action}</span>
-                  </div>
-                </td>
-                <td className="target-cell">{log.target}</td>
-                <td className="date-cell">
-                  <p>{log.date}</p>
-                  <p className="time">{log.time}</p>
-                </td>
-                <td>
-                  <span className={`status-badge ${log.status.toLowerCase()}`}>
-                    {log.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  </td>
+
+                  <td>
+                    <div className="action-cell">
+                      {actionIcon(log.actionType)}
+                      <span>{log.action}</span>
+                    </div>
+                  </td>
+
+                  <td className="target-cell">{log.target}</td>
+
+                  <td className="date-cell">
+                    <p>{date}</p>
+                    <p className="time">{time}</p>
+                  </td>
+
+                  <td>
+                    <span className={`status-badge ${log.status?.toLowerCase?.()}`}>
+                      {log.status}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -264,6 +339,14 @@ export default function DepartmentHeadActivityLog() {
           <button className="page-btn" onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
         </div>
       </div>
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        message={toast.message}
+        onClose={() =>
+          setToast({ show: false, type: "", message: "" })
+        }
+      />
     </div>
   );
 }

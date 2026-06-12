@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -7,6 +7,7 @@ import Toast from "../Popup/Toast/Toast";
 import heroBackground from "../assets/backgroundlogin.png";
 import LoginNav from "../Components/LoginNav/LoginNav";
 import "./login.css";
+import logo from "../assets/logo.png";
 
 export default function Login() {
   const [selectedRole, setSelectedRole] = useState("");
@@ -14,30 +15,24 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+  const savedEmail = localStorage.getItem("login_email");
+  const savedRole = localStorage.getItem("login_role");
+
+  if (savedEmail) setEmail(savedEmail);
+  if (savedRole) setSelectedRole(savedRole);
+  if (savedEmail || savedRole) setRememberMe(true);
+}, []);
+
   const [toast, setToast] = useState({
     show: false,
     type: "success",
     title: "",
     message: "",
   });
-
-      const showToast = (type, title, message) => {
-      setToast({
-        show: true,
-        type,
-        title,
-        message,
-      });
-
-      if (type !== "loading") {
-        setTimeout(() => {
-          setToast((prev) => ({
-            ...prev,
-            show: false,
-          }));
-        }, 4000);
-      }
-    };
 
   const navigate = useNavigate();
 
@@ -55,36 +50,22 @@ export default function Login() {
     { name: "Faculty", icon: "fa-user" },
   ];
 
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+
+    if (type !== "loading") {
+      setTimeout(() => {
+        setToast((prev) => ({ ...prev, show: false }));
+      }, 4000);
+    }
+  };
+
   const handleSignIn = async () => {
-  
-
-        if (!selectedRole) {
-      showToast(
-        "error",
-        "Role Required",
-        "Please select your role."
-      );
+    if (!selectedRole || !email || !password) {
+      showToast("error", "Input Required", "Please fill all fields.");
       return;
     }
-
-    if (!email) {
-      showToast(
-        "error",
-        "Email Required",
-        "Please enter your email."
-      );
-      return;
-    }
-
-    if (!password) {
-      showToast(
-        "error",
-        "Password Required",
-        "Please enter your password."
-      );
-      return;
-    }
-
+   
     setLoading(true);
 
     showToast(
@@ -101,16 +82,11 @@ export default function Login() {
       );
 
       const uid = credential.user.uid;
-
       const snap = await getDoc(doc(db, "users", uid));
 
       if (!snap.exists()) {
         await auth.signOut();
-        showToast(
-          "error",
-          "Account Not Found",
-          "Contact your administrator."
-        );
+        showToast("error", "Account Not Found", "Contact admin.");
         setLoading(false);
         return;
       }
@@ -122,7 +98,7 @@ export default function Login() {
         showToast(
           "error",
           "Role Mismatch",
-          `This account is not registered as ${selectedRole}.`
+          `Not registered as ${selectedRole}`
         );
         setLoading(false);
         return;
@@ -133,36 +109,46 @@ export default function Login() {
         showToast(
           "error",
           "Account Disabled",
-          "Your account has been disabled."
+          "Your account is disabled."
         );
         setLoading(false);
         return;
       }
+
+      // ✅ LOADING SCREEN
+      setRedirecting(true);
+
       showToast(
         "success",
         "Login Successful",
         `Welcome ${userData.role}!`
       );
 
-      setTimeout(() => {
-        navigate(ROLE_ROUTES[userData.role] ?? "/");
-      }, 1000);
-      return;
+       if (rememberMe) {
+        localStorage.setItem("login_email", email);
+        localStorage.setItem("login_role", selectedRole);
+      } else {
+        localStorage.removeItem("login_email");
+        localStorage.removeItem("login_role");
+      }
 
-      navigate(ROLE_ROUTES[userData.role] ?? "/");
+      setTimeout(() => {
+        setRedirecting(false);
+        navigate(ROLE_ROUTES[userData.role] ?? "/");
+      }, 2000);
     } catch (err) {
       const MSG = {
-        "auth/user-not-found": "No account found with this email.",
-        "auth/wrong-password": "Incorrect password.",
-        "auth/invalid-email": "Invalid email address.",
-        "auth/too-many-requests": "Too many attempts. Try again later.",
-        "auth/invalid-credential": "Invalid email or password.",
+        "auth/user-not-found": "No account found.",
+        "auth/wrong-password": "Wrong password.",
+        "auth/invalid-email": "Invalid email.",
+        "auth/too-many-requests": "Too many attempts.",
+        "auth/invalid-credential": "Invalid credentials.",
       };
 
       showToast(
         "error",
         "Login Failed",
-        MSG[err.code] || "Sign-in failed. Please try again."
+        MSG[err.code] || "Try again."
       );
     } finally {
       setLoading(false);
@@ -172,16 +158,14 @@ export default function Login() {
   return (
     <>
       <LoginNav activePage="login" />
+
       <Toast
         show={toast.show}
         type={toast.type}
         title={toast.title}
         message={toast.message}
         onClose={() =>
-          setToast((prev) => ({
-            ...prev,
-            show: false,
-          }))
+          setToast((prev) => ({ ...prev, show: false }))
         }
       />
 
@@ -199,8 +183,7 @@ export default function Login() {
           <div className="hero-content">
             <h1>Smarter Classrooms. Better Scheduling.</h1>
             <p className="hero-copy">
-              Optimize university resources with the FIREFOX smart classroom
-              scheduling system.
+              Optimize university resources with FIREFOX system.
             </p>
 
             <div className="hero-features">
@@ -225,21 +208,23 @@ export default function Login() {
         {/* LOGIN SIDE */}
         <section className="login-panel">
           <div className="login-card">
+
             <div className="login-card-header">
-              <div className="card-icon">
-                <i className="fa-solid fa-calendar-days" />
+              <div className="card-icon logo-icon">
+                <img src={logo} alt="Logo" />
               </div>
+
               <div>
                 <h2>University Portal</h2>
                 <p className="card-subtitle">
-                  Sign in to access the scheduling system.
+                  Sign in to access the system.
                 </p>
               </div>
             </div>
 
             {/* ROLE */}
             <div className="form-group">
-              <label>Select Your Role</label>
+              <label>Select Role</label>
 
               <div className="role-selector">
                 {roles.map((role) => (
@@ -259,36 +244,38 @@ export default function Login() {
             </div>
 
             {/* EMAIL */}
-            <div className="form-group">
-              <label>University ID or Email</label>
-              <div className="input-with-icon">
+          
+            <div className="form-group float-group">
+              <div className="float-input">
                 <i className="fa-solid fa-user input-icon" />
                 <input
                   type="email"
-                  placeholder="Enter your ID / Email"
                   value={email}
+                  placeholder=" "
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
+                <label>Email or University ID</label>
               </div>
             </div>
 
             {/* PASSWORD */}
-            <div className="form-group">
-              <label>Password</label>
-              <div className="input-with-icon">
+            <div className="form-group float-group">
+              <div className="float-input">
                 <i className="fa-solid fa-lock input-icon" />
-
                 <input
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
                   value={password}
+                  placeholder=" "
                   onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
-
+                <label>Password</label>
+                
                 <button
                   type="button"
                   className="password-action"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword((prev) => !prev)}
                 >
                   <i
                     className={`fa-solid ${
@@ -299,24 +286,27 @@ export default function Login() {
               </div>
             </div>
 
+            {/* ACTIONS */}
             <div className="form-actions-row">
-            <label className="checkbox-label">
-              <input type="checkbox" />
-              Remember this device
-            </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Remember this device
+              </label>
 
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => navigate("/reset-password")}
-            >
-              Forgot Password?
-            </button>
-          </div>
+              <button
+                className="link-button"
+                onClick={() => navigate("/reset-password")}
+              >
+                Forgot Password?
+              </button>
+            </div>
 
             {/* SIGN IN */}
             <button
-              type="button"
               className="sign-in-btn"
               onClick={handleSignIn}
               disabled={loading}
@@ -332,13 +322,22 @@ export default function Login() {
         </section>
       </div>
 
+      {/* LOADING OVERLAY */}
+      {redirecting && (
+        <div className="login-loading-screen">
+          <div className="loading-card">
+            <div className="spinner" />
+            <h2>Signing you in...</h2>
+            <p>Please wait while we prepare your dashboard</p>
+          </div>
+        </div>
+      )}
+
       {/* FOOTER */}
       <footer className="login-footer">
         <div className="footer-left">
           <i className="fa-solid fa-building-columns" />
-          <span>
-            © 2026 Firefox - Smart Classroom and Scheduling System
-          </span>
+          <span>© 2026 SpaceS CICT </span>
         </div>
 
         <div className="footer-right">

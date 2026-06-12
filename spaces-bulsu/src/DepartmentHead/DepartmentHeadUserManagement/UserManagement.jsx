@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  collection, getDocs, doc, updateDoc, setDoc, query, orderBy,
+  collection,addDoc,serverTimestamp, getDocs, doc, updateDoc, setDoc, query, orderBy,
 } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { initializeApp, deleteApp } from "firebase/app";
@@ -104,7 +104,15 @@ function UserList({ onCreateAccount }) {
     await deleteDoc(doc(db, "users", deleteTarget.id));
 
     setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
-
+    await logActivity({
+      userId: deleteTarget.id,
+      user: getFullName(deleteTarget),
+      role: deleteTarget.role,
+      action: "Deleted User",
+      actionType: "failed",
+      target: deleteTarget.email,
+      status: "SUCCESS",
+    });
     alert("User deleted successfully.");
   } catch (e) {
     alert("Failed to delete user: " + e.message);
@@ -138,6 +146,15 @@ function UserList({ onCreateAccount }) {
     const newStatus = user.status === "Active" ? "Disabled" : "Active";
     try {
       await updateDoc(doc(db, "users", user.id), { status: newStatus });
+      await logActivity({
+        userId: user.id,
+        user: getFullName(user),
+        role: user.role,
+        action: user.status === "Active" ? "Disabled User" : "Enabled User",
+        actionType: "edit",
+        target: user.email,
+        status: "SUCCESS",
+      });
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
     } catch (e) {
       alert("Failed to update status: " + e.message);
@@ -151,6 +168,15 @@ function UserList({ onCreateAccount }) {
       await sendPasswordResetEmail(auth, user.email, {
         url: `${window.location.origin}/reset-password`,
         handleCodeInApp: false,
+      });
+      await logActivity({
+        userId: user.id,
+        user: getFullName(user),
+        role: user.role,
+        action: "Sent Password Reset Email",
+        actionType: "success",
+        target: user.email,
+        status: "SUCCESS",
       });
       alert(`Password reset email sent to ${user.email}.`);
     } catch (e) {
@@ -637,7 +663,33 @@ export default function UserManagement() {
   const [form, setForm]           = useState(EMPTY_FORM);
   const [entryMode, setEntryMode] = useState("");
   const [excelFile, setExcelFile] = useState(null);
+  const getFullName = (u) =>
+  `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
 
+  const logActivity = async ({
+    userId,
+    user,
+    role,
+    action,
+    actionType,
+    target,
+    status,
+  }) => {
+    try {
+      await addDoc(collection(db, "activityLogs"), {
+        userId,
+        user,
+        role,
+        action,
+        actionType,
+        target,
+        status,
+        timestamp: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Activity log error:", err);
+    }
+  };
   const reset = () => {
     setForm(EMPTY_FORM);
     setEntryMode("");
@@ -714,12 +766,21 @@ export default function UserManagement() {
 
         await sendPasswordResetEmail(
           auth,
-          row.email,
+          form.email,
           {
             url: `${window.location.origin}/reset-password`,
             handleCodeInApp: false,
           }
         );
+        await logActivity({
+          userId: uid,
+          user: `${form.firstName} ${form.lastName}`,
+          role: form.role,
+          action: "Created User Account",
+          actionType: "success",
+          target: form.email,
+          status: "SUCCESS",
+        });
 
         alert(
           `Account created for ${form.email}`
@@ -804,7 +865,7 @@ export default function UserManagement() {
 
             await sendPasswordResetEmail(
             auth,
-            row.email,
+            form.email,
             {
               url: `${window.location.origin}/reset-password`,
               handleCodeInApp: false,
@@ -827,6 +888,15 @@ export default function UserManagement() {
 
           }
         }
+        await logActivity({
+          userId: uid,
+          user: `${row.firstName} ${row.lastName}`,
+          role: row.role,
+          action: "Bulk Created User",
+          actionType: "success",
+          target: row.email,
+          status: "SUCCESS",
+        });
 
         alert(
           `Bulk upload completed.\n\n` +

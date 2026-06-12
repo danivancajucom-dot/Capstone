@@ -1,6 +1,6 @@
 /* AddRoomPage specific styles */
 .add-room-page.dashboard-main {
-  margin-left: 220px;
+  margin-left: 0;
   padding: 28px 36px 40px;
   display: flex;
   flex-direction: column;
@@ -281,4 +281,15 @@
   .add-room-page .equipment-grid {
     grid-template-columns: 1fr;
   }
+}
+/* Hide number input spinner (Chrome, Edge, Safari) */
+.capacity-value::-webkit-outer-spin-button,
+.capacity-value::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide spinner (Firefox) */
+.capacity-value {
+  -moz-appearance: textfield;
 }
