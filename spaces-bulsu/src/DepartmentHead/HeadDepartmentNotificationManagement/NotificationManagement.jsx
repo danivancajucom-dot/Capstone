@@ -1,5 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./notification-management.css";
+
+import {
+  collection,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+  query,
+  orderBy,
+  onSnapshot,
+} from "firebase/firestore";
+
+import { db } from "../../firebase";
+import { createNotification } from "../../utils/createNotification";
 
 const PLACEHOLDER_NOTIFICATIONS = [
   { id: 1, content: "Maintenance Alert: Room SDL3",      group: "All Staff", status: "Requested", readDate: "--",  sentDate: "Today, 10:24AM",      reads: null, unread: null },
@@ -11,16 +24,93 @@ const PLACEHOLDER_NOTIFICATIONS = [
 
 export default function NotificationManagement() {
   const [activeFilter, setActiveFilter] = useState("All");
-  const [message, setMessage]           = useState("");
-  const [recipient, setRecipient]       = useState("All Staff");
+  const [message, setMessage] = useState("");
+  const [recipient, setRecipient] = useState("All Staff");
+
+  const [history, setHistory] = useState([]);
+  const [sending, setSending] = useState(false);
 
   const filters = ["All", "Sent", "Drafts"];
 
-  const filtered = PLACEHOLDER_NOTIFICATIONS.filter(n => {
-    if (activeFilter === "Sent")   return n.status === "Delivered";
-    if (activeFilter === "Drafts") return n.status === "Draft";
+  const filtered = history.filter((n) => {
+    if (activeFilter === "Sent")
+      return n.status === "Delivered";
+
+    if (activeFilter === "Drafts")
+      return n.status === "Draft";
+
     return true;
   });
+
+  const handleSend = async () => {
+  if (!message.trim()) {
+    alert("Message is required");
+    return;
+  }
+
+  try {
+  setSending(true);
+
+  console.log("STEP 1");
+
+  const usersSnapshot = await getDocs(
+    collection(db, "users")
+  );
+
+  console.log("STEP 2", usersSnapshot.size);
+
+  let recipients = usersSnapshot.docs;
+
+  console.log("STEP 3", recipients.length);
+
+  for (const user of recipients) {
+    console.log("Creating notification for", user.id);
+
+    await createNotification({
+      userId: user.id,
+      title: "Announcement",
+      message,
+      type: "announcement",
+      badge: "NEW",
+    });
+  }
+
+  console.log("STEP 4");
+
+  await addDoc(
+    collection(db, "notification_logs"),
+    {
+      content: message,
+      group: recipient,
+      status: "Delivered",
+      createdAt: serverTimestamp(),
+    }
+  );
+
+  console.log("STEP 5");
+
+} catch (err) {
+  console.error("SEND ERROR:", err);
+}
+};
+
+  useEffect(() => {
+  const q = query(
+    collection(db, "notification_logs"),
+    orderBy("createdAt", "desc")
+  );
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setHistory(data);
+  });
+
+  return () => unsubscribe();
+}, []);
 
   return (
     <>
@@ -76,9 +166,13 @@ export default function NotificationManagement() {
           </div>
           <div className="nm-compose-actions">
             <button className="nm-discard-btn" onClick={() => setMessage("")}>Discard</button>
-            <button className="nm-send-btn">
+            <button
+              className="nm-send-btn"
+              onClick={handleSend}
+              disabled={sending}
+            >
               <i className="fa-solid fa-paper-plane" />
-              Send Now
+              {sending ? "Sending..." : "Send Now"}
             </button>
           </div>
         </div>
@@ -112,7 +206,7 @@ export default function NotificationManagement() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(row => (
+          {filtered.map((row) => (
               <tr key={row.id}>
                 <td className="nm-content-cell">{row.content}</td>
                 <td>
@@ -146,7 +240,9 @@ export default function NotificationManagement() {
                     <span className="nm-dash">--</span>
                   )}
                 </td>
-                <td className="nm-sent-date">{row.sentDate}</td>
+                <td className="nm-sent-date">
+                  {row.createdAt?.toDate().toLocaleString()}
+                </td>
                 <td>
                   <button className="nm-action-btn">⋮</button>
                 </td>

@@ -47,7 +47,6 @@ import RoomDetails from "./Clerk/ClerkRoomDetails/RoomDetails";
 //Faculty
 import FacultyLayout from "./Faculty/FacultyLayout/FacultyLayout";
 import FacultyDashboard from "./Faculty/FacultyDashboard/FacultyDashboard";
-import FacultyNotification from "./Faculty/FacultyNotification/FacultyNotification";
 import FacultyProfile from "./Faculty/FacultyProfile/FacultyProfile";
 import FacultyReservations from "./Faculty/FacultyReservations/FacultyReservations";
 import FacultyEditPendingReservations from "./Faculty/FacultyReservations/FacultyEditPendingReservation";
@@ -191,7 +190,6 @@ function App() {
           <Route path="rooms" element={<FacultyRoom />}/>
           <Route path="reservations" element={<FacultyReservations />} />
           <Route path="profile" element={<FacultyProfile />}/>
-          <Route path="notifications" element={<FacultyNotification />}/>
           <Route path="submit-reservation" element={<FacultySubmitReservation />} />
           <Route path="view-approved-reservations" element={<FacultyViewApprovedReservation />} />
           <Route path="view-pending-reservation" element={<FacultyViewPendingReservation />}/>
