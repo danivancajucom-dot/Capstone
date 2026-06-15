@@ -287,3 +287,149 @@
   }
 
 }
+.notification-container{
+  position:relative;
+}
+
+.notif-count{
+  position:absolute;
+  top:-5px;
+  right:-5px;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:#ef4444;
+  color:white;
+  font-size:11px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.bell-active{
+  color:#ef4444;
+  animation:pulseBell 1.5s infinite;
+}
+
+@keyframes pulseBell{
+  0%{transform:scale(1);}
+  50%{transform:scale(1.15);}
+  100%{transform:scale(1);}
+}
+
+.notif-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.35);
+  z-index:999;
+}
+
+.notif-drawer{
+  position:fixed;
+  top:0;
+  right:0;
+  width:450px;
+  height:100vh;
+  background:#fff;
+  z-index:1000;
+  overflow-y:auto;
+  box-shadow:-5px 0 20px rgba(0,0,0,.1);
+}
+
+.notif-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:25px;
+  border-bottom:1px solid #eee;
+}
+
+.notif-close{
+  border:none;
+  background:none;
+  font-size:22px;
+  cursor:pointer;
+}
+
+.notif-tabs{
+  display:flex;
+  gap:20px;
+  padding:20px 25px;
+  border-bottom:1px solid #eee;
+}
+
+.notif-tabs button{
+  border:none;
+  background:none;
+  font-size:16px;
+  font-weight:600;
+  color:#64748b;
+  cursor:pointer;
+}
+
+.notif-tabs .active{
+  color:#f97316;
+}
+
+.notif-list{
+  padding:20px;
+}
+
+.notif-card{
+  display:flex;
+  gap:15px;
+  padding:20px;
+  border-radius:20px;
+  margin-bottom:15px;
+  cursor:pointer;
+}
+
+.notif-icon{
+  width:60px;
+  height:60px;
+  border-radius:15px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:white;
+  font-size:22px;
+}
+
+.schedule{
+  background:#fff7f0;
+}
+
+.schedule .notif-icon{
+  background:#f97316;
+}
+
+.urgent{
+  background:#fff4f4;
+}
+
+.urgent .notif-icon{
+  background:#ef4444;
+}
+
+.approved{
+  background:#effdf5;
+}
+
+.approved .notif-icon{
+  background:#10b981;
+}
+
+.notif-actions button{
+  border:none;
+  background:#f57c00;
+  color:white;
+  padding:6px 12px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.empty-notifications{
+  text-align:center;
+  padding:30px;
+  color:#64748b;
+}

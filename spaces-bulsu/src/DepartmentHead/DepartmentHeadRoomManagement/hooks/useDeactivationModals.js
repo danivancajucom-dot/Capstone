@@ -1,15 +1,24 @@
 import { useState } from 'react';
 
 export function useDeactivationModals() {
-  const [roomName, setRoomName] = useState('A1');
+  const [roomName, setRoomName] = useState("");
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [showDeactivationModal, setShowDeactivationModal] = useState(false);
   const [showActivationModal, setShowActivationModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const openDeactivateFlow = (name) => {
     setRoomName(name);
     setShowActivationModal(false);
     setShowWarningModal(true);
+  };
+
+  const openDeleteFlow = (roomId) => {
+    setRoomName(roomId);
+    setShowDeleteModal(true);
+  };
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
   };
 
   const openActivateFlow = (name) => {
@@ -51,5 +60,8 @@ export function useDeactivationModals() {
     closeActivationModal,
     handleConfirmDeactivation,
     closeAll,
+    showDeleteModal,
+    openDeleteFlow,
+    closeDeleteModal,
   };
 }

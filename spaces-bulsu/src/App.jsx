@@ -29,7 +29,8 @@ import UserManagement from "./DepartmentHead/DepartmentHeadUserManagement/UserMa
 import NotificationManagement from "./DepartmentHead/HeadDepartmentNotificationManagement/NotificationManagement";
 import DepartmentHeadDashboard from "./DepartmentHead/DepartmentHeadDashboard/DepartmentHeadDashboard";
 import DepartmentHeadActivityLog from "./DepartmentHead/DepartmentHeadActivityLog/DepartmentHeadActivityLog";
-
+import DepartmentHeadAddRoom from "./DepartmentHead/DepartmentHeadRoomManagement/AddRoom/RoomManagementAddRoom";
+import DepartmentHeadEditRoom from "./DepartmentHead/DepartmentHeadRoomManagement/EditDetails/RoomManagementEditDetails";
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
 import ClerkDashboard from "./Clerk/ClerkDashboard/ClerkDashboard";
@@ -46,7 +47,6 @@ import RoomDetails from "./Clerk/ClerkRoomDetails/RoomDetails";
 //Faculty
 import FacultyLayout from "./Faculty/FacultyLayout/FacultyLayout";
 import FacultyDashboard from "./Faculty/FacultyDashboard/FacultyDashboard";
-import FacultyNotification from "./Faculty/FacultyNotification/FacultyNotification";
 import FacultyProfile from "./Faculty/FacultyProfile/FacultyProfile";
 import FacultyReservations from "./Faculty/FacultyReservations/FacultyReservations";
 import FacultyEditPendingReservations from "./Faculty/FacultyReservations/FacultyEditPendingReservation";
@@ -55,8 +55,11 @@ import FacultyViewApprovedReservation from "./Faculty/FacultyReservations/Facult
 import FacultyViewPendingReservation from "./Faculty/FacultyReservations/FacultyViewPendingReservation";
 import FacultyRoom from "./Faculty/FacultyRoom/FacultyRoom";
 import FacultySchedule from "./Faculty/FacultySchedule/FacultySchedule";
+
 //Login
 import Login from "./Login/Login";
+
+import ResetPassword from "./ResetPassword/ResetPassword";
 
 function App() {
   return (
@@ -69,6 +72,7 @@ function App() {
           index
           element={<DepartmentHeadDashboard />}
         />
+        
 
         <Route
           path="activity-log"
@@ -119,6 +123,14 @@ function App() {
           path="room-management"
           element={<DepartmentHeadRoomManagement />}
         />
+        <Route
+          path="add-room"
+          element={<DepartmentHeadAddRoom />}
+        />
+        <Route
+          path="edit-room/:id"
+          element={<DepartmentHeadEditRoom />}
+        />
 
         <Route
           path="room-activity"
@@ -154,6 +166,8 @@ function App() {
         {/* Login */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
+        {/* Reset Password */}
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Clerk */}
         <Route path="/clerk" element={<ClerkLayout />} >
@@ -176,7 +190,6 @@ function App() {
           <Route path="rooms" element={<FacultyRoom />}/>
           <Route path="reservations" element={<FacultyReservations />} />
           <Route path="profile" element={<FacultyProfile />}/>
-          <Route path="notifications" element={<FacultyNotification />}/>
           <Route path="submit-reservation" element={<FacultySubmitReservation />} />
           <Route path="view-approved-reservations" element={<FacultyViewApprovedReservation />} />
           <Route path="view-pending-reservation" element={<FacultyViewPendingReservation />}/>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import "./local-registrar-layout.css";
 
 export default function LocalRegistrarLayout() {
-
+  const [openSchedule, setOpenSchedule] = useState(true);
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -14,34 +14,72 @@ export default function LocalRegistrarLayout() {
         <aside className="registrar-sidebar">
 
           <div className="registrar-logo">
-            <h2>SpaceS</h2>
-            <span>Local Registrar</span>
+
+            <div className="logo-icon">
+              <i className="fa-solid fa-calendar-check"></i>
+            </div>
+
+            <div className="logo-text">
+              <h2>SpaceS CICT</h2>
+              <span>CICT Local Registrar</span>
+            </div>
+
           </div>
 
           <nav className="registrar-nav">
 
             <NavLink end to="/local-registrar">
-              Dashboard
+              <i className="fa-solid fa-table-columns"></i>
+              <span>Dashboard</span>
             </NavLink>
 
-            <NavLink to="/local-registrar/academic-schedule">
-              Academic Schedule
-            </NavLink>
+            <div className="nav-group">
+
+              <button
+                className="nav-parent active-parent"
+                onClick={() => setOpenSchedule(!openSchedule)}
+              >
+                <div className="nav-left">
+                  <i className="fa-solid fa-calendar-days"></i>
+                  <span>Schedule</span>
+                </div>
+
+                <i
+                  className={`fa-solid fa-chevron-down arrow ${
+                    openSchedule ? "open" : ""
+                  }`}
+                />
+              </button>
+
+              <div className={`submenu-card ${openSchedule ? "open" : ""}`}>
+
+                <NavLink to="/local-registrar/bulk-upload-1">
+                  Bulk Upload
+                </NavLink>
+
+                <NavLink to="/local-registrar/academic-schedule">
+                  View Academic Schedule
+                </NavLink>
+
+                <NavLink to="/local-registrar/my-submitted-schedules">
+                  My Submitted Schedules
+                </NavLink>
+
+                <NavLink to="/local-registrar/qr-code">
+                  QR Code Management
+                </NavLink>
+
+              </div>
+            </div>
 
             <NavLink to="/local-registrar/room-card">
-              Room Card
-            </NavLink>
-
-            <NavLink to="/local-registrar/qr-code">
-              QR Code
+              <i className="fa-solid fa-building"></i>
+              <span>Room Card</span>
             </NavLink>
 
             <NavLink to="/local-registrar/activity-log">
-              Activity Log
-            </NavLink>
-
-            <NavLink to="/local-registrar/my-submitted-schedules">
-              Submitted Schedules
+              <i className="fa-solid fa-clock-rotate-left"></i>
+              <span>Activity Log</span>
             </NavLink>
 
           </nav>

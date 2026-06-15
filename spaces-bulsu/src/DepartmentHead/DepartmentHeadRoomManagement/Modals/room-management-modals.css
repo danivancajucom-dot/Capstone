@@ -298,3 +298,33 @@
     text-align: center;
   }
 }
+
+.delete-modal {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  width: 420px;
+  text-align: center;
+}
+
+.delete-modal-icon {
+  font-size: 40px;
+  color: #e74c3c;
+  margin-bottom: 10px;
+}
+
+.modal-btn--danger {
+  background: #e74c3c;
+  color: white;
+}
+
+.modal-btn--danger:hover {
+  background: #c0392b;
+}
+
+.delete-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}

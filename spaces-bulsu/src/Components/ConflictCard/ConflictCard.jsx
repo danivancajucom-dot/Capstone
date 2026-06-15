@@ -1,6 +1,8 @@
 import "./conflict-card.css";
+import { useNavigate } from "react-router-dom";
 
 function ConflictCard() {
+  const navigate = useNavigate();
   return (
     <div className="conflict-card">
       <div className="conflict-card-header">
@@ -13,7 +15,7 @@ function ConflictCard() {
         </div>
       </div>
 
-      <button className="reassign-btn">Reassign Room</button>
+      <button className="reassign-btn" onClick={() => navigate("/department-head/reassign-room")}>Reassign Room</button>
     </div>
   );
 }

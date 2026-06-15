@@ -1,7 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect } from 'react';
 import './department-head-dashboard.css';
 import { useNavigate } from "react-router-dom";
+import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { db } from "../../firebase";
 
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case "success": return "fa-solid fa-circle-check";
+      case "edit": return "fa-solid fa-pen";
+      case "failed": return "fa-solid fa-circle-xmark";
+      default: return "fa-solid fa-circle";
+    }
+  };
+
+  const getActivityColor = (type) => {
+    switch (type) {
+      case "success": return "green";
+      case "edit": return "blue";
+      case "failed": return "red";
+      default: return "gray";
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    if (!timestamp?.toDate) return "Just now";
+
+    const date = timestamp.toDate();
+    return date.toLocaleString();
+  };
 const statsData = [
   { icon: 'fa-solid fa-building', label: 'Total Rooms', value: 22, color: 'orange' },
   { icon: 'fa-solid fa-location-dot', label: 'Occupied', value: 12, color: 'red' },
@@ -12,15 +38,6 @@ const statsData = [
 ];
 
 const floors = ['All Floors', '1st Floor', '3rd Floor', '4th Floor'];
-
-const rooms = [
-  { id: 'A1', status: 'occupied', label: 'Gender and Society', image: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=200&auto=format&fit=crop' },
-  { id: 'A2', status: 'free', label: 'Available: 12:00PM - 4:00PM', image: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=200&auto=format&fit=crop' },
-  { id: 'A3', status: 'free', label: 'Available: 7:00AM - 10:00AM', image: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=200&auto=format&fit=crop' },
-  { id: 'A4', status: 'maintenance', label: 'Under Maintenance', image: null },
-  { id: 'IT13', status: 'free', label: 'Available: 8:00AM - 11:00AM', image: 'https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=200&auto=format&fit=crop' },
-  { id: 'IT14', status: 'maintenance', label: 'Under Maintenance', image: null },
-];
 
 const recentActivity = [
   { icon: 'fa-solid fa-lock-open', color: 'green', title: 'Room A1 Unlocked', sub: 'Scheduled: IT308', time: 'JUST NOW' },
@@ -41,6 +58,59 @@ const barData = [
 export default function DepartmentHeadDashboard() {
   const [activeFloor, setActiveFloor] = useState('1st Floor');
   const navigate = useNavigate();
+  const [rooms, setRooms] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const DEFAULT_ROOM_IMAGE =
+  "https://images.unsplash.com/photo-1581091870627-3c8f7b6f8f7a?w=500&auto=format&fit=crop";
+
+  useEffect(() => {
+    const q = collection(db, "rooms");
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => {
+        const r = doc.data();
+
+        return {
+          id: r.roomName,
+          status: r.status === "inactive" ? "maintenance" :
+                  r.occupied ? "occupied" : "free",
+          label: r.roomType || "Room",
+          image: null,
+        };
+      });
+
+      setRooms(data);
+    });
+
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+  const q = query(
+    collection(db, "activityLogs"),
+    orderBy("timestamp", "desc"),
+    limit(6)
+  );
+
+  const unsub = onSnapshot(q, (snapshot) => {
+    const logs = snapshot.docs.map((doc) => {
+      const d = doc.data();
+
+      return {
+        icon: getActivityIcon(d.actionType),
+        color: getActivityColor(d.actionType),
+        title: d.action,
+        sub: `${d.user} • ${d.target}`,
+        time: formatTime(d.timestamp),
+      };
+    });
+
+    setRecentActivity(logs);
+  });
+
+  return () => unsub();
+}, []);
+
 
   return (
     <div className="dh-dashboard">
@@ -86,27 +156,28 @@ export default function DepartmentHeadDashboard() {
           </div>
 
           <div className="rooms-grid">
-            {rooms.map(room => (
+            {rooms.map((room) => (
               <div className={`room-card ${room.status}`} key={room.id}>
+                
                 <div className="room-card-header">
                   <span className="room-id">{room.id}</span>
                   <span className={`status-dot ${room.status}`}></span>
                 </div>
 
                 <div className="room-card-img">
-                  {room.image ? (
-                    <img src={room.image} alt={room.id} />
-                  ) : (
-                    <div className="room-placeholder">
-                      <i className="fa-solid fa-screwdriver-wrench"></i>
-                    </div>
-                  )}
-                  {room.status === 'occupied' && (
+                  <img
+                    src={room.image || DEFAULT_ROOM_IMAGE}
+                    alt={room.id}
+                  />
+
+                  {room.status === "occupied" && (
                     <div className="in-use-badge">IN USE</div>
                   )}
                 </div>
 
-                <p className={`room-label ${room.status}`}>{room.label}</p>
+                <p className={`room-label ${room.status}`}>
+                  {room.label}
+                </p>
               </div>
             ))}
           </div>

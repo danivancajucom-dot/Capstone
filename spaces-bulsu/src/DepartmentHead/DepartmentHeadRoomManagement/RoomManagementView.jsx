@@ -1,83 +1,17 @@
-import { useState } from 'react';
-import './Shared/room-management-topbar.css';
-import RoomManagementModals from './Modals/RoomManagementModals';
-import { useDeactivationModals } from './hooks/useDeactivationModals';
-import './room-management-view.css';
-
-function PageTopbar() {
-  return (
-    <div className="dashboard-topbar">
-      <div className="search-box">
-        <i className="fa-solid fa-magnifying-glass search-icon" aria-hidden="true" />
-        <input type="text" placeholder="Search rooms or users..." />
-      </div>
-
-      <div className="topbar-actions">
-        <button type="button" className="icon-btn icon-btn--notify" aria-label="notifications">
-          <i className="fa-regular fa-bell" aria-hidden="true" />
-          <span className="notify-badge" aria-hidden="true" />
-        </button>
-        <button type="button" className="icon-btn" aria-label="settings">
-          <i className="fa-solid fa-gear" aria-hidden="true" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const INITIAL_ROOMS = [
-  {
-    id: 'A1',
-    floor: '1st Floor',
-    capacity: 30,
-    type: 'lecture',
-    typeLabel: 'Lecture Hall',
-    equipment: ['PROJECTOR', 'AC', 'SMART BOARD'],
-    status: 'active',
-    iconVariant: 'peach',
-  },
-  {
-    id: 'A2',
-    floor: '1st Floor',
-    capacity: 30,
-    type: 'lecture',
-    typeLabel: 'Lecture Hall',
-    equipment: ['PROJECTOR', 'AC', 'SMART BOARD'],
-    status: 'active',
-    iconVariant: 'peach',
-  },
-  {
-    id: 'IT13',
-    floor: '1st Floor',
-    capacity: 30,
-    type: 'lab',
-    typeLabel: 'Computer Lab',
-    equipment: ['PC (x35)', 'FIBER INT'],
-    status: 'active',
-    iconVariant: 'orange',
-  },
-  {
-    id: 'IT14',
-    floor: '1st Floor',
-    capacity: 30,
-    type: 'lab',
-    typeLabel: 'Computer Lab',
-    equipment: ['PC (x35)', 'FIBER INT'],
-    status: 'active',
-    iconVariant: 'orange',
-  },
-  {
-    id: 'IT15',
-    floor: '1st Floor',
-    capacity: 30,
-    type: 'lab',
-    typeLabel: 'Computer Lab',
-    equipment: ['PC (x35)', 'FIBER INT'],
-    status: 'inactive',
-    iconVariant: 'muted',
-    inactive: true,
-  },
-];
+import { useState, useEffect } from "react";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  deleteDoc, 
+} from "firebase/firestore";
+import { db } from "../../firebase";
+import { useNavigate } from "react-router-dom";
+import RoomManagementModals from "./Modals/RoomManagementModals";
+import { useDeactivationModals } from "./hooks/useDeactivationModals";
+import "./room-management-view.css";
+import Toast from "../../Popup/Toast/Toast";
 
 function getActiveRoomStyle(room) {
   const iconVariant = room.type === 'lecture' ? 'peach' : 'orange';
@@ -103,8 +37,145 @@ function ToggleSwitch({ checked, onClick }) {
 }
 
 function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffectedSchedules }) {
-  const [rooms, setRooms] = useState(INITIAL_ROOMS);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
   const modals = useDeactivationModals();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const [toast, setToast] = useState({
+    show: false,
+    type: "", // "loading" | "success" | "error"
+    message: ""
+  });
+
+  const showToast = (type, message) => {
+  setToast({ show: true, type, message });
+
+  if (type !== "loading") {
+    setTimeout(() => {
+      setToast({ show: false, type: "", message: "" });
+    }, 2500);
+  }
+};
+
+const handleExport = async () => {
+  try {
+    showToast("loading", "Exporting rooms...");
+
+    if (!rooms.length) {
+      showToast("error", "No rooms to export");
+      return;
+    }
+
+    await new Promise((res) => setTimeout(res, 800));
+    const headers = [
+      "Room Name",
+      "Capacity",
+      "Type",
+      "Status",
+      "Equipment"
+    ];
+
+    const rows = rooms.map((r) => [
+      r.id,
+      r.capacity,
+      r.typeLabel,
+      r.status,
+      r.equipment.join(", ")
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map((v) => `"${v}"`).join(",")
+      )
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.setAttribute("download", `rooms_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast("success", "Export successful!");
+  } catch (error) {
+    console.error(error);
+    showToast("error", "Export failed. Try again.");
+  }
+};
+
+  const navigate = useNavigate();
+    useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "rooms"),
+      (snapshot) => {
+        const roomData = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+
+          const equipment = [];
+
+          if (data.equipment?.projector)
+            equipment.push("PROJECTOR");
+
+          if (data.equipment?.ac)
+            equipment.push("AC");
+
+          if (data.equipment?.computer)
+            equipment.push("COMPUTER");
+
+          if (data.equipment?.smartBoard)
+            equipment.push("SMART BOARD");
+
+          if (data.equipment?.tvDisplay)
+            equipment.push("TV DISPLAY");
+
+          return {
+            firestoreId: docSnap.id,
+            id: data.roomName,
+            floor: data.floor || "-",
+            capacity: data.capacity || 0,
+
+            type:
+              data.roomType === "Computer Lab"
+                ? "lab"
+                : "lecture",
+
+            typeLabel: data.roomType,
+
+            equipment,
+
+            status:
+              data.status === "inactive"
+                ? "inactive"
+                : "active",
+
+            inactive:
+              data.status === "inactive",
+
+            iconVariant:
+              data.status === "inactive"
+                ? "muted"
+                : data.roomType === "Computer Lab"
+                ? "orange"
+                : "peach",
+          };
+        });
+
+        setRooms(roomData);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   const handleSwitchClick = (room) => {
     if (room.status === 'active') {
@@ -114,20 +185,58 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
     }
   };
 
-  const handleDeactivationConfirm = () => {
-    const roomId = modals.roomName;
-    modals.closeAll();
-    setRooms((prev) =>
-      prev.map((room) => (room.id === roomId ? getInactiveRoomStyle(room) : room))
+  const handleDeactivationConfirm = async () => {
+    const room = rooms.find(
+      (r) => r.id === modals.roomName
     );
+
+    if (!room) return;
+
+    await updateDoc(
+      doc(db, "rooms", room.firestoreId),
+      {
+        status: "inactive",
+      }
+    );
+
+    modals.closeAll();
   };
 
-  const handleActivateConfirm = () => {
-    const roomId = modals.roomName;
+    const handleDeleteConfirm = async () => {
+      const room = rooms.find(
+        (r) => r.id === modals.roomName
+      );
+
+      if (!room) return;
+
+      await deleteDoc(doc(db, "rooms", room.firestoreId));
+      await logActivity({
+        user: currentUser.displayName,
+        role: currentUser.role,
+        action: "Deleted Room",
+        actionType: "failed",
+        target: roomName,
+        status: "SUCCESS",
+        userId: currentUser.uid
+      });
+      modals.closeDeleteModal();
+    };
+
+    const handleActivateConfirm = async () => {
+      const room = rooms.find(
+        (r) => r.id === modals.roomName
+      );
+
+      if (!room) return;
+
+      await updateDoc(
+        doc(db, "rooms", room.firestoreId),
+        {
+          status: "active",
+        }
+      );
+
     modals.closeAll();
-    setRooms((prev) =>
-      prev.map((room) => (room.id === roomId ? getActiveRoomStyle(room) : room))
-    );
   };
 
   const handleViewAffectedSchedules = () => {
@@ -136,23 +245,64 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
     onViewAffectedSchedules?.(roomId);
   };
 
+  const activeRooms =
+    rooms.filter(
+      (room) => room.status === "active"
+    ).length;
+
+  const inactiveRooms =
+    rooms.filter(
+      (room) => room.status === "inactive"
+    ).length;
+
+  if (loading) {
+  return (
+    <div className="rooms-loading">
+      Loading rooms...
+    </div>
+  );
+}
+const totalRooms = rooms.length;
+
+const totalPages = Math.ceil(totalRooms / itemsPerPage);
+
+const startIndex = (currentPage - 1) * itemsPerPage;
+const endIndex = startIndex + itemsPerPage;
+
+const paginatedRooms = rooms.slice(startIndex, endIndex);
+const renderPages = () => {
+  const pages = [];
+
+  const startPage = Math.max(1, currentPage - 1);
+  const endPage = Math.min(totalPages, startPage + 2);
+
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i);
+  }
+
+  return pages;
+};
   return (
     <>
-      <RoomManagementModals
+        <RoomManagementModals
         roomName={modals.roomName}
         showWarningModal={modals.showWarningModal}
         showDeactivationModal={modals.showDeactivationModal}
         showActivationModal={modals.showActivationModal}
+        showDeleteModal={modals.showDeleteModal}
+
         closeWarningModal={modals.closeWarningModal}
         closeDeactivationModal={modals.closeDeactivationModal}
         closeActivationModal={modals.closeActivationModal}
+        closeDeleteModal={modals.closeDeleteModal}
+
         handleConfirmDeactivation={modals.handleConfirmDeactivation}
         onConfirmDeactivation={handleDeactivationConfirm}
         onActivateConfirm={handleActivateConfirm}
+        onDeleteConfirm={handleDeleteConfirm}
         onViewAffectedSchedules={handleViewAffectedSchedules}
       />
       <main className="dashboard-main rooms-page">
-        <PageTopbar />
 
         <div className="dashboard-header">
           <div className="dashboard-header-text">
@@ -163,11 +313,15 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
           </div>
 
           <div className="dashboard-actions">
-            <button type="button" className="action-pill outline export-btn">
+            <button
+              type="button"
+              className="action-pill outline export-btn"
+              onClick={handleExport}
+            >
               <i className="fa-solid fa-download" aria-hidden="true" />
               Export
             </button>
-            <button type="button" className="action-pill primary" onClick={onAddRoom}>
+            <button type="button" className="action-pill primary" onClick={() => navigate("/department-head/add-room")}>
               <i className="fa-solid fa-plus" aria-hidden="true" />
               Add Room
             </button>
@@ -177,15 +331,21 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
         <div className="dashboard-status-grid">
           <article className="summary-card">
             <span className="summary-label">ACTIVE BOOKINGS</span>
-            <strong className="summary-value summary-value--orange">8</strong>
+            <strong className="summary-value summary-value--orange">
+              {activeRooms}
+            </strong>
           </article>
           <article className="summary-card">
             <span className="summary-label">AVAILABLE NOW</span>
-            <strong className="summary-value summary-value--green">10</strong>
+            <strong className="summary-value summary-value--green">
+              {totalRooms}
+            </strong>
           </article>
           <article className="summary-card">
             <span className="summary-label">UNDER MAINTENANCE</span>
-            <strong className="summary-value summary-value--grey">4</strong>
+            <strong className="summary-value summary-value--grey">
+              {inactiveRooms}
+            </strong>
           </article>
         </div>
 
@@ -203,11 +363,15 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                 </tr>
               </thead>
               <tbody>
-                {rooms.map((room) => (
+                {paginatedRooms.map((room) => (
                   <tr
                     key={room.id}
                     className={`rooms-row ${room.inactive ? 'is-inactive' : 'clickable-row'}`}
-                    onClick={() => !room.inactive && onOpenDetails(room.id)}
+                    onClick={() => {
+                      if (!room.inactive && typeof onOpenDetails === "function") {
+                        onOpenDetails(room.id);
+                      }
+                    }}
                   >
                     <td>
                       <div className="room-name-cell">
@@ -259,11 +423,16 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                           className="action-icon-btn"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onEditRoom(room.id);
+                            navigate(
+                              `/department-head/edit-room/${room.firestoreId}`
+                            );
                           }}
                           aria-label={`Edit ${room.id}`}
                         >
-                          <i className="fa-solid fa-pen" aria-hidden="true" />
+                          <i
+                            className="fa-solid fa-pen"
+                            aria-hidden="true"
+                          />
                         </button>
                         <ToggleSwitch
                           checked={room.status === 'active'}
@@ -272,6 +441,16 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                             handleSwitchClick(room);
                           }}
                         />
+                        <button
+                          type="button"
+                          className="action-icon-btn danger"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            modals.openDeleteFlow(room.id);
+                          }}
+                        >
+                          <i className="fa-solid fa-trash" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -281,27 +460,55 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
           </div>
 
           <div className="pagination-row">
-            <span>Showing 1 to 5 of 22 rooms</span>
+  <span>
+    Showing {totalRooms === 0 ? 0 : startIndex + 1} to{" "}
+    {Math.min(endIndex, totalRooms)} of {totalRooms} rooms
+  </span>
+
             <div className="pagination-buttons">
-              <button type="button" className="pagination-nav" aria-label="Previous page">
-                <i className="fa-solid fa-chevron-left" aria-hidden="true" />
+              <button
+                type="button"
+                className="pagination-nav"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                <i className="fa-solid fa-chevron-left" />
               </button>
-              <button type="button" className="pagination-page is-active">
-                1
+
+              {renderPages().map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  className={`pagination-page ${
+                    currentPage === page ? "is-active" : ""
+                  }`}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                className="pagination-nav"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                <i className="fa-solid fa-chevron-right" />
               </button>
-              <button type="button" className="pagination-page">
-                2
-              </button>
-              <button type="button" className="pagination-page">
-                3
-              </button>
-              <button type="button" className="pagination-nav" aria-label="Next page">
-                <i className="fa-solid fa-chevron-right" aria-hidden="true" />
-              </button>
+
             </div>
           </div>
         </div>
       </main>
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        message={toast.message}
+        onClose={() =>
+          setToast({ show: false, type: "", message: "" })
+        }
+      />
     </>
   );
 }

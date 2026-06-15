@@ -1,5 +1,6 @@
 import React from 'react';
 import './LoginNav.css';
+import logo from '../../assets/logo.png';
 
 export default function LoginNav({ activePage, onChangePage, onSignIn, onLogout }) {
   const handleSignInClick = () => {
@@ -13,7 +14,12 @@ export default function LoginNav({ activePage, onChangePage, onSignIn, onLogout 
   return (
     <nav className="site-nav">
       <div className="brand-block">
-        <span className="brand-icon">📘</span>
+        <img
+          src={logo}
+          alt="Spaces CICT Logo"
+          className="brand-logo"
+        />
+
         <div>
           <p className="brand-name">Spaces CICT</p>
         </div>

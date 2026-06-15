@@ -6,7 +6,6 @@ import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 function DepartmentHeadReservations() {
   return (
     <div className="container">
-      <DenialPopup />
       <h1>Reservation Requests</h1>
 
       <div className="white-box-reservations">
