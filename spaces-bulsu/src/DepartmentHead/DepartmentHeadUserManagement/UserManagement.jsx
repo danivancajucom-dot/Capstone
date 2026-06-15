@@ -30,6 +30,8 @@ const ROLE_COLORS = {
 
 const steps = [{ number: 1, label: "DETAILS" }, { number: 2, label: "CONFIRM" }];
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 async function createUserSecondaryApp(email, password) {
   const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
@@ -65,6 +67,8 @@ function Stepper({ current }) {
     </div>
   );
 }
+
+// ── Password Cell ─────────────────────────────────────────────────────────────
 
 function PasswordCell({ tempPassword, passwordReset }) {
   const [visible, setVisible] = useState(false);
@@ -355,9 +359,11 @@ function CreateAccountStep1({
     <div className="um-page">
       <div className="um-create-header">
         <h1 className="um-title">Create New Account</h1>
-        <p className="um-subtitle">Fill in the details for the new user account.</p>
+        <p className="um-subtitle">Create users either individually or through bulk Excel upload.</p>
       </div>
+
       <Stepper current={1} />
+
       <div className="um-form-card">
         <div className="um-form-group">
           <label>Select Account Creation Method</label>
@@ -529,6 +535,7 @@ function CreateAccountStep1({
   </>
 )}
       </div>
+
       <div className="um-footer step2">
         <button className="um-back-btn" onClick={onBack}>Back</button>
         <button className="um-next-btn" onClick={onNext} disabled={!canProceed}>Next</button>
@@ -639,6 +646,8 @@ function CreateAccountStep2({
   );
 }
 
+// ── Confirm Modal ─────────────────────────────────────────────────────────────
+
 function ConfirmModal({ onCancel, onConfirm, loading }) {
   return (
     <div className="um-modal-overlay">
@@ -654,6 +663,8 @@ function ConfirmModal({ onCancel, onConfirm, loading }) {
     </div>
   );
 }
+
+// ── Root ──────────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = { firstName: "", lastName: "", gender: "", email: "", role: "" };
 
