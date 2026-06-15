@@ -10,6 +10,7 @@ import "./user-management.css";
 import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
 import { deleteDoc } from "firebase/firestore";
+emailjs.init("bNsod6OOQzMmRo0Cs");
 
 const firebaseConfig = {
   apiKey: "AIzaSyAQRQ0DcO-giGzZN46w91TJb2NGZ1S8ykQ",
@@ -763,15 +764,33 @@ export default function UserManagement() {
               new Date().toISOString(),
           }
         );
+        try {
+          const emailResult = await emailjs.send(
+            "service_qogg8xj",
+            "template_okil0d3",
+            {
+              user_email: form.email,
+              first_name: form.firstName,
+              last_name: form.lastName,
+              role: form.role,
+              temp_password: tempPassword,
+            },
+            "bNsod6OOQzMmRo0Cs"
+          );
 
-        await sendPasswordResetEmail(
+          console.log("Email sent:", emailResult);
+        } catch (emailError) {
+          console.error("EMAILJS ERROR:", emailError);
+          alert("EmailJS Error: " + JSON.stringify(emailError));
+        }
+        /*await sendPasswordResetEmail(
           auth,
           form.email,
           {
             url: `${window.location.origin}/reset-password`,
             handleCodeInApp: false,
           }
-        );
+        );*/
         await logActivity({
           userId: uid,
           user: `${form.firstName} ${form.lastName}`,
@@ -862,15 +881,44 @@ export default function UserManagement() {
                   new Date().toISOString(),
               }
             );
+            try {
+              const emailResult = await emailjs.send(
+                "service_qogg8xj",
+                "template_okil0d3",
+                {
+                  user_email: row.email,
+                  first_name: row.firstName,
+                  last_name: row.lastName,
+                  role: row.role,
+                  temp_password: tempPassword,
+                },
+                "bNsod6OOQzMmRo0Cs"
+              );
 
-            await sendPasswordResetEmail(
+              console.log("Email sent:", emailResult);
+            } catch (emailError) {
+              console.error("EMAILJS ERROR:", emailError);
+              alert("EmailJS Error: " + JSON.stringify(emailError));
+            }
+
+        await logActivity({
+          userId: uid,
+          user: `${row.firstName} ${row.lastName}`,
+          role: row.role,
+          action: "Bulk Created User",
+          actionType: "success",
+          target: row.email,
+          status: "SUCCESS",
+        });
+
+            /*await sendPasswordResetEmail(
             auth,
             form.email,
             {
               url: `${window.location.origin}/reset-password`,
               handleCodeInApp: false,
             }
-          );
+          );*/
           
             successCount++;
 
@@ -888,15 +936,7 @@ export default function UserManagement() {
 
           }
         }
-        await logActivity({
-          userId: uid,
-          user: `${row.firstName} ${row.lastName}`,
-          role: row.role,
-          action: "Bulk Created User",
-          actionType: "success",
-          target: row.email,
-          status: "SUCCESS",
-        });
+        
 
         alert(
           `Bulk upload completed.\n\n` +

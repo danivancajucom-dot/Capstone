@@ -11,7 +11,7 @@ import {
   doc,
   updateDoc,
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function FacultyLayout() {
   const navigate = useNavigate();
@@ -19,6 +19,7 @@ export default function FacultyLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
   const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -83,6 +84,22 @@ const filteredNotifications = notifications.filter((item) => {
 
   return !item.archived;
 });
+
+  const handleLogout = async () => {
+  try {
+    setShowLogoutConfirm(false);
+    setLoggingOut(true);
+
+    setTimeout(async () => {
+      await signOut(auth);
+      navigate("/login");
+    }, 2000);
+
+  } catch (error) {
+    console.error(error);
+    setLoggingOut(false);
+  }
+};
 
   return (
     <>
@@ -329,7 +346,7 @@ const filteredNotifications = notifications.filter((item) => {
 
               <button
                 className="modal-btn confirm"
-                onClick={() => navigate("/login")}
+                onClick={handleLogout}
               >
                 Confirm
               </button>
@@ -340,6 +357,17 @@ const filteredNotifications = notifications.filter((item) => {
 
         </div>
       )}
+
+      {loggingOut && (
+        <div className="login-loading-screen">
+          <div className="loading-card">
+            <div className="spinner" />
+            <h2>Signing you out...</h2>
+            <p>Please wait while we securely end your session</p>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }

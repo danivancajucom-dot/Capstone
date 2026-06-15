@@ -1,11 +1,29 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import "./local-registrar-layout.css";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function LocalRegistrarLayout() {
   const [openSchedule, setOpenSchedule] = useState(true);
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setShowLogoutConfirm(false);
+      setLoggingOut(true);
+
+      setTimeout(async () => {
+        await signOut(auth);
+        navigate("/login");
+      }, 2000);
+
+    } catch (error) {
+      console.error(error);
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <>
@@ -144,7 +162,7 @@ export default function LocalRegistrarLayout() {
 
               <button
                 className="modal-btn confirm"
-                onClick={() => navigate("/login")}
+                onClick={handleLogout}
               >
                 Confirm
               </button>
@@ -155,6 +173,17 @@ export default function LocalRegistrarLayout() {
 
         </div>
       )}
+
+      {loggingOut && (
+        <div className="login-loading-screen">
+          <div className="loading-card">
+            <div className="spinner" />
+            <h2>Signing you out...</h2>
+            <p>Please wait while we securely end your session</p>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }

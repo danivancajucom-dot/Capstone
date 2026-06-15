@@ -1,11 +1,29 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import "./clerk-layout.css";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function ClerkLayout() {
   const navigate = useNavigate();
   const [showLogout, setShowLogout] = useState(false);
   const [openReservations, setOpenReservations] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+  try {
+    setShowLogoutConfirm(false);
+    setLoggingOut(true);
+
+    setTimeout(async () => {
+      await signOut(auth);
+      navigate("/login");
+    }, 2000);
+
+  } catch (error) {
+    console.error(error);
+    setLoggingOut(false);
+  }
+};
 
   return (
     <>
@@ -117,13 +135,23 @@ export default function ClerkLayout() {
 
               <button
                 className="modal-btn confirm"
-                onClick={() => navigate("/login")}
+                onClick={handleLogout}
               >
                 Confirm
               </button>
 
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {loggingOut && (
+        <div className="login-loading-screen">
+          <div className="loading-card">
+            <div className="spinner" />
+            <h2>Signing you out...</h2>
+            <p>Please wait while we securely end your session</p>
           </div>
         </div>
       )}
