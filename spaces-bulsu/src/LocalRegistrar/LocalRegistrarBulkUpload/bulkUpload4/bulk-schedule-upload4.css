@@ -286,3 +286,82 @@ body {
 .modal-btn-confirm:hover {
   background-color: #ea6c0a;
 }
+
+.preview-title {
+  margin-top: 20px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+/* GRID */
+.schedule-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+/* CARD */
+.schedule-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.schedule-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+}
+
+/* HEADER */
+.schedule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.schedule-subject {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+/* BADGE */
+.schedule-badge {
+  background: #FEF0E7;
+  color: #F97316;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+/* BODY */
+.schedule-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schedule-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.schedule-row i {
+  color: #F97316;
+  width: 16px;
+}
+
+.schedule-row.time {
+  font-weight: 700;
+  color: #111827;
+}

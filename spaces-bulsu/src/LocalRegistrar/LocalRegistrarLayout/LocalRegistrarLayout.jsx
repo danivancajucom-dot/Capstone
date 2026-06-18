@@ -51,6 +51,7 @@ export default function LocalRegistrarLayout() {
               <span>Dashboard</span>
             </NavLink>
 
+
             <div className="nav-group">
 
               <button
@@ -98,6 +99,11 @@ export default function LocalRegistrarLayout() {
             <NavLink to="/local-registrar/activity-log">
               <i className="fa-solid fa-clock-rotate-left"></i>
               <span>Activity Log</span>
+            </NavLink>
+
+            <NavLink to="/local-registrar/broadcast-channel">
+              <i className="fa-solid fa-bell"></i>
+              Announcement Channel
             </NavLink>
 
           </nav>

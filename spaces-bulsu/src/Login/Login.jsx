@@ -27,6 +27,12 @@ export default function Login() {
   if (savedEmail || savedRole) setRememberMe(true);
 }, []);
 
+  const handleKeyDown = (e) => {
+  if (e.key === "Enter" && !loading) {
+    handleSignIn();
+  }
+};
+
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -158,7 +164,6 @@ export default function Login() {
   return (
     <>
       <LoginNav activePage="login" />
-
       <Toast
         show={toast.show}
         type={toast.type}
@@ -207,7 +212,12 @@ export default function Login() {
 
         {/* LOGIN SIDE */}
         <section className="login-panel">
-          <div className="login-card">
+          <div className="login-card"
+           onKeyDown={(e) => {
+            if (e.key === "Enter" && !loading) {
+              handleSignIn();
+            }
+          }}>
 
             <div className="login-card-header">
               <div className="card-icon logo-icon">
@@ -225,7 +235,6 @@ export default function Login() {
             {/* ROLE */}
             <div className="form-group">
               <label>Select Role</label>
-
               <div className="role-selector">
                 {roles.map((role) => (
                   <button
@@ -244,7 +253,6 @@ export default function Login() {
             </div>
 
             {/* EMAIL */}
-          
             <div className="form-group float-group">
               <div className="float-input">
                 <i className="fa-solid fa-user input-icon" />
@@ -253,6 +261,7 @@ export default function Login() {
                   value={email}
                   placeholder=" "
                   onChange={(e) => setEmail(e.target.value)}
+                   onKeyDown={handleKeyDown}
                   required
                 />
                 <label>Email or University ID</label>
@@ -268,6 +277,7 @@ export default function Login() {
                   value={password}
                   placeholder=" "
                   onChange={(e) => setPassword(e.target.value)}
+                   onKeyDown={handleKeyDown}
                   required
                 />
                 <label>Password</label>

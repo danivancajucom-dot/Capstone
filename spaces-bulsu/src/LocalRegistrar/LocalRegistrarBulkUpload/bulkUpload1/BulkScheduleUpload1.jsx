@@ -1,8 +1,8 @@
-// BulkScheduleUpload.jsx
 import { useState, useRef, useEffect } from "react";
 import "./bulk-schedule-upload1.css";
 import { useNavigate } from "react-router-dom";
-
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../../../firebase"; 
 const steps = [
   { number: 1, label: "SETUP" },
   { number: 2, label: "UPLOAD" },
@@ -15,9 +15,8 @@ const currentYear = new Date().getFullYear();
 const schoolYears = [
   `${currentYear}-${currentYear + 1}`,
   `${currentYear + 1}-${currentYear + 2}`,
-  `${currentYear + 2}-${currentYear + 3}`, // one extra for flexibility
+  `${currentYear + 2}-${currentYear + 3}`,
 ];
-const rooms = ["IT 13", "IT 14", "IT 15", "Computer Lab 1", "Computer Lab 2"];
 
 function CustomDropdown({ placeholder, options, value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -37,15 +36,18 @@ function CustomDropdown({ placeholder, options, value, onChange }) {
       </div>
       {open && options.length > 0 && (
         <div className="custom-select__dropdown">
-          {options.map((opt) => (
-            <div
-              key={opt}
-              className={`custom-select__option ${value === opt ? "active" : ""}`}
-              onClick={() => { onChange(opt); setOpen(false); }}
-            >
-              {opt}
-            </div>
-          ))}
+        {options.map((opt, index) => (
+        <div
+          key={index} 
+          className={`custom-select__option ${value === opt ? "active" : ""}`}
+          onClick={() => {
+            onChange(opt);
+            setOpen(false);
+          }}
+        >
+          {opt}
+        </div>
+      ))}
         </div>
       )}
     </div>
@@ -56,7 +58,21 @@ export default function BulkScheduleUpload() {
   const navigate = useNavigate();
   const [semester, setSemester] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
+  const [rooms, setRooms] = useState([]);
   const [room, setRoom] = useState("");
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "rooms"), (snapshot) => {
+      const roomList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      setRooms(roomList.map(r => r.roomName));
+    });
+
+    return () => unsub();
+  }, []);
 
   const handleNext = () => {
     if (!semester || !schoolYear || !room) {

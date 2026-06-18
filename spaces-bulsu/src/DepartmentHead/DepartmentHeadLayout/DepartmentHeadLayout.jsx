@@ -169,6 +169,11 @@ const filteredNotifications = notifications.filter((item) => {
               Notifications
             </NavLink>
 
+            <NavLink to="/department-head/broadcast-channel">
+              <i className="fa-solid fa-bell"></i>
+              Announcement Channel
+            </NavLink>
+
           </nav>
 
         </aside>
@@ -325,17 +330,12 @@ const filteredNotifications = notifications.filter((item) => {
                       >
                         Archive
                       </button>
-                    )}
-
+                     )}
                   </div>
-
                   </div>
-
                 </div>
               ))}
-
             </div>
-
           </div>
         </>
       )}

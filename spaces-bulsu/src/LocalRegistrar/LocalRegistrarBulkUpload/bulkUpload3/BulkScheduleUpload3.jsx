@@ -35,8 +35,10 @@ const colourPalette = [
 
 // ---------- Edit Modal with Section ----------
 function EditScheduleModal({ schedule, onSave, onClose }) {
-  const [code, setCode] = useState(schedule.code);
-  const [name, setName] = useState(schedule.name);
+  const [code, setCode] =
+  useState(schedule.code || "");
+  const [name, setName] =
+  useState(schedule.name || "");
   const [day, setDay] = useState(schedule.day);
   const [startH, setStartH] = useState(schedule.startH);
   const [startM, setStartM] = useState(schedule.startM);
@@ -66,47 +68,104 @@ function EditScheduleModal({ schedule, onSave, onClose }) {
       <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
         <h3>Edit Schedule</h3>
         <form onSubmit={handleSubmit}>
-          <label>Course Code</label>
-          <input value={code} onChange={(e) => setCode(e.target.value)} required />
+          <div className="modal-grid">
 
-          <label>Course Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
+            <div className="field-group">
+              <label>Course Code</label>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+              />
+            </div>
 
-          <label>Day</label>
-          <select value={day} onChange={(e) => setDay(e.target.value)}>
-            {DAYS.map((d, idx) => (
-              <option key={idx} value={idx + 1}>{d}</option>
-            ))}
-          </select>
+            <div className="field-group">
+              <label>Day</label>
+              <select
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
+              >
+                {DAYS.map((d, idx) => (
+                  <option key={idx} value={idx + 1}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-            <div>
-              <label>Start Time</label>
-              <div>
-                <input type="number" value={startH} onChange={(e) => setStartH(e.target.value)} min={0} max={23} step="1" style={{width: "60px"}} />
-                :
-                <input type="number" value={startM} onChange={(e) => setStartM(e.target.value)} min={0} max={59} step="1" style={{width: "60px"}} />
+            <div className="time-row">
+              {/* START */}
+              <div className="time-box">
+                <label>Start Time</label>
+
+                <div className="time-inputs">
+                  <input
+                    type="number"
+                    value={startH}
+                    onChange={(e) => setStartH(e.target.value)}
+                  />
+
+                  <span className="time-separator">:</span>
+
+                  <input
+                    type="number"
+                    value={startM}
+                    onChange={(e) => setStartM(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* END */}
+              <div className="time-box">
+                <label>End Time</label>
+
+                <div className="time-inputs">
+                  <input
+                    type="number"
+                    value={endH}
+                    onChange={(e) => setEndH(e.target.value)}
+                  />
+
+                  <span className="time-separator">:</span>
+
+                  <input
+                    type="number"
+                    value={endM}
+                    onChange={(e) => setEndM(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
-            <div>
-              <label>End Time</label>
-              <div>
-                <input type="number" value={endH} onChange={(e) => setEndH(e.target.value)} min={0} max={23} step="1" style={{width: "60px"}} />
-                :
-                <input type="number" value={endM} onChange={(e) => setEndM(e.target.value)} min={0} max={59} step="1" style={{width: "60px"}} />
-              </div>
+
+            <div className="field-group">
+              <label>Faculty</label>
+              <input
+                value={faculty}
+                onChange={(e) => setFaculty(e.target.value)}
+              />
             </div>
+
+            <div className="field-group">
+              <label>Section</label>
+              <input
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+              />
+            </div>
+
           </div>
 
-          <label>Faculty</label>
-          <input value={faculty} onChange={(e) => setFaculty(e.target.value)} />
-
-          <label>Section</label>
-          <input value={section} onChange={(e) => setSection(e.target.value)} />
-
           <div className="modal-actions">
-            <button type="button" onClick={onClose}>Cancel</button>
-            <button type="submit">Save</button>
+            <button
+              type="button"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+
+            <button type="submit">
+              Save Changes
+            </button>
           </div>
         </form>
       </div>
@@ -130,14 +189,160 @@ export default function BulkScheduleUpload3() {
     );
   }
 
-  const { semester, schoolYear, room, schedules: initialSchedules } = location.state;
-  const [schedules, setSchedules] = useState(initialSchedules);
+  const {
+  semester,
+  schoolYear,
+  room,
+  schedules: rawSchedules = []
+} = location.state;
+
+  const convertDayToNumber = (day) => {
+      switch (day?.toUpperCase()) {
+        case "MON":
+          return 1;
+        case "TUE":
+          return 2;
+        case "WED":
+          return 3;
+        case "THU":
+          return 4;
+        case "FRI":
+          return 5;
+        case "SAT":
+          return 6;
+        case "SUN":
+          return 7;
+        default:
+          return 1;
+      }
+    };
+
+    const parseTime = (timeStr) => {
+    if (!timeStr) return [7, 0];
+
+    const cleaned = timeStr
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const match = cleaned.match(
+      /(\d{1,2}):(\d{2})\s*(AM|PM)/i
+    );
+
+    if (!match) return [7, 0];
+
+    let hour = parseInt(match[1]);
+    let minute = parseInt(match[2]);
+    const meridian = match[3].toUpperCase();
+
+    if (meridian === "PM" && hour !== 12)
+      hour += 12;
+
+    if (meridian === "AM" && hour === 12)
+      hour = 0;
+
+    return [hour, minute];
+  };
+  const formatTime12Hour = (hour, minute) => {
+    const suffix = hour >= 12 ? "PM" : "AM";
+
+    let displayHour = hour % 12;
+
+    if (displayHour === 0)
+      displayHour = 12;
+
+    return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+  };
+
+  const convertSchedules = (data = []) => {
+    return data.map((item, index) => {
+
+      let startH = 7;
+      let startM = 0;
+      let endH = 8;
+      let endM = 0;
+
+      // Excel format
+      if (item.time) {
+
+        const parts =
+        item.time
+          .replace(/\s*-\s*/, "-")
+          .split("-");
+
+        if (parts.length === 2) {
+
+          [startH, startM] =
+            parseTime(parts[0]);
+
+          [endH, endM] =
+            parseTime(parts[1]);
+        }
+
+      }
+
+      // AI format
+      else if (
+        item.startTime &&
+        item.endTime
+      ) {
+
+        [startH, startM] =
+          item.startTime.split(":")
+          .map(Number);
+
+        [endH, endM] =
+          item.endTime.split(":")
+          .map(Number);
+      }
+
+      return {
+        id: item.id || index + 1,
+
+        code:
+          item.code ||
+          item.subject ||
+          "",
+
+        name:
+          item.name ||
+          item.subject ||
+          "",
+
+        section:
+          item.section ||
+          "",
+
+        faculty:
+          item.faculty ||
+          "TBA",
+
+        day:
+          typeof item.day === "number"
+            ? item.day
+            : convertDayToNumber(item.day),
+
+        startH,
+        startM,
+        endH,
+        endM,
+
+        room:
+          item.room ||
+          room,
+
+        colorIdx:
+          item.colorIdx ??
+          (index % 10)
+      };
+    });
+  };
+
+const [schedules, setSchedules] =
+  useState(() =>
+    convertSchedules(rawSchedules)
+  );
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
-
-  // Debug logs – remove after testing
-  console.log("📅 Schedules received:", schedules);
-  console.log("First schedule day:", schedules[0]?.day);
 
   // Real‑time week dates (Monday to Sunday)
   const today = new Date();
@@ -276,7 +481,11 @@ export default function BulkScheduleUpload3() {
                           {item.section && <span style={{ fontSize: "8px", marginLeft: "4px" }}>({item.section})</span>}
                         </div>
                         <div>
-                          {item.startH.toString().padStart(2,"0")}:{item.startM.toString().padStart(2,"0")} - {item.endH.toString().padStart(2,"0")}:{item.endM.toString().padStart(2,"0")}
+                        <div>
+                          {formatTime12Hour(item.startH, item.startM)}
+                          {" - "}
+                          {formatTime12Hour(item.endH, item.endM)}
+                        </div>
                         </div>
                         {item.faculty && item.faculty !== "TBA" && (
                           <div style={{ fontSize: "8px", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -309,8 +518,21 @@ export default function BulkScheduleUpload3() {
           className="btn-next"
           onClick={() =>
             navigate("/local-registrar/bulk-upload-4", {
-              state: { semester, schoolYear, room, schedules },
-            })
+            state: {
+              semester,
+              schoolYear,
+              room,
+              schedules: schedules.map(item => ({
+                subject: item.code,
+                section: item.section,
+                faculty: item.faculty,
+                day: DAYS[item.day - 1],
+                startTime:
+                  `${String(item.startH).padStart(2,"0")}:${String(item.startM).padStart(2,"0")}`,
+                endTime:
+                  `${String(item.endH).padStart(2,"0")}:${String(item.endM).padStart(2,"0")}`
+              }))
+            }})
           }
         >
           Continue

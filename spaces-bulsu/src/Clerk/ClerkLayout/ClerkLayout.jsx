@@ -44,6 +44,11 @@ export default function ClerkLayout() {
               Dashboard
             </NavLink>
 
+            <NavLink to="/department-head/broadcast-channel">
+              <i className="fa-solid fa-bell"></i>
+              Announcement Channel
+            </NavLink>
+
             <NavLink to="/clerk/schedule">
               <i className="fa-solid fa-calendar"></i>
               Schedule

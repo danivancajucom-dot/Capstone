@@ -135,6 +135,11 @@ const filteredNotifications = notifications.filter((item) => {
               Reservations
             </NavLink>
 
+            <NavLink to="/department-head/broadcast-channel">
+              <i className="fa-solid fa-bell"></i>
+              Announcement Channel
+            </NavLink>
+
             <NavLink to="/faculty/profile">
               <i className="fa-solid fa-user"></i>
               Profile
