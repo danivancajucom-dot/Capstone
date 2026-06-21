@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import "./local-registrar-layout.css";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -6,8 +6,20 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 export default function LocalRegistrarLayout() {
   const [openSchedule, setOpenSchedule] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const scheduleRoutes = [
+    "/local-registrar/bulk-upload-1",
+    "/local-registrar/academic-schedule",
+    "/local-registrar/my-submitted-schedules",
+    "/local-registrar/qr-code",
+  ];
+
+  const isScheduleActive = scheduleRoutes.some((path) =>
+    location.pathname.startsWith(path)
+  );
 
   const handleLogout = async () => {
     try {
@@ -54,10 +66,10 @@ export default function LocalRegistrarLayout() {
 
             <div className="nav-group">
 
-              <button
-                className="nav-parent active-parent"
-                onClick={() => setOpenSchedule(!openSchedule)}
-              >
+             <button
+  className={`lr-nav-parent ${isScheduleActive ? "active-parent" : ""}`}
+  onClick={() => setOpenSchedule(!openSchedule)}
+>
                 <div className="nav-left">
                   <i className="fa-solid fa-calendar-days"></i>
                   <span>Schedule</span>
@@ -91,19 +103,9 @@ export default function LocalRegistrarLayout() {
               </div>
             </div>
 
-            <NavLink to="/local-registrar/room-card">
-              <i className="fa-solid fa-building"></i>
-              <span>Room Card</span>
-            </NavLink>
-
-            <NavLink to="/local-registrar/activity-log">
-              <i className="fa-solid fa-clock-rotate-left"></i>
-              <span>Activity Log</span>
-            </NavLink>
-
             <NavLink to="/local-registrar/broadcast-channel">
               <i className="fa-solid fa-bell"></i>
-              Announcement Channel
+              <span>Announcement Channel</span>
             </NavLink>
 
           </nav>
@@ -114,7 +116,7 @@ export default function LocalRegistrarLayout() {
 
           <header className="registrar-header">
 
-            <div className="header-search">
+            <div className="registrar-header-search">
               <i className="fa-solid fa-magnifying-glass"></i>
 
               <input
@@ -130,11 +132,11 @@ export default function LocalRegistrarLayout() {
               </button>
 
               <button
-                className="header-btn"
-                onClick={() => setShowLogoutConfirm(true)}
-              >
-                <i className="fa-solid fa-arrow-right-from-bracket"></i>
-              </button>
+  className="header-btn lr-logout-btn"
+  onClick={() => setShowLogoutConfirm(true)}
+>
+  <i className="fa-solid fa-arrow-right-from-bracket"></i>
+</button>
 
             </div>
 

@@ -24,8 +24,11 @@ export default function MySubmittedSchedules() {
   if (page === "archived") {
     return (
     <>
-          <div className="page">
-        <h1>Archived Schedules</h1>
+          <div className="lr-submitted-schedules">
+        <div className="lr-ss-page-header">
+          <h1>Archived Schedules</h1>
+          <span className="view-archived" onClick={() => setPage("submitted")}>Back to Submitted Schedules</span>
+        </div>
         <div className="list-card">
           {archived.map(s => (
             <div className="schedule-item" key={s.id}>
@@ -34,7 +37,7 @@ export default function MySubmittedSchedules() {
                 <span className="schedule-meta"><strong>Date:</strong> {s.date}</span>
                 <span className="schedule-meta"><strong>Semester:</strong> {s.semester}</span>
               </div>
-              <button className="btn-action" onClick={() => handleRestore(s)}>Restore Schedule</button>
+              <button className="lr-ss-btn-action" onClick={() => handleRestore(s)}>Restore Schedule</button>
             </div>
           ))}
         </div>
@@ -45,8 +48,8 @@ export default function MySubmittedSchedules() {
 
   return (
     <>
-        <div className="page">
-      <div className="page-header">
+        <div className="lr-submitted-schedules">
+      <div className="lr-ss-page-header">
         <h1>My Submitted Schedules</h1>
         <span className="view-archived" onClick={() => setPage("archived")}>View Archived Schedules</span>
       </div>
@@ -58,7 +61,7 @@ export default function MySubmittedSchedules() {
               <span className="schedule-meta"><strong>Date:</strong> {s.date}</span>
               <span className="schedule-meta"><strong>Semester:</strong> {s.semester}</span>
             </div>
-            <button className="btn-action" onClick={() => handleArchive(s)}>Archive Schedule</button>
+            <button className="lr-ss-btn-action" onClick={() => handleArchive(s)}>Archive Schedule</button>
           </div>
         ))}
       </div>

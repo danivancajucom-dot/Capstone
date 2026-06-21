@@ -16,14 +16,14 @@
   display: block;
   font-size: 20px;
   font-weight: 700;
-  color: #F2690D;
+  color:  #f57c00;
 }
 
 .class-details-date {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #F2690D;
+  color:  #f57c00;
   margin-top: 4px;
 }
 
@@ -31,7 +31,7 @@
   position: absolute;
   top: 15px;
   right: 15px;
-  color: #F2690D;
+  color:  #f57c00;
   cursor: pointer;
   font-size: 16px;
 }
@@ -58,7 +58,7 @@
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: #555;
+  color: #555555;
   flex-shrink: 0;
 }
 
@@ -71,12 +71,12 @@
 .class-detail-label {
   font-size: 11px;
   font-weight: 600;
-  color: #888;
+  color: #888888;
   letter-spacing: 0.5px;
 }
 
 .class-detail-value {
   font-size: 15px;
   font-weight: 700;
-  color: #333;
+  color: #333333;
 }

@@ -90,14 +90,19 @@ text-decoration:none;
 color:#5f6c80;
 font-size:15px;
 font-weight:500;
+border: 1px solid transparent;
 transition:.2s;
 }
 
-.registrar-nav a:hover
+.registrar-nav a:hover{
+background: #FEF0E7;
+color: #f57c00;
+}
 
 .registrar-nav a.active{
-background:#f57c00;
-color:#fff;
+background: #FEF0E7;
+border: solid 1px #f57c00;
+color: #f57c00;
 }
 
 .nav-group{
@@ -105,21 +110,32 @@ display:flex;
 flex-direction:column;
 }
 
-.nav-parent{
+.lr-nav-parent{
 width:100%;
 display:flex;
 align-items:center;
 justify-content:space-between;
 padding:14px 16px;
-border:none;
+border:1px solid transparent;
 cursor:pointer;
 border-radius:14px;
-background:#fff3e8;
-border:1.5px solid #f57c00;
-color:#f57c00;
+background:transparent;
+color:#5f6c80;
 font-family:'Lexend',sans-serif;
 font-size:15px;
 font-weight:600;
+transition:.2s;
+}
+
+.lr-nav-parent:hover{
+background: #FEF0E7;
+color: #f57c00;
+}
+
+.lr-nav-parent.active-parent{
+background: #FEF0E7;
+border: solid 1px #f57c00;
+color: #f57c00;
 }
 
 .nav-left{
@@ -176,8 +192,9 @@ MAIN
 ========================= */
 
 .registrar-main{
-margin-left:280px;
+margin-left:260px;
 flex:1;
+background-color: #F8F7F5;
 min-width:0;
 }
 
@@ -188,7 +205,7 @@ HEADER
 .registrar-header{
 position:fixed;
 top:0;
-left:280px;
+left:260px;
 right:0;
 height:80px;
 background:#fff;
@@ -197,15 +214,18 @@ display:flex;
 justify-content:space-between;
 align-items:center;
 padding:0 30px;
+gap: 20px; 
 z-index:90;
 }
 
-.header-search{
-width:420px;
+.registrar-header-search{
+width:600px;
 position:relative;
+max-width: 100%;  
+margin: 0 auto; 
 }
 
-.header-search i{
+.registrar-header-search i{
 position:absolute;
 left:18px;
 top:50%;
@@ -213,7 +233,7 @@ transform:translateY(-50%);
 color:#8f96a3;
 }
 
-.header-search input{
+.registrar-header-search input{
 width:100%;
 height:52px;
 border:none;
@@ -243,16 +263,24 @@ font-size:18px;
 color:#5f6c80;
 }
 
-.header-btn:hover
+.header-btn.lr-logout-btn{
+background: #fff3e8;
+color: #f57c00;
+}
 
+.header-btn.lr-logout-btn:hover{
+background: #fde8d4;
+}
+
+.header-btn:hover{
+background:#e9ebf0;
+}
 /* =========================
 CONTENT
 ========================= */
 
 .registrar-content{
-margin-top:80px;
-padding:24px;
-min-height:calc(100vh - 80px);
+background-color: #F8F7F5;
 overflow-x:hidden;
 }
 
@@ -328,7 +356,7 @@ display:none;
 display:none;
 }
 
-.nav-parent{
+.lr-nav-parent{
 justify-content:center;
 }
 

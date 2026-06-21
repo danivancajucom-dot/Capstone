@@ -201,24 +201,35 @@ export default function BulkScheduleUpload2() {
 };
 
     return (
-      <div className="bulk-upload-page">
-        <div className="bulk-header">
+      <div className="bulk-upload-page-two">
+        <div className="bulk-header-two">
           <h1>Bulk Schedule Upload</h1>
           <p>
             Upload a PDF or Excel schedule.
           </p>
         </div>
-        <div className="form-card">
+        <div className="stepper-two">
+          {steps.map((step, index) => (
+            <div className="step-wrapper-two" key={step.number}>
+              <div className="step-item-two">
+                <div className={`step-circle-two ${step.number === 2 ? "active" : step.number === 1 ? "completed" : ""}`}>{step.number}</div>
+                <span className={`step-label-two ${step.number === 2 ? "active" : ""}`}>{step.label}</span>
+              </div>
+              {index < steps.length - 1 && <div className={`step-line-two ${step.number === 1 ? "completed" : ""}`} />}
+            </div>
+          ))}
+        </div>
+        <div className="form-card-two">
           <div className="upload-header">
-            <p className="upload-title">
+            <div className="upload-title-two">
               Upload Schedule File
-            </p>
-            <p className="upload-subtitle">
+            </div>
+            <div className="upload-subtitle-two">
               PDF or Excel supported
-            </p>
+            </div>
           </div>
           <div
-            className={`drop-zone ${file ? "has-file" : ""}`}
+            className={`drop-zone-two ${file ? "has-file" : ""}`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -227,15 +238,15 @@ export default function BulkScheduleUpload2() {
               );
             }}
           >
-            <div className="drop-icon">
+            <div className="drop-icon-two">
               <i className="fas fa-file-arrow-up" />
             </div>
             {
               file
-                ? <p>{file.name}</p>
-                : <p>Select PDF or Excel File</p>
+                ? <div className="drop-filename-two">{file.name}</div>
+                : <div className="drop-placeholder-two">Select PDF or Excel File</div>
             }
-            <label className="browse-btn">
+            <label className="browse-btn-two">
               Browse Files
               <input
                 hidden
@@ -250,9 +261,15 @@ export default function BulkScheduleUpload2() {
             </label>
           </div>
 
-          <div style={{marginTop:"20px"}}>
+          <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between" }}>
             <button
-              className="btn-next"
+              className="btn-back-two"
+              onClick={() => navigate(-1)}
+            >
+              Back
+            </button>
+            <button
+              className="btn-next-two"
               disabled={loading}
               onClick={handleProcess}
             >
@@ -264,12 +281,6 @@ export default function BulkScheduleUpload2() {
                   ? "Import Excel"
                   : "Process with AI"
               }
-            </button>
-            <button
-              className="btn-back"
-              onClick={() => navigate(-1)}
-            >
-              Back
             </button>
           </div>
         </div>

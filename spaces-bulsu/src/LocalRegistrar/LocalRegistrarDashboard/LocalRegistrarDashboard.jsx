@@ -1,6 +1,8 @@
 import "./LocalRegistrarDashboard.css";
+import { useNavigate } from "react-router-dom";
 
 export default function LocalRegistrarDashboard() {
+const navigate = useNavigate();
   return (
     <div className="registrar-dashboard">
 
@@ -46,13 +48,14 @@ export default function LocalRegistrarDashboard() {
 
       <div className="dashboard-table-card">
 
-        <div className="table-header">
+        <div className="lr-dashboard-table-header">
 
-          <h2>Recently Modified Schedules</h2>
+          <h2>Activity Log</h2>
 
-          <button className="view-all-btn">
-            View All
-          </button>
+          <button
+            className="lr-dashboard-view-all-btn"
+            onClick={() => navigate("/local-registrar/activity-log")}
+          >View All</button>
 
         </div>
 
@@ -62,10 +65,9 @@ export default function LocalRegistrarDashboard() {
 
             <thead>
               <tr>
-                <th>Course</th>
-                <th>Room</th>
-                <th>Faculty</th>
-                <th>Time</th>
+                <th>Date & Time</th>
+                <th>Action</th>
+                <th>Performed By</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -73,25 +75,23 @@ export default function LocalRegistrarDashboard() {
             <tbody>
 
               <tr>
-                <td>Systems Design</td>
-                <td>Prog Lab 2</td>
-                <td>Dela Cruz</td>
-                <td>9:00AM - 12:00PM</td>
+                <td>June 6, 2026 | 9:00AM</td>
+                <td>Generated QR Code</td>
+                <td>Prof. Dela Cruz</td>
                 <td>
-                  <span className="status-chip confirmed">
-                    Confirmed
+                  <span className="status-chip success">
+                    Success
                   </span>
                 </td>
               </tr>
 
               <tr>
-                <td>Game Development</td>
-                <td>SDL2</td>
-                <td>Dela Cruz</td>
-                <td>8:30AM - 11:30AM</td>
+                <td>June 6, 2026 | 9:02AM</td>
+                <td>Generated QR Code</td>
+                <td>Prof. Dela Cruz</td>
                 <td>
-                  <span className="status-chip conflict">
-                    Conflict
+                  <span className="status-chip failed">
+                    Failed
                   </span>
                 </td>
               </tr>
