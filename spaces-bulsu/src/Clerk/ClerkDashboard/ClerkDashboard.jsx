@@ -13,29 +13,29 @@ function ClerkDashboard() {
   return (
     <>
       <div className="container">
-      <h1>Clerk Dashboard</h1>
+      <h1 className="clerk-dashboard-title">Clerk Dashboard</h1>
 
       <div className="clerk-dashboard-boxes">
         <div className="clerk-dashboard-main-box">
-          <div className="clerk-nav">
+          <div className="clerk-room-nav">
             <div
-              className={`clerk-nav-item all-rooms ${activeNav === "all-rooms" ? "active" : ""}`}
+              className={`clerk-room-nav-item all-rooms ${activeNav === "all-rooms" ? "active" : ""}`}
               onClick={() => setActiveNav("all-rooms")}
             >All Rooms</div>
             <div
-              className={`clerk-nav-item available ${activeNav === "available" ? "active" : ""}`}
+              className={`clerk-room-nav-item available ${activeNav === "available" ? "active" : ""}`}
               onClick={() => setActiveNav("available")}
             >Available</div>
             <div
-              className={`clerk-nav-item occupied ${activeNav === "occupied" ? "active" : ""}`}
+              className={`clerk-room-nav-item occupied ${activeNav === "occupied" ? "active" : ""}`}
               onClick={() => setActiveNav("occupied")}
             >Occupied</div>
             <div
-              className={`clerk-nav-item maintenance ${activeNav === "maintenance" ? "active" : ""}`}
+              className={`clerk-room-nav-item maintenance ${activeNav === "maintenance" ? "active" : ""}`}
               onClick={() => setActiveNav("maintenance")}
             >Maintenance</div>
             <div
-              className={`clerk-nav-item reserved ${activeNav === "reserved" ? "active" : ""}`}
+              className={`clerk-room-nav-item reserved ${activeNav === "reserved" ? "active" : ""}`}
               onClick={() => setActiveNav("reserved")}
             >Reserved</div>
           </div>
