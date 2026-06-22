@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./bulk-schedule-upload3.css";
 import { useNavigate, useLocation } from "react-router-dom";
 
+
 const steps = [
   { number: 1, label: "SETUP" },
   { number: 2, label: "UPLOAD" },
@@ -180,9 +181,9 @@ export default function BulkScheduleUpload3() {
 
   if (!location.state) {
     return (
-      <div className="bulk-upload-page">
+      <div className="bulk-upload-page-three">
         <h2>No session data found.</h2>
-        <button className="btn-next" onClick={() => navigate("/local-registrar/bulk-upload-2")}>
+        <button className="btn-next-three" onClick={() => navigate("/local-registrar/bulk-upload-2")}>
           Start Again
         </button>
       </div>
@@ -373,31 +374,31 @@ const [schedules, setSchedules] =
   const totalGridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
 
   return (
-    <div className="bulk-upload-page">
-      <div className="bulk-header">
+    <div className="bulk-upload-page-three">
+      <div className="bulk-header-three">
         <h1>Bulk Schedule Upload</h1>
         <p>Follow the steps to upload and process schedules.</p>
       </div>
 
       {/* Stepper */}
-      <div className="stepper">
+      <div className="stepper-three">
         {steps.map((step, index) => (
-          <div className="step-wrapper" key={step.number}>
-            <div className="step-item">
-              <div className={`step-circle ${step.number < 3 ? "completed" : ""} ${step.number === 3 ? "active" : ""}`}>
+          <div className="step-wrapper-three" key={step.number}>
+            <div className="step-item-three">
+              <div className={`step-circle-three ${step.number < 3 ? "completed" : ""} ${step.number === 3 ? "active" : ""}`}>
                 {step.number < 3 ? <i className="fas fa-check" /> : step.number}
               </div>
-              <span className={`step-label ${step.number === 3 ? "active" : ""}`}>{step.label}</span>
+              <span className={`step-label-three ${step.number === 3 ? "active" : ""}`}>{step.label}</span>
             </div>
             {index < steps.length - 1 && (
-              <div className={`step-line ${step.number < 3 ? "completed" : ""}`} />
+              <div className={`step-line-three ${step.number < 3 ? "completed" : ""}`} />
             )}
           </div>
         ))}
       </div>
 
       {/* Calendar Card */}
-      <div className="form-card calendar-card">
+      <div className="form-card-three calendar-card">
         <div className="calendar-header">
           <div className="week-nav">
             <i className="fa-solid fa-chevron-left" onClick={() => setWeekOffset(w => w - 1)} />
@@ -405,7 +406,7 @@ const [schedules, setSchedules] =
             <i className="fa-solid fa-chevron-right" onClick={() => setWeekOffset(w => w + 1)} />
           </div>
           <div className="room-pill">
-            {room} <span className="caret">&#9660;</span>
+            {room} 
           </div>
         </div>
 
@@ -512,10 +513,10 @@ const [schedules, setSchedules] =
       )}
 
       {/* Navigation buttons */}
-      <div className="bulk-footer step2-footer">
-        <button className="btn-back" onClick={() => navigate(-1)}>Back</button>
+      <div className="bulk-footer-three step2-footer">
+        <button className="btn-back-three" onClick={() => navigate(-1)}>Back</button>
         <button
-          className="btn-next"
+          className="btn-next-three"
           onClick={() =>
             navigate("/local-registrar/bulk-upload-4", {
             state: {

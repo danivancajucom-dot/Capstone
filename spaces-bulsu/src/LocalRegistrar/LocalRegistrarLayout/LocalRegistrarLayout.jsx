@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import "./local-registrar-layout.css";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
 
 export default function LocalRegistrarLayout() {
   const [openSchedule, setOpenSchedule] = useState(true);
@@ -150,36 +151,11 @@ export default function LocalRegistrarLayout() {
 
       </div>
 
-      {showLogoutConfirm && (
-        <div className="modal-overlay">
-
-          <div className="logout-modal">
-
-            <h2>
-              Are you sure you want to log out?
-            </h2>
-
-            <div className="modal-actions">
-
-              <button
-                className="modal-btn cancel"
-                onClick={() => setShowLogoutConfirm(false)}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="modal-btn confirm"
-                onClick={handleLogout}
-              >
-                Confirm
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
+            {showLogoutConfirm && (
+        <LogoutPopup
+          onCancel={() => setShowLogoutConfirm(false)}
+          onConfirm={handleLogout}
+        />
       )}
 
       {loggingOut && (
@@ -191,7 +167,7 @@ export default function LocalRegistrarLayout() {
           </div>
         </div>
       )}
-
     </>
   );
 }
+

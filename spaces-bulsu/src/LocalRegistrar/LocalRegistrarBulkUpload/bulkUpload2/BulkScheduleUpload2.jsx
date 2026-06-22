@@ -212,7 +212,9 @@ export default function BulkScheduleUpload2() {
           {steps.map((step, index) => (
             <div className="step-wrapper-two" key={step.number}>
               <div className="step-item-two">
-                <div className={`step-circle-two ${step.number === 2 ? "active" : step.number === 1 ? "completed" : ""}`}>{step.number}</div>
+                <div className={`step-circle-two ${step.number < 2 ? "completed" : ""} ${step.number === 2 ? "active" : ""}`}>
+                {step.number < 2 ? <i className="fas fa-check" /> : step.number}
+              </div>
                 <span className={`step-label-two ${step.number === 2 ? "active" : ""}`}>{step.label}</span>
               </div>
               {index < steps.length - 1 && <div className={`step-line-two ${step.number === 1 ? "completed" : ""}`} />}
