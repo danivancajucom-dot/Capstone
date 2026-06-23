@@ -1,6 +1,6 @@
 import "./logout-popup.css";
 
-function LogoutPopup() {
+function LogoutPopup({ onCancel, onConfirm }) {
   return (
     <div className="popup-overlay">
       <div className="logout-popup">
@@ -9,8 +9,8 @@ function LogoutPopup() {
         </div>
         <h3 className="logout-popup-title">Are you sure you want to logout?</h3>
         <div className="logout-popup-buttons">
-          <button className="logout-cancel-btn">Cancel</button>
-          <button className="logout-btn">Logout</button>
+          <button className="logout-cancel-btn" onClick={onCancel}>Cancel</button>
+          <button className="logout-btn" onClick={onConfirm}>Logout</button>
         </div>
       </div>
     </div>

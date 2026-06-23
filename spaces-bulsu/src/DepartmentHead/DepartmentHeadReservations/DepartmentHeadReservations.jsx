@@ -5,21 +5,20 @@ import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 
 function DepartmentHeadReservations() {
   return (
-    <div className="container">
+    <div className="dept-reservations">
       <h1>Reservation Requests</h1>
 
-      <div className="white-box-reservations">
-  <div className="reservations-nav">
-    <div className="reservations-nav-item active">Pending</div>
-    <div className="reservations-nav-item">Approved</div>
-    <div className="reservations-nav-item">Denied</div>
+      <div className="dept-white-box-reservations">
+  <div className="dept-reservations-nav">
+    <div className="dept-reservations-nav-item active">Pending</div>
+    <div className="dept-reservations-nav-item">Approved</div>
+    <div className="dept-reservations-nav-item">Denied</div>
   </div>
-  <hr className="reservations-nav-divider" />
+  <hr className="dept-reservations-nav-divider" />
 
 <ReservationCard />
-<ApprovedAndDeniedCard />
-  <div className="load-more-reservations">
-    <button className="load-more-btn-reservations">Load More</button>
+  <div className="dept-load-more-reservations">
+    <button className="dept-load-more-btn-reservations">Load More</button>
   </div>
 </div>
     </div>

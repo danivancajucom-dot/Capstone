@@ -10,16 +10,18 @@ body {
 
 h1 {
   font-weight: 900;
-  margin-top: 50px;
-  margin-left: 50px;
+  margin-top: 25px;
+  margin-bottom: 25px;
+  margin-left: 5px;
   font-size: 40px;
+  margin-right: 50px;
 }
 
 .faculty-view-pending-box {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 20px;
-  margin: 20px 50px;
+  margin: 0 0 20px 0;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
   min-height: 550px;
 }
@@ -121,8 +123,8 @@ h1 {
 .faculty-view-pending-footer {
   display: flex;
   justify-content: space-between;
-  margin: 0 50px 20px 50px;
-}
+   margin: 0 0 20px 0;
+  }
 
 .faculty-view-pending-back-btn {
   padding: 10px 30px;

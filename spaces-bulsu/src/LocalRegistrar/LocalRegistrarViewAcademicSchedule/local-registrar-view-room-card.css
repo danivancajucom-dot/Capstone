@@ -1,16 +1,11 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
+.lr-view-room {
+  width: 100%;
+  margin-top: 80px;
   background-color: #F8F7F5;
+  padding: 20px;
 }
 
-.back-arrow {
-  margin-top: 50px;
-  margin-left: 50px;
+.lr-back-arrow {
   font-size: 25px;
   cursor: pointer;
   display: block;
@@ -21,7 +16,7 @@ body {
   border-radius: 10px;
   padding: 20px;
   margin: 20px auto;
-  width: 95%;
+  width: 100%;
   min-height: 800px;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
   position: relative;
@@ -37,10 +32,10 @@ body {
 .room-name {
   padding: 8px 24px;
   border-radius: 50px;
-  border: 1.5px solid #F2690D;
+  border: 1.5px solid  #f57c00;
   font-size: 14px;
   background-color: #FEF0E7;
-  color: #F2690D;
+  color:  #f57c00;
   font-weight: 700;
 }
 
@@ -109,7 +104,6 @@ body {
   margin-right: 50px;
 }
 
-/* maiiba to, example langg*/
 .class-details-container {
   position: absolute;
   bottom: 400px;

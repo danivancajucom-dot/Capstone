@@ -128,43 +128,55 @@ export default function BulkScheduleUpload2() {
     }
   };
 
-  return (
-    <div className="bulk-upload-page">
-      <div className="bulk-header">
-        <h1>Bulk Schedule Upload</h1>
-        <p>Upload a PDF or Excel schedule.</p>
-      </div>
-      <div className="form-card">
-        <div className="upload-header">
-          <p className="upload-title">Upload Schedule File</p>
-          <p className="upload-subtitle">PDF or Excel supported</p>
+    return (
+      <div className="bulk-upload-page-two">
+        <div className="bulk-header-two">
+          <h1>Bulk Schedule Upload</h1>
+          <p>
+            Upload a PDF or Excel schedule.
+          </p>
         </div>
-        <div
-          className={`drop-zone ${file ? "has-file" : ""}`}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            handleFile(e.dataTransfer.files[0]);
-          }}
-        >
-          <div className="drop-icon">
-            <i className={`fas ${file ? "fa-check-circle" : "fa-file-arrow-up"}`} />
-          </div>
-          {file ? (
-            <div className="file-info">
-              <span className="file-name">{file.name}</span>
-              <button className="remove-file" onClick={clearFile} aria-label="Remove file">
-                <i className="fas fa-times" />
-              </button>
+        <div className="stepper-two">
+          {steps.map((step, index) => (
+            <div className="step-wrapper-two" key={step.number}>
+              <div className="step-item-two">
+                <div className={`step-circle-two ${step.number < 2 ? "completed" : ""} ${step.number === 2 ? "active" : ""}`}>
+                {step.number < 2 ? <i className="fas fa-check" /> : step.number}
+              </div>
+                <span className={`step-label-two ${step.number === 2 ? "active" : ""}`}>{step.label}</span>
+              </div>
+              {index < steps.length - 1 && <div className={`step-line-two ${step.number === 1 ? "completed" : ""}`} />}
             </div>
-          ) : (
-            <>
-              <p className="drop-text">Select a PDF or Excel file</p>
-              <p className="drop-subtext">or drag and drop here</p>
-            </>
-          )}
-          {!file && (
-            <label className="browse-btn">
+          ))}
+        </div>
+        <div className="form-card-two">
+          <div className="upload-header">
+            <div className="upload-title-two">
+              Upload Schedule File
+            </div>
+            <div className="upload-subtitle-two">
+              PDF or Excel supported
+            </div>
+          </div>
+          <div
+            className={`drop-zone-two ${file ? "has-file" : ""}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleFile(
+                e.dataTransfer.files[0]
+              );
+            }}
+          >
+            <div className="drop-icon-two">
+              <i className="fas fa-file-arrow-up" />
+            </div>
+            {
+              file
+                ? <div className="drop-filename-two">{file.name}</div>
+                : <div className="drop-placeholder-two">Select PDF or Excel File</div>
+            }
+            <label className="browse-btn-two">
               Browse Files
               <input
                 hidden
@@ -176,15 +188,29 @@ export default function BulkScheduleUpload2() {
           )}
         </div>
 
-        <div className="upload-actions">
-          <button className="btn-back" onClick={() => navigate(-1)}>
-            Back
-          </button>
-          <button className="btn-next" disabled={loading} onClick={handleProcess}>
-            {loading ? "Processing..." : file?.name.endsWith(".xlsx") || file?.name.endsWith(".xls") ? "Import Excel" : "Process with AI"}
-          </button>
+          <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between" }}>
+            <button
+              className="btn-back-two"
+              onClick={() => navigate(-1)}
+            >
+              Back
+            </button>
+            <button
+              className="btn-next-two"
+              disabled={loading}
+              onClick={handleProcess}
+            >
+              {
+                loading
+                  ? "Processing..."
+                  : file?.name.endsWith(".xlsx") ||
+                    file?.name.endsWith(".xls")
+                  ? "Import Excel"
+                  : "Process with AI"
+              }
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
 }

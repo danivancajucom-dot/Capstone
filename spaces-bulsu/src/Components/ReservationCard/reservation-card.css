@@ -19,7 +19,7 @@
 
 .reservation-room-badge {
   background-color: #FEF0E7;
-  color: #F2690D;
+  color: #f57c00;
   font-size: 12px;
   font-weight: 700;
   padding: 3px 10px;
@@ -30,12 +30,12 @@
 .reservation-name {
   font-size: 16px;
   font-weight: 700;
-  color: #333;
+  color: #333333;
 }
 
 .reservation-time {
   font-size: 13px;
-  color: #F2690D;
+  color: #f57c00;
   font-weight: 600;
   margin: 0;
   margin-left: 0;

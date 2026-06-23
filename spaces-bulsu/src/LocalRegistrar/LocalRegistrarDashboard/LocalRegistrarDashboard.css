@@ -4,7 +4,8 @@
   flex-direction: column;
   gap: 24px;
   padding:20px;
-  margin-top:40px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
 }
 
 .dashboard-hero {
@@ -16,26 +17,56 @@
 
 .dashboard-hero h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 35px;
   font-weight: 800;
-  line-height: 1.2;
 }
 
 .dashboard-hero p {
   margin: 6px 0 0;
   color: #6b7280;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 300;
 }
 
 .bulk-upload-btn{
   border:none;
-  background:#f57c00;
+  background-color:#f57c00;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
   color:white;
   height:52px;
   padding:0 24px;
-  border-radius:14px;
+  border-radius: 10px;
   cursor:pointer;
   font-weight:700;
+  transition: .2s;
+  margin-right: 15px ;
+}
+
+.bulk-upload-btn:hover{
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
+}
+
+.lr-dashboard-view-all-btn{
+  border:none;
+  background-color:#f57c00;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  color:white;
+  height:40px;
+  padding:0 24px;
+  border-radius: 10px;
+  cursor:pointer;
+  font-weight:700;
+  width: 145px;
+  transition: .2s;
+  box-sizing: border-box;
+}
+
+.lr-dashboard-view-all-btn:hover{
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
 }
 
 .dashboard-stats {
@@ -46,10 +77,9 @@
 
 .stat-card {
   background: white;
-  border-radius: 20px;
+  border-radius: 10px;
   padding: 20px;
   box-shadow: 0 10px 25px rgba(0,0,0,.05);
-
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -69,24 +99,25 @@
 
 .dashboard-table-card {
   background: white;
-  border-radius: 24px;
+  border-radius: 10px;
   padding: 20px;
   box-shadow: 0 10px 25px rgba(0,0,0,.05);
-
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.table-header{
+.lr-dashboard-table-header{
   display:flex;
   justify-content:space-between;
   align-items:center;
   margin-bottom:20px;
 }
 
-.table-header h2{
+.lr-dashboard-table-header h2{
   margin:0;
+  font-weight: 800;
+  font-size: 20px;
 }
 
 .table-scroll{
@@ -116,12 +147,12 @@ td{
   font-weight:700;
 }
 
-.confirmed{
+.success{
   background:#dcfce7;
   color:#166534;
 }
 
-.conflict{
+.failed{
   background:#fee2e2;
   color:#991b1b;
 }
