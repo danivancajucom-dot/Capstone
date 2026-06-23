@@ -1,171 +1,309 @@
-.faculty-layout{
-  display:flex;
-  min-height:100vh;
-  background:#f5f6fa;
-  font-family:'Lexend',sans-serif;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-/* SIDEBAR */
-.faculty-sidebar{ 
-    width:260px; 
-    position:fixed; 
-    left:0; 
-    top:0; 
-    bottom:0; 
-    background:white; 
-    border-right:1px solid #eee; }
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: 'Lexend', sans-serif;
+  background: #f5f6fa;
+}
 
-    .registrar-sidebar nav {
+.faculty-layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background: #f7f8fc;
+}
+
+   /* SIDEBAR */
+
+.faculty-sidebar {
+  width: 260px;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+
+  background: #fff;
+  border-right: 1px solid #ececec;
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  z-index: 100;
+}
+
+   /* LOGO */
+
+.faculty-logo {
+  height: 80px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid #ececec;
+  flex-shrink: 0;
+}
+
+.faculty-logo-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f57c00;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.faculty-logo-text {
   display: flex;
   flex-direction: column;
 }
 
-.faculty-logo{ 
-    padding:24px; 
-    font-size:24px; 
-    font-weight:700; }
-
-.faculty-logo h2{
-  margin:0;
-  color:#f57c00;
-  font-size:28px;
+.faculty-logo h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: #16213e;
 }
 
-.faculty-logo span{
-  color:#777;
-  font-size:13px;
+.faculty-logo span {
+  font-size: 10px;
+  color: #f57c00;
+  margin-top: 4px;
 }
 
-.faculty-nav{
-  display:flex;
-  flex-direction:column;
-  padding:12px;
+.faculty-logo-img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
-.faculty-nav a{
-  display:flex;
-  align-items:center;
-  gap:12px;
+   /* NAVIGATION */
 
-  padding:16px;
-  margin-bottom:8px;
-
-  text-decoration:none;
-  color:#5a6474;
-
-  border-radius:16px;
-  transition:.2s;
+.faculty-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
 }
 
-.faculty-nav a:hover{
-  background:#f4f4f4;
+.faculty-nav a,
+.nav-parent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 14px 16px;
+  border-radius: 14px;
+
+  text-decoration: none;
+  color: #5f6c80;
+
+  font-size: 15px;
+  font-weight: 500;
+  font-family: 'Lexend', sans-serif;
+
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+
+  transition: .2s;
 }
 
-.faculty-nav a.active{
-  background:#f57c00;
-  color:white;
+.faculty-nav a:hover,
+.nav-parent:hover {
+  background: #FEF0E7;
+  color: #f57c00;
 }
 
-/* MAIN */
-
-.faculty-main{
-  margin-left:270px;
-  flex:1;
-  min-width:0;
+.faculty-nav a.active,
+.nav-parent.active {
+  background: #FEF0E7;
+  border: solid 1px #f57c00;
+  color: #f57c00;
+  font-weight: 600;
 }
 
-/* HEADER */
+.nav-group {
+  display: flex;
+  flex-direction: column;
+}
 
-.faculty-header{
-  position:fixed;
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
-  top:0;
-  left:270px;
-  right:0;
+.arrow {
+  margin-left: auto;
+  transition: .25s;
+}
 
-  height:80px;
+.arrow.open {
+  transform: rotate(180deg);
+}
 
-  background:white;
-  border-bottom:1px solid #ececec;
+   /* SUBMENU */
 
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+.submenu {
+  display: none;
+  flex-direction: column;
+  background: #fff3e8;
+  border-radius: 14px;
+  padding: 10px;
+  margin-top: 8px;
+}
 
-  padding:0 30px;
+.submenu.open {
+  display: flex;
+}
 
-  z-index:90;
+.submenu a {
+  padding: 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #5f6c80;
+  font-size: 14px;
+  font-weight: 500;
+  transition: .2s;
+}
+
+.submenu a:hover {
+  background: rgba(245, 124, 0, .08);
+}
+
+.submenu a.active {
+  color: #f57c00;
+  font-weight: 600;
+}
+
+   /* MAIN */
+
+.faculty-main {
+  margin-left: 260px;
+  flex: 1;
+  min-height: 100vh;
+  width: calc(100% - 260px);
+  background-color: #F8F7F5;
+
+  display: flex;
+  flex-direction: column;
+}
+
+   /* HEADER */
+
+.faculty-header {
+  position: fixed;
+  top: 0;
+  left: 260px;
+  right: 0;
+
+  height: 80px;
+  background: #fff;
+  border-bottom: 1px solid #ececec;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 30px;
+  gap: 20px;
+  z-index: 99;
 }
 
 /* SEARCH */
-
-.header-search{
-  width:450px;
-  position:relative;
+.header-search {
+  width: 600px;
+  position: relative;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
-.header-search i{
-  position:absolute;
-  left:18px;
-  top:50%;
-  transform:translateY(-50%);
-  color:#8f96a3;
+.header-search i {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8f96a3;
 }
 
-.header-search input{
-  width:100%;
-  height:54px;
+.header-search input {
+  width: 100%;
+  height: 52px;
+  border: none;
+  outline: none;
+  border-radius: 16px;
+  background: #eef1f5;
+  padding-left: 50px;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+}
 
-  border:none;
-  outline:none;
-
-  border-radius:18px;
-
-  background:#eef1f5;
-
-  padding-left:50px;
-
-  font-family:'Lexend',sans-serif;
+.header-search input::placeholder {
+  color: #9aa1ad;
 }
 
 /* ACTIONS */
 
-.header-actions{
-  display:flex;
-  gap:12px;
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
-.header-btn{
-  width:52px;
-  height:52px;
+.header-btn {
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 12px;
+  background: #f5f6fa;
+  cursor: pointer;
 
-  border:none;
-  border-radius:16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #5f6c80;
 
-  background:#eef1f5;
-
-  font-size:18px;
-
-  cursor:pointer;
+  transition: .2s;
 }
 
-.header-btn:hover{
-  background:#e4e8ed;
+.header-btn:hover {
+  background: #FEF0E7;
+  color: #f57c00;
 }
 
-/* CONTENT */
-
-.faculty-content{
-  margin-top:80px;
-
-  min-height:calc(100vh - 80px);
-
-  padding:30px;
-
-  overflow-y:auto;
+.header-btn.logout {
+  background: #fff3e8;
+  color: #f57c00;
 }
 
-/* LOGOUT MODAL */
+   /* CONTENT */
+
+.faculty-content {
+  margin-top: 80px;
+  padding: 0px 30px 24px 30px; 
+  background-color: #F8F7F5;
+  flex: 1;
+  width: 100%;
+  height: calc(100vh - 80px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+   /* LOGOUT MODAL */
 
 .modal-overlay{
   position:fixed;
@@ -199,7 +337,7 @@
 
   border-radius:50%;
 
-  background:#fff3e8;
+  background:#FEF0E7;
 
   display:flex;
   align-items:center;
@@ -238,48 +376,58 @@
   color:white;
 }
 
-/* RESPONSIVE */
+.modal-btn:hover{
+  opacity:.9;
+}
 
-@media(max-width:992px){
+   /* RESPONSIVE */
 
-  .faculty-sidebar{
-    width:90px;
+@media (max-width: 992px) {
+
+  .faculty-sidebar {
+    width: 90px;
   }
 
-  .faculty-logo span{
-    display:none;
+  .faculty-logo-text {
+    display: none;
   }
 
-  .faculty-nav a{
-    justify-content:center;
+  .faculty-nav a,
+  .nav-parent {
+    justify-content: center;
+    padding: 14px;
   }
 
-  .faculty-nav a i{
-    margin:0;
+  .nav-left span {
+    display: none;
   }
 
-  .faculty-nav a{
-    font-size:0;
+  .arrow {
+    display: none;
   }
 
-  .faculty-nav a i{
-    font-size:18px;
+  .submenu {
+    display: none !important;
   }
 
-  .faculty-main{
-    margin-left:90px;
+  .faculty-main {
+    margin-left: 90px;
+    width: calc(100% - 90px);
   }
 
-  .faculty-header{
-    left:90px;
+  .faculty-header {
+    left: 90px;
   }
-
 }
 
 @media(max-width:768px){
 
   .header-search{
-    width:220px;
+    width:180px;
+  }
+
+  .header-search input{
+    height:46px;
   }
 
   .faculty-content{
@@ -287,6 +435,9 @@
   }
 
 }
+
+   /* NOTIFICATIONS */
+
 .notification-container{
   position:relative;
 }
@@ -434,9 +585,7 @@
   color:#64748b;
 }
 
-/* ==========================
-   LOGOUT LOADING SCREEN
-========================== */
+   /* LOGOUT LOADING SCREEN */
 
 .logout-loading-screen{
   position:fixed;

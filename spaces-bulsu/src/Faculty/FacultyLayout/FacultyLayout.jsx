@@ -109,8 +109,10 @@ const filteredNotifications = notifications.filter((item) => {
         <aside className="faculty-sidebar">
 
           <div className="faculty-logo">
-            <h2>SpaceS</h2>
-            <span>Faculty Portal</span>
+              <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="faculty-logo-img" />            <div className="faculty-logo-text">
+              <h2>SpaceS</h2>
+              <span>CICT Faculty</span>
+            </div>
           </div>
 
           <nav className="faculty-nav">
@@ -189,7 +191,7 @@ const filteredNotifications = notifications.filter((item) => {
               </div>
 
               <button
-                className="header-btn"
+                className="header-btn logout"
                 onClick={() => setShowLogoutConfirm(true)}
               >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>

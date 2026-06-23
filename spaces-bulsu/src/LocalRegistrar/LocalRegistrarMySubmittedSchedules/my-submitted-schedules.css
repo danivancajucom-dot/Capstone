@@ -1,39 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Lexend', sans-serif;
-}
-
-.page {
+.lr-submitted-schedules {
   min-height: 100vh;
-  padding: 60px 50px 100px 50px;
+  width: 100%;
+  margin-top: 80px;
+  padding: 20px;
+  background-color: #F8F7F5;
 }
 
-.page-header {
+.lr-ss-page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
 }
 
-.page h1 {
+.lr-submitted-schedules h1 {
   font-size: 32px;
   font-weight: 900;
   color: #1a1a1a;
   margin-bottom: 24px;
 }
 
-.page-header h1 {
-  margin-bottom: 0;
+.lr-ss-page-header h1 {
+  margin: 0;
+  font-size: 35px;
+  font-weight: 800;
 }
 
 .view-archived {
   font-size: 13px;
   font-weight: 600;
-  color: #F2690D;
+  color: #f57c00;
   cursor: pointer;
 }
 
@@ -55,31 +51,42 @@
 
 .schedule-item {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   background-color: #ffffff;
   border-radius: 10px;
   padding: 20px 24px;
+  min-height: 150px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border-left: 5px solid #F97316;
+  border-left: 5px solid #f57c00;
+  gap: 16px;
 }
 
 .schedule-info {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+  flex: 1 1 250px;
 }
 
 .schedule-title {
   font-size: 18px;
   font-weight: 700;
   color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .schedule-meta {
   font-size: 12px;
   color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .schedule-meta strong {
@@ -87,25 +94,24 @@
   font-weight: 600;
 }
 
-.btn-action {
-  background-color: #F97316;
+.lr-ss-btn-action {
+  background-color: #f57c00;
   color: #ffffff;
   border: none;
   padding: 12px 24px;
   border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
-  font-family: 'Lexend', sans-serif;
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.15s ease;
+  transition: .2s;
   white-space: nowrap;
+  height: 52px;
+  flex-shrink: 0;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.btn-action:hover {
-  background-color: #ea6c0a;
-  transform: translateY(-1px);
-}
-
-.btn-action:active {
-  transform: translateY(0);
+.lr-ss-btn-action:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
 }

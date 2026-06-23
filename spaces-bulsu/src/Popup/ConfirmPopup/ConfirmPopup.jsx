@@ -1,6 +1,6 @@
 import "./confirm-popup.css";
 
-function ConfirmPopup() {
+function ConfirmPopup({ onCancel, onConfirm }) {
   return (
     <div className="popup-overlay">
       <div className="confirm-popup">
@@ -10,8 +10,8 @@ function ConfirmPopup() {
         <h3 className="confirm-popup-title">Are you sure?</h3>
         <p className="confirm-popup-desc">Do you want to proceed with this operation?</p>
         <div className="confirm-popup-buttons">
-          <button className="confirm-cancel-btn">Cancel</button>
-          <button className="confirm-confirm-btn">Confirm</button>
+          <button className="confirm-cancel-btn" onClick={onCancel}>Cancel</button>
+          <button className="confirm-confirm-btn" onClick={onConfirm}>Confirm</button>
         </div>
       </div>
     </div>

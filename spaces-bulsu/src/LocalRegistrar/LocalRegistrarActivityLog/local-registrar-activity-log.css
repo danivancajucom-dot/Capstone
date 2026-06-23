@@ -1,31 +1,27 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
+.lr-activity-log {
+  width: 100%;
+  margin-top: 80px;
+  padding:20px;
   background-color: #F8F7F5;
 }
 
-h1 {
-  font-weight: 900;
-  margin-top: 50px;
-  margin-left: 50px;
-  font-size: 40px;
+.lr-al-page-header h1 {
+  margin: 0;
+  font-size: 35px;
+  font-weight: 800;
 }
 
-p {
-  margin-top: 10px;
-  margin-left: 50px;
-  color: #64748B;
+.lr-al-page-header p {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 300;
 }
 
-.page-header {
+.lr-al-page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-right: 50px;
 }
 
 .header-buttons {
@@ -36,17 +32,26 @@ p {
 .export-csv,
 .print-btn {
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: 10px;
   border: none;
-  background-color: #F2690D;
   color: #ffffff;
   font-size: 14px;
-  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+  background-color:#f57c00;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  font-weight:700;
+  transition: .2s;
+  height:52px;
+}
+
+.export-csv:hover,
+.print-btn:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
 }
 
 .summary-boxes {
@@ -77,8 +82,7 @@ p {
 .white-box-log-lr {
   background-color: #ffffff;
   border-radius: 10px;
-  padding: 20px;
-  margin: 0 50px 20px 50px;
+  margin-bottom: 20px;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
   min-height: 650px;
   display: flex;
@@ -124,13 +128,20 @@ p {
   padding: 8px 20px;
   border-radius: 6px;
   border: none;
-  background-color: #F2690D;
+   background-color:#f57c00;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  font-weight:700;
+  transition: .2s;
   color: #ffffff;
   font-size: 14px;
-  font-weight: 700;
   cursor: pointer;
   flex: 1;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.apply-filters-btn:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
 }
 
 .log-table-wrapper {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./bulk-schedule-upload4.css";
+import ConfirmPopup from "../../../Popup/ConfirmPopup/ConfirmPopup";
 
 const steps = [
   { number: 1, label: "SETUP" },
@@ -26,7 +27,7 @@ export default function BulkScheduleUpload4() {
 
   if (!location.state) {
     return (
-      <div className="bulk-upload-page">
+      <div className="bulk-upload-page-four">
         <h2>No data to confirm.</h2>
         <button onClick={() => navigate("/local-registrar/bulk-upload-2")}>
           Start Over
@@ -36,32 +37,32 @@ export default function BulkScheduleUpload4() {
   }
 
   return (
-    <div className="bulk-upload-page">
+    <div className="bulk-upload-page-four">
 
-      <div className="bulk-header">
+      <div className="bulk-header-four">
         <h1>Bulk Schedule Upload</h1>
         <p>Confirm extracted schedules before saving.</p>
       </div>
 
       {/* STEP */}
-      <div className="stepper">
+      <div className="stepper-four">
         {steps.map((step, index) => (
-          <div className="step-wrapper" key={step.number}>
-            <div className="step-item">
-              <div className={`step-circle ${step.number === 4 ? "active" : "completed"}`}>
-                {step.number}
+          <div className="step-wrapper-four" key={step.number}>
+            <div className="step-item-four">
+              <div className={`step-circle-four ${step.number < 4 ? "completed" : ""} ${step.number === 4 ? "active" : ""}`}>
+                {step.number < 4 ? <i className="fas fa-check" /> : step.number}
               </div>
-              <span className={`step-label ${step.number === 4 ? "active" : ""}`}>
+              <span className={`step-label-four ${step.number === 4 ? "active" : ""}`}>
                 {step.label}
               </span>
             </div>
-            {index < steps.length - 1 && <div className="step-line completed" />}
+            {index < steps.length - 1 && <div className="step-line-four completed" />}
           </div>
         ))}
       </div>
 
       {/* INFO */}
-      <div className="form-card">
+      <div className="form-card-four">
         <div className="info-card">
           <span className="info-title">Schedule Information</span>
 
@@ -131,13 +132,13 @@ export default function BulkScheduleUpload4() {
       </div>
 
       {/* FOOTER */}
-      <div className="bulk-footer">
-        <button className="btn-back" onClick={() => navigate(-1)}>
+      <div className="bulk-footer-four">
+        <button className="btn-back-four" onClick={() => navigate(-1)}>
           Back
         </button>
 
-        <button
-          className="btn-confirm"
+               <button
+          className="btn-confirm-four"
           onClick={() => setShowModal(true)}
         >
           Confirm Upload
@@ -146,21 +147,12 @@ export default function BulkScheduleUpload4() {
 
       {/* MODAL */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h2>Are you sure?</h2>
-            <p>Do you want to proceed?</p>
-
-            <button onClick={() => setShowModal(false)}>
-              Cancel
-            </button>
-
-            <button onClick={handleConfirm}>
-              Confirm
-            </button>
-          </div>
-        </div>
+        <ConfirmPopup
+          onCancel={() => setShowModal(false)}
+          onConfirm={handleConfirm}
+        />
       )}
+
     </div>
   );
 }

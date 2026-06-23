@@ -36,6 +36,7 @@ export default function FacultyDashboard({ onLogout }) {
 
       <div className="dashboard-shell">
   
+        <div className="container">
 
         {/* MAIN */}
         <main className="dashboard-main">
@@ -119,6 +120,7 @@ export default function FacultyDashboard({ onLogout }) {
             </div>
           </section>
         </main>
+      </div>
       </div>
     </>
   );

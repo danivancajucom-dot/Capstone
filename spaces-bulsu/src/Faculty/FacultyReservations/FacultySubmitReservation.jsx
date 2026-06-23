@@ -7,8 +7,10 @@ function FacultySubmitReservation() {
   return (
     <>
     <div className="container">
-      <h1>Reservation Requests</h1>
-      <p>Fill out the details below to reserve a classroom.</p>
+      <div className="faculty-submit-header">
+        <h1>Reservation Requests</h1>
+        <p>Fill out the details below to reserve a classroom.</p>
+      </div>
 
       <div className="faculty-submit-box">
         <div className="faculty-submit-sections">

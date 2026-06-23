@@ -132,10 +132,10 @@ export default function RoomActivity() {
             <i className="fa-solid fa-triangle-exclamation" />
             Conflict Detected
           </div>
-          <p className="ra-conflict-desc">
+          <div className="ra-conflict-desc">
             The selected room is occupied during the requested timeframe.
             Creating this override will displace the following schedules:
-          </p>
+          </div>
 
           <div className="ra-conflict-list">
             {PLACEHOLDER_CONFLICTS.map(c => (
@@ -169,7 +169,7 @@ export default function RoomActivity() {
               <i className="fa-solid fa-triangle-exclamation" />
             </div>
             <h3 className="ra-modal-title">Are you sure?</h3>
-            <p className="ra-modal-text">Do you want to proceed<br />with this operation?</p>
+            <div className="ra-modal-text">Do you want to proceed<br />with this operation?</div>
             <button className="ra-modal-cancel"  onClick={() => setShowModal(false)}>Cancel</button>
             <button className="ra-modal-confirm" onClick={handleConfirm}>Confirm</button>
           </div>

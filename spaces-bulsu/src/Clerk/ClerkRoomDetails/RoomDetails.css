@@ -82,8 +82,18 @@ body {
 }
 
 .date-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #F2690D;
+  width: fit-content;
+  min-width: 250px;
+}
+
+.field-box.date-box {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 10px;
   color: #F2690D;
 }

@@ -1,16 +1,19 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./local-registrar-view-academic-schedule.css";
-import RoomCard from "../../Components/RoomCard/RoomCard";
+import LRRoomCard from "../../Components/LRRoomCard/LRRoomCard";
 
 function LocalRegistrarViewAcademicSchedule() {
   const [semester, setSemester] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
-
+  const navigate = useNavigate();
   return (
     <>
-        <div className="container">
-      <h1>Academic Schedule</h1>
-      <p>This page allows the local registrar to view classroom schedules by room and filter them by semester, school year, and floor.</p>
+        <div className="lr-academic-schedule">
+      <div>
+    <h1>Academic Schedule</h1>
+    <p>This page allows the local registrar to view classroom schedules by room and filter them by semester, school year, and floor.</p>
+  </div>
 
       <div className="white-box-rooms">
         <div className="filters">
@@ -50,17 +53,15 @@ function LocalRegistrarViewAcademicSchedule() {
           <button className="floor-btn">4th Floor</button>
         </div>
 
-        <div className="room-cards">
-          {/* example lang to ah */}
-          <RoomCard />
-          <RoomCard />
-          <RoomCard />
-          <RoomCard />
-          <RoomCard />
-          <RoomCard />
-          <RoomCard />
-          <RoomCard />
-        </div>
+        <div className="lr-room-cards">
+            <LRRoomCard onClick={() => navigate("/local-registrar/room-card")} />
+            <LRRoomCard onClick={() => navigate("/local-registrar/room-card")} />
+            <LRRoomCard onClick={() => navigate("/local-registrar/room-card")} />
+            <LRRoomCard onClick={() => navigate("/local-registrar/room-card")} />
+            <LRRoomCard onClick={() => navigate("/local-registrar/room-card")} />
+            <LRRoomCard onClick={() => navigate("/local-registrar/room-card")} />
+          </div>
+      
 
         <div className="load-more-schedule">
           <button className="load-more-btn-sched">Load More</button>

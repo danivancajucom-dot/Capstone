@@ -1,32 +1,31 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
+.lr-academic-schedule {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px;
+  margin-top: 80px;
   background-color: #F8F7F5;
 }
 
-h1 {
-  font-weight: 900;
-  margin-top: 50px;
-  margin-left: 50px;
-  font-size: 40px;
+.lr-academic-schedule h1 {
+  margin: 0;
+  font-size: 35px;
+  font-weight: 800;
 }
 
-p {
-  margin-top: 10px;
-  margin-left: 50px;
-  color: #64748B;
+.lr-academic-schedule p {
+ margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 300;
 }
 
 .white-box-rooms {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 20px;
-  margin: 20px auto;
-  width: 95%;
+  width: 100%;
   min-height: 650px;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
@@ -69,30 +68,30 @@ p {
   appearance: none;
 }
 
-
 .floor-buttons {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .floor-btn {
   padding: 8px 24px;
   border-radius: 50px;
-  border: 1.5px solid #F2690D;
+  border: 1.5px solid #f57c00;
   font-size: 14px;
   cursor: pointer;
   background-color: #FEF0E7;
-  color: #F2690D;
+  color: #f57c00;
   font-weight: 700;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .floor-btn.active {
-  background-color: #F2690D;
+  background-color: #f57c00;
   color: #ffffff;
-  border: 1.5px solid #F2690D;
+  border: 1.5px solid #f57c00;
 }
 
 .load-more-schedule{
@@ -102,25 +101,32 @@ p {
 }
 
 .load-more-btn-sched {
-  padding: 10px 30px;
-  border-radius: 6px;
   border: none;
-  background-color: #F2690D;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
+  background-color: #f57c00;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  color: white;
+  height: 52px;
+  padding: 0 24px;
+  border-radius: 10px;
   cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  transition: .2s;
   margin-top: 20px;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.room-cards{
+.load-more-btn-sched:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
+}
+
+.lr-room-cards{
   display: flex;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  flex-wrap: wrap;
   justify-content: center;
   gap: 20px;
   margin-bottom: 20px;
   margin-left: 60px;
   margin-right: 60px;
-  flex-wrap: wrap;
 }

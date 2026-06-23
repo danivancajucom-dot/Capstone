@@ -8,6 +8,11 @@ body {
   background-color: #F8F7F5;
 }
 
+.container {
+  height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
 .back-arrow {
   margin-top: 50px;
   margin-left: 50px;

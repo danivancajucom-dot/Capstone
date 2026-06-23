@@ -3,8 +3,8 @@ import "./local-registrar-activity-log.css";
 function LocalRegistrarActivityLog() {
   return (
     <>
-        <div className="container">
-  <div className="page-header">
+        <div className="lr-activity-log">
+  <div className="lr-al-page-header">
     <div>
       <h1>Activity Log</h1>
       <p>Track and monitor all actions performed in the system.</p>

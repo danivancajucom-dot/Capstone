@@ -1,38 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Lexend', sans-serif;
-}
-
-body {
-  background-color: #F8F7F5;
-}
-
-.bulk-upload-page {
+.bulk-upload-page-four {
   background-color: #F8F7F5;
   min-height: 100vh;
-  padding: 80px 50px 100px 50px;
+  padding: 20px;
+  margin-top: 80px;
   position: relative;
 }
 
-.bulk-header h1 {
-  font-weight: 900;
-  margin-top: 50px;
-  font-size: 40px;
-  color: #1a1a1a;
+.bulk-header-four h1 {
+  margin: 0;
+  font-size: 35px;
+  font-weight: 800;
 }
 
-.bulk-header p {
-  margin-top: 10px;
+.bulk-header-four p {
+  margin: 6px 0 0;
   color: #6b7280;
   font-size: 15px;
   font-weight: 300;
 }
 
-.stepper {
+.stepper-four {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -41,20 +28,20 @@ body {
   gap: 0;
 }
 
-.step-wrapper {
+.step-wrapper-four {
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-.step-item {
+.step-item-four {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
 }
 
-.step-circle {
+.step-circle-four {
   width: 46px;
   height: 46px;
   border-radius: 50%;
@@ -67,34 +54,37 @@ body {
   color: #9ca3af;
   border: 2px solid transparent;
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
 }
 
-.step-circle.active {
+.step-circle-four.active {
   background-color: #FEF0E7;
-  border: 1px solid #F2690D;
-  color: #F2690D;
+  border: 1px solid #f57c00;
+  color: #f57c00;
 }
 
-.step-circle.completed {
-  background-color: #F97316;
+.step-circle-four.completed {
+  background-color: #f57c00;
   color: #fff;
-  border-color: #F97316;
+  border-color: #f57c00;
 }
 
-.step-label {
+.step-label-four {
   font-size: 11px;
   font-weight: 500;
   color: #9ca3af;
   letter-spacing: 0.05em;
   white-space: nowrap;
+  margin-left: 0;
 }
 
-.step-label.active {
-  color: #F2690D;
+.step-label-four.active {
+  color:  #f57c00;
   font-weight: 700;
 }
 
-.step-line {
+.step-line-four {
   flex: 1;
   height: 2px;
   background-color: #e5e7eb;
@@ -104,11 +94,12 @@ body {
   margin-bottom: 24px;
 }
 
-.step-line.completed {
-  background-color: #F97316;
+.step-line-four.completed {
+  background-color: #f57c00;
 }
 
-.form-card {
+
+.form-card-four {
   background-color: #ffffff;
   border-radius: 16px;
   padding: 24px;
@@ -155,13 +146,13 @@ body {
   color: #1a1a1a;
 }
 
-.bulk-footer {
+.bulk-footer-four {
   display: flex;
   justify-content: space-between;
-  margin-top: 60px;
+  margin-top: 20px;
 }
 
-.btn-back {
+.btn-back-four {
   background-color: transparent;
   color: #F97316;
   border: 1.5px solid #F97316;
@@ -174,32 +165,31 @@ body {
   transition: background-color 0.2s ease;
 }
 
-.btn-back:hover {
+.btn-back-four:hover {
   background-color: #FEF0E7;
 }
 
-.btn-confirm {
-  background-color: #F97316;
-  color: #fff;
+.btn-confirm-four {
+  border: none;
+  background-color: #f57c00;
+  color: #ffffff;
   border: none;
   padding: 14px 40px;
   border-radius: 10px;
   font-size: 15px;
-  font-weight: 600;
-  font-family: 'Lexend', sans-serif;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.15s ease;
-  letter-spacing: 0.01em;
+  font-weight: 700;
+  transition: .2s;
+  height: 52px;
 }
 
-.btn-confirm:hover {
-  background-color: #ea6c0a;
-  transform: translateY(-1px);
+.btn-confirm-four:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00
 }
 
-.btn-confirm:active {
-  transform: translateY(0);
-}
 
 .modal-overlay {
   position: fixed;

@@ -29,17 +29,17 @@ function CustomDropdown({ placeholder, options, value, onChange }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
   return (
-    <div className={`custom-select ${open ? "open" : ""}`} ref={ref}>
-      <div className="custom-select__trigger" onClick={() => options.length > 0 && setOpen(!open)}>
+    <div className={`custom-select-one ${open ? "open" : ""}`} ref={ref}>
+      <div className="custom-select-one__trigger" onClick={() => options.length > 0 && setOpen(!open)}>
         <span className={value ? "selected-value" : "placeholder"}>{value || placeholder}</span>
-        <i className={`fas fa-chevron-down custom-select__icon ${open ? "rotated" : ""}`} />
+        <i className={`fas fa-chevron-down custom-select-one__icon ${open ? "rotated" : ""}`} />
       </div>
       {open && options.length > 0 && (
-        <div className="custom-select__dropdown">
+        <div className="custom-select-one__dropdown">
         {options.map((opt, index) => (
         <div
           key={index} 
-          className={`custom-select__option ${value === opt ? "active" : ""}`}
+          className={`custom-select-one__option ${value === opt ? "active" : ""}`}
           onClick={() => {
             onChange(opt);
             setOpen(false);
@@ -83,38 +83,38 @@ export default function BulkScheduleUpload() {
   };
 
   return (
-    <div className="bulk-upload-page">
-      <div className="bulk-header">
+    <div className="bulk-upload-page-one">
+      <div className="bulk-header-one">
         <h1>Bulk Schedule Upload</h1>
         <p>Follow the steps to upload and process schedules.</p>
       </div>
-      <div className="stepper">
+      <div className="stepper-one">
         {steps.map((step, index) => (
-          <div className="step-wrapper" key={step.number}>
-            <div className="step-item">
-              <div className={`step-circle ${step.number === 1 ? "active" : ""}`}>{step.number}</div>
-              <span className={`step-label ${step.number === 1 ? "active" : ""}`}>{step.label}</span>
+          <div className="step-wrapper-one" key={step.number}>
+            <div className="step-item-one">
+              <div className={`step-circle-one ${step.number === 1 ? "active" : ""}`}>{step.number}</div>
+              <span className={`step-label-one ${step.number === 1 ? "active" : ""}`}>{step.label}</span>
             </div>
-            {index < steps.length - 1 && <div className="step-line" />}
+            {index < steps.length - 1 && <div className="step-line-one" />}
           </div>
         ))}
       </div>
-      <div className="form-card">
-        <div className="form-group">
+      <div className="form-card-one">
+        <div className="form-group-one">
           <label>Semester</label>
           <CustomDropdown placeholder="Select Semester" options={semesters} value={semester} onChange={setSemester} />
         </div>
-        <div className="form-group">
+        <div className="form-group-one">
           <label>School Year</label>
           <CustomDropdown placeholder="Select School Year" options={schoolYears} value={schoolYear} onChange={setSchoolYear} />
         </div>
-        <div className="form-group">
+        <div className="form-group-one">
           <label>Room</label>
           <CustomDropdown placeholder="Select Room" options={rooms} value={room} onChange={setRoom} />
         </div>
       </div>
-      <div className="bulk-footer" style={{ justifyContent: "flex-end" }}>
-        <button className="btn-next" onClick={handleNext}>Next</button>
+      <div className="bulk-footer-one" style={{ justifyContent: "flex-end" }}>
+        <button className="btn-next-one" onClick={handleNext}>Next</button>
       </div>
     </div>
   );

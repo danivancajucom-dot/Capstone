@@ -1,12 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Lexend', sans-serif; }
-body { background-color: #F8F7F5; }
+* { 
+  margin: 0; 
+  padding: 0; 
+  box-sizing: border-box; 
+  font-family: 'Lexend', sans-serif; 
+}
+
+body { 
+  background-color: #F8F7F5; }
 
 .wc-page {
-  background-color: #F8F7F5;
   min-height: 100vh;
-  padding: 32px 40px 80px 40px;
 }
 
 .wc-legend {
@@ -23,6 +28,7 @@ body { background-color: #F8F7F5; }
 }
 
 .wc-legend-dot {
+  margin-top: 25px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -30,6 +36,7 @@ body { background-color: #F8F7F5; }
 }
 
 .wc-legend-label {
+  margin-top: 25px;
   font-size: 13px;
   color: #374151;
   font-weight: 400;
@@ -41,6 +48,7 @@ body { background-color: #F8F7F5; }
   box-shadow: 0 4px 16px rgba(0,0,0,0.08);
   padding: 24px 28px;
   overflow: hidden;
+  width: 100%; 
 }
 
 .wc-week-nav {
@@ -67,6 +75,7 @@ body { background-color: #F8F7F5; }
 
 .wc-days-header {
   display: flex;
+  width: 100%;
   margin-bottom: 0;
 }
 
@@ -116,11 +125,22 @@ body { background-color: #F8F7F5; }
 
 .wc-scroll-area {
   overflow-y: auto;
+  width: 100%;
   max-height: 560px;
+}
+
+.wc-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wc-scroll-area::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
 }
 
 .wc-grid {
   display: flex;
+  width: 100%; 
   position: relative;
 }
 
@@ -150,6 +170,7 @@ body { background-color: #F8F7F5; }
 
 .wc-events-layer {
   flex: 1;
+  width: 100%;
   position: relative;
 }
 

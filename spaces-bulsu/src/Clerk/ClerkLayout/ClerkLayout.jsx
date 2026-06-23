@@ -33,8 +33,11 @@ export default function ClerkLayout() {
         <aside className="clerk-sidebar">
 
           <div className="clerk-logo">
-            <h2>SpaceS</h2>
-            <span>Clerk Panel</span>
+            <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="clerk-logo-img" />
+            <div className="clerk-logo-text">
+              <h2>SpaceS</h2>
+              <span>Clerk Panel</span>
+            </div>
           </div>
 
           <nav className="clerk-nav">
@@ -103,7 +106,7 @@ export default function ClerkLayout() {
                 className="header-btn logout"
                 onClick={() => setShowLogout(true)}
               >
-                <i className="fa-solid fa-right-from-bracket"></i>
+                <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
 
             </div>
