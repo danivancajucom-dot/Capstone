@@ -298,11 +298,6 @@ export default function UserProfile() {
             </div>
 
             <div className="up-field">
-              <label>Role</label>
-              <input className="up-input" value={form.role} readOnly />
-            </div>
-
-            <div className="up-field">
               <label>Password</label>
               <button className="up-reset-password-btn" onClick={handleResetPassword}>
                 Send Password Reset Email

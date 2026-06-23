@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "./ReleasedRooms.css";
+import "./released-rooms.css";
 import ReleasedRoomCard from "../../Components/ReleasedRoomCard/ReleasedRoomCard";
 import RoomDetails from "../ClerkRoomDetails/RoomDetails";
 

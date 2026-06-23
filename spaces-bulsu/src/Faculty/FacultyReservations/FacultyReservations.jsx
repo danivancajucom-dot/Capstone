@@ -10,7 +10,6 @@ function FacultyReservations() {
   return (
     <>
     <div className="container">
-      <h1>Faculty Reservations</h1>
 
       <div className="faculty-reservations-box">
         <div className="faculty-reservations-nav">
@@ -34,7 +33,10 @@ function FacultyReservations() {
         <FacultyPendingReservationCard /> 
         <FacultyApprovedReservationCard/>
         <FacultyDeniedReservationCard/>
+
       </div>
+
+
       <button className="faculty-add-btn">
   <i className="fa-solid fa-plus"></i>
 </button>

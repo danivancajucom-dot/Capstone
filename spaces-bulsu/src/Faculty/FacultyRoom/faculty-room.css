@@ -1,7 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
 
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Lexend', sans-serif; }
-body { background-color: #F8F7F5; }
+
+html, body {
+  height: 100%;
+  overflow-y: auto;
+  background-color: #F8F7F5;
+}
 
 .ra2-page {
   background-color: #F8F7F5;
@@ -42,8 +47,6 @@ body { background-color: #F8F7F5; }
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-height: 80vh;
-  overflow-y: auto;
   padding-right: 4px;
 }
 

@@ -37,7 +37,9 @@ export default function WalkInReservation() {
 
   return (
     <>
+    <div className="container">
       <div className="wir-page">
+      
 
       <h1 className="wir-title">Walk-In Reservation</h1>
       <p className="wir-subtitle">Instant Booking</p>
@@ -181,6 +183,7 @@ export default function WalkInReservation() {
           </div>
         </div>
       )}
+    </div>
     </div>
     </>
 

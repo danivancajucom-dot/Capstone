@@ -7,7 +7,7 @@ function ClerkOnlineReservations() {
   return (
     <>
       <div className="container">
-      <h1>Online Reservation</h1>
+      <h1 className="clerk-online-reservations-title"> Online Reservation</h1>
 
       <div className="clerk-online-reservations">
   <div className="reservations-nav">

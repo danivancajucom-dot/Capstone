@@ -12,25 +12,27 @@ html, body {
   overflow-x: hidden;
 }
 
-.wir-page {
-  background-color: #F8F7F5;
-  min-height: 100vh;
-  padding: 48px 24px 80px 24px;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
 .wir-title {
-  font-size: 36px;
+  margin-top:40px;
+  margin-bottom:30px;
+  font-size: 40px;
   font-weight: 900;
   color: #1a1a1a;
+  margin-bottom: 8px;
 }
 
 .wir-subtitle {
   font-size: 13px;
   color: #9ca3af;
   font-weight: 400;
-  margin-top: 4px;
+  margin-bottom: 24px;
+  margin-left: 5px;
+}
+
+.wir-subtitle {
+  font-size: 18px;
+  color: #9ca3af;
+  font-weight: 400;
   margin-bottom: 24px;
 }
 
