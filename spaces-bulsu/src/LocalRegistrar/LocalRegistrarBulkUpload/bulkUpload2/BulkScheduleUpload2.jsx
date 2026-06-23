@@ -185,7 +185,7 @@ export default function BulkScheduleUpload2() {
                 onChange={(e) => handleFile(e.target.files[0])}
               />
             </label>
-          )}
+        
         </div>
 
           <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between" }}>
