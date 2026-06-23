@@ -469,9 +469,9 @@ const shouldShowDivider = (currentMsg, previousMsg) => {
 
           </div>
 
-          <p className="bc-note">
+          <div className="bc-note">
             Only Department Heads can publish announcements.
-          </p>
+          </div>
 
         </div>
       )}

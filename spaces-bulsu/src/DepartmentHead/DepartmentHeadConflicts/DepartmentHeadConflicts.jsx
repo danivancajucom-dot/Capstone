@@ -5,13 +5,13 @@ import RoomReassignCard from "../../Components/RoomReassignCard/RoomReassignCard
 function DepartmentHeadConflicts() {
   return (
    <>
-   <div className="container">
-  <div className="page-header">
+   <div className="dept-conflict">
+  <div className="dept-page-header">
     <div>
       <h1>Conflict Monitoring</h1>
       <p>Resolve booking collisions and schedule overlaps within the CICT department.</p>
     </div>
-    <button className="export-btn">
+    <button className="dept-conflict-export-btn">
       <i className="fa-solid fa-download"></i> Export Report
     </button>
   </div>

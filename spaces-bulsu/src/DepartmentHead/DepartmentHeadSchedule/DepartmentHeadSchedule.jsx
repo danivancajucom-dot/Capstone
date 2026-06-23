@@ -9,38 +9,40 @@ function DepartmentHeadSchedule() {
 
   return (
     <>
-    <div className="container">
-          <h1>CICT Master Schedule</h1>
-      <div className="dept-schedule-top">
-        <div className="dept-schedule-dropdowns">
-          <div className="room-dropdown-wrapper">
-            <select
-              className="room-dropdown"
-              value={semester}
-              onChange={(e) => setSemester(e.target.value)}
-              style={{ color: semester === "" ? "#64748B" : "#000000" }}
-            >
-              <option value="" disabled hidden>Select Semester</option>
-              <option value="1st">1st Semester</option>
-              <option value="2nd">2nd Semester</option>
-            </select>
-            <i className="fa-solid fa-angle-down room-dropdown-icon"></i>
-          </div>
-          <div className="room-dropdown-wrapper">
-            <select
-              className="room-dropdown"
-              value={schoolYear}
-              onChange={(e) => setSchoolYear(e.target.value)}
-              style={{ color: schoolYear === "" ? "#64748B" : "#000000" }}
-            >
-              <option value="" disabled hidden>Select School Year</option>
-              <option value="2025-2026">2025-2026</option>
-              <option value="2026-2027">2026-2027</option>
-            </select>
-            <i className="fa-solid fa-angle-down room-dropdown-icon"></i>
-          </div>
-        </div>
+    <div className="dept-master-sched">
+  <div className="dept-schedule-hero">
+    <div>
+      <h1>CICT Master Schedule</h1>
+    </div>
+    <div className="dept-schedule-dropdowns">
+      <div className="room-dropdown-wrapper">
+        <select
+          className="room-dropdown"
+          value={semester}
+          onChange={(e) => setSemester(e.target.value)}
+          style={{ color: semester === "" ? "#64748B" : "#000000" }}
+        >
+          <option value="" disabled hidden>Select Semester</option>
+          <option value="1st">1st Semester</option>
+          <option value="2nd">2nd Semester</option>
+        </select>
+        <i className="fa-solid fa-angle-down room-dropdown-icon"></i>
       </div>
+      <div className="room-dropdown-wrapper">
+        <select
+          className="room-dropdown"
+          value={schoolYear}
+          onChange={(e) => setSchoolYear(e.target.value)}
+          style={{ color: schoolYear === "" ? "#64748B" : "#000000" }}
+        >
+          <option value="" disabled hidden>Select School Year</option>
+          <option value="2025-2026">2025-2026</option>
+          <option value="2026-2027">2026-2027</option>
+        </select>
+        <i className="fa-solid fa-angle-down room-dropdown-icon"></i>
+      </div>
+    </div>
+  </div>
 
       <div className="dept-schedule-box">
         <div className="box-header">
