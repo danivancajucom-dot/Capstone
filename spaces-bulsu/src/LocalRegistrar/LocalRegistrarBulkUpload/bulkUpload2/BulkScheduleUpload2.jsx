@@ -16,45 +16,19 @@ const steps = [
 
 async function parseExcelFile(file) {
   const buffer = await file.arrayBuffer();
-
-  const workbook = XLSX.read(buffer, {
-    type: "array"
-  });
-
-  const sheet =
-    workbook.Sheets[
-      workbook.SheetNames[0]
-    ];
-
-  const rows =
-    XLSX.utils.sheet_to_json(sheet);
-
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet);
   return rows.map((row, index) => ({
     id: index + 1,
-    subject:
-      row.Subject ||
-      row.subject ||
-      "",
-    section:
-      row.Section ||
-      row.section ||
-      "",
-    faculty:
-      row.Faculty ||
-      row.faculty ||
-      "",
-    day:
-      row.Day ||
-      row.day ||
-      "",
-    time:
-      row.Time ||
-      row.time ||
-      ""
+    subject: row.Subject || row.subject || "",
+    section: row.Section || row.section || "",
+    faculty: row.Faculty || row.faculty || "",
+    day: row.Day || row.day || "",
+    time: row.Time || row.time || "",
   }));
 }
 
-// Extract raw text from PDF or Excel
 async function extractRawText(file) {
   if (file.type === "application/pdf") {
     const arrayBuffer = await file.arrayBuffer();
@@ -97,108 +71,62 @@ export default function BulkScheduleUpload2() {
     }
   };
 
+  const clearFile = () => {
+    setFile(null);
+  };
+
   const handleProcess = async () => {
-
-  if (!file) {
-    alert("Please upload a file.");
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-
-    // =====================================
-    // EXCEL FILE
-    // =====================================
-
-    if (
-      file.name.endsWith(".xlsx") ||
-      file.name.endsWith(".xls")
-    ) {
-
-      const schedules =
-        await parseExcelFile(file);
-
-      navigate(
-        "/local-registrar/bulk-upload-3",
-        {
-          state: {
-            semester,
-            schoolYear,
-            room,
-            schedules
-          }
-        }
-      );
-
+    if (!file) {
+      alert("Please upload a file.");
       return;
     }
 
-    // =====================================
-    // PDF FILE
-    // =====================================
+    setLoading(true);
 
-    const rawText =
-      await extractRawText(file);
+    try {
+      // Excel path
+      if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+        const schedules = await parseExcelFile(file);
+        navigate("/local-registrar/bulk-upload-3", {
+          state: { semester, schoolYear, room, schedules },
+        });
+        return;
+      }
 
-    const response =
-      await fetch(
-        "http://localhost:5000/api/extract-schedule",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
-          body: JSON.stringify({
-            room,
-            semester,
-            schoolYear,
-            rawText
-          })
+      // PDF path
+      const rawText = await extractRawText(file);
+      const response = await fetch("http://localhost:5000/api/extract-schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room, semester, schoolYear, rawText }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        if (data.message && (data.message.includes("503") || data.message.includes("UNAVAILABLE"))) {
+          alert("The AI service is currently busy. Please try again in a few minutes.");
+        } else {
+          alert(data.message || "AI extraction failed.");
         }
-      );
+        return;
+      }
 
-    const data =
-      await response.json();
-
-    if (!data.success) {
-      throw new Error(
-        data.message ||
-        "AI extraction failed"
-      );
-    }
-
-    navigate(
-      "/local-registrar/bulk-upload-3",
-      {
+      navigate("/local-registrar/bulk-upload-3", {
         state: {
           semester,
           schoolYear,
           room,
-          schedules:
-            data.schedules || []
-        }
-      }
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    alert(
-      error.message ||
-      "Failed to process schedule."
-    );
-
-  } finally {
-
-    setLoading(false);
-
-  }
-
-};
+          schedules: data.schedules || [],
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "Failed to process schedule.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
     return (
       <div className="bulk-upload-page-two">
@@ -254,14 +182,11 @@ export default function BulkScheduleUpload2() {
                 hidden
                 type="file"
                 accept=".pdf,.xlsx,.xls"
-                onChange={(e) =>
-                  handleFile(
-                    e.target.files[0]
-                  )
-                }
+                onChange={(e) => handleFile(e.target.files[0])}
               />
             </label>
-          </div>
+        
+        </div>
 
           <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between" }}>
             <button
