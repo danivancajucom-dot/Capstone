@@ -56,8 +56,8 @@ function Stepper({ current }) {
       {steps.map((s, i) => (
         <div className="um-step-wrapper" key={s.number}>
           <div className="um-step-item">
-            <div className={`um-step-circle ${current === s.number ? "active" : ""} ${current > s.number ? "completed" : ""}`}>
-              {s.number}
+            <div className={`um-step-circle ${s.number < current ? "completed" : ""} ${s.number === current ? "active" : ""}`}>
+              {s.number < current ? <i className="fas fa-check" /> : s.number}
             </div>
             <span className={`um-step-label ${current === s.number ? "active" : ""}`}>{s.label}</span>
           </div>

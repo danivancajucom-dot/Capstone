@@ -1,9 +1,9 @@
 .bulk-upload-page-two {
   background-color: #F8F7F5;
-  min-height: 100vh;
   padding: 20px;
   margin-top: 80px;
   position: relative;
+  overflow: hidden;
 }
 
 .bulk-header-two h1 {

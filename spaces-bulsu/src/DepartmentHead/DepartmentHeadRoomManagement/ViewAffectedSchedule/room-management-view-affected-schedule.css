@@ -1,216 +1,147 @@
-.room-schedule-page.dashboard-main {
-  margin-left: 220px;
-  padding: 28px 36px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  background: #f4f6f9;
-  min-height: 100vh;
-}
-
-.room-schedule-page .room-header-grid {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-}
-
-.room-schedule-page .room-header-grid h1 {
-  margin: 0;
-  font-size: 34px;
-  font-weight: 800;
-  color: #1a2236;
-}
-
-.room-schedule-page .room-location {
-  margin: 6px 0 0;
-  color: #7a8194;
-  font-size: 14px;
-}
-
-.room-schedule-page .room-filter-group {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(160px, 1fr));
-  gap: 16px;
-}
-
-.room-schedule-page .filter-item {
-  display: grid;
-  gap: 8px;
-}
-
-.room-schedule-page .filter-item label {
-  color: #7a8194;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.room-schedule-page .filter-item select {
+.vas-master-sched {
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid #e8eaef;
-  padding: 14px 16px;
-  background: #fff;
-  color: #141b2d;
-}
-
-.room-schedule-page .room-schedule-card {
-  background: #fff;
-  padding: 28px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(40, 56, 85, 0.06);
-}
-
-.room-schedule-page .room-schedule-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.room-schedule-page .room-schedule-label {
-  font-weight: 700;
-  color: #141b2d;
-  font-size: 15px;
-}
-
-.room-schedule-page .room-schedule-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.room-schedule-page .calendar-nav {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: #f4f6f9;
-  border: none;
-  color: #5c6378;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.room-schedule-page .room-calendar-grid {
-  display: grid;
-  grid-template-columns: 72px repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.room-schedule-page .calendar-times {
-  display: grid;
-  gap: 18px;
-  padding-top: 36px;
-}
-
-.room-schedule-page .time-label {
-  color: #9ca3b3;
-  font-size: 12px;
-}
-
-.room-schedule-page .calendar-column {
-  background: #f8f9fc;
-  border-radius: 16px;
-  padding: 16px;
-  min-height: 520px;
-}
-
-.room-schedule-page .calendar-column-header {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-  color: #141b2d;
+  gap: 24px;
+  padding: 20px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
 }
 
-.room-schedule-page .calendar-column-header span {
-  color: #7f8494;
-  font-size: 11px;
-  text-transform: uppercase;
+.vas-schedule-hero h1 {
+  margin: 0;
+  font-size: 35px;
+  font-weight: 800;
+}
+
+.vas-schedule-box {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  min-height: 800px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+.vas-box-header {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin: 20px;
+}
+
+.vas-week-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.room-schedule-page .calendar-column-header strong {
-  font-size: 22px;
-  font-weight: 800;
+.vas-days-container {
+  display: flex;
+  justify-content: space-around;
+  margin: 20px;
+  margin-top: 30px;
+  margin-left: 80px;
 }
 
-.room-schedule-page .event-card {
-  border-radius: 14px;
-  padding: 14px;
-  margin-bottom: 12px;
-  color: #1b2438;
+.vas-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
 }
 
-.room-schedule-page .event-code {
-  font-weight: 800;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-
-.room-schedule-page .event-title {
-  margin-bottom: 8px;
+.vas-day-name {
   font-size: 12px;
-  line-height: 1.45;
+  color: #888888;
   font-weight: 600;
 }
 
-.room-schedule-page .event-time {
-  color: #5c6378;
+.vas-day-date {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.vas-days-divider {
+  border: none;
+  border-top: 1px solid #E0E0E0;
+  margin: 0 20px;
+  margin-left: 130px;
+  margin-right: 50px;
+}
+
+.vas-schedule-container {
+  display: flex;
+  margin: 20px;
+}
+
+.vas-time-column {
+  display: flex;
+  flex-direction: column;
+  margin-right: 10px;
+  padding-right: 25px;
+  border-right: 1px solid #E0E0E0;
+  flex-shrink: 0;
+}
+
+.vas-time-slot {
   font-size: 12px;
+  color: #888888;
+  font-weight: 600;
+  height: 60px;
+  display: flex;
+  align-items: center;
 }
 
-.room-schedule-page .event-purple {
-  background: #ede7ff;
-}
-
-.room-schedule-page .event-pink {
-  background: #ffe4e8;
-}
-
-.room-schedule-page .event-blue {
-  background: #e8f0ff;
-}
-
-.room-schedule-page .event-yellow {
-  background: #fff7d3;
-}
-
-.room-schedule-page .schedule-back-button-container {
+.vas-back-btn-container {
   display: flex;
   justify-content: flex-start;
 }
 
-.room-schedule-page .action-pill.outline {
-  padding: 14px 32px;
-  border-radius: 999px;
+.vas-back-btn {
+  padding: 10px 30px;
+  border: 1.5px solid #f57c00;
+  color: #f57c00;
+  font-size: 14px;
+  height: 50px;
   font-weight: 700;
-  background: #fff;
-  color: #e87a1a;
-  border: 2px solid #e87a1a;
+  width: 150px;
+  cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
 }
 
-@media (max-width: 1180px) {
-  .room-schedule-page .room-header-grid {
-    flex-direction: column;
-  }
-
-  .room-schedule-page .room-filter-group {
-    width: 100%;
-  }
-
-  .room-schedule-page .room-calendar-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .room-schedule-page .calendar-times {
-    display: none;
-  }
+.vas-back-btn:hover {
+  background-color: #FEF0E7;
 }
 
-@media (max-width: 860px) {
-  .room-schedule-page.dashboard-main {
-    margin-left: 0;
-    padding: 20px 16px;
+@media (max-width: 768px) {
+  .vas-master-sched {
+    padding: 14px;
+  }
+
+  .vas-schedule-hero h1 {
+    font-size: 26px;
+  }
+
+  .vas-schedule-box {
+    padding: 14px;
+    min-height: auto;
+  }
+
+  .vas-days-container {
+    margin-left: 80px;
+  }
+
+  .vas-days-divider {
+    margin-left: 130px;
+    margin-right: 20px;
   }
 }

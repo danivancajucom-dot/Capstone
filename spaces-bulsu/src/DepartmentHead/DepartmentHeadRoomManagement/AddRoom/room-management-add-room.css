@@ -1,20 +1,17 @@
-/* AddRoomPage specific styles */
 .add-room-page.dashboard-main {
-  margin-left: 0;
-  padding: 28px 36px 40px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  background: #f4f6f9;
-  min-height: 100vh;
-}
-
-.add-room-page .dashboard-header.add-room-header {
-  margin-bottom: 8px;
+  padding: 20px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
 }
 
 .add-room-page .dashboard-header h1 {
   margin: 0;
+  font-size: 35px;
+  font-weight: 800;
 }
 
 .add-room-page .form-card {
@@ -30,9 +27,12 @@
   margin-bottom: 18px;
 }
 
-.add-room-page .form-row > label {
+.add-room-page .form-row > label,
+.add-room-page .form-row.two > div > label,
+.add-room-page .equipment-section > label {
   font-weight: 700;
   color: #141b2d;
+  font-size: 14px;
 }
 
 .add-room-page .form-row.two > div {
@@ -53,11 +53,20 @@
 
 .add-room-page .form-input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 12px 16px;
+  border: 1.5px solid #e5e7eb;
   border-radius: 10px;
-  border: 1px solid #f0e6df;
-  background: #fff;
-  color: #141b2d;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #F8F7F5;
+  outline: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: border-color 0.2s;
+}
+
+.add-room-page .form-input:focus{
+  border-color: #f57c00;
+  background-color: #FFFFFF;
 }
 
 .add-room-page .form-select {
@@ -72,39 +81,61 @@
   display: flex;
   align-items: center;
   gap: 0;
-  border: 1px solid #f0e6df;
+  border: 1.5px solid #e5e7eb;
   border-radius: 10px;
   overflow: hidden;
-  background: #fff;
+  background: #F8F7F5;
+  font-size: 14px;
+  color: #1a1a1a;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: border-color 0.2s;
+  width: 100%;
 }
 
 .add-room-page .capacity-btn {
   width: 52px;
-  height: 52px;
-  background: #fff8f3;
-  color: #e87a1a;
+  height: 40px;
+  background: #FEF0E7;
+  color: #f57c00;
   font-size: 22px;
+  border: none;
   font-weight: 700;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.add-room-page .capacity-btn:hover {
+  background: #f57c00;
+  color: #ffffff;
 }
 
 .add-room-page .capacity-btn-plus {
-  background: #e87a1a;
-  color: #fff;
+  background: #f57c00;
+  color: #ffffff;
+  border: none;
+}
+
+.add-room-page .capacity-btn-plus:hover {
+  background: #FEF0E7;
+  color: #f57c00;
 }
 
 .add-room-page .capacity-value {
   flex: 1;
+  border: none;
   text-align: center;
   font-weight: 700;
   font-size: 18px;
-  color: #141b2d;
+  color: #64748B;
+  background: #F8F7F5;
+  outline: none;
 }
 
 .add-room-page .equipment-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 20px;
 }
 
 .add-room-page .equipment-section {
@@ -114,25 +145,23 @@
   margin-bottom: 18px;
 }
 
-.add-room-page .equipment-section > label {
-  font-weight: 700;
-  color: #141b2d;
-}
-
 .add-room-page .equipment-option {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #e8eaef;
-  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  background: #F8F7F5;
   font-weight: 700;
-  color: #141b2d;
   cursor: pointer;
   min-width: 0;
+  font-size: 14px;
+  color: #1a1a1a;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: border-color 0.2s;
 }
 
 .add-room-page .equipment-option-text {
@@ -161,39 +190,62 @@
   flex-shrink: 0;
 }
 
+.add-room-page .equipment-option.is-checked {
+  border-color: #f57c00;
+  background-color: #FFFFFF;
+  color: #f57c00;
+}
+
 .add-room-page .equipment-option.is-checked .equipment-check {
-  background: #e87a1a;
-  border-color: #e87a1a;
+  background: #f57c00;
+  border-color: #f57c00;
 }
 
 .add-room-footer-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 28px;
   padding: 0 4px;
 }
 
-.add-room-page .action-pill {
-  padding: 14px 20px;
-  border-radius: 18px;
+.add-room-cancel {
+  padding: 10px 30px;
+  border: none;
+  color: #f57c00;
+  font-size: 14px;
+  height: 50px;
   font-weight: 700;
+  width: 150px;
+  border: 1.5px solid #f57c00;
+  cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
 }
 
-.add-room-page .action-pill.secondary {
-  background: #f8f7f5;
-  color: #3f4b68;
+.add-room-cancel:hover {
+  background-color: #FEF0E7;
 }
 
-.add-room-page .action-pill.primary {
-  background: #e87a1a;
-  color: white;
+.add-room-confirm {
+  padding: 10px 30px;
+  border: none;
+  background-color: #f57c00;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 160px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  height: 50px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: .2s;
 }
 
-.add-room-page .action-pill.outline {
-  background: #fff;
-  color: #e87a1a;
-  border: 2px solid #e87a1a;
+.add-room-confirm:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
 }
 
 .add-room-page .confirm-modal-overlay {
@@ -201,40 +253,42 @@
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(16, 20, 30, 0.35);
-  z-index: 40;
+  background: rgba(16, 20, 30, 0.5);
+  z-index: 1000;
   padding: 28px;
 }
 
 .add-room-page .confirm-modal {
-  width: min(400px, 100%);
+  width: min(420px, 100%);
   background: #fff;
   border-radius: 16px;
-  box-shadow: 0 18px 60px rgba(40, 56, 85, 0.14);
-  padding: 32px 28px 28px;
+  box-shadow: 0 18px 60px rgba(40, 56, 85, 0.2);
+  padding: 36px 32px 32px;
   text-align: center;
 }
 
 .add-room-page .confirm-modal-icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 18px;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 16px;
   border-radius: 50%;
   background: #fff3d9;
-  color: #e87a1a;
-  display: grid;
-  place-items: center;
+  color: #f57c00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
 }
 
 .add-room-page .confirm-modal-icon.success-icon {
-  background: #d4edda;
-  color: #28a745;
+  background: #E9FAEF;
+  color: #16a34a;
 }
 
 .add-room-page .confirm-modal h3 {
   margin: 0 0 10px;
-  font-size: 22px;
+  font-size: 20px;
+  font-weight: 700;
   color: #141b2d;
 }
 
@@ -246,13 +300,31 @@
 }
 
 .add-room-page .confirm-modal-actions {
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
 }
 
-.add-room-page .confirm-modal-btn {
+.add-room-page .add-room-done {
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background-color: #f57c00;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
   width: 100%;
-  justify-content: center;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.add-room-page .add-room-done:hover {
+  background: #fff3e8;
+  border: 1px solid #f57c00;
+  color: #f57c00;
 }
 
 .form-error {
@@ -282,14 +354,9 @@
     grid-template-columns: 1fr;
   }
 }
-/* Hide number input spinner (Chrome, Edge, Safari) */
+
 .capacity-value::-webkit-outer-spin-button,
 .capacity-value::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-
-/* Hide spinner (Firefox) */
-.capacity-value {
-  -moz-appearance: textfield;
 }

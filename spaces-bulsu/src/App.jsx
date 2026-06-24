@@ -31,6 +31,7 @@ import DepartmentHeadDashboard from "./DepartmentHead/DepartmentHeadDashboard/De
 import DepartmentHeadActivityLog from "./DepartmentHead/DepartmentHeadActivityLog/DepartmentHeadActivityLog";
 import DepartmentHeadAddRoom from "./DepartmentHead/DepartmentHeadRoomManagement/AddRoom/RoomManagementAddRoom";
 import DepartmentHeadEditRoom from "./DepartmentHead/DepartmentHeadRoomManagement/EditDetails/RoomManagementEditDetails";
+import RoomManagementViewAffectedSchedule from "./DepartmentHead/DepartmentHeadRoomManagement/ViewAffectedSchedule/RoomManagementViewAffectedSchedule";
 
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
@@ -85,6 +86,7 @@ function App() {
         <Route path="user-management" element={<UserManagement />}/>
         <Route path="notification-management" element={<NotificationManagement />}/>
         <Route path="broadcast-channel" element={<BroadcastChannel />} />
+        <Route path="affected-schedules" element={<RoomManagementViewAffectedSchedule />} />
 
 
       </Route>

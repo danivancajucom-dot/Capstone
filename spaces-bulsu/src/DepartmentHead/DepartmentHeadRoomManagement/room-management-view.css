@@ -1,11 +1,11 @@
 .rooms-page.dashboard-main {
-  margin-left: 0px;
-  padding: 28px 36px 40px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  background: #f4f6f9;
-  min-height: 100vh;
+  padding: 20px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
 }
 
 .rooms-page .dashboard-header {
@@ -16,19 +16,16 @@
 }
 
 .rooms-page .dashboard-header h1 {
-  font-size: 34px;
+  margin: 0;
+  font-size: 35px;
   font-weight: 800;
-  color: #1a2236;
-  margin: 0 0 6px;
-  letter-spacing: -0.02em;
 }
 
 .rooms-page .page-subtitle {
-  margin: 0;
-  color: #7a8194;
-  font-size: 14px;
-  line-height: 1.5;
-  max-width: 520px;
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 300;
 }
 
 .rooms-page .dashboard-actions {
@@ -38,26 +35,27 @@
 }
 
 .rooms-page .action-pill {
-  display: inline-flex;
+ padding: 10px 20px;
+  border: none;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 20px;
-  border-radius: 999px;
+  background-color: #f57c00;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  color: white;
+  height: 52px;
+  border-radius: 10px;
+  cursor: pointer;
   font-weight: 700;
   font-size: 14px;
-  white-space: nowrap;
+  transition: .2s;
 }
 
-.rooms-page .action-pill.outline.export-btn {
-  background: #fff;
-  color: #e87a1a;
-  border: 1.5px solid #e87a1a;
-}
-
-.rooms-page .action-pill.primary {
-  background: #e87a1a;
-  color: #fff;
-  border: 1.5px solid #e87a1a;
+.rooms-page .action-pill:hover{
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
 }
 
 .rooms-page .dashboard-status-grid {
@@ -92,7 +90,7 @@
 }
 
 .rooms-page .summary-value--orange {
-  color: #e87a1a;
+  color: #f57c00;
 }
 
 .rooms-page .summary-value--green {
@@ -155,7 +153,7 @@
   color: #a8aeb8;
 }
 
-.rooms-page .rooms-row.is-inactive .room-name,
+.rooms-page .rooms-row.is-inactive .rm-room-name,
 .rooms-page .rooms-row.is-inactive td {
   color: #a8aeb8;
 }
@@ -166,24 +164,43 @@
   gap: 12px;
 }
 
+.rm-room-name {
+    padding: 8px 24px;
+    border-radius: 50px;
+    border: 1.5px solid #f57c00;
+    font-size: 14px;
+    background-color: #FEF0E7;
+    color: #f57c00;
+    font-weight: 700;
+    margin-top: 20px;
+    margin-left: 10px;
+}
+
 .rooms-page .room-icon {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 10px;
   font-weight: 800;
+  line-height: 1.1;
   flex-shrink: 0;
+  padding: 4px;
+  overflow: hidden;
+  box-sizing: border-box;
+  word-break: break-word;
 }
 
 .rooms-page .room-icon--peach {
   background: #ffe8d4;
-  color: #e87a1a;
+  color: #f57c00;
 }
 
 .rooms-page .room-icon--orange {
-  background: #e87a1a;
+  background: #f57c00;
   color: #fff;
 }
 
@@ -221,11 +238,11 @@
 
 .rooms-page .type-pill--lecture {
   background: #fff0e4;
-  color: #e87a1a;
+  color: #f57c00;
 }
 
 .rooms-page .type-pill--lab {
-  background: #e87a1a;
+  background: #f57c00;
   color: #fff;
 }
 
@@ -245,7 +262,7 @@
   padding: 5px 10px;
   border-radius: 6px;
   background: #fff5ec;
-  color: #c97a2e;
+  color: #f57c00;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -274,11 +291,11 @@
 }
 
 .rooms-page .room-status--active {
-  color: #e87a1a;
+  color: #f57c00;
 }
 
 .rooms-page .room-status--active .room-status-dot {
-  background: #e87a1a;
+  background: #f57c00;
 }
 
 .rooms-page .room-status--inactive {
@@ -300,6 +317,7 @@
   height: 36px;
   border-radius: 10px;
   background: transparent;
+  border: none;
   color: #8a90a0;
   display: grid;
   place-items: center;
@@ -311,10 +329,26 @@
   color: #5c6378;
 }
 
+.rooms-page .action-icon-btn:hover {
+  background: #f4f6f9;
+  color: #5c6378;
+}
+
+.rooms-page .action-icon-btn.danger {
+  border: none;
+  background: transparent;
+}
+
+.rooms-page .action-icon-btn.danger:hover {
+  background: #fff0f0;
+  color: #ef4444;
+}
+
 .rooms-page .room-toggle {
   width: 44px;
   height: 24px;
   border-radius: 999px;
+  border: none;
   padding: 2px;
   position: relative;
   flex-shrink: 0;
@@ -322,7 +356,7 @@
 }
 
 .rooms-page .room-toggle.is-on {
-  background: #e87a1a;
+  background: #f57c00;
 }
 
 .rooms-page .room-toggle.is-off {
@@ -375,10 +409,11 @@
   font-size: 13px;
   display: grid;
   place-items: center;
+  border: none;
 }
 
 .rooms-page .pagination-page.is-active {
-  background: #e87a1a;
+  background: #f57c00;
   color: #fff;
 }
 

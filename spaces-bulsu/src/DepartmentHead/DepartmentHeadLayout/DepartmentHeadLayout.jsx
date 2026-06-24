@@ -103,7 +103,7 @@ export default function DepartmentHeadLayout() {
 
           <div className="dept-logo">
             <div className="dept-logo-icon">
-              <i className="fa-solid fa-calendar-check"></i>
+              <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="clerk-logo-img" />
             </div>
             <div className="dept-logo-text">
               <h2>SpaceS CICT</h2>

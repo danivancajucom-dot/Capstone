@@ -1,8 +1,8 @@
 import "./approved-and-denied-card.css";
 
-function ApprovedAndDeniedCard() {
+function ApprovedAndDeniedCard({ onClick }) {
   return (
-    <div className="approved-and-denied-card">
+    <div className="approved-and-denied-card" onClick={onClick} style={{ cursor: "pointer" }}>
       <div className="status-card-left">
         <span className="status-room-badge">Room Name</span>
         <h3 className="status-name">Faculty Name</h3>
@@ -15,8 +15,7 @@ function ApprovedAndDeniedCard() {
 
       <div className="status-card-right">
         <span className="status-time-ago">2 mins ago</span>
-        <div className="status-image">
-        </div>
+        <div className="status-image"></div>
       </div>
     </div>
   );

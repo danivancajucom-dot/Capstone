@@ -50,8 +50,7 @@
   justify-content: center;
 }
 
-.cancel-btn,
-.confirm-btn {
+.denial-cancel-btn {
   padding: 10px 0;
   width: 120px;
   border-radius: 10px;
@@ -59,16 +58,36 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  border: 1.5px solid #f57c00;
+  box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.2);
+  transition:.2s;
+  height: 52px;
+  background-color: transparent;
+  color: #f57c00;
+  transition: background-color 0.2s ease;
 }
 
-.cancel-btn {
-  background-color: #F8F7F5;
-  color: #F2690D;
-  border: 1.5px solid #F2690D;
+.denial-cancel-btn:hover {
+   background-color: #FEF0E7;
 }
 
-.confirm-btn {
-  background-color: #F2690D;
+.denial-confirm-btn {
+  padding: 10px 0;
+  width: 120px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background-color: #f57c00;
   color: #ffffff;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.2);
+  transition:.2s;
+  height: 52px;
+}
+
+.denial-confirm-btn:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
 }

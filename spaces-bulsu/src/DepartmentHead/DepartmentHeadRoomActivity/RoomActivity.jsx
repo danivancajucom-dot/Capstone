@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./room-activity.css";
+import { useNavigate } from "react-router-dom";
 
 const PLACEHOLDER_CONFLICTS = [
   { id: 1, code: "PERDEV",  time: "07:00 AM - 10:00 AM" },
@@ -7,6 +8,7 @@ const PLACEHOLDER_CONFLICTS = [
 ];
 
 export default function RoomActivity() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     title:    "CICT Event Meeting 2026",
     room:     "SDL1",
@@ -144,7 +146,10 @@ export default function RoomActivity() {
                   <div className="ra-conflict-code">{c.code}</div>
                   <div className="ra-conflict-time">{c.time}</div>
                 </div>
-                <button className="ra-reassign-btn">REASSIGN ROOM</button>
+                      <button 
+        className="ra-reassign-btn" 
+        onClick={() => navigate("/department-head/reassign-room", { state: { from: "/department-head/room-activity" } })}>REASSIGN ROOM
+      </button>
               </div>
             ))}
           </div>

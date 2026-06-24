@@ -21,7 +21,7 @@ function RoomManagementModals({
   return (
     <>
       {showWarningModal && (
-        <div className="modal-overlay" onClick={closeWarningModal}>
+        <div className="rm-modal-overlay" onClick={closeWarningModal}>
           <div className="warning-modal" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
@@ -45,14 +45,14 @@ function RoomManagementModals({
                 <div className="warning-modal-actions">
                   <button
                     type="button"
-                    className="modal-btn modal-btn--outline"
+                    className="rm-modal-cancel-btn"
                     onClick={onViewAffectedSchedules}
                   >
                     View Affected Schedules
                   </button>
                   <button
                     type="button"
-                    className="modal-btn modal-btn--primary"
+                    className="rm-modal-confirm-btn"
                     onClick={handleConfirmDeactivation}
                   >
                     Confirm Deactivation
@@ -65,7 +65,7 @@ function RoomManagementModals({
       )}
 
       {showDeactivationModal && (
-        <div className="modal-overlay" onClick={closeDeactivationModal}>
+        <div className="rm-modal-overlay" onClick={closeDeactivationModal}>
           <div className="deactivation-modal" onClick={(e) => e.stopPropagation()}>
             <label className="deactivation-label" htmlFor="deactivation-reason">
               Reason for Deactivation
@@ -106,14 +106,14 @@ function RoomManagementModals({
             <div className="deactivation-modal-actions">
               <button
                 type="button"
-                className="modal-btn modal-btn--outline"
+                className="rm-modal-cancel-btn"
                 onClick={closeDeactivationModal}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="modal-btn modal-btn--primary"
+                className="rm-modal-confirm-btn"
                 onClick={onConfirmDeactivation}
               >
                 Confirm
@@ -124,7 +124,7 @@ function RoomManagementModals({
       )}
 
       {showActivationModal && (
-        <div className="modal-overlay" onClick={closeActivationModal}>
+        <div className="rm-modal-overlay" onClick={closeActivationModal}>
           <div
             className="activation-modal"
             role="dialog"
@@ -146,14 +146,14 @@ function RoomManagementModals({
             <div className="activation-modal-actions">
               <button
                 type="button"
-                className="modal-btn modal-btn--outline"
+                className="rm-modal-cancel-btn"
                 onClick={closeActivationModal}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="modal-btn modal-btn--primary"
+                className="rm-modal-confirm-btn"
                 onClick={onActivateConfirm}
               >
                 Activate Room
@@ -163,7 +163,7 @@ function RoomManagementModals({
         </div>
       )}
       {showDeleteModal && (
-      <div className="modal-overlay" onClick={closeDeleteModal}>
+      <div className="rm-modal-overlay" onClick={closeDeleteModal}>
         <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
 
           <div className="delete-modal-icon">

@@ -47,7 +47,7 @@ export default function LocalRegistrarLayout() {
           <div className="registrar-logo">
 
             <div className="logo-icon">
-              <i className="fa-solid fa-calendar-check"></i>
+              <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="clerk-logo-img" />
             </div>
 
             <div className="logo-text">

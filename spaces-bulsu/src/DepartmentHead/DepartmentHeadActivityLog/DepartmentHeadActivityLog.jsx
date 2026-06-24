@@ -141,7 +141,7 @@ export default function DepartmentHeadActivityLog() {
       {/* PAGE HEADER */}
       <div className="log-page-header">
         <div className="log-title-row">
-          <button className="back-btn" onClick={() => navigate("/department-head")}>
+          <button className="dh-al-back-btn" onClick={() => navigate("/department-head")}>
             <i className="fa-solid fa-arrow-left"></i>
           </button>
 
@@ -202,6 +202,7 @@ export default function DepartmentHeadActivityLog() {
         </div>
       </div>
 
+        <div className="log-content-box">
       {/* TABS */}
       <div className="log-tabs">
         {tabs.map(tab => (
@@ -347,6 +348,8 @@ export default function DepartmentHeadActivityLog() {
           setToast({ show: false, type: "", message: "" })
         }
       />
+    </div>
+
     </div>
   );
 }

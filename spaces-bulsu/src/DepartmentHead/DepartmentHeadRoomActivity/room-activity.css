@@ -69,7 +69,6 @@
   padding: 12px 16px;
   border: 1.5px solid #e5e7eb;
   border-radius: 10px;
-  font-family: 'Lexend', sans-serif;
   font-size: 14px;
   color: #1a1a1a;
   background: #F8F7F5;
@@ -80,8 +79,7 @@
 }
 
 .ra-input:focus {
-  border-color: #f57c00;
-  background-color: #FEF0E7; 
+  border-color: #f57c00; background: #fff;
 }
 
 .ra-icon-input {
@@ -115,6 +113,11 @@
   align-items: center;
   gap: 10px;
   cursor: pointer;
+}
+
+.ra-select-wrap:focus{
+  border-color: #f57c00; 
+  background: #fff;
 }
 
 .ra-select-wrap i { color: #9ca3af; font-size: 14px; flex-shrink: 0; }
@@ -155,8 +158,8 @@
 }
 
 .ra-textarea:focus {  
-  border-color: #f57c00;
-  background-color: #FEF0E7; 
+  border-color: #f57c00; 
+  background: #fff; 
 }
 
 .ra-textarea::placeholder { color: #9ca3af; font-weight: 300; }
