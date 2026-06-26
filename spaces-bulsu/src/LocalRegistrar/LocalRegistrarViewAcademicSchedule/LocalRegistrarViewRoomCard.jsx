@@ -1,10 +1,141 @@
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+
 import "./local-registrar-view-room-card.css";
+
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
 
+import {
+  collection,
+  getDocs,
+} from "firebase/firestore";
+
+import { db } from "../../firebase";
+
+const DAYS = [
+  "MON",
+  "TUE",
+  "WED",
+  "THU",
+  "FRI",
+  "SAT",
+  "SUN",
+];
+
 function LocalRegistrarViewRoomCard() {
+  const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const room = location.state?.room;
+  const [schedules, setSchedules] = useState([]);
+
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
+
+  useEffect(() => {
+    loadSchedules();
+  }, []);
+
+  const loadSchedules = async () => {
+
+    if (!room?.id) return;
+
+    const snapshot = await getDocs(
+        collection(db, "rooms", room.id, "schedules")
+    );
+
+    const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+    }));
+
+    setSchedules(
+        list.filter(item => !item.initialized)
+    );
+  };
+
+  const getSchedulesByDay = (day) => {
+    return schedules.filter(
+      (schedule) =>
+        schedule.day?.trim().toUpperCase() === day
+    );
+  };
+
+  const convertToMinutes = (time) => {
+    if (!time) return 0;
+
+    const [hour, minute] = time.split(":").map(Number);
+
+    return hour * 60 + minute;
+  };
+
+  const HOUR_HEIGHT = 60;
+
+  const getTopPosition = (startTime) => {
+    const startMinutes = convertToMinutes(startTime);
+    const calendarStart = 7 * 60;
+
+    return ((startMinutes - calendarStart) / 60) * HOUR_HEIGHT + 30;
+  };
+
+  const getCardHeight = (startTime, endTime) => {
+    const startMinutes = convertToMinutes(startTime);
+    const endMinutes = convertToMinutes(endTime);
+
+    return ((endMinutes - startMinutes) / 60) * 60;
+  };
+
+  const getStartOfWeek = (date) => {
+    const d = new Date(date);
+
+    const day = d.getDay(); // 0 = Sunday
+
+    // Monday ang start
+    const diff = day === 0 ? -6 : 1 - day;
+
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+
+    return d;
+  };
+
+  const startOfWeek = getStartOfWeek(currentWeek);
+
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(startOfWeek);
+    date.setDate(startOfWeek.getDate() + i);
+    return date;
+  });
+
+  const formatWeekRange = () => {
+    const start = weekDates[0];
+    const end = weekDates[6];
+
+    const startMonth = start.toLocaleString("default", {
+      month: "long",
+    });
+
+    const endMonth = end.toLocaleString("default", {
+      month: "long",
+    });
+
+    if (start.getMonth() === end.getMonth()) {
+      return `${startMonth} ${start.getDate()} - ${end.getDate()}, ${end.getFullYear()}`;
+    }
+
+    return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
+  };
+
+  const isToday = (date) => {
+    const today = new Date();
+
+    return (
+      today.getDate() === date.getDate() &&
+      today.getMonth() === date.getMonth() &&
+      today.getFullYear() === date.getFullYear()
+    );
+  };
 
   return (
     <>
@@ -18,42 +149,41 @@ function LocalRegistrarViewRoomCard() {
         <div className="white-box-view-room">
           <div className="box-header">
             <div className="week-navigation">
-              <i className="fa-solid fa-chevron-left"></i>
-              <span>May 4 - 10, 2026</span>
-              <i className="fa-solid fa-chevron-right"></i>
+              <i
+                className="fa-solid fa-chevron-left"
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  const prev = new Date(currentWeek);
+                  prev.setDate(prev.getDate() - 7);
+                  setCurrentWeek(prev);
+                }}
+              ></i>
+              <span>{formatWeekRange()}</span>
+              <i
+                className="fa-solid fa-chevron-right"
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  const next = new Date(currentWeek);
+                  next.setDate(next.getDate() + 7);
+                  setCurrentWeek(next);
+                }}
+              ></i>
             </div>
-            <span className="room-name">Room Name</span>
+            <span className="room-name">
+              {room?.roomName}
+            </span>
           </div>
 
           <div className="days-container">
-            <div className="day">
-              <span className="day-name">MON</span>
-              <span className="day-date">4</span>
-            </div>
-            <div className="day">
-              <span className="day-name">TUE</span>
-              <span className="day-date">5</span>
-            </div>
-            <div className="day">
-              <span className="day-name">WED</span>
-              <span className="day-date">6</span>
-            </div>
-            <div className="day">
-              <span className="day-name">THU</span>
-              <span className="day-date">7</span>
-            </div>
-            <div className="day">
-              <span className="day-name">FRI</span>
-              <span className="day-date">8</span>
-            </div>
-            <div className="day">
-              <span className="day-name">SAT</span>
-              <span className="day-date">9</span>
-            </div>
-            <div className="day">
-              <span className="day-name">SUN</span>
-              <span className="day-date">10</span>
-            </div>
+            {weekDates.map((date, index) => (
+              <div
+                className={`day ${isToday(date) ? "today" : ""}`}
+                key={index}
+              >
+                <span className="day-name">{DAYS[index]}</span>
+                <span className="day-date">{date.getDate()}</span>
+              </div>
+            ))}
           </div>
 
           <hr className="days-divider" />
@@ -75,11 +205,43 @@ function LocalRegistrarViewRoomCard() {
               <div className="time-slot">07 PM</div>
               <div className="time-slot">08 PM</div>
             </div>
-            {/* example langg para makita cards */}
-            <ScheduleCard />
+            <div className="calendar-grid">
+              {schedules.length === 0 ? (
+                <div className="no-schedule">
+                  <i className="fa-regular fa-calendar-xmark"></i>
+                  <h3>No schedules available</h3>
+                  <p>There are no schedules assigned to this room yet.</p>
+                </div>
+              ) : (
+                DAYS.map((day) => (
+                  <div
+                    className="calendar-day"
+                    key={day}
+                  >
+                    {getSchedulesByDay(day).map((schedule) => (
+                      <ScheduleCard
+                        key={schedule.id}
+                        schedule={schedule}
+                        top={getTopPosition(schedule.startTime)}
+                        height={getCardHeight(
+                          schedule.startTime,
+                          schedule.endTime
+                        )}
+                        onClick={() => setSelectedSchedule(schedule)}
+                      />
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+
           </div>
           <div className="class-details-container">
-            <ClassDetailsCard />
+            <ClassDetailsCard
+                schedule={selectedSchedule}
+                roomName={room?.roomName}
+                onClose={() => setSelectedSchedule(null)}
+            />
           </div>
         </div>
       </div>

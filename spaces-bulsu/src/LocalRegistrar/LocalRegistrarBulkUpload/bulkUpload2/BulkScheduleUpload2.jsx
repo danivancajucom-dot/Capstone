@@ -19,14 +19,60 @@ async function parseExcelFile(file) {
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet);
-  return rows.map((row, index) => ({
-    id: index + 1,
-    subject: row.Subject || row.subject || "",
-    section: row.Section || row.section || "",
-    faculty: row.Faculty || row.faculty || "",
-    day: row.Day || row.day || "",
-    time: row.Time || row.time || "",
-  }));
+
+  return rows.map((row, index) => {
+    // Make all column names case-insensitive
+    const normalized = {};
+
+    Object.keys(row).forEach((key) => {
+      normalized[key.toLowerCase().trim()] = row[key];
+    });
+
+    const startTime =
+      normalized["start time"] ||
+      normalized["starttime"] ||
+      normalized["start_time"] ||
+      "";
+
+    const endTime =
+      normalized["end time"] ||
+      normalized["endtime"] ||
+      normalized["end_time"] ||
+      "";
+
+    return {
+      id: index + 1,
+
+      subject:
+        normalized["subject"] ||
+        "",
+
+      section:
+        normalized["section"] ||
+        "",
+
+      faculty:
+        normalized["faculty"] ||
+        "",
+
+      day:
+        normalized["day"] ||
+        "",
+
+      startTime,
+      endTime,
+
+      // for compatibility with existing pages
+      time:
+        startTime && endTime
+          ? `${startTime} - ${endTime}`
+          : "",
+
+      room:
+        normalized["room"] ||
+        "",
+    };
+  });
 }
 
 async function extractRawText(file) {
@@ -59,7 +105,7 @@ async function extractRawText(file) {
 export default function BulkScheduleUpload2() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { semester, schoolYear, room } = location.state || {};
+  const { semester, schoolYear, room, } = location.state || {};
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -84,31 +130,37 @@ export default function BulkScheduleUpload2() {
     setLoading(true);
 
     try {
-      // Excel path
       if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
         const schedules = await parseExcelFile(file);
         navigate("/local-registrar/bulk-upload-3", {
-          state: { semester, schoolYear, room, schedules },
+          state: { semester, schoolYear, room, schedules , },
         });
         return;
       }
 
-      // PDF path
       const rawText = await extractRawText(file);
-      const response = await fetch("http://localhost:5000/api/extract-schedule", {
+
+      // ✅ Use env variable, fallback to localhost
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+      const response = await fetch(`${apiUrl}/api/extract-schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ room, semester, schoolYear, rawText }),
       });
 
+      // ✅ Check if response is actually JSON before parsing
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const raw = await response.text();
+        console.error("Server returned non-JSON:", raw.slice(0, 300));
+        throw new Error(`Server error (${response.status}): Backend may not be running on ${apiUrl}`);
+      }
+
       const data = await response.json();
 
       if (!data.success) {
-        if (data.message && (data.message.includes("503") || data.message.includes("UNAVAILABLE"))) {
-          alert("The AI service is currently busy. Please try again in a few minutes.");
-        } else {
-          alert(data.message || "AI extraction failed.");
-        }
+        alert(data.message || "AI extraction failed.");
         return;
       }
 
@@ -120,6 +172,7 @@ export default function BulkScheduleUpload2() {
           schedules: data.schedules || [],
         },
       });
+
     } catch (error) {
       console.error(error);
       alert(error.message || "Failed to process schedule.");

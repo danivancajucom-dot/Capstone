@@ -1,59 +1,108 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-console.log("API KEY:", process.env.GEMINI_API_KEY);
-
 import express from "express";
 import cors from "cors";
-import { GoogleGenAI } from "@google/genai";
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // ---------- RETRY FUNCTION ----------
 async function generateWithRetry(prompt, maxRetries = 3) {
   let lastError;
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await ai.models.generateContent({
-        model: "gemini-1.5-flash",  // or "gemini-1.5-pro"
-        contents: prompt,
+      const response = await fetch(GEMINI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: "application/json", // ✅ Forces JSON response
+          },
+        }),
       });
+
+      const data = await response.json();
+
+      // ✅ Log full response so we can debug
+      console.log("Gemini response status:", response.status);
+      console.log("Gemini data:", JSON.stringify(data, null, 2));
+
+      if (!response.ok) {
+        const errMsg = data?.error?.message || "Unknown Gemini error";
+        const err = new Error(errMsg);
+        err.status = response.status;
+        throw err;
+      }
+
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Empty response from Gemini");
+
+      return text;
+
     } catch (error) {
       lastError = error;
-      // Retry only on 503 (overload) and if we have attempts left
-      if (error.status === 503 && attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-        console.log(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
+      console.error(`Attempt ${attempt} failed:`, error.message);
+
+      const shouldRetry = (error.status === 503 || error.status === 429) && attempt < maxRetries;
+      if (shouldRetry) {
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`Retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
-      // If not a 503 or out of retries, throw immediately
       throw error;
     }
   }
-  throw lastError; // Should never get here, but just in case
+  throw lastError;
 }
+
+// ---------- SAFE JSON PARSER ----------
+function extractJSON(text) {
+  let cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const start = cleaned.indexOf("[");
+  const end = cleaned.lastIndexOf("]");
+  if (start === -1 || end === -1) {
+    throw new Error("No JSON array found: " + cleaned.slice(0, 300));
+  }
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+// ---------- TEST ENDPOINT ----------
+app.get("/api/test-key", async (req, res) => {
+  try {
+    const text = await generateWithRetry("Say the word OK and nothing else.");
+    res.json({ success: true, response: text });
+  } catch (error) {
+    res.json({ success: false, status: error.status, message: error.message });
+  }
+});
 
 // ---------- EXTRACTION ENDPOINT ----------
 app.post("/api/extract-schedule", async (req, res) => {
   try {
     const { rawText, room, semester, schoolYear } = req.body;
 
+    if (!rawText || rawText.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: "The uploaded file appears to be empty or unreadable.",
+      });
+    }
+
     const prompt = `
 You are a university schedule extraction engine.
-
 Extract ALL schedules from the provided text.
-
-Return ONLY valid JSON.
+Return ONLY a valid JSON array. No markdown. No explanation.
 
 Format:
-
 [
   {
     "subject": "",
@@ -67,68 +116,39 @@ Format:
 ]
 
 Rules:
+- Return ONLY the JSON array, nothing else.
+- Day must be one of: MON, TUE, WED, THU, FRI, SAT, SUN
+- Time format: HH:mm (24-hour). Example: 7:00 AM = 07:00, 1:00 PM = 13:00
 
-- Return ONLY JSON array.
-- No markdown.
-- No explanation.
-- Day must be:
-  MON
-  TUE
-  WED
-  THU
-  FRI
-  SAT
-  SUN
-
-- Time format:
-  HH:mm (24-hour)
-
-Examples:
-
-7:00 AM -> 07:00
-10:30 AM -> 10:30
-1:00 PM -> 13:00
-6:00 PM -> 18:00
-
-Semester:
-${semester}
-
-School Year:
-${schoolYear}
-
-Room:
-${room}
+Semester: ${semester}
+School Year: ${schoolYear}
+Room: ${room}
 
 Schedule Text:
-
 ${rawText}
 `;
 
-    // 🔥 USE THE RETRY FUNCTION HERE
-    const response = await generateWithRetry(prompt);
+    const text = await generateWithRetry(prompt);
+    const schedules = extractJSON(text);
 
-    let text = response.text;
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-    const schedules = JSON.parse(text);
+    console.log(`✅ Extracted ${schedules.length} schedule(s)`);
+    res.json({ success: true, schedules });
 
-    res.json({
-      success: true,
-      schedules,
-    });
   } catch (error) {
-    console.error("Extraction error:", error);
-    // Send a user‑friendly message
-    const message = error.status === 503
-      ? "The AI service is currently busy. Please try again in a few minutes."
-      : error.message;
-    res.status(500).json({
-      success: false,
-      message,
-    });
+    console.error("❌ Extraction error:", error.message);
+
+    let message = "Failed to extract schedule.";
+    if (error.status === 400) message = "Bad request — API key may be invalid.";
+    else if (error.status === 401 || error.status === 403) message = "Unauthorized — check your GEMINI_API_KEY.";
+    else if (error.status === 429) message = "Rate limit hit — please wait and try again.";
+    else if (error.status === 503) message = "Gemini is busy. Please try again in a few minutes.";
+
+    res.status(500).json({ success: false, message });
   }
 });
 
-// ---------- START SERVER ----------
+// ---------- START ----------
 app.listen(5000, () => {
-  console.log("Server running on port 5000");
+  console.log("✅ Server running on port 5000");
+  console.log("🔑 API Key prefix:", GEMINI_API_KEY?.slice(0, 10) + "...");
 });

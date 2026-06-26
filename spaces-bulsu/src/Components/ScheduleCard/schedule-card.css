@@ -1,28 +1,45 @@
 .schedule-card {
-  background-color: #FEF0E7;
-  border-left: 4px solid  #f57c00;
-  border-radius: 6px;
-  padding: 8px 10px;
+  position: absolute;
+  left: 6px;
+  right: 6px;
+
+  border-radius: 10px;
+  color: white;
+
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  height: 220px;
-  margin-left: 10px;
+
+  padding: 8px;
+
+  cursor: pointer;
+
+  overflow: hidden;
+
+  transition: .2s;
+
+  box-shadow: 0 2px 6px rgba(0,0,0,.15);
 }
 
-.subject-code {
-  font-size: 11px;
-  font-weight: 500;
-  color:  #f57c00;
+.schedule-card:hover{
+    transform:scale(1.03);
 }
 
-.subject-name {
-  font-size: 12px;
-  font-weight: 600;
-  color:  #f57c00;
+.subject-code{
+    font-size:15px;
+    font-weight:700;
 }
 
-.subject-time {
-  font-size: 11px;
-  color:  #f57c00;
+.subject-name{
+    font-size:12px;
+    margin-top:4px;
+}
+
+.subject-time{
+    margin-top:auto;
+    font-size:11px;
+}
+
+.subject-faculty{
+    font-size:11px;
+    opacity:.9;
 }

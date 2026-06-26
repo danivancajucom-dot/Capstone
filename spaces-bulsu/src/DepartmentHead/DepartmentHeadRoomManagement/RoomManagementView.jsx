@@ -303,7 +303,7 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
               <tbody>
                 {paginatedRooms.map((room) => (
                   <tr
-                    key={room.id}
+                    key={room.firestoreId}
                     className={`rooms-row ${room.inactive ? 'is-inactive' : 'clickable-row'}`}
                     onClick={() => {
                       if (!room.inactive && typeof onOpenDetails === "function") {

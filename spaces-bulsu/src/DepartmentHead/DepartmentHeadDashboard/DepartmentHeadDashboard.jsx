@@ -3,6 +3,7 @@ import './department-head-dashboard.css';
 import { useNavigate } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../../firebase";
+import classroomImg from "../../assets/Classroom.jpeg";
 
 const getActivityIcon = (type) => {
   switch (type) {
@@ -28,38 +29,109 @@ const formatTime = (timestamp) => {
   return date.toLocaleString();
 };
 
-const statsData = [
-  { icon: 'fa-solid fa-building', label: 'Total Rooms', value: 22, color: 'orange' },
-  { icon: 'fa-solid fa-location-dot', label: 'Occupied', value: 12, color: 'red' },
-  { icon: 'fa-solid fa-circle-check', label: 'Available', value: 6, color: 'green' },
-  { icon: 'fa-solid fa-calendar-check', label: 'Pending', value: 5, color: 'orange' },
-  { icon: 'fa-solid fa-circle-plus', label: 'Room Activity', value: 2, color: 'orange' },
-  { icon: 'fa-solid fa-users', label: 'Under Maintenance', value: 4, color: 'gray' },
-];
-
 const floors = ['All Floors', '1st Floor', '3rd Floor', '4th Floor'];
 
+const getCurrentDay = () => {
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  return days[new Date().getDay()];
+};
+
+const toMinutes = (time) => {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+};
+
+const isRoomOccupiedNow = (schedules = []) => {
+  const now = new Date();
+  const currentDay = getCurrentDay();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  return schedules.some((sched) => {
+    if (sched.day !== currentDay) return false;
+
+    const start = toMinutes(sched.start);
+    const end = toMinutes(sched.end);
+
+    return currentMinutes >= start && currentMinutes < end;
+  });
+};
+
 export default function DepartmentHeadDashboard() {
-  const [activeFloor, setActiveFloor] = useState('1st Floor');
+  const [activeFloor, setActiveFloor] = useState('All Floors');
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [stats, setStats] = useState({
+    totalRooms: 0,
+    occupied: 0,
+    available: 0,
+    maintenance: 0,
+    roomActivity: 0,
+  });
+  const normalize = (value) =>
+  value?.toString().trim().toLowerCase();
+  const [loading, setLoading] = useState(true);
+
+  const getNextSchedule = (schedules = []) => {
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+
+  const upcoming = schedules
+    .filter(s => toMinutes(s.start) > nowMin)
+    .sort((a,b) => toMinutes(a.start) - toMinutes(b.start));
+
+  return upcoming[0];
+};
 
   useEffect(() => {
-    const q = collection(db, "rooms");
+    setLoading(true);
 
-    const unsub = onSnapshot(q, (snapshot) => {
+    const unsub = onSnapshot(collection(db, "rooms"), (snapshot) => {
+      let totalRooms = 0;
+      let occupied = 0;
+      let available = 0;
+      let maintenance = 0;
+
       const data = snapshot.docs.map((doc) => {
-        const r = doc.data();
+        const room = doc.data();
+
+        totalRooms++;
+
+        const schedules = room.schedules || [];
+        const occupiedNow = isRoomOccupiedNow(schedules);
+
+        let status = "free";
+
+        if (room.status === "inactive") {
+          status = "maintenance";
+          maintenance++;
+        } else if (occupiedNow) {
+          status = "occupied";
+          occupied++;
+        } else {
+          status = "free";
+          available++;
+        }
+
         return {
-          id: r.roomName,
-          status: r.status === "inactive" ? "maintenance" :
-                  r.occupied ? "occupied" : "free",
-          label: r.roomType || "Room",
-          image: null,
+          id: room.roomName,
+          label: room.roomType || "Room",
+          image: room.image || null,
+          status,
+          schedules,
+          floor: (room.floor || "").toString().trim(),
         };
       });
+
       setRooms(data);
+      setStats({
+        totalRooms,
+        occupied,
+        available,
+        maintenance,
+        roomActivity: occupied + maintenance,
+      });
+
+      setLoading(false); // ✅ done loading
     });
 
     return () => unsub();
@@ -89,11 +161,51 @@ export default function DepartmentHeadDashboard() {
     return () => unsub();
   }, []);
 
+  const filteredRooms =
+  activeFloor === "All Floors"
+    ? rooms
+    : rooms.filter((room) => {
+        if (!room.floor) return false;
+
+        return normalize(room.floor) === normalize(activeFloor);
+      });
+
   return (
     <div className="dept-db-dashboard">
       {/* STATS ROW */}
       <div className="dept-db-stats-row">
-        {statsData.map((s, i) => (
+        {[
+          {
+            icon: "fa-solid fa-building",
+            label: "Total Rooms",
+            value: stats.totalRooms,
+            color: "orange",
+          },
+          {
+            icon: "fa-solid fa-location-dot",
+            label: "Occupied",
+            value: stats.occupied,
+            color: "red",
+          },
+          {
+            icon: "fa-solid fa-circle-check",
+            label: "Available",
+            value: stats.available,
+            color: "green",
+          },
+          {
+            icon: "fa-solid fa-users",
+            label: "Under Maintenance",
+            value: stats.maintenance,
+            color: "gray",
+          },
+          {
+            icon: "fa-solid fa-circle-plus",
+            label: "Room Activity",
+            value: stats.roomActivity,
+            color: "orange",
+          },
+        ].map((s, i) => (
           <div className="dept-db-stat-card" key={i}>
             <div className={`dept-db-stat-icon ${s.color}`}>
               <i className={s.icon}></i>
@@ -133,33 +245,64 @@ export default function DepartmentHeadDashboard() {
           </div>
 
           <div className="dept-db-rooms-grid">
-            {rooms.map((room) => (
-              <div className={`dept-db-room-card ${room.status}`} key={room.id}>
-
-                <div className="dept-db-room-card-header">
-                  <span className="dept-db-room-id">{room.id}</span>
-                  <span className={`dept-db-status-dot ${room.status}`}></span>
-                </div>
-
-                <div className="dept-db-room-card-img">
-                  {room.image ? (
-                    <img src={room.image} alt={room.id} />
-                  ) : (
-                    <div className="dept-db-room-placeholder">
-                      <i className="fa-solid fa-image"></i>
-                    </div>
-                  )}
-
-                  {room.status === "occupied" && (
-                    <div className="dept-db-in-use-badge">IN USE</div>
-                  )}
-                </div>
-
-                <p className={`dept-db-room-label ${room.status}`}>
-                  {room.label}
-                </p>
+            {loading ? (
+              <div className="dept-db-loading">
+                <div className="spinner"></div>
+                Loading rooms...
               </div>
-            ))}
+            ) : filteredRooms.length > 0 ? (
+              filteredRooms.map((room) => (
+                <div
+                  className={`dept-db-room-card ${room.status}`}
+                  key={room.id}
+                >
+                  <div className="dept-db-room-card-header">
+                    <span className="dept-db-room-id">
+                      {room.id}
+                    </span>
+
+                    <span className={`dept-db-status-dot ${room.status}`}></span>
+                  </div>
+
+                  <div className="dept-db-room-card-img">
+                    <img
+                      src={room.image || classroomImg}
+                      alt={room.id}
+                      className="dept-db-room-img"
+                    />
+
+                    {room.status === "occupied" && (
+                      <div className="dept-db-in-use-badge">
+                        IN USE
+                      </div>
+                    )}
+                  </div>
+
+                  <p className={`dept-db-room-label ${room.status}`}>
+                    {room.status === "occupied"
+                      ? "In Use Now"
+                      : (() => {
+                          const next = getNextSchedule(room.schedules);
+
+                          return next ? (
+                            <>
+                              Available Today <br />
+                              <small>
+                                Next: {next.day} {next.start}-{next.end}
+                              </small>
+                            </>
+                          ) : (
+                            "Available Today"
+                          );
+                        })()}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="dept-db-no-rooms">
+                No rooms found for {activeFloor}.
+              </div>
+            )}
           </div>
 
           <p className="dept-db-last-updated">Last updated: Just now</p>
