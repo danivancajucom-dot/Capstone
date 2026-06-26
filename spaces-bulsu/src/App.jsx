@@ -45,6 +45,8 @@ import ClerkViewReservationDenied from "./Clerk/ClerkOnlineReservations/ClerkVie
 import WalkInReservation from "./Clerk/ClerkWalkInReservation/WalkInReservation";
 import ReleasedRooms from "./Clerk/ClerkReleasedRooms/ReleasedRooms";
 import RoomDetails from "./Clerk/ClerkRoomDetails/RoomDetails";
+ import ClerkProfile from "./Clerk/ClerkProfile/ClerkProfile";
+
 
 //Faculty
 import FacultyLayout from "./Faculty/FacultyLayout/FacultyLayout";
@@ -115,6 +117,7 @@ function App() {
 
         {/* Clerk */}
         <Route path="/clerk" element={<ClerkLayout />} >
+          <Route path="profile" element={<ClerkProfile />} />
           <Route index element={<ClerkDashboard />}/>
           <Route path="schedule" element={<ClerkSchedule />} />
           <Route path="online-reservations" element={<ClerkOnlineReservations />} />
