@@ -10,6 +10,7 @@ const steps = [
   { number: 4, label: "CONFIRM" },
 ];
 
+
 const semesters = ["1st Semester", "2nd Semester"];
 const currentYear = new Date().getFullYear();
 const schoolYears = [
@@ -79,7 +80,7 @@ export default function BulkScheduleUpload() {
       alert("Complete all fields");
       return;
     }
-    navigate("/local-registrar/bulk-upload-2", { state: { semester, schoolYear, room } });
+    navigate("/local-registrar/bulk-upload-2", { state: { semester, schoolYear, room, }, });
   };
 
   return (
@@ -101,6 +102,10 @@ export default function BulkScheduleUpload() {
       </div>
       <div className="form-card-one">
         <div className="form-group-one">
+          <label>Room</label>
+          <CustomDropdown placeholder="Select Room" options={rooms} value={room} onChange={setRoom} />
+        </div>
+        <div className="form-group-one">
           <label>Semester</label>
           <CustomDropdown placeholder="Select Semester" options={semesters} value={semester} onChange={setSemester} />
         </div>
@@ -108,10 +113,7 @@ export default function BulkScheduleUpload() {
           <label>School Year</label>
           <CustomDropdown placeholder="Select School Year" options={schoolYears} value={schoolYear} onChange={setSchoolYear} />
         </div>
-        <div className="form-group-one">
-          <label>Room</label>
-          <CustomDropdown placeholder="Select Room" options={rooms} value={room} onChange={setRoom} />
-        </div>
+        
       </div>
       <div className="bulk-footer-one" style={{ justifyContent: "flex-end" }}>
         <button className="btn-next-one" onClick={handleNext}>Next</button>

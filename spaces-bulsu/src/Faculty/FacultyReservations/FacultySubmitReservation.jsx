@@ -1,9 +1,148 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./faculty-submit-reservation.css";
+import {
+  collection,
+  getDocs,
+} from "firebase/firestore";
+import { db } from "../../firebase";
 
 function FacultySubmitReservation() {
   const [purpose, setPurpose] = useState("");
+  const [courseTitle, setCourseTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [selectedFloor, setSelectedFloor] = useState("");
+  const [rooms, setRooms] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(null);
 
+  useEffect(() => {
+
+    loadAvailableRooms();
+
+  }, [date, startTime, endTime, selectedFloor]);
+
+  const convertToMinutes = (time) => {
+
+    if (!time) return 0;
+
+    const [hour, minute] = time.split(":").map(Number);
+
+    return hour * 60 + minute;
+
+  };
+
+  const isOverlapping = (
+    start1,
+    end1,
+    start2,
+    end2
+  ) => {
+
+    const s1 = convertToMinutes(start1);
+    const e1 = convertToMinutes(end1);
+
+    const s2 = convertToMinutes(start2);
+    const e2 = convertToMinutes(end2);
+
+    return s1 < e2 && e1 > s2;
+
+  };
+
+  const getDay = (date) => {
+
+    const days = [
+      "SUN",
+      "MON",
+      "TUE",
+      "WED",
+      "THU",
+      "FRI",
+      "SAT",
+    ];
+
+    return days[new Date(date).getDay()];
+
+  };
+
+  const loadAvailableRooms = async () => {
+
+    if (!date || !startTime || !endTime) {
+
+      setRooms([]);
+
+      return;
+
+    }
+
+    const roomSnapshot = await getDocs(
+      collection(db, "rooms")
+    );
+
+    const roomList = [];
+
+    for (const roomDoc of roomSnapshot.docs) {
+
+      const room = {
+
+        id: roomDoc.id,
+
+        ...roomDoc.data(),
+
+      };
+
+      if (
+        selectedFloor &&
+        room.floor !== selectedFloor
+      ) {
+        continue;
+      }
+
+      const scheduleSnapshot = await getDocs(
+        collection(
+          db,
+          "rooms",
+          room.id,
+          "schedules"
+        )
+      );
+
+      const occupied = scheduleSnapshot.docs.some((doc) => {
+
+        const sched = doc.data();
+
+        if (sched.initialized) return false;
+
+        if (sched.day !== getDay(date))
+          return false;
+
+        return isOverlapping(
+
+          startTime,
+
+          endTime,
+
+          sched.startTime,
+
+          sched.endTime
+
+        );
+
+      });
+
+      roomList.push({
+
+        ...room,
+
+        available: !occupied,
+
+      });
+
+    }
+
+    setRooms(roomList);
+
+  };
   return (
     <>
     <div className="container">

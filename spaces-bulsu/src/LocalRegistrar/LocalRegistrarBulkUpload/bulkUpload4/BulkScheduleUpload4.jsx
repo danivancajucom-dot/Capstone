@@ -2,6 +2,16 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./bulk-schedule-upload4.css";
 import ConfirmPopup from "../../../Popup/ConfirmPopup/ConfirmPopup";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import { db } from "../../../firebase";
 
 const steps = [
   { number: 1, label: "SETUP" },
@@ -9,6 +19,19 @@ const steps = [
   { number: 3, label: "CALENDAR VIEW" },
   { number: 4, label: "CONFIRM" },
 ];
+
+const formatTime12Hour = (time) => {
+  if (!time) return "";
+
+  const [hour, minute] = time.split(":").map(Number);
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  let displayHour = hour % 12;
+
+  if (displayHour === 0) displayHour = 12;
+
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
 
 export default function BulkScheduleUpload4() {
   const location = useLocation();
@@ -19,10 +42,59 @@ export default function BulkScheduleUpload4() {
 
   const [showModal, setShowModal] = useState(false);
 
-  const handleConfirm = () => {
-    console.log("Final schedules:", rawSchedules);
-    alert("Schedules successfully uploaded!");
-    navigate("/local-registrar");
+  const handleConfirm = async () => {
+    try {
+      const { collection, query, where, getDocs, addDoc } =
+        await import("firebase/firestore");
+
+      // hanapin ang room document
+      const roomQuery = query(
+        collection(db, "rooms"),
+        where("roomName", "==", room)
+      );
+
+      const roomSnapshot = await getDocs(roomQuery);
+
+      if (roomSnapshot.empty) {
+        alert("Room not found.");
+        return;
+      }
+
+      const roomDoc = roomSnapshot.docs[0];
+      const roomId = roomDoc.id;
+
+      // save schedules
+      for (const schedule of rawSchedules) {
+        await addDoc(
+          collection(db, "rooms", roomId, "schedules"),
+          {
+            subject: schedule.subject || "",
+            section: schedule.section || "",
+            faculty: schedule.faculty || "TBA",
+
+            day: schedule.day || "",
+
+            startTime: schedule.startTime || "",
+            endTime: schedule.endTime || "",
+
+            semester,
+            schoolYear,
+
+            createdAt: serverTimestamp(),
+          }
+        );
+      }
+
+      alert(
+        `${rawSchedules.length} schedules uploaded successfully!`
+      );
+
+      navigate("/local-registrar");
+
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
+    }
   };
 
   if (!location.state) {
@@ -68,19 +140,18 @@ export default function BulkScheduleUpload4() {
 
           <div className="info-row">
             <div className="info-group">
+              <span className="info-label">Room</span>
+              <span className="info-value">{room}</span>
+            </div>
+            <div className="info-group">
               <span className="info-label">Semester</span>
               <span className="info-value">{semester}</span>
             </div>
-
             <div className="info-group">
               <span className="info-label">School Year</span>
               <span className="info-value">{schoolYear}</span>
             </div>
 
-            <div className="info-group">
-              <span className="info-label">Room</span>
-              <span className="info-value">{room}</span>
-            </div>
           </div>
         </div>
 
@@ -115,7 +186,7 @@ export default function BulkScheduleUpload4() {
                 <div className="schedule-row time">
                   <i className="fa-regular fa-clock"></i>
                   <span>
-                    {s.startTime} - {s.endTime}
+                    {formatTime12Hour(s.startTime)} - {formatTime12Hour(s.endTime)}
                   </span>
                 </div>
 

@@ -1,4 +1,5 @@
 .rooms-page.dashboard-main {
+<<<<<<< HEAD
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -6,6 +7,16 @@
   padding: 20px;
   margin-top: 80px;
   background-color: #F8F7F5;
+=======
+  margin-left: 0px;
+  margin-top: 80px;
+  padding: 28px 36px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: #f4f6f9;
+  min-height: calc(100vh - 80px);
+>>>>>>> 20de5c4 (can upload schedule(excel palang), then can be viewed by the registrar)
 }
 
 .rooms-page .dashboard-header {

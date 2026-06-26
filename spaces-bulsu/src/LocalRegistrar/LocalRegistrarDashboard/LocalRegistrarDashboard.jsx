@@ -1,9 +1,47 @@
 import "./LocalRegistrarDashboard.css";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
+import {
+  collection,
+  getDocs,
+} from "firebase/firestore";
+
+import { db } from "../../firebase";
 export default function LocalRegistrarDashboard() {
 const navigate = useNavigate();
-  return (
+const [totalSchedules, setTotalSchedules] = useState(0);
+  
+useEffect(() => {
+    loadDashboardStats();
+}, []);
+
+const loadDashboardStats = async () => {
+    try {
+
+        const roomsSnapshot = await getDocs(collection(db, "rooms"));
+
+        let total = 0;
+
+        for (const room of roomsSnapshot.docs) {
+
+            const schedulesSnapshot = await getDocs(
+                collection(db, "rooms", room.id, "schedules")
+            );
+
+            total += schedulesSnapshot.docs.filter(
+                doc => !doc.data().initialized
+            ).length;
+        }
+
+        setTotalSchedules(total);
+
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+return (
     <div className="registrar-dashboard">
 
       <div className="dashboard-hero">
@@ -15,7 +53,9 @@ const navigate = useNavigate();
           </p>
         </div>
 
-        <button className="bulk-upload-btn">
+        <button className="bulk-upload-btn"
+          onClick={() => navigate("/local-registrar/bulk-upload-1")}
+        >
           <i className="fa-solid fa-upload"></i>
           Bulk Upload
         </button>
@@ -25,7 +65,7 @@ const navigate = useNavigate();
       <div className="dashboard-stats">
 
         <div className="stat-card">
-          <h2>1,244</h2>
+          <h2>{totalSchedules}</h2>
           <p>Total Schedules</p>
         </div>
 
