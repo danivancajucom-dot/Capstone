@@ -1,15 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import "./faculty-profile.css";
+import "./clerk-profile.css";
 
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { sendPasswordResetEmail, onAuthStateChanged } from "firebase/auth";
-import Toast from "../../Popup/Toast/Toast";
 
 // ── Cloudinary config ─────────────────────────────────────────────────────────
-// Replace these two values with your own from the Cloudinary dashboard
-const CLOUDINARY_CLOUD_NAME    = "dqn1s5ujs";   
-const CLOUDINARY_UPLOAD_PRESET = "SpaceSCICT"; 
+const CLOUDINARY_CLOUD_NAME    = "dqn1s5ujs";
+const CLOUDINARY_UPLOAD_PRESET = "SpaceSCICT";
 
 async function uploadToCloudinary(file) {
   const formData = new FormData();
@@ -27,7 +25,7 @@ async function uploadToCloudinary(file) {
   return data.secure_url;
 }
 
-export default function UserProfile() {
+export default function ClerkProfile() {
   const [editing, setEditing]       = useState(false);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -45,21 +43,18 @@ export default function UserProfile() {
   });
 
   const [originalData, setOriginalData] = useState(null);
+  const [toast, setToast]               = useState(null);
 
-  const [toast, setToast] = useState({
-    show: false, type: "success", title: "", message: "",
-  });
-
-  const showToast = (type, title, message) => {
-    setToast({ show: true, type, title, message });
-    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
   };
 
   // ── Load profile ────────────────────────────────────────────────────────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
-        showToast("error", "Authentication Error", "No logged in user found.");
+        showToast("error", "No logged in user found.");
         setLoading(false);
         return;
       }
@@ -81,7 +76,7 @@ export default function UserProfile() {
         setOriginalData(profile);
       } catch (err) {
         console.error(err);
-        showToast("error", "Profile Error", err.message);
+        showToast("error", err.message);
       } finally {
         setLoading(false);
       }
@@ -96,11 +91,11 @@ export default function UserProfile() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      showToast("error", "Invalid File", "Please select an image file.");
+      showToast("error", "Please select an image file.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      showToast("error", "File Too Large", "Image must be smaller than 5 MB.");
+      showToast("error", "Image must be smaller than 5 MB.");
       return;
     }
 
@@ -116,7 +111,7 @@ export default function UserProfile() {
     const photoUnchanged = !photoFile;
 
     if (nameUnchanged && photoUnchanged) {
-      showToast("error", "No Changes", "Nothing to save.");
+      showToast("error", "Nothing to save.");
       return;
     }
 
@@ -146,11 +141,11 @@ export default function UserProfile() {
       setPreviewUrl(null);
       setEditing(false);
 
-      showToast("success", "Profile Updated", "Your profile has been updated successfully.");
+      showToast("success", "Profile updated successfully.");
     } catch (err) {
       console.error(err);
       setUploading(false);
-      showToast("error", "Update Failed", err.message);
+      showToast("error", err.message);
     } finally {
       setSaving(false);
     }
@@ -160,12 +155,10 @@ export default function UserProfile() {
   const handleCancel = () => {
     if (originalData) setForm(originalData);
     setPhotoFile(null);
-
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
     }
-
     setEditing(false);
   };
 
@@ -173,163 +166,156 @@ export default function UserProfile() {
   const handleResetPassword = async () => {
     try {
       await sendPasswordResetEmail(auth, form.email);
-      showToast("success", "Reset Email Sent", "Check your inbox for password reset instructions.");
+      showToast("success", "Password reset email sent. Check your inbox.");
     } catch (err) {
       console.error(err);
-      showToast("error", "Reset Failed", err.message);
+      showToast("error", err.message);
     }
   };
 
   const handleChange = (field) => (e) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  // ── Avatar: preview → saved photo → initials fallback ──────────────────────
   const displayPhoto = previewUrl || form.photoUrl;
   const initials = `${form.firstName.charAt(0)}${form.lastName.charAt(0)}`.toUpperCase();
 
   if (loading) {
     return (
-      <div className="up-page">
-        <div className="up-card">
-          <h3>Loading profile...</h3>
+      <div className="cp-page">
+        <div className="cp-card">
+          <p style={{ color: "#6b7280" }}>Loading profile...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <>
-      <div className="up-page">
-        <div className="up-card">
+    <div className="cp-page">
 
-          {!editing && (
-            <button className="up-edit-btn" onClick={() => setEditing(true)}>
-              <i className="fa-solid fa-pen" />
-            </button>
-          )}
+      {/* ── Toast ── */}
+      {toast && (
+        <div className={`cp-toast ${toast.type}`}>
+          <i className={`fa-solid ${toast.type === "success" ? "fa-circle-check" : "fa-circle-exclamation"}`} />
+          {toast.message}
+        </div>
+      )}
 
-          {/* ── Avatar ── */}
-          <div className="up-avatar-wrap">
-            <div className="up-avatar">
-              {displayPhoto ? (
-                <img src={displayPhoto} alt="Profile" className="up-avatar-img" />
-              ) : (
-                initials
-                  ? <span className="up-avatar-initials">{initials}</span>
-                  : <i className="fa-solid fa-user" />
-              )}
-            </div>
+      <div className="cp-card">
 
-            {/* Camera overlay button when editing */}
-            {editing && (
-              <button
-                className="up-avatar-camera"
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                title="Change photo"
-              >
-                {uploading
-                  ? <i className="fa-solid fa-circle-notch fa-spin" />
-                  : <i className="fa-solid fa-camera" />
-                }
-              </button>
-            )}
+        {!editing && (
+          <button className="cp-edit-btn" onClick={() => setEditing(true)}>
+            <i className="fa-solid fa-pen" />
+          </button>
+        )}
+
+        {/* ── Avatar ── */}
+        <div className="cp-avatar-wrap">
+          <div className="cp-avatar">
+            {displayPhoto
+              ? <img src={displayPhoto} alt="Profile" className="cp-avatar-img" />
+              : <span className="cp-avatar-initials">{initials || <i className="fa-solid fa-user" />}</span>
+            }
           </div>
 
-          {/* File input (hidden) */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={handlePhotoChange}
-          />
-
-          {/* Selected file feedback */}
-          {editing && photoFile && !uploading && (
-            <p className="up-photo-name">
-              <i className="fa-solid fa-circle-check" /> {photoFile.name}
-            </p>
-          )}
-
-          {editing && uploading && (
-            <p className="up-upload-progress">
-              <i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…
-            </p>
-          )}
-
-          {/* Upload button (shown when editing and no file chosen yet) */}
-          {editing && !photoFile && !uploading && (
+          {editing && (
             <button
-              className="up-upload-btn"
+              className="cp-avatar-camera"
               type="button"
               onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              title="Change photo"
             >
-              <i className="fa-solid fa-arrow-up-from-bracket" /> Upload Picture
+              {uploading
+                ? <i className="fa-solid fa-circle-notch fa-spin" />
+                : <i className="fa-solid fa-camera" />
+              }
             </button>
           )}
-
-          {/* ── Fields ── */}
-          <div className="up-fields">
-            <div className="up-field">
-              <label>First Name</label>
-              <input
-                className="up-input"
-                value={form.firstName}
-                onChange={handleChange("firstName")}
-                readOnly={!editing}
-              />
-            </div>
-
-            <div className="up-field">
-              <label>Last Name</label>
-              <input
-                className="up-input"
-                value={form.lastName}
-                onChange={handleChange("lastName")}
-                readOnly={!editing}
-              />
-            </div>
-
-            <div className="up-field">
-              <label>Email</label>
-              <input className="up-input" value={form.email} readOnly />
-            </div>
-
-            <div className="up-field">
-              <label>Password</label>
-              <button className="up-reset-password-btn" onClick={handleResetPassword}>
-                Send Password Reset Email
-              </button>
-            </div>
-          </div>
-
         </div>
 
-        {editing && (
-          <div className="up-footer">
-            <button className="up-cancel-btn" onClick={handleCancel}>
-              Cancel
-            </button>
-            <button
-              className="up-save-btn"
-              onClick={handleSave}
-              disabled={saving || uploading}
-            >
-              {uploading ? "Uploading…" : saving ? "Saving…" : "Save"}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={handlePhotoChange}
+        />
+
+        {editing && photoFile && !uploading && (
+          <p className="cp-photo-name">
+            <i className="fa-solid fa-circle-check" /> {photoFile.name}
+          </p>
+        )}
+        {editing && uploading && (
+          <p className="cp-upload-progress">
+            <i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…
+          </p>
+        )}
+        {editing && !photoFile && !uploading && (
+          <button
+            className="cp-upload-btn"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <i className="fa-solid fa-arrow-up-from-bracket" /> Upload Picture
+          </button>
+        )}
+
+        {/* ── Fields ── */}
+        <div className="cp-fields">
+          <div className="cp-field">
+            <label>First Name</label>
+            <input
+              className="cp-input"
+              value={form.firstName}
+              onChange={handleChange("firstName")}
+              readOnly={!editing}
+            />
+          </div>
+
+          <div className="cp-field">
+            <label>Last Name</label>
+            <input
+              className="cp-input"
+              value={form.lastName}
+              onChange={handleChange("lastName")}
+              readOnly={!editing}
+            />
+          </div>
+
+          <div className="cp-field">
+            <label>Email</label>
+            <input className="cp-input" value={form.email} readOnly />
+          </div>
+
+          <div className="cp-field">
+            <label>Role</label>
+            <input className="cp-input" value={form.role} readOnly />
+          </div>
+
+          <div className="cp-field">
+            <label>Password</label>
+            <button className="cp-reset-password-btn" onClick={handleResetPassword}>
+              Send Password Reset Email
             </button>
           </div>
-        )}
+        </div>
+
       </div>
 
-      <Toast
-        show={toast.show}
-        type={toast.type}
-        title={toast.title}
-        message={toast.message}
-        onClose={() => setToast(prev => ({ ...prev, show: false }))}
-      />
-    </>
+      {editing && (
+        <div className="cp-footer">
+          <button className="cp-cancel-btn" onClick={handleCancel}>Cancel</button>
+          <button
+            className="cp-save-btn"
+            onClick={handleSave}
+            disabled={saving || uploading}
+          >
+            {uploading ? "Uploading…" : saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      )}
+
+    </div>
   );
 }
