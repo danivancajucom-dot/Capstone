@@ -64,3 +64,67 @@ h1 {
   align-items: center;
   justify-content: center;
 }
+
+.faculty-empty-state{
+    flex:1;
+    min-height:550px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    padding:40px;
+}
+
+.faculty-empty-icon{
+    width:90px;
+    height:90px;
+    border-radius:50%;
+    background:#FFF3E8;
+    color:#F2690D;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:38px;
+    margin-bottom:20px;
+}
+
+.faculty-empty-icon.loading{
+    background:#EEF4FF;
+    color:#3B82F6;
+}
+
+.faculty-empty-state h2{
+    font-size:26px;
+    font-weight:700;
+    color:#1F2937;
+    margin-bottom:10px;
+}
+
+.faculty-empty-state p{
+    max-width:520px;
+    color:#6B7280;
+    line-height:1.7;
+    font-size:15px;
+    margin-bottom:28px;
+}
+
+.faculty-empty-btn{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:12px 22px;
+    border:none;
+    border-radius:8px;
+    background:#F2690D;
+    color:#fff;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.faculty-empty-btn:hover{
+    background:#db620b;
+    transform:translateY(-2px);
+}

@@ -1,6 +1,6 @@
 import "./faculty-pending-reservation-card.css";
 
-function FacultyPendingReservationCard() {
+function FacultyPendingReservationCard({ reservation }) {
   return (
     <div className="faculty-pending-card">
       <span className="faculty-pending-badge">PENDING</span>
@@ -8,16 +8,26 @@ function FacultyPendingReservationCard() {
       <div className="faculty-pending-image">
         <div className="faculty-pending-image-overlay">
           <div className="faculty-pending-image-left">
-            <span className="faculty-pending-room">Room Name</span>
-            <span className="faculty-pending-course">Course Name</span>
+            <span className="faculty-pending-room">
+              {reservation.roomName}
+            </span>
+
+            <span className="faculty-pending-course">
+              {reservation.courseTitle}
+            </span>
           </div>
+
           <div className="faculty-pending-image-right">
-            <span className="faculty-pending-datetime">Date | Time</span>
+            <span className="faculty-pending-datetime">
+              {reservation.date} | {reservation.startTime} - {reservation.endTime}
+            </span>
           </div>
         </div>
       </div>
 
-      <button className="faculty-pending-view-btn">View Details</button>
+      <button className="faculty-pending-view-btn">
+        View Details
+      </button>
     </div>
   );
 }
