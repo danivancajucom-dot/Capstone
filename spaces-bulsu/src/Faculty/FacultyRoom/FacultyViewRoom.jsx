@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import "./local-registrar-view-room-card.css";
+import "./faculty-view-room.css";
 
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
@@ -177,7 +177,9 @@ function LocalRegistrarViewRoomCard() {
       <div className="lr-view-room">
         <i
           className="fa-solid fa-arrow-left lr-back-arrow"
-          onClick={() => navigate("/local-registrar/academic-schedule")}
+          onClick={() =>
+              navigate("/faculty/rooms")
+          }
           style={{ cursor: "pointer" }}
         ></i>
 

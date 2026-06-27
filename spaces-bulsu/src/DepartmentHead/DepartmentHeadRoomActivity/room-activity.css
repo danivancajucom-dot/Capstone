@@ -13,11 +13,42 @@
   font-weight: 800;
 }
 
+.ra-header{
+    margin-bottom:20px;
+}
+
+.ra-subtitle{
+    color:#6B7280;
+    font-size:14px;
+    margin-top:6px;
+}
+
 .ra-layout {
   display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 24px;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
   align-items: start;
+}
+
+/* ERROR STYLE */
+.ra-error {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+/* RESPONSIVE FIX */
+@media (max-width: 900px) {
+  .ra-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ra-confirm-btn {
+    width: 100%;
+  }
 }
 
 .ra-card {
@@ -47,10 +78,10 @@
   flex-shrink: 0;
 }
 
-.ra-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.ra-form{
+    display:flex;
+    flex-direction:column;
+    gap:24px;
 }
 
 .ra-field {
@@ -59,10 +90,18 @@
   gap: 7px;
 }
 
-.ra-field label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
+.ra-field label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    font-weight:600;
+    color:#374151;
+}
+
+.ra-field label i{
+    color:#f57c00;
+    width:16px;
 }
 
 .ra-input {
@@ -255,10 +294,10 @@
 .ra-conflict-info i { color: #f57c00; flex-shrink: 0; margin-top: 2px; }
 
 .ra-footer {
-  margin-top: 28px;
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 24px;
+  margin-top: 30px;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .ra-confirm-btn {

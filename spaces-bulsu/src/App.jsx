@@ -62,7 +62,7 @@ import FacultyViewApprovedReservation from "./Faculty/FacultyReservations/Facult
 import FacultyViewPendingReservation from "./Faculty/FacultyReservations/FacultyViewPendingReservation";
 import FacultyRoom from "./Faculty/FacultyRoom/FacultyRoom";
 import FacultySchedule from "./Faculty/FacultySchedule/FacultySchedule";
-
+import FacultyViewRoom from "./Faculty/FacultyRoom/FacultyViewRoom";
 //Login
 import Login from "./Login/Login";
 import BroadcastChannel from "./Components/BroadcastChannel/BroadcastChannel";
@@ -141,6 +141,7 @@ function App() {
           <Route index element={<FacultyDashboard />}/>
           <Route path="schedule" element={<FacultySchedule />}/>
           <Route path="rooms" element={<FacultyRoom />}/>
+          <Route path="view-room" element={<FacultyViewRoom />}/>
           <Route path="reservations" element={<FacultyReservations />} />
           <Route path="profile" element={<FacultyProfile />}/>
           <Route path="submit-reservation" element={<FacultySubmitReservation />} />
