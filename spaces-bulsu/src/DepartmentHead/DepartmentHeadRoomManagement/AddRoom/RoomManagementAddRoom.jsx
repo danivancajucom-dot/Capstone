@@ -130,8 +130,17 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
       }
 
       const roomRef = await addDoc(collection(db, "rooms"), {
-        roomName: roomName.trim(), capacity: Number(capacity),
-        roomType, equipment, floor, status: "available", createdAt: serverTimestamp(),
+        roomName: roomName.trim(),
+        capacity: Number(capacity),
+        roomType,
+        equipment,
+        floor,
+
+        // ginagamit ng scheduler
+        availability: "Available",
+
+        // ginagamit ng room management
+        roomStatus: "Active",
       });
 
       await setDoc(doc(db, "rooms", roomRef.id, "schedules", "_metadata"), {

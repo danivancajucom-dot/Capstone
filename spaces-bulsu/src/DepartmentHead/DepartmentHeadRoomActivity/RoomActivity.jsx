@@ -8,7 +8,9 @@ import {
   onSnapshot,
   addDoc,
   getDocs,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where
 } from "firebase/firestore";
 
 function parseTime(t) {
@@ -21,6 +23,13 @@ function overlap(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && aEnd > bStart;
 }
 
+const normalizeName = (name = "") => {
+  return name
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+};
 
 export default function RoomActivity() {
   const navigate = useNavigate();
@@ -155,65 +164,126 @@ export default function RoomActivity() {
 
   // ---------------- OVERRIDE ----------------
   const handleConfirm = async () => {
-    try {
+  try {
 
-      const err = validate();
+    const err = validate();
 
-      if(err){
-        setError(err);
-        return;
+    if (err) {
+      setError(err);
+      return;
+    }
+
+    const roomDoc = rooms.find(
+      r => r.roomName === form.room
+    );
+
+    if (!roomDoc) {
+      showToast("error", "Error", "Room not found");
+      return;
+    }
+
+    // create room activity
+    await addDoc(collection(db, "events"), {
+
+      roomId: roomDoc.id,
+      roomName: roomDoc.roomName,
+
+      title: form.title,
+      reason: form.reason,
+
+      date: form.date,
+
+      startTime: form.startTime,
+      endTime: form.endTime,
+
+      status: "active",
+
+      createdAt: serverTimestamp()
+
+    });
+
+    // -----------------------------
+    // SEND NOTIFICATION TO FACULTIES
+    // -----------------------------
+
+    const usersSnap = await getDocs(collection(db, "users"));
+
+    for (const conflict of conflicts) {
+
+      if (!conflict.faculty) continue;
+
+      const scheduleName = normalizeName(conflict.faculty);
+
+      const facultyUser = usersSnap.docs.find(doc => {
+
+        const user = doc.data();
+
+        const accountName = normalizeName(
+          `${user.lastName}, ${user.firstName}${user.middleInitial ? ` ${user.middleInitial}` : ""}`
+        );
+
+        return accountName === scheduleName;
+
+      });
+
+      if (!facultyUser) {
+        console.log("Faculty not found:", conflict.faculty);
+        continue;
       }
 
-      const roomDoc = rooms.find(
-        r => r.roomName === form.room
-      );
+      await addDoc(collection(db, "notifications"), {
 
-      if(!roomDoc){
-        showToast("error","Error","Room not found");
-        return;
-      }
+        userId: facultyUser.id,
 
-      await addDoc(collection(db,"events"),{
+        title: "Room Activity Override",
 
-        roomId: roomDoc.id,
+        message:
+          `${form.title} will use ${roomDoc.roomName} on ${form.date} (${form.startTime}-${form.endTime}). Your scheduled class may be affected.`,
+
+        type: "room-activity",
+
+        unread: true,
+
+        archived: false,
+
+        badge: "NEW",
+
+        activityTitle: form.title,
+
         roomName: roomDoc.roomName,
 
-        title: form.title,
-        reason: form.reason,
+        activityDate: form.date,
 
-        date: form.date,
+        activityStart: form.startTime,
 
-        startTime: form.startTime,
-        endTime: form.endTime,
-
-        status:"active",
+        activityEnd: form.endTime,
 
         createdAt: serverTimestamp()
 
       });
 
-      console.log("EVENT CREATED");
-
-      showToast(
-        "success",
-        "Success",
-        "Room Activity Created!"
-      );
-
-      setShowModal(false);
-
-    } catch(error){
-
-      console.error(error);
-
-      showToast(
-        "error",
-        "Firestore Error",
-        error.message
-      );
-
     }
-  };
+
+    showToast(
+      "success",
+      "Success",
+      "Room Activity Created!"
+    );
+
+    setShowModal(false);
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      "error",
+      "Firestore Error",
+      error.message
+    );
+
+  }
+};
 
   return (
     <div className="ra-page">

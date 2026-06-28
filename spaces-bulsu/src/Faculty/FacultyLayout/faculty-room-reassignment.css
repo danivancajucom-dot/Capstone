@@ -1,0 +1,189 @@
+.faculty-room-page{
+    min-height:100vh;
+    background:#f5f7fb;
+    padding:40px;
+}
+
+.faculty-room-card{
+    max-width:900px;
+    margin:auto;
+    background:#fff;
+    border-radius:18px;
+    padding:35px;
+    box-shadow:0 10px 30px rgba(0,0,0,.08);
+}
+
+.faculty-room-header h1{
+    margin:0;
+    color:#1f2937;
+}
+
+.faculty-room-header p{
+    margin-top:10px;
+    color:#6b7280;
+}
+
+.faculty-room-section{
+    margin-top:35px;
+}
+
+.faculty-room-section h3{
+    margin-bottom:18px;
+    color:#374151;
+}
+
+.faculty-room-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:18px;
+}
+
+.info-box{
+    background:#f8fafc;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    padding:16px;
+}
+
+.info-box label{
+    display:block;
+    font-size:13px;
+    color:#6b7280;
+    margin-bottom:6px;
+}
+
+.info-box span{
+    font-size:16px;
+    font-weight:600;
+    color:#111827;
+}
+
+.room-change{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:25px;
+    margin-top:15px;
+}
+
+.room-box{
+    flex:1;
+    background:#eef5ff;
+    border-radius:15px;
+    padding:25px;
+    text-align:center;
+}
+
+.room-box.new{
+    background:#ecfdf5;
+}
+
+.room-box label{
+    color:#6b7280;
+    font-size:13px;
+}
+
+.room-box h2{
+    margin-top:10px;
+    color:#2563eb;
+}
+
+.room-box.new h2{
+    color:#059669;
+}
+
+.arrow{
+    font-size:26px;
+    color:#2563eb;
+}
+
+.faculty-room-note{
+    margin-top:35px;
+    display:flex;
+    gap:12px;
+    background:#fff8e6;
+    border:1px solid #fde68a;
+    padding:18px;
+    border-radius:12px;
+    color:#92400e;
+}
+
+.faculty-room-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:15px;
+    margin-top:35px;
+}
+
+.reject-btn,
+.approve-btn{
+    border:none;
+    padding:12px 28px;
+    border-radius:10px;
+    cursor:pointer;
+    font-size:15px;
+    font-weight:600;
+}
+
+.reject-btn{
+    background:#ef4444;
+    color:white;
+}
+
+.reject-btn:hover{
+    background:#dc2626;
+}
+
+.approve-btn{
+    background:#2563eb;
+    color:white;
+}
+
+.approve-btn:hover{
+    background:#1d4ed8;
+}
+
+.faculty-room-loading{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+}
+
+.spinner{
+    width:45px;
+    height:45px;
+    border:5px solid #e5e7eb;
+    border-top:5px solid #2563eb;
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+    margin-bottom:20px;
+}
+
+@keyframes spin{
+    to{
+        transform:rotate(360deg);
+    }
+}
+
+@media(max-width:768px){
+
+    .faculty-room-grid{
+        grid-template-columns:1fr;
+    }
+
+    .room-change{
+        flex-direction:column;
+    }
+
+    .faculty-room-actions{
+        flex-direction:column;
+    }
+
+    .reject-btn,
+    .approve-btn{
+        width:100%;
+    }
+
+}

@@ -24,22 +24,26 @@ export default function FacultyLayout() {
   const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
 
-      // Load profile for sidebar bottom card
-      getDoc(doc(db, "users", user.uid)).then((snap) => {
-        if (snap.exists()) {
-          const d = snap.data();
-          setProfile({
-            firstName: d.firstName || "",
-            lastName:  d.lastName  || "",
-            role:      d.role      || "",
-            photoUrl:  d.photoUrl  || "",
-          });
-        }
-      });
+      console.log("Logged in UID:", user.uid);
 
+      // load profile
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+
+      if (userSnap.exists()) {
+        const d = userSnap.data();
+
+        setProfile({
+          firstName: d.firstName || "",
+          lastName: d.lastName || "",
+          role: d.role || "",
+          photoUrl: d.photoUrl || "",
+        });
+      }
+
+      // notifications
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
@@ -47,14 +51,21 @@ export default function FacultyLayout() {
       );
 
       const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setNotifications(data);
+        console.log("Notifications found:", snapshot.size);
+
+        snapshot.docs.forEach((doc) => {
+          console.log(doc.id, doc.data());
+        });
+
+        setNotifications(
+          snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+        );
       });
 
-      return () => unsubscribeNotif();
+      return unsubscribeNotif;
     });
 
     return () => unsubscribeAuth();
@@ -218,27 +229,94 @@ export default function FacultyLayout() {
                 <div className="empty-notifications">No notifications found.</div>
               ) : (
                 filteredNotifications.map((item) => (
-                  <div key={item.id} className={`notif-card ${item.type}`} onClick={() => markAsRead(item.id)}>
+                  <div
+                    key={item.id}
+                    className={`notif-card ${item.type}`}
+                    onClick={() => markAsRead(item.id)}
+                  >
+
                     <div className="notif-icon">
-                      {item.type === "schedule" && <i className="fa-regular fa-calendar"></i>}
-                      {item.type === "urgent"   && <i className="fa-solid fa-exclamation"></i>}
-                      {item.type === "approved" && <i className="fa-solid fa-check"></i>}
-                    </div>
-                    <div className="notif-body">
-                      <div className="notif-title-row">
-                        <h4>{item.title}</h4>
-                        {item.badge && <span className="notif-badge">{item.badge}</span>}
-                      </div>
-                      <p>{item.message}</p>
-                      <span className="notif-time">{formatTime(item.createdAt)}</span>
-                      {!item.archived && (
-                        <div className="notif-actions">
-                          <button onClick={(e) => { e.stopPropagation(); archiveNotification(item.id); }}>
-                            Archive
-                          </button>
-                        </div>
+                      {item.type === "schedule" && (
+                        <i className="fa-regular fa-calendar"></i>
+                      )}
+
+                      {item.type === "urgent" && (
+                        <i className="fa-solid fa-exclamation"></i>
+                      )}
+
+                      {item.type === "approved" && (
+                        <i className="fa-solid fa-check"></i>
+                      )}
+
+                      {item.type === "room-reassignment" && (
+                        <i className="fa-solid fa-door-open"></i>
+                      )}
+                      {item.type === "room-activity" && (
+                          <i className="fa-solid fa-building-circle-exclamation"></i>
                       )}
                     </div>
+
+                    <div className="notif-body">
+
+                      <div className="notif-title-row">
+                        <h4>{item.title}</h4>
+                        {item.badge && (
+                          <span className="notif-badge">{item.badge}</span>
+                        )}
+                      </div>
+
+                      <p>{item.message}</p>
+
+                      <span className="notif-time">
+                        {formatTime(item.createdAt)}
+                      </span>
+
+                      <div className="notif-actions">
+
+                        {item.type === "room-reassignment" ? (
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+
+                              navigate(
+                                `/faculty/room-reassignment/${item.assignmentId}`
+                              );
+                            }}
+                          >
+                            View
+                          </button>
+
+                        ) : item.type === "room-activity" ? (
+
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate("/faculty/room-reassignment");
+                                }}
+                            >
+                                View
+                            </button>
+
+                        ) : (
+
+                          !item.archived && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                archiveNotification(item.id);
+                              }}
+                            >
+                              Archive
+                            </button>
+                          )
+
+                        )}
+
+                      </div>
+
+                    </div>
+
                   </div>
                 ))
               )}

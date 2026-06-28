@@ -1,8 +1,21 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./department-head-view-reservation-approved.css";
 
 function DepartmentHeadViewReservationApproved() {
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const reservation = state?.reservation;
+
+  if (!reservation) {
+    return (
+      <div className="dh-approved-reservation-room">
+        <h2>Reservation not found.</h2>
+        <button onClick={() => navigate("/department-head/reservations")}>
+          Back
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="dh-approved-reservation-room">
@@ -17,17 +30,22 @@ function DepartmentHeadViewReservationApproved() {
 
             <div className="dh-approved-form-group">
               <label>Course Title</label>
-              <input type="text" className="dh-approved-form-input" value="Course Title" readOnly />
+              <input
+                type="text"
+                className="dh-approved-form-input"
+                value={reservation.courseTitle || ""}
+                readOnly
+              />
             </div>
 
             <div className="dh-approved-form-group">
               <label>Assigned Faculty</label>
-              <input type="text" className="dh-approved-form-input" value="Faculty Name" readOnly />
+              <input type="text" className="dh-approved-form-input" value={reservation.facultyName || ""} readOnly />
             </div>
 
             <div className="dh-approved-form-group">
               <label>Section</label>
-              <input type="text" className="dh-approved-form-input" value="Section" readOnly />
+              <input type="text" className="dh-approved-form-input" value={reservation.yearSectionGroup || ""} readOnly />
             </div>
           </div>
 
@@ -38,26 +56,26 @@ function DepartmentHeadViewReservationApproved() {
 
             <div className="dh-approved-form-group">
               <label>Room</label>
-              <input type="text" className="dh-approved-form-input" value="Room Name" readOnly />
+              <input type="text" className="dh-approved-form-input" value={reservation.roomName || ""} readOnly />
             </div>
 
             <div className="dh-approved-form-group">
               <label>Date</label>
               <div className="dh-approved-input-icon-wrapper">
                 <i className="fa-regular fa-calendar dh-approved-input-icon"></i>
-                <input type="date" className="dh-approved-form-input" value="2026-05-11" readOnly />
+                <input type="date" className="dh-approved-form-input" value={reservation.date || ""} readOnly />
               </div>
             </div>
 
             <div className="dh-approved-time-fields">
               <div className="dh-approved-form-group">
                 <label>Start Time</label>
-                <input type="text" className="dh-approved-form-input" value="Start Time" readOnly />
+                <input type="text" className="dh-approved-form-input" value={reservation.startTime || ""} readOnly />
               </div>
 
               <div className="dh-approved-form-group">
                 <label>End Time</label>
-                <input type="text" className="dh-approved-form-input" value="End Time" readOnly />
+                <input type="text" className="dh-approved-form-input" value={reservation.endTime || ""} readOnly />
               </div>
             </div>
           </div>

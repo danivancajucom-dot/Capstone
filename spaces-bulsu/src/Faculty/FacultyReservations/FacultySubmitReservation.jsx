@@ -26,7 +26,11 @@ function FacultySubmitReservation() {
 
   const [selectedEquipment, setSelectedEquipment] = useState([]);
   const [studentRange, setStudentRange] = useState("");
-
+  const [audienceType, setAudienceType] = useState("");
+  const [course, setCourse] = useState("");
+  const [yearSectionGroup, setYearSectionGroup] = useState("");
+  const [organization, setOrganization] = useState("");
+  const [otherAudience, setOtherAudience] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [showConfirm, setShowConfirm] = useState(false);
@@ -400,6 +404,24 @@ function FacultySubmitReservation() {
     if (!date)
       return "Select a reservation date.";
 
+    if (!audienceType)
+      return "Select audience type.";
+
+    if (audienceType === "Class") {
+
+      if (!course)
+        return "Enter course.";
+
+      if (!yearSectionGroup)
+        return "Enter Year / Section Group.";
+    }
+
+    if (audienceType === "Organization" && !organization)
+      return "Enter organization name.";
+
+    if (audienceType === "Others" && !otherAudience)
+      return "Describe the attendees.";
+
     // -------------------------
     // NO PAST DATES
     // -------------------------
@@ -520,6 +542,15 @@ function FacultySubmitReservation() {
           roomId: selectedRoom.id,
           roomName: selectedRoom.roomName,
 
+          audienceType,
+
+          attendees: {
+            course,
+            yearSectionGroup,
+            organization,
+            otherAudience,
+          },
+
           courseTitle,
           purpose,
 
@@ -548,6 +579,14 @@ function FacultySubmitReservation() {
           );
 
           setCourseTitle("");
+          setAudienceType("");
+
+          setCourse("");
+          setYearSectionGroup("");
+
+          setOrganization("");
+
+          setOtherAudience("");
           setPurpose("");
           setDate("");
           setStartTime("");
@@ -605,6 +644,95 @@ function FacultySubmitReservation() {
                 value={courseTitle}
                 onChange={(e) => setCourseTitle(e.target.value)}
               />
+            </div>
+
+            {/* AUDIENCE */}
+            <div className="faculty-submit-form-group">
+              <label>Audience Type</label>
+
+              <div className="faculty-submit-dropdown-wrapper">
+                <select
+                  className="faculty-submit-input faculty-submit-dropdown"
+                  value={audienceType}
+                  onChange={(e) => {
+                    setAudienceType(e.target.value);
+
+                    setCourse("");
+                    setYearSectionGroup("");
+                    setOrganization("");
+                    setOtherAudience("");
+                  }}
+                >
+                  <option value="">Select Audience</option>
+                  <option value="Class">Class</option>
+                  <option value="Organization">Organization</option>
+                  <option value="Faculty">Faculty</option>
+                  <option value="Others">Others</option>
+                </select>
+
+                <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
+              </div>
+              {audienceType === "Class" && (
+                  <>
+                    <div className="faculty-submit-form-group">
+                      <label>Course</label>
+
+                      <input
+                        className="faculty-submit-input"
+                        placeholder="BSIT"
+                        value={course}
+                        onChange={(e) => setCourse(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="faculty-submit-form-group">
+                      <label>Year / Section Group</label>
+
+                      <input
+                        className="faculty-submit-input"
+                        placeholder="Ex. 3F-G2"
+                        value={yearSectionGroup}
+                        onChange={(e) => setYearSectionGroup(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+                {audienceType === "Organization" && (
+                  <div className="faculty-submit-form-group">
+                    <label>Organization Name</label>
+
+                    <input
+                      className="faculty-submit-input"
+                      placeholder="Computer Society"
+                      value={organization}
+                      onChange={(e) => setOrganization(e.target.value)}
+                    />
+                  </div>
+                )}
+                {audienceType === "Faculty" && (
+                  <div className="faculty-submit-form-group">
+                    <label>Faculty Group</label>
+
+                    <input
+                      className="faculty-submit-input"
+                      value="Faculty Members"
+                      readOnly
+                    />
+                  </div>
+                )}
+                {audienceType === "Others" && (
+                  <div className="faculty-submit-form-group">
+                    <label>Describe Attendees</label>
+
+                    <input
+                      className="faculty-submit-input"
+                      placeholder="Seminar Participants"
+                      value={otherAudience}
+                      onChange={(e) => setOtherAudience(e.target.value)}
+                    />
+                  </div>
+                )}
+
             </div>
 
             {/* DATE */}
