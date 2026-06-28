@@ -1,14 +1,27 @@
 import "./room-reassign-card.css";
 
-function RoomReassignCard() {
+function RoomReassignCard({
+    conflict,
+    selected,
+    onSelect
+}) {
   return (
-    <div className="room-reassign-card">
+    <div
+      className={`room-reassign-card ${
+        selected ? "selected" : ""
+      }`}
+      onClick={onSelect}
+    >
       <div className="room-reassign-left">
         <div className="room-reassign-icon">
-          <i class="fa-solid fa-door-open"></i>
+          <i className="fa-solid fa-door-open"></i>
         </div>
-        <span className="room-reassign-name">Room Name</span>
+
+        <span className="room-reassign-name">
+          {conflict.roomName}
+        </span>
       </div>
+
       <i className="fa-solid fa-chevron-right room-reassign-arrow"></i>
     </div>
   );

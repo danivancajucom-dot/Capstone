@@ -68,7 +68,7 @@ export default function ClerkLayout() {
               Dashboard
             </NavLink>
 
-            <NavLink to="/clerk/schedule">
+            <NavLink to="/clerk/schedule-view-academic-schedule">
               <i className="fa-solid fa-calendar"></i>
               Schedule
             </NavLink>

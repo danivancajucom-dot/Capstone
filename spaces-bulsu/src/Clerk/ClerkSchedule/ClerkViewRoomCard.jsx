@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import "./faculty-view-room.css";
+import "./clerk-view-room-card.css";
 
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
@@ -23,7 +23,7 @@ const DAYS = [
   "SUN",
 ];
 
-function FacultyViewRoomCard() {
+function ClerkViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
   const location = useLocation();
@@ -177,9 +177,7 @@ function FacultyViewRoomCard() {
       <div className="lr-view-room">
         <i
           className="fa-solid fa-arrow-left lr-back-arrow"
-          onClick={() =>
-              navigate("/faculty/rooms")
-          }
+          onClick={() => navigate("/clerk/academic-schedule")}
           style={{ cursor: "pointer" }}
         ></i>
 
@@ -331,4 +329,4 @@ function FacultyViewRoomCard() {
   );
 }
 
-export default FacultyViewRoomCard;
+export default ClerkViewRoomCard;

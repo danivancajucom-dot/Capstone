@@ -1,8 +1,22 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./department-head-view-reservation-denied.css";
 
 function DepartmentHeadViewReservationDenied() {
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const reservation = state?.reservation;
+
+  if (!reservation) {
+    return (
+      <div className="dh-denied-reservation-room">
+        <h2>Reservation not found.</h2>
+
+        <button onClick={() => navigate("/department-head/reservations")}>
+          Back
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="dh-denied-reservation-room">
@@ -17,22 +31,22 @@ function DepartmentHeadViewReservationDenied() {
 
             <div className="dh-denied-form-group">
               <label>Course Title</label>
-              <input type="text" className="dh-denied-form-input" value="Course Title" readOnly />
+              <input type="text" className="dh-denied-form-input" value={reservation.courseTitle || ""} readOnly />
             </div>
 
             <div className="dh-denied-form-group">
               <label>Assigned Faculty</label>
-              <input type="text" className="dh-denied-form-input" value="Faculty Name" readOnly />
+              <input type="text" className="dh-denied-form-input" value={reservation.facultyName || ""} readOnly />
             </div>
 
             <div className="dh-denied-form-group">
               <label>Section</label>
-              <input type="text" className="dh-denied-form-input" value="Section" readOnly />
+              <input type="text" className="dh-denied-form-input" value={reservation.attendees.yearSectionGroup || ""} readOnly />
             </div>
 
             <div className="dh-denied-form-group">
               <label>Reason for Denial</label>
-              <input type="text" className="dh-denied-form-input" value="Reason for denial" readOnly />
+              <input type="text" className="dh-denied-form-input" value={reservation.denialReason || ""} readOnly />
             </div>
           </div>
 
@@ -43,26 +57,26 @@ function DepartmentHeadViewReservationDenied() {
 
             <div className="dh-denied-form-group">
               <label>Room</label>
-              <input type="text" className="dh-denied-form-input" value="Room Name" readOnly />
+              <input type="text" className="dh-denied-form-input" value={reservation.roomName || ""} readOnly />
             </div>
 
             <div className="dh-denied-form-group">
               <label>Date</label>
               <div className="dh-denied-input-icon-wrapper">
                 <i className="fa-regular fa-calendar dh-denied-input-icon"></i>
-                <input type="date" className="dh-denied-form-input" value="2026-05-11" readOnly />
+                <input type="date" className="dh-denied-form-input" value={reservation.date || ""} readOnly />
               </div>
             </div>
 
             <div className="dh-denied-time-fields">
               <div className="dh-denied-form-group">
                 <label>Start Time</label>
-                <input type="text" className="dh-denied-form-input" value="Start Time" readOnly />
+                <input type="text" className="dh-denied-form-input" value={reservation.startTime || ""} readOnly />
               </div>
 
               <div className="dh-denied-form-group">
                 <label>End Time</label>
-                <input type="text" className="dh-denied-form-input" value="End Time" readOnly />
+                <input type="text" className="dh-denied-form-input" value={reservation.endTime || ""} readOnly />
               </div>
             </div>
           </div>

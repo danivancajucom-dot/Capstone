@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import "./faculty-view-room.css";
+import "./dept-head-view-room-card.css";
 
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
@@ -23,12 +23,17 @@ const DAYS = [
   "SUN",
 ];
 
-function FacultyViewRoomCard() {
+function DepartmentHeadViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
   const location = useLocation();
-
   const room = location.state?.room;
+
+  useEffect(() => {
+    if (!room) {
+      navigate("/department-head/schedule-view-academic-schedule");
+    }
+  }, [room, navigate]);
   const [schedules, setSchedules] = useState([]);
   const [events, setEvents] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
@@ -177,9 +182,7 @@ function FacultyViewRoomCard() {
       <div className="lr-view-room">
         <i
           className="fa-solid fa-arrow-left lr-back-arrow"
-          onClick={() =>
-              navigate("/faculty/rooms")
-          }
+          onClick={() => navigate("/department-head/schedule-view-academic-schedule")}
           style={{ cursor: "pointer" }}
         ></i>
 
@@ -331,4 +334,4 @@ function FacultyViewRoomCard() {
   );
 }
 
-export default FacultyViewRoomCard;
+export default DepartmentHeadViewRoomCard;
