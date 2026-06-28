@@ -1,19 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Lexend', sans-serif;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Lexend', sans-serif; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.lrp-page {
+.dhp-page {
   width: 100%;
   height: 100%;
   display: flex;
@@ -23,7 +13,7 @@ html, body {
   padding: 55px 24px 0 24px;
 }
 
-.lrp-card {
+.dhp-card {
   background: #ffffff;
   border-radius: 20px;
   padding: 30px 48px 40px 48px;
@@ -38,7 +28,7 @@ html, body {
   margin-top: -20px;
 }
 
-.lrp-edit-btn {
+.dhp-edit-btn {
   position: absolute;
   top: 20px;
   right: 20px;
@@ -55,17 +45,12 @@ html, body {
   justify-content: center;
   transition: all 0.15s;
 }
-.lrp-edit-btn:hover { border-color: #F97316; color: #F97316; }
+.dhp-edit-btn:hover { border-color: #F97316; color: #F97316; }
 
 /* ── Avatar ── */
+.dhp-avatar-wrap { display: flex; justify-content: center; position: relative; }
 
-.lrp-avatar-wrap {
-  display: flex;
-  justify-content: center;
-  position: relative;
-}
-
-.lrp-avatar {
+.dhp-avatar {
   width: 120px;
   height: 120px;
   border-radius: 50%;
@@ -79,20 +64,10 @@ html, body {
   overflow: hidden;
 }
 
-.lrp-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
-}
+.dhp-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.dhp-avatar-initials { font-size: 2.2rem; font-weight: 800; color: #F97316; }
 
-.lrp-avatar-initials {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: #F97316;
-}
-
-.lrp-avatar-camera {
+.dhp-avatar-camera {
   position: absolute;
   bottom: 2px;
   right: 2px;
@@ -110,12 +85,11 @@ html, body {
   transition: background 0.2s;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
-.lrp-avatar-camera:hover:not(:disabled) { background: #ea6c0a; }
-.lrp-avatar-camera:disabled { opacity: 0.7; cursor: not-allowed; }
+.dhp-avatar-camera:hover:not(:disabled) { background: #ea6c0a; }
+.dhp-avatar-camera:disabled { opacity: 0.7; cursor: not-allowed; }
 
 /* ── Upload ── */
-
-.lrp-upload-btn {
+.dhp-upload-btn {
   background: #F97316;
   color: #fff;
   border: none;
@@ -132,50 +106,17 @@ html, body {
   justify-content: center;
   gap: 8px;
 }
-.lrp-upload-btn:hover { background: #ea6c0a; }
+.dhp-upload-btn:hover { background: #ea6c0a; }
 
-.lrp-photo-name {
-  font-size: 12px;
-  color: #16a34a;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: -10px;
-}
-
-.lrp-upload-progress {
-  font-size: 13px;
-  color: #F97316;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: -10px;
-}
+.dhp-photo-name { font-size: 12px; color: #16a34a; font-weight: 600; display: flex; align-items: center; gap: 6px; margin-top: -10px; }
+.dhp-upload-progress { font-size: 13px; color: #F97316; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-top: -10px; }
 
 /* ── Fields ── */
+.dhp-fields { display: flex; flex-direction: column; gap: 20px; width: 100%; }
+.dhp-field  { display: flex; flex-direction: column; gap: 8px; }
+.dhp-field label { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 
-.lrp-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  width: 100%;
-}
-
-.lrp-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.lrp-field label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-.lrp-input {
+.dhp-input {
   padding: 14px 16px;
   border: 1.5px solid #e5e7eb;
   border-radius: 10px;
@@ -188,10 +129,10 @@ html, body {
   transition: border-color 0.2s;
   width: 100%;
 }
-.lrp-input:read-only { background: #fff; cursor: default; }
-.lrp-input:not(:read-only):focus { border-color: #F97316; }
+.dhp-input:read-only { background: #fff; cursor: default; }
+.dhp-input:not(:read-only):focus { border-color: #F97316; }
 
-.lrp-reset-password-btn {
+.dhp-reset-password-btn {
   padding: 12px 16px;
   border: 1.5px solid #F97316;
   border-radius: 10px;
@@ -204,20 +145,12 @@ html, body {
   transition: background 0.2s;
   text-align: left;
 }
-.lrp-reset-password-btn:hover { background: #fde8d5; }
+.dhp-reset-password-btn:hover { background: #fde8d5; }
 
 /* ── Footer ── */
+.dhp-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; width: 100%; max-width: 580px; }
 
-.lrp-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 16px;
-  width: 100%;
-  max-width: 580px;
-}
-
-.lrp-cancel-btn {
+.dhp-cancel-btn {
   background: transparent;
   color: #F97316;
   border: 1.5px solid #F97316;
@@ -229,9 +162,9 @@ html, body {
   cursor: pointer;
   transition: background 0.2s;
 }
-.lrp-cancel-btn:hover { background: #FEF0E7; }
+.dhp-cancel-btn:hover { background: #FEF0E7; }
 
-.lrp-save-btn {
+.dhp-save-btn {
   background: #F97316;
   color: #fff;
   border: none;
@@ -243,12 +176,11 @@ html, body {
   cursor: pointer;
   transition: background 0.2s;
 }
-.lrp-save-btn:hover:not(:disabled) { background: #ea6c0a; }
-.lrp-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.dhp-save-btn:hover:not(:disabled) { background: #ea6c0a; }
+.dhp-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ── Toast ── */
-
-.lrp-toast {
+.dhp-toast {
   position: fixed;
   top: 24px;
   right: 24px;
@@ -262,22 +194,12 @@ html, body {
   font-weight: 600;
   font-family: 'Lexend', sans-serif;
   box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-  animation: lrpToastIn 0.3s ease;
+  animation: dhpToastIn 0.3s ease;
 }
+.dhp-toast.success { background: #f0fdf4; color: #16a34a; border: 1.5px solid #bbf7d0; }
+.dhp-toast.error   { background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; }
 
-.lrp-toast.success {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1.5px solid #bbf7d0;
-}
-
-.lrp-toast.error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1.5px solid #fecaca;
-}
-
-@keyframes lrpToastIn {
+@keyframes dhpToastIn {
   from { opacity: 0; transform: translateY(-10px); }
   to   { opacity: 1; transform: translateY(0); }
 }

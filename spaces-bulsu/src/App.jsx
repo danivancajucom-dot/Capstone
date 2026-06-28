@@ -12,6 +12,8 @@ import BulkScheduleUpload3 from "./LocalRegistrar/LocalRegistrarBulkUpload/bulkU
 import BulkScheduleUpload4 from "./LocalRegistrar/LocalRegistrarBulkUpload/bulkUpload4/BulkScheduleUpload4";
 import MySubmittedSchedules from "./LocalRegistrar/LocalRegistrarMySubmittedSchedules/MySubmittedSchedules";
 import LocalRegistrarDashboard from "./LocalRegistrar/LocalRegistrarDashboard/LocalRegistrarDashboard";
+import LocalRegistrarProfile from "./LocalRegistrar/LocalRegistrarProfile/LocalRegistrarProfile";
+
 
 // Department Head
 import DepartmentHeadConflicts from "./DepartmentHead/DepartmentHeadConflicts/DepartmentHeadConflicts";
@@ -32,6 +34,7 @@ import DepartmentHeadActivityLog from "./DepartmentHead/DepartmentHeadActivityLo
 import DepartmentHeadAddRoom from "./DepartmentHead/DepartmentHeadRoomManagement/AddRoom/RoomManagementAddRoom";
 import DepartmentHeadEditRoom from "./DepartmentHead/DepartmentHeadRoomManagement/EditDetails/RoomManagementEditDetails";
 import RoomManagementViewAffectedSchedule from "./DepartmentHead/DepartmentHeadRoomManagement/ViewAffectedSchedule/RoomManagementViewAffectedSchedule";
+import DepartmentHeadProfile from "./DepartmentHead/DepartmentHeadProfile/DepartmentHeadProfile";
 
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
@@ -72,6 +75,7 @@ function App() {
         {/* Department Head */}
         <Route path="/department-head" element={<DepartmentHeadLayout />}>
         <Route index element={<DepartmentHeadDashboard />}/>
+        <Route path="profile" element={<DepartmentHeadProfile />} />
         <Route path="activity-log" element={<DepartmentHeadActivityLog />} />
         <Route path="conflicts" element={<DepartmentHeadConflicts />}  />
         <Route path="reassign-room" element={<DepartmentHeadReassignRoom />}/>
@@ -94,6 +98,7 @@ function App() {
       </Route>
         {/* Local Registrar */}
         <Route path="/local-registrar" element={<LocalRegistrarLayout />}>
+          <Route path="profile" element={<LocalRegistrarProfile />} />
           <Route index element={<LocalRegistrarDashboard />}/>
           <Route path="academic-schedule" element={<LocalRegistrarViewAcademicSchedule />}/>
           <Route path="room-card" element={<LocalRegistrarViewRoomCard />}/>
