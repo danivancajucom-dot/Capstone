@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import "./local-registrar-profile.css";
+import "./departmenthead-profile.css";
 
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -24,7 +24,7 @@ async function uploadToCloudinary(file) {
   return data.secure_url;
 }
 
-export default function LocalRegistrarProfile() {
+export default function DepartmentHeadProfile() {
   const [editing, setEditing]       = useState(false);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -34,11 +34,7 @@ export default function LocalRegistrarProfile() {
   const fileInputRef                = useRef(null);
 
   const [form, setForm] = useState({
-    firstName: "",
-    lastName:  "",
-    email:     "",
-    role:      "",
-    photoUrl:  "",
+    firstName: "", lastName: "", email: "", role: "", photoUrl: "",
   });
 
   const [originalData, setOriginalData] = useState(null);
@@ -51,16 +47,10 @@ export default function LocalRegistrarProfile() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        showToast("error", "No logged in user found.");
-        setLoading(false);
-        return;
-      }
-
+      if (!currentUser) { showToast("error", "No logged in user found."); setLoading(false); return; }
       try {
         const snap = await getDoc(doc(db, "users", currentUser.uid));
         if (!snap.exists()) throw new Error("User profile not found.");
-
         const data = snap.data();
         const profile = {
           firstName: data.firstName || "",
@@ -69,7 +59,6 @@ export default function LocalRegistrarProfile() {
           role:      data.role      || "",
           photoUrl:  data.photoUrl  || "",
         };
-
         setForm(profile);
         setOriginalData(profile);
       } catch (err) {
@@ -79,7 +68,6 @@ export default function LocalRegistrarProfile() {
         setLoading(false);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -157,8 +145,8 @@ export default function LocalRegistrarProfile() {
 
   if (loading) {
     return (
-      <div className="lrp-page">
-        <div className="lrp-card">
+      <div className="dhp-page">
+        <div className="dhp-card">
           <p style={{ color: "#6b7280" }}>Loading profile...</p>
         </div>
       </div>
@@ -166,34 +154,34 @@ export default function LocalRegistrarProfile() {
   }
 
   return (
-    <div className="lrp-page">
+    <div className="dhp-page">
 
       {toast && (
-        <div className={`lrp-toast ${toast.type}`}>
+        <div className={`dhp-toast ${toast.type}`}>
           <i className={`fa-solid ${toast.type === "success" ? "fa-circle-check" : "fa-circle-exclamation"}`} />
           {toast.message}
         </div>
       )}
 
-      <div className="lrp-card">
+      <div className="dhp-card">
 
         {!editing && (
-          <button className="lrp-edit-btn" onClick={() => setEditing(true)}>
+          <button className="dhp-edit-btn" onClick={() => setEditing(true)}>
             <i className="fa-solid fa-pen" />
           </button>
         )}
 
         {/* Avatar */}
-        <div className="lrp-avatar-wrap">
-          <div className="lrp-avatar">
+        <div className="dhp-avatar-wrap">
+          <div className="dhp-avatar">
             {displayPhoto
-              ? <img src={displayPhoto} alt="Profile" className="lrp-avatar-img" />
-              : <span className="lrp-avatar-initials">{initials || <i className="fa-solid fa-user" />}</span>
+              ? <img src={displayPhoto} alt="Profile" className="dhp-avatar-img" />
+              : <span className="dhp-avatar-initials">{initials || <i className="fa-solid fa-user" />}</span>
             }
           </div>
           {editing && (
             <button
-              className="lrp-avatar-camera"
+              className="dhp-avatar-camera"
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
@@ -210,38 +198,38 @@ export default function LocalRegistrarProfile() {
         <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePhotoChange} />
 
         {editing && photoFile && !uploading && (
-          <p className="lrp-photo-name"><i className="fa-solid fa-circle-check" /> {photoFile.name}</p>
+          <p className="dhp-photo-name"><i className="fa-solid fa-circle-check" /> {photoFile.name}</p>
         )}
         {editing && uploading && (
-          <p className="lrp-upload-progress"><i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…</p>
+          <p className="dhp-upload-progress"><i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…</p>
         )}
         {editing && !photoFile && !uploading && (
-          <button className="lrp-upload-btn" type="button" onClick={() => fileInputRef.current?.click()}>
+          <button className="dhp-upload-btn" type="button" onClick={() => fileInputRef.current?.click()}>
             <i className="fa-solid fa-arrow-up-from-bracket" /> Upload Picture
           </button>
         )}
 
         {/* Fields */}
-        <div className="lrp-fields">
-          <div className="lrp-field">
+        <div className="dhp-fields">
+          <div className="dhp-field">
             <label>First Name</label>
-            <input className="lrp-input" value={form.firstName} onChange={handleChange("firstName")} readOnly={!editing} />
+            <input className="dhp-input" value={form.firstName} onChange={handleChange("firstName")} readOnly={!editing} />
           </div>
-          <div className="lrp-field">
+          <div className="dhp-field">
             <label>Last Name</label>
-            <input className="lrp-input" value={form.lastName} onChange={handleChange("lastName")} readOnly={!editing} />
+            <input className="dhp-input" value={form.lastName} onChange={handleChange("lastName")} readOnly={!editing} />
           </div>
-          <div className="lrp-field">
+          <div className="dhp-field">
             <label>Email</label>
-            <input className="lrp-input" value={form.email} readOnly />
+            <input className="dhp-input" value={form.email} readOnly />
           </div>
-          <div className="lrp-field">
+          <div className="dhp-field">
             <label>Role</label>
-            <input className="lrp-input" value={form.role} readOnly />
+            <input className="dhp-input" value={form.role} readOnly />
           </div>
-          <div className="lrp-field">
+          <div className="dhp-field">
             <label>Password</label>
-            <button className="lrp-reset-password-btn" onClick={handleResetPassword}>
+            <button className="dhp-reset-password-btn" onClick={handleResetPassword}>
               Send Password Reset Email
             </button>
           </div>
@@ -250,9 +238,9 @@ export default function LocalRegistrarProfile() {
       </div>
 
       {editing && (
-        <div className="lrp-footer">
-          <button className="lrp-cancel-btn" onClick={handleCancel}>Cancel</button>
-          <button className="lrp-save-btn" onClick={handleSave} disabled={saving || uploading}>
+        <div className="dhp-footer">
+          <button className="dhp-cancel-btn" onClick={handleCancel}>Cancel</button>
+          <button className="dhp-save-btn" onClick={handleSave} disabled={saving || uploading}>
             {uploading ? "Uploading…" : saving ? "Saving…" : "Save"}
           </button>
         </div>
