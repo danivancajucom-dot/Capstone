@@ -125,11 +125,6 @@ const loadAvailableRooms = async () => {
 
     try {
       const usersSnap = await getDocs(collection(db, "users"));
-      console.log(usersSnap.docs.length);
-      console.log(usersSnap.docs.map(d => ({
-          id: d.id,
-          ...d.data()
-      })));
       const conflictName = normalizeName(conflict.faculty);
 
       // convert "CAPARAS, Alex" → "alex caparas"
@@ -147,41 +142,20 @@ const loadAvailableRooms = async () => {
       };
 
       const scheduleName = flipName(conflict.faculty);
-
-      console.log("Schedule Name:", scheduleName);
-
       usersSnap.docs.forEach((d) => {
         const u = d.data();
-
-        console.log({
-          firestore: `${u.firstName} ${u.lastName}`,
-          normalized: normalizeName(`${u.firstName} ${u.lastName}`),
-          schedule: scheduleName,
-        });
       });
 
       const faculty = usersSnap.docs.find((d) => {
         const u = d.data();
-
         const userName = normalizeName(
           `${u.firstName} ${u.lastName}`
         );
 
         const matched = userName === scheduleName;
-
-        console.log({
-          userName,
-          scheduleName,
-          matched,
-          id: d.id,
-        });
-
         return matched;
       });
 
-      console.log("FOUND DOC:", faculty);
-
-      console.log("Faculty Found:", faculty);
 
       if (!faculty) {
         alert("Faculty not found. Check name format.");
@@ -223,15 +197,13 @@ const loadAvailableRooms = async () => {
         }
       );
 
-      console.log("Faculty ID:", facultyId);
-      console.log("Current User:", auth.currentUser?.uid);
-      console.log("Faculty Data:", faculty.data());
-
       // =========================
       // Notification for Faculty
       // =========================
       await addDoc(collection(db, "notifications"), {
         userId: facultyId,
+        ownerType: "faculty",
+
         assignmentId: reassignmentRef.id,
 
         title: "Room Reassignment",
@@ -247,35 +219,27 @@ const loadAvailableRooms = async () => {
       // =========================
       // Notification for Department Head
       // =========================
-      await addDoc(collection(db, "notifications"), {
-        userId: auth.currentUser.uid,
+     await addDoc(collection(db, "notifications"), {
+      userId: auth.currentUser.uid,
+      ownerType: "department-head",
 
-        assignmentId: reassignmentRef.id,
+      assignmentId: reassignmentRef.id,
 
-        title: "Room Reassignment Submitted",
-        message: `Room reassignment for ${conflict.faculty} has been submitted successfully. Waiting for the faculty's response.`,
+      title: "Room Reassignment Submitted",
+      message: `Room reassignment for ${conflict.faculty} has been submitted successfully. Waiting for the faculty's response.`,
 
-        type: "room-reassignment-status",
-        unread: true,
-        archived: false,
-        badge: "INFO",
-        createdAt: serverTimestamp(),
-      });
+      type: "room-reassignment-status",
+      unread: true,
+      archived: false,
+      badge: "INFO",
+      createdAt: serverTimestamp(),
+    });
 
-      console.log("Faculty notification sent:", facultyId);
-      console.log("Department Head notification sent:", auth.currentUser.uid);
-
-      alert("Room reassigned successfully!");
-      setShowConfirm(false);
-      navigate(from);
-
-      console.log("Notification sent to:", facultyId);
       alert("Room reassigned successfully!");
       setShowConfirm(false);
       navigate(from);
 
     } catch (err) {
-      console.error("ERROR:", err);
       alert("Failed to reassign room. Check Firestore rules.");
     } finally {
       setLoading(false);

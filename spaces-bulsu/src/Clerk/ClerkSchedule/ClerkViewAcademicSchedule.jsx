@@ -199,7 +199,7 @@ function ClerkViewAcademicSchedule() {
                 roomType={room.roomType}
                 status={room.status}
                 onClick={() =>
-                  navigate("/clerk/room-card", {
+                  navigate("/clerk/schedule-room-card", {
                     state: {
                       roomId: room.id,
                       room,

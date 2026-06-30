@@ -39,7 +39,7 @@ import DepartmentHeadViewRoomCard from "./DepartmentHead/DepartmentHeadSchedule/
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
 import ClerkDashboard from "./Clerk/ClerkDashboard/ClerkDashboard";
-import ClerkOnlineReservations from "./Clerk/ClerkOnlineReservations/ClerkOnlineReservations";
+import ClerkReservations from "./Clerk/ClerkOnlineReservations/ClerkReservations";
 import ClerkViewReservation from "./Clerk/ClerkOnlineReservations/ClerkViewReservation";
 import ClerkViewReservationApproved from "./Clerk/ClerkOnlineReservations/ClerkViewReservationApproved";
 import ClerkEditApprovedReservation from "./Clerk/ClerkOnlineReservations/ClerkEditApprovedReservation";
@@ -129,7 +129,7 @@ function App() {
           <Route index element={<ClerkDashboard />}/>
           <Route path="schedule-view-academic-schedule" element={<ClerkViewAcademicSchedule />}/>
           <Route path="schedule-room-card" element={<ClerkViewRoomCard />}/>
-          <Route path="online-reservations" element={<ClerkOnlineReservations />} />
+          <Route path="online-reservations" element={<ClerkReservations />} />
           <Route path="view-online-reservation" element={<ClerkViewReservation />} />
           <Route path="view-reservation-approved" element={<ClerkViewReservationApproved />} />
           <Route path="view-reservation-denied" element={<ClerkViewReservationDenied />} />
