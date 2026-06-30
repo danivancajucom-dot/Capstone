@@ -137,7 +137,7 @@ export default function DepartmentHeadLayout() {
               <i className="fa-solid fa-bookmark"></i>
               <span>Reservations</span>
             </NavLink>
-            <NavLink to="/department-head/schedule">
+            <NavLink to="/department-head/schedule-view-academic-schedule">
               <i className="fa-solid fa-calendar-days"></i>
               <span>Schedule</span>
             </NavLink>
