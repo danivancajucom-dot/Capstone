@@ -177,7 +177,7 @@ function ClerkViewRoomCard() {
       <div className="lr-view-room">
         <i
           className="fa-solid fa-arrow-left lr-back-arrow"
-          onClick={() => navigate("/clerk/academic-schedule")}
+          onClick={() => navigate("/clerk/schedule-view-academic-schedule")}
           style={{ cursor: "pointer" }}
         ></i>
 

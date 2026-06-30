@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import "./department-head-reservations.css";
+import "./clerk-reservations.css";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
 import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
 
@@ -14,7 +14,7 @@ import {
 import { db } from "../../firebase";
 import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 
-function DepartmentHeadReservations() {
+function ClerkReservations() {
   const [activeTab, setActiveTab] = useState("Pending");
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
@@ -113,7 +113,7 @@ function DepartmentHeadReservations() {
                   key={reservation.id}
                   reservation={reservation}
                   onClick={() =>
-                    navigate("/department-head/view-reservation-approved", {
+                    navigate("/clerk/view-reservation-approved", {
                       state: { reservation },
                     })
                   }
@@ -140,7 +140,7 @@ function DepartmentHeadReservations() {
               key={reservation.id}
               reservation={reservation}
               onClick={() =>
-                navigate("/department-head/view-reservation-denied", {
+                navigate("/clerk/view-reservation-denied", {
                   state: { reservation },
                 })
               }
@@ -157,4 +157,4 @@ function DepartmentHeadReservations() {
   );
 }
 
-export default DepartmentHeadReservations;
+export default ClerkReservations;

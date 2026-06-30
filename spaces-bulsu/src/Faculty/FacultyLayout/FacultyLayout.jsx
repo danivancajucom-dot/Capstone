@@ -47,18 +47,14 @@ export default function FacultyLayout() {
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
+        where("ownerType", "==", "faculty"),
+        where("archived", "==", false),
         orderBy("createdAt", "desc")
       );
 
       const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-        console.log("Notifications found:", snapshot.size);
-
-        snapshot.docs.forEach((doc) => {
-          console.log(doc.id, doc.data());
-        });
-
         setNotifications(
-          snapshot.docs.map((doc) => ({
+          snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
           }))
@@ -276,16 +272,16 @@ export default function FacultyLayout() {
                         {item.type === "room-reassignment" ? (
 
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                              onClick={(e) => {
+                                e.stopPropagation();
 
-                              navigate(
-                                `/faculty/room-reassignment/${item.assignmentId}`
-                              );
-                            }}
-                          >
-                            View
-                          </button>
+                                console.log(item);
+
+                                navigate(`/faculty/room-reassignment/${item.assignmentId}`);
+                              }}
+                            >
+                              View
+                            </button>
 
                         ) : item.type === "room-activity" ? (
 

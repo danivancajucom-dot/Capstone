@@ -11,6 +11,51 @@ html, body {
   width: 100%;
   overflow-x: hidden;
 }
+.wir-loading-page{
+height:80vh;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+gap:15px;
+}
+
+.spinner{
+width:45px;
+height:45px;
+border:4px solid #ddd;
+border-top:4px solid #14532d;
+border-radius:50%;
+animation:spin .8s linear infinite;
+}
+
+@keyframes spin{
+
+100%{
+
+transform:rotate(360deg);
+
+}
+
+}.small-spinner{
+
+width:16px;
+
+height:16px;
+
+border:2px solid white;
+
+border-top:2px solid transparent;
+
+border-radius:50%;
+
+display:inline-block;
+
+margin-right:8px;
+
+animation:spin .7s linear infinite;
+
+}
 
 .wir-title {
   margin-top:40px;

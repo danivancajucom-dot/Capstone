@@ -44,14 +44,19 @@ export default function DepartmentHeadLayout() {
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
+        where("ownerType", "==", "department-head"),
+        where("archived", "==", false),
         orderBy("createdAt", "desc")
       );
 
       const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
         setNotifications(data);
       });
-
       return () => unsubscribeNotif();
     });
 
