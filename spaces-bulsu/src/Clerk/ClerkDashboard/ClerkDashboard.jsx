@@ -67,50 +67,204 @@ function ClerkDashboard() {
 
   }, []);
 
-  const today = new Date().toISOString().split("T")[0];
+  const toMinutes = (time) => {
+  if (!time) return 0;
 
-  const availableRooms = rooms.filter(
-    room => room.status === "Available"
-  );
+  const [h, m] = time.split(":").map(Number);
 
-  const occupiedRooms = rooms.filter(
-    room => room.status === "Occupied"
-  );
+  return h * 60 + m;
+};
 
-  const maintenanceRooms = rooms.filter(
-    room => room.status === "Maintenance"
-  );
+const now = new Date();
 
-  const reservedRooms = reservations.filter(
-    reservation =>
-      reservation.status === "Approved" &&
-      reservation.date === today
-  );
+const currentMinutes =
+  now.getHours() * 60 +
+  now.getMinutes();
+
+const today =
+  new Date().toISOString().split("T")[0];
+
+  const roomStatus = rooms.map(room => {
+
+    //-------------------------------------
+    // Maintenance
+    //-------------------------------------
+
+    if(room.status === "Maintenance"){
+
+        return {
+
+            ...room,
+
+            displayStatus:"Maintenance"
+
+        };
+
+    }
+
+    //-------------------------------------
+    // Today's Schedule
+    //-------------------------------------
+
+    const roomEvents = events.filter(e=>
+
+        e.roomId===room.id &&
+        e.date===today
+
+    );
+
+    //-------------------------------------
+    // Approved Reservations
+    //-------------------------------------
+
+    const roomReservations = reservations.filter(r=>
+
+        r.roomId===room.id &&
+        r.date===today &&
+        r.status.toLowerCase()==="approved"
+
+    );
+
+    const busy=[
+
+        ...roomEvents,
+
+        ...roomReservations
+
+    ];
+
+    //-------------------------------------
+    // Occupied
+    //-------------------------------------
+
+    const occupied=busy.find(item=>
+
+        currentMinutes>=toMinutes(item.startTime)&&
+        currentMinutes<toMinutes(item.endTime)
+
+    );
+
+    if(occupied){
+
+        return{
+
+            ...room,
+
+            displayStatus:"Occupied",
+
+            activeBooking:occupied
+
+        };
+
+    }
+
+    //-------------------------------------
+    // Reserved
+    //-------------------------------------
+
+    const upcoming=busy.find(item=>
+
+        toMinutes(item.startTime)>currentMinutes
+
+    );
+
+    if(upcoming){
+
+        return{
+
+            ...room,
+
+            displayStatus:"Reserved",
+
+            activeBooking:upcoming
+
+        };
+
+    }
+
+    //-------------------------------------
+    // Available
+    //-------------------------------------
+
+    return{
+
+        ...room,
+
+        displayStatus:"Available"
+
+    };
+
+});
 
   let displayedRooms = [];
 
-  switch (activeNav) {
+  switch(activeNav){
 
     case "available":
-      displayedRooms = availableRooms;
-      break;
+
+    displayedRooms=
+
+    roomStatus.filter(
+
+    room=>room.displayStatus==="Available"
+
+    );
+
+    break;
 
     case "occupied":
-      displayedRooms = occupiedRooms;
-      break;
+
+    displayedRooms=
+
+    roomStatus.filter(
+
+    room=>room.displayStatus==="Occupied"
+
+    );
+
+    break;
 
     case "maintenance":
-      displayedRooms = maintenanceRooms;
-      break;
+
+    displayedRooms=
+
+    roomStatus.filter(
+
+    room=>room.displayStatus==="Maintenance"
+
+    );
+
+    break;
 
     case "reserved":
-      displayedRooms = reservedRooms;
-      break;
+
+    displayedRooms=
+
+    roomStatus.filter(
+
+    room=>room.displayStatus==="Reserved"
+
+    );
+
+    break;
 
     default:
-      displayedRooms = rooms;
 
-  }
+    displayedRooms=roomStatus;
+
+    }
+
+  const upcomingSchedules = [...events, ...reservations]
+    .filter(item =>
+      item.date === today &&
+      toMinutes(item.startTime) > currentMinutes
+    )
+    .sort(
+      (a, b) =>
+        toMinutes(a.startTime) -
+        toMinutes(b.startTime)
+    )
+    .slice(0, 5);
 
   return (
     <>
@@ -145,7 +299,7 @@ function ClerkDashboard() {
 
               {displayedRooms.map(room => {
 
-                switch(room.status){
+                switch(room.displayStatus){
 
                   case "Available":
                     return (
@@ -210,7 +364,16 @@ function ClerkDashboard() {
               </div>
             </div>
 
-            <UpcomingSchedCard />
+            {upcomingSchedules.length > 0 ? (
+              upcomingSchedules.map(schedule => (
+                <UpcomingSchedCard
+                  key={schedule.id}
+                  schedule={schedule}
+                />
+              ))
+            ) : (
+              <p>No upcoming schedule.</p>
+            )}
 
             <div className="clerk-upcoming-footer">
               <button

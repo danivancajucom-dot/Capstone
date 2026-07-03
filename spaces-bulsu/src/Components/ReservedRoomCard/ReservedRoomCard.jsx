@@ -1,21 +1,75 @@
 import "./reserved-room-card.css";
 
-function ReservedRoomCard() {
-  return (
-    <div className="reserved-room-card">
-      <div className="reserved-room-header">
-        <span className="reserved-room-name">Room Name</span>
-        <span className="reserved-room-badge">RESERVED</span>
-      </div>
+function ReservedRoomCard({ room }) {
 
-      <div className="reserved-room-details">
-        <i className="fa-solid fa-user reserved-room-icon"></i>
-        <span>Faculty Name | Course Code</span>
-      </div>
+const booking=room.activeBooking;
 
-      <button className="reserved-view-schedule-btn">View Schedule</button>
-    </div>
-  );
+return(
+
+<div className="occupied-room-card">
+
+<div className="occupied-room-header">
+
+<span>
+
+{room.roomName}
+
+</span>
+
+<span>
+
+OCCUPIED
+
+</span>
+
+</div>
+
+<div className="occupied-room-details">
+
+<i className="fa-solid fa-user"/>
+
+<div>
+
+<span>
+
+{
+
+booking.requesterName ||
+
+booking.facultyName ||
+
+booking.subject
+
+}
+
+</span>
+
+<small>
+
+{
+
+booking.course ||
+
+booking.purpose
+
+}
+
+</small>
+
+</div>
+
+</div>
+
+<button>
+
+View Schedule
+
+</button>
+
+</div>
+
+);
+
 }
 
 export default ReservedRoomCard;

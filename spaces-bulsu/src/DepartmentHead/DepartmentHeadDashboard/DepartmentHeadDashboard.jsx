@@ -1,72 +1,204 @@
-import React, { useState, useEffect } from 'react';
-import './department-head-dashboard.css';
+import React, { useEffect, useState } from "react";
+import "./department-head-dashboard.css";
 import { useNavigate } from "react-router-dom";
-import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 import classroomImg from "../../assets/Classroom.jpeg";
 
+const floors = [
+  "All Floors",
+  "1st Floor",
+  "3rd Floor",
+  "4th Floor",
+];
+
+const dayMap = {
+  SUN: "Sunday",
+  MON: "Monday",
+  TUE: "Tuesday",
+  WED: "Wednesday",
+  THU: "Thursday",
+  FRI: "Friday",
+  SAT: "Saturday",
+};
+
+const reverseDayMap = {
+  Sunday: "SUN",
+  Monday: "MON",
+  Tuesday: "TUE",
+  Wednesday: "WED",
+  Thursday: "THU",
+  Friday: "FRI",
+  Saturday: "SAT",
+};
+
+const normalize = (value) =>
+  value?.toString().trim().toLowerCase();
+
+const getCurrentDay = () => {
+  const days = [
+    "SUN",
+    "MON",
+    "TUE",
+    "WED",
+    "THU",
+    "FRI",
+    "SAT",
+  ];
+
+  return days[new Date().getDay()];
+};
+
+const toMinutes = (time) => {
+  if (!time) return 0;
+
+  const [h, m] = time.split(":").map(Number);
+
+  return h * 60 + m;
+};
+
+const format12Hour = (time) => {
+  if (!time) return "";
+
+  let [hour, minute] = time.split(":").map(Number);
+
+  const ampm = hour >= 12 ? "PM" : "AM";
+
+  hour %= 12;
+
+  if (hour === 0) hour = 12;
+
+  return `${hour}:${minute.toString().padStart(2, "0")} ${ampm}`;
+};
+
 const getActivityIcon = (type) => {
   switch (type) {
-    case "success": return "fa-solid fa-circle-check";
-    case "edit": return "fa-solid fa-pen";
-    case "failed": return "fa-solid fa-circle-xmark";
-    default: return "fa-solid fa-circle";
+    case "success":
+      return "fa-solid fa-circle-check";
+
+    case "edit":
+      return "fa-solid fa-pen";
+
+    case "failed":
+      return "fa-solid fa-circle-xmark";
+
+    default:
+      return "fa-solid fa-circle";
   }
 };
 
 const getActivityColor = (type) => {
   switch (type) {
-    case "success": return "green";
-    case "edit": return "blue";
-    case "failed": return "red";
-    default: return "gray";
+    case "success":
+      return "green";
+
+    case "edit":
+      return "blue";
+
+    case "failed":
+      return "red";
+
+    default:
+      return "gray";
   }
 };
 
-const formatTime = (timestamp) => {
-  if (!timestamp?.toDate) return "Just now";
-  const date = timestamp.toDate();
-  return date.toLocaleString();
+const formatTimestamp = (timestamp) => {
+  if (!timestamp?.toDate) return "";
+
+  return timestamp.toDate().toLocaleString();
 };
 
-const floors = ['All Floors', '1st Floor', '3rd Floor', '4th Floor'];
+/*
+|--------------------------------------------------------------------------
+LIVE ROOM STATUS
+|--------------------------------------------------------------------------
+*/
 
-const getCurrentDay = () => {
-  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  return days[new Date().getDay()];
-};
+const getRoomLiveStatus = (room, schedules) => {
+ if(room.statusField==="inactive") {
+    return {
+      status: "maintenance",
+      message: "Under Maintenance",
+      currentSubject: "",
+    };
+  }
 
-const toMinutes = (time) => {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-};
+  const today = getCurrentDay();
 
-const isRoomOccupiedNow = (schedules = []) => {
-  const now = new Date();
-  const currentDay = getCurrentDay();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentMinutes =
+    new Date().getHours() * 60 +
+    new Date().getMinutes();
 
-  return schedules.some((sched) => {
-    if (sched.day !== currentDay) return false;
+  const todaysSchedules = schedules
+    .filter((s) => s.day === today)
+    .sort(
+      (a, b) =>
+        toMinutes(a.startTime) -
+        toMinutes(b.startTime)
+    );
 
-    const start = toMinutes(sched.start);
-    const end = toMinutes(sched.end);
+  if (todaysSchedules.length === 0) {
+    return {
+      status: "free",
+      message: "Available all day",
+      currentSubject: "",
+    };
+  }
 
-    return currentMinutes >= start && currentMinutes < end;
-  });
+  for (const sched of todaysSchedules) {
+    const start = toMinutes(sched.startTime);
+    const end = toMinutes(sched.endTime);
+
+    if (
+      currentMinutes >= start &&
+      currentMinutes < end
+    ) {
+      return {
+        status: "occupied",
+        message: `Available at ${format12Hour(
+          sched.endTime
+        )}`,
+        currentSubject: `${sched.subject} • ${sched.section}`,
+      };
+    }
+
+    if (currentMinutes < start) {
+      return {
+        status: "free",
+        message: `Available until ${format12Hour(
+          sched.startTime
+        )}`,
+        currentSubject: "",
+      };
+    }
+  }
+
+  return {
+    status: "free",
+    message: "Available for the rest of today",
+    currentSubject: "",
+  };
 };
 
 export default function DepartmentHeadDashboard() {
-  const [activeFloor, setActiveFloor] = useState('All Floors');
   const navigate = useNavigate();
+  const [activeFloor, setActiveFloor] = useState("All Floors");
   const [rooms, setRooms] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [stats, setStats] = useState({
     totalRooms: 0,
     occupied: 0,
     available: 0,
     maintenance: 0,
-    roomActivity: 0,
+    roomActivity:0,
   });
   const normalize = (value) =>
   value?.toString().trim().toLowerCase();
@@ -82,60 +214,160 @@ export default function DepartmentHeadDashboard() {
   return upcoming[0];
 };
 
-  useEffect(() => {
+    useEffect(() => {
+
     setLoading(true);
 
-    const unsub = onSnapshot(collection(db, "rooms"), (snapshot) => {
-      let totalRooms = 0;
-      let occupied = 0;
-      let available = 0;
-      let maintenance = 0;
+    const roomUnsubs = [];
 
-      const data = snapshot.docs.map((doc) => {
-        const room = doc.data();
+    const unsubRooms = onSnapshot(
+      collection(db, "rooms"),
+      (snapshot) => {
 
-        totalRooms++;
 
-        const schedules = room.schedules || [];
-        const occupiedNow = isRoomOccupiedNow(schedules);
+        let roomList = [];
 
-        let status = "free";
+        snapshot.docs.forEach((roomDoc) => {
 
-        if (room.status === "inactive") {
-          status = "maintenance";
-          maintenance++;
-        } else if (occupiedNow) {
-          status = "occupied";
-          occupied++;
-        } else {
-          status = "free";
-          available++;
-        }
+          const room = roomDoc.data();
 
-        return {
-          id: room.roomName,
-          label: room.roomType || "Room",
-          image: room.image || null,
-          status,
-          schedules,
-          floor: (room.floor || "").toString().trim(),
-        };
-      });
+          const unsubSchedules = onSnapshot(
 
-      setRooms(data);
-      setStats({
-        totalRooms,
-        occupied,
-        available,
-        maintenance,
-        roomActivity: occupied + maintenance,
-      });
+            collection(db, "rooms", roomDoc.id, "schedules"),
 
-      setLoading(false); // ✅ done loading
-    });
+            (scheduleSnap) => {
 
-    return () => unsub();
-  }, []);
+              const schedules = scheduleSnap.docs.map(doc=>({
+
+                id:doc.id,
+
+                ...doc.data()
+
+              }));
+
+              roomList = roomList.filter(r=>r.docId!==roomDoc.id);
+
+              roomList.push({
+
+                docId:roomDoc.id,
+
+                roomName:room.roomName,
+
+                roomType:room.roomType,
+
+                floor:room.floor,
+
+                statusField:room.status,
+
+                image:room.image || null,
+
+                schedules
+
+              });
+
+              let occupied = 0;
+
+              let available = 0;
+
+              let maintenance = 0;
+
+              let scheduledToday = 0;
+
+              const processedRooms = roomList.map(r=>{
+
+                const live = getRoomLiveStatus(r,r.schedules);
+
+                const today = getCurrentDay();
+
+                const hasTodaySchedule = r.schedules.some(
+                  s=>s.day===today
+                );
+
+                if(hasTodaySchedule)
+                  scheduledToday++;
+
+                if(live.status==="occupied")
+                  occupied++;
+
+                else if(live.status==="maintenance")
+                  maintenance++;
+
+                else
+                  available++;
+
+                return{
+
+                  id:r.docId,
+
+                  roomName:r.roomName,
+
+                  roomType:r.roomType,
+
+                  floor:r.floor,
+
+                  image:r.image,
+
+                  schedules:r.schedules,
+
+                  status:live.status,
+
+                  liveMessage:live.message,
+
+                  currentSubject:live.currentSubject
+
+                };
+
+              });
+
+              setRooms(processedRooms);
+
+              setStats({
+
+                totalRooms:processedRooms.length,
+
+                occupied,
+
+                available,
+
+                maintenance,
+
+              });
+
+              setLastUpdated(new Date());
+
+              setLoading(false);
+
+            }
+
+          );
+
+          roomUnsubs.push(unsubSchedules);
+
+        });
+
+      }
+
+    );
+
+    const refreshInterval = setInterval(()=>{
+
+        setLastUpdated(new Date());
+
+        setRooms(old=>[...old]);
+
+    },60000);
+
+    return()=>{
+
+        unsubRooms();
+
+        roomUnsubs.forEach(u=>u());
+
+        clearInterval(refreshInterval);
+
+    };
+
+  },[]);
 
   useEffect(() => {
     const q = query(
@@ -152,7 +384,7 @@ export default function DepartmentHeadDashboard() {
           color: getActivityColor(d.actionType),
           title: d.action,
           sub: `${d.user} • ${d.target}`,
-          time: formatTime(d.timestamp),
+          time: formatTimestamp(d.timestamp),
         };
       });
       setRecentActivity(logs);
@@ -227,9 +459,33 @@ export default function DepartmentHeadDashboard() {
               <h3>Live Room Status</h3>
             </div>
             <div className="dept-db-legend">
-              <span className="dept-db-legend-item green">AVAILABLE</span>
-              <span className="dept-db-legend-item red">OCCUPIED</span>
-            </div>
+
+              <span className="dept-db-legend-item green">
+
+                  AVAILABLE
+
+              </span>
+
+              <span className="dept-db-legend-item red">
+
+                  OCCUPIED
+
+              </span>
+
+              <span
+                  className="dept-db-legend-item"
+                  style={{
+                      background:"#f3f4f6",
+                      color:"#6b7280",
+                      border:"1px solid #d1d5db"
+                  }}
+              >
+
+                  MAINTENANCE
+
+              </span>
+
+          </div>
           </div>
 
           <div className="dept-db-floor-tabs">
@@ -245,67 +501,161 @@ export default function DepartmentHeadDashboard() {
           </div>
 
           <div className="dept-db-rooms-grid">
+
             {loading ? (
+
               <div className="dept-db-loading">
                 <div className="spinner"></div>
                 Loading rooms...
               </div>
-            ) : filteredRooms.length > 0 ? (
-              filteredRooms.map((room) => (
-                <div
-                  className={`dept-db-room-card ${room.status}`}
-                  key={room.id}
-                >
-                  <div className="dept-db-room-card-header">
-                    <span className="dept-db-room-id">
-                      {room.id}
-                    </span>
 
-                    <span className={`dept-db-status-dot ${room.status}`}></span>
-                  </div>
-
-                  <div className="dept-db-room-card-img">
-                    <img
-                      src={room.image || classroomImg}
-                      alt={room.id}
-                      className="dept-db-room-img"
-                    />
-
-                    {room.status === "occupied" && (
-                      <div className="dept-db-in-use-badge">
-                        IN USE
-                      </div>
-                    )}
-                  </div>
-
-                  <p className={`dept-db-room-label ${room.status}`}>
-                    {room.status === "occupied"
-                      ? "In Use Now"
-                      : (() => {
-                          const next = getNextSchedule(room.schedules);
-
-                          return next ? (
-                            <>
-                              Available Today <br />
-                              <small>
-                                Next: {next.day} {next.start}-{next.end}
-                              </small>
-                            </>
-                          ) : (
-                            "Available Today"
-                          );
-                        })()}
-                  </p>
-                </div>
-              ))
             ) : (
-              <div className="dept-db-no-rooms">
-                No rooms found for {activeFloor}.
-              </div>
+
+              rooms
+                .filter(room =>
+
+                  activeFloor === "All Floors"
+                    ? true
+                    : normalize(room.floor) === normalize(activeFloor)
+
+                )
+
+                .sort((a,b)=>
+
+                  a.roomName.localeCompare(
+                    b.roomName,
+                    undefined,
+                    {numeric:true}
+                  )
+
+                )
+
+                .map(room=>(
+
+                  <div
+                    key={room.id}
+                    className={`dept-db-room-card ${room.status}`}
+                  >
+
+                    {/* HEADER */}
+
+                    <div className="dept-db-room-card-header">
+
+                      <span className="dept-db-room-id">
+
+                        {room.roomName}
+
+                      </span>
+
+                      <span
+                        className={`dept-db-status-dot ${room.status}`}
+                      ></span>
+
+                    </div>
+
+                    {/* IMAGE */}
+
+                    <div className="dept-db-room-card-img">
+
+                      <img
+
+                        src={room.image || classroomImg}
+
+                        alt={room.roomName}
+
+                        className="dept-db-room-img"
+
+                      />
+
+                      {room.status==="occupied" && (
+
+                        <div className="dept-db-in-use-badge">
+
+                          IN USE
+
+                        </div>
+
+                      )}
+
+                      {room.status==="maintenance" && (
+
+                        <div
+                          className="dept-db-in-use-badge"
+                          style={{
+
+                            background:"#6b7280"
+
+                          }}
+                        >
+
+                          MAINTENANCE
+
+                        </div>
+
+                      )}
+
+                    </div>
+
+                    {/* ROOM TYPE */}
+
+                    <p
+                      style={{
+                        marginBottom:4,
+                        fontWeight:700,
+                        fontSize:13,
+                        color:"#374151"
+                      }}
+                    >
+
+                      {room.roomType}
+
+                    </p>
+
+                    {/* STATUS */}
+
+                    <p
+                      className={`dept-db-room-label ${room.status}`}
+                    >
+
+                      {room.liveMessage}
+
+                    </p>
+
+                    {/* CURRENT SUBJECT */}
+
+                    {room.currentSubject && (
+
+                      <small
+                        style={{
+
+                          display:"block",
+
+                          marginTop:8,
+
+                          color:"#6b7280",
+
+                          fontSize:11,
+
+                          fontWeight:600
+
+                        }}
+                      >
+
+                        {room.currentSubject}
+
+                      </small>
+
+                    )}
+
+                  </div>
+
+                ))
+
             )}
+
           </div>
 
-          <p className="dept-db-last-updated">Last updated: Just now</p>
+          <p className="dept-db-last-updated">Last Updated: {lastUpdated.toLocaleTimeString()}</p>
           <div className="dept-db-load-more">
           <button className="dept-db-load-more-btn">Load More</button>
         </div>

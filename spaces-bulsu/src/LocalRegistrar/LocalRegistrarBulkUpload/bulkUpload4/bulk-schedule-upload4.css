@@ -99,11 +99,20 @@
 }
 
 
-.form-card-four {
-  background-color: #ffffff;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+.form-card-four{
+    background:#fff;
+
+    width:100%;
+
+    max-width:1400px;
+
+    margin:auto;
+
+    border-radius:18px;
+
+    padding:30px;
+
+    box-shadow:0 6px 20px rgba(0,0,0,.08);
 }
 
 .info-card {
@@ -286,10 +295,10 @@
 
 /* GRID */
 .schedule-grid {
-  margin-top: 16px;
+  margin-top: 20px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
 }
 
 /* CARD */
@@ -332,26 +341,177 @@
 }
 
 /* BODY */
-.schedule-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* ======================================= */
+/* BULK UPLOAD 4 PREVIEW */
+/* ======================================= */
+
+.bulk4-preview{
+    margin-top:30px;
 }
 
-.schedule-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #4b5563;
+.bulk4-preview-header{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    margin-bottom:20px;
+
 }
 
-.schedule-row i {
-  color: #F97316;
-  width: 16px;
+.bulk4-preview-header h3{
+
+    margin:0;
+
+    font-size:22px;
+
+    font-weight:700;
+
 }
 
-.schedule-row.time {
-  font-weight: 700;
-  color: #111827;
+.bulk4-count{
+
+    background:#FEF0E7;
+
+    color:#F57C00;
+
+    padding:8px 16px;
+
+    border-radius:999px;
+
+    font-size:13px;
+
+    font-weight:700;
+
+}
+
+.bulk4-grid{
+
+    display:grid;
+
+    grid-template-columns:
+    repeat(auto-fit,minmax(290px,1fr));
+
+    gap:18px;
+
+}
+
+.bulk4-card{
+
+    background:white;
+
+    border-radius:18px;
+
+    border:1px solid #ECECEC;
+
+    padding:18px;
+
+    transition:.25s;
+
+    box-shadow:
+    0 4px 10px rgba(0,0,0,.05);
+
+}
+
+.bulk4-card:hover{
+
+    transform:translateY(-5px);
+
+    box-shadow:
+    0 12px 25px rgba(0,0,0,.08);
+
+}
+
+.bulk4-card-header{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:flex-start;
+
+    margin-bottom:16px;
+
+}
+
+.bulk4-card-header h4{
+
+    margin:0;
+
+    font-size:18px;
+
+    font-weight:700;
+
+    color:#222;
+
+}
+
+.bulk4-section{
+
+    background:#FFF4EC;
+
+    color:#F57C00;
+
+    padding:6px 10px;
+
+    border-radius:999px;
+
+    font-size:11px;
+
+    font-weight:700;
+
+}
+
+.bulk4-card-body{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:12px;
+
+}
+
+.bulk4-item{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:10px;
+
+    font-size:14px;
+
+    color:#555;
+
+}
+
+.bulk4-item i{
+
+    width:18px;
+
+    color:#F57C00;
+
+}
+
+@media(max-width:900px){
+
+.bulk4-grid{
+
+grid-template-columns:1fr 1fr;
+
+}
+
+}
+
+@media(max-width:650px){
+
+.bulk4-grid{
+
+grid-template-columns:1fr;
+
+}
+
 }

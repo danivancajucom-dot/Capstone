@@ -13,11 +13,13 @@ function DepartmentHeadConflicts() {
   const [resolved, setResolved] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
   const [unresolved, setUnresolved] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     loadConflicts();
   }, []);
 
-  
+
   const convertToMinutes = (time) => {
     const [h, m] = time.split(":").map(Number);
     return h * 60 + m;
@@ -57,6 +59,7 @@ function DepartmentHeadConflicts() {
 };
 
   const loadConflicts = async () => {
+  setLoading(true);
   try {
     const rooms = await getDocs(collection(db, "rooms"));
     const events = await getDocs(collection(db, "events"));
@@ -184,6 +187,8 @@ function DepartmentHeadConflicts() {
 
   } catch (err) {
     console.error(err);
+  } finally {
+    setLoading(false);
   }
 };
 
@@ -193,7 +198,13 @@ function DepartmentHeadConflicts() {
       : activeTab === "unresolved"
       ? unresolved
       : resolved;
-  
+
+  const emptyMessage =
+    activeTab === "all"
+      ? "No active conflicts."
+      : activeTab === "unresolved"
+      ? "No unresolved conflicts."
+      : "No resolved conflicts.";
 
   return (
    <>
@@ -203,7 +214,7 @@ function DepartmentHeadConflicts() {
       <h1>Conflict Monitoring</h1>
       <p>Resolve booking collisions and schedule overlaps within the CICT department.</p>
     </div>
-    <button className="dept-conflict-export-btn">
+    <button className="dept-conflict-export-btn" disabled={loading}>
       <i className="fa-solid fa-download"></i> Export Report
     </button>
   </div>
@@ -239,31 +250,36 @@ function DepartmentHeadConflicts() {
       </div>
 
     </div>
-  
-    {displayConflicts.length === 0 ? (
 
-      <div className="no-conflicts">
-        <i className="fa-solid fa-circle-check"></i>
-        <p>
-          {activeTab === "all"
-            ? "No active conflicts."
-            : "No resolved conflicts."}
-        </p>
-      </div>
+    <div className="conflict-body">
+      {loading ? (
 
-    ) : (
+        <div className="conflict-loading">
+          <span className="conflict-spinner"></span>
+          <p>Loading conflicts...</p>
+        </div>
 
-      displayConflicts.map((conflict, index) => (
+      ) : displayConflicts.length === 0 ? (
 
-        <ConflictCard
-          key={`${conflict.schedule.id}-${conflict.event.id}-${index}`}
-          conflict={conflict}
-          showReassign={activeTab === "all"}
-        />
+        <div className="no-conflicts">
+          <i className="fa-solid fa-calendar-check"></i>
+          <p>{emptyMessage}</p>
+        </div>
 
-      ))
+      ) : (
 
-    )}
+        displayConflicts.map((conflict, index) => (
+
+          <ConflictCard
+            key={`${conflict.schedule.id}-${conflict.event.id}-${index}`}
+            conflict={conflict}
+            showReassign={activeTab === "all"}
+          />
+
+        ))
+
+      )}
+    </div>
   </div>
   <div className="conflict-side-box">
     <div className="side-box-header">
@@ -271,12 +287,19 @@ function DepartmentHeadConflicts() {
   <span className="side-box-title">Smart Alternatives</span>
 </div>
 
-    {conflicts.slice(0,3).map(conflict=>(
-    <RoomReassignCard
-        key={`${conflict.schedule.id}-${conflict.event.id}`}
-        conflict={conflict}
-    />
-))}
+    {loading ? (
+      <div className="conflict-loading conflict-loading--side">
+        <span className="conflict-spinner conflict-spinner--small"></span>
+        <p>Loading suggestions...</p>
+      </div>
+    ) : (
+      conflicts.slice(0,3).map(conflict=>(
+      <RoomReassignCard
+          key={`${conflict.schedule.id}-${conflict.event.id}`}
+          conflict={conflict}
+      />
+      ))
+    )}
   <div className="auto-resolve">
     <div className="auto-resolve-header">
       <span className="auto-resolve-title">Auto-resolve conflicts</span>

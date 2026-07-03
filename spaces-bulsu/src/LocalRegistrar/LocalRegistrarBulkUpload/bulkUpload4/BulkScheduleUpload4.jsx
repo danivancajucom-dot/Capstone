@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+
 import "./bulk-schedule-upload4.css";
+
 import ConfirmPopup from "../../../Popup/ConfirmPopup/ConfirmPopup";
+
 import {
   collection,
   query,
@@ -11,7 +14,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 
 const steps = [
   { number: 1, label: "SETUP" },
@@ -38,12 +41,51 @@ export default function BulkScheduleUpload4() {
   const navigate = useNavigate();
 
   const { semester, schoolYear, room } = location.state || {};
-  const rawSchedules = location.state?.schedules ?? [];
+  const rawSchedules = useMemo(() => {
+      return location.state?.schedules || [];
+  }, [location.state]);
 
   const [showModal, setShowModal] = useState(false);
 
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const logActivity = async ({
+  userId,
+  user,
+  role,
+  action,
+  actionType,
+  target,
+  status,
+}) => {
+  try {
+    await addDoc(collection(db, "activityLogs"), {
+      userId,
+      user,
+      role,
+      action,
+      actionType,
+      target,
+      status,
+      timestamp: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Activity log error:", err);
+  }
+};
+
   const handleConfirm = async () => {
-    try {
+
+    if(isSaving) return;
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try{
       const { collection, query, where, getDocs, addDoc } =
         await import("firebase/firestore");
 
@@ -62,6 +104,33 @@ export default function BulkScheduleUpload4() {
 
       const roomDoc = roomSnapshot.docs[0];
       const roomId = roomDoc.id;
+
+      const currentUser = auth.currentUser;
+
+      let currentUserData = {
+        userId: "",
+        user: "Unknown User",
+        role: "",
+      };
+
+      if (currentUser) {
+        const userQuery = query(
+          collection(db, "users"),
+          where("email", "==", currentUser.email)
+        );
+
+        const userSnapshot = await getDocs(userQuery);
+
+        if (!userSnapshot.empty) {
+          const userDoc = userSnapshot.docs[0].data();
+
+          currentUserData = {
+            userId: currentUser.uid,
+            user: `${userDoc.firstName} ${userDoc.lastName}`,
+            role: userDoc.role,
+          };
+        }
+      }
 
       // save schedules
       for (const schedule of rawSchedules) {
@@ -85,15 +154,41 @@ export default function BulkScheduleUpload4() {
         );
       }
 
+      await logActivity({
+        userId: currentUserData.userId,
+        user: currentUserData.user,
+        role: currentUserData.role,
+        action: "Bulk Uploaded Schedule",
+        actionType: "success",
+        target: `${rawSchedules.length} schedules for ${room} (${semester}, ${schoolYear})`,
+        status: "SUCCESS",
+      });
+
       alert(
         `${rawSchedules.length} schedules uploaded successfully!`
       );
 
-      navigate("/local-registrar");
+      setSuccessMessage(
+          `${rawSchedules.length} schedules uploaded successfully.`
+      );
 
-    } catch (error) {
-      console.error(error);
-      alert(error.message);
+      setTimeout(() => {
+          navigate("/local-registrar");
+      },1000);
+
+    } catch(error){
+
+        console.error(error);
+
+        setErrorMessage(
+            error.message || "Something went wrong."
+        );
+
+    }
+    finally{
+
+        setIsSaving(false);
+
     }
   };
 
@@ -156,50 +251,94 @@ export default function BulkScheduleUpload4() {
         </div>
 
         {/* ✅ FIXED DISPLAY */}
-        <div className="schedule-preview-list">
-        <h3 className="preview-title">
-          Extracted Schedules ({rawSchedules.length})
-        </h3>
+        <div className="bulk4-preview">
 
-        <div className="schedule-grid">
-          {rawSchedules.map((s, i) => (
-            <div key={i} className="schedule-card">
+          <div className="bulk4-preview-header">
 
-              <div className="schedule-header">
-                <span className="schedule-subject">
-                  {s.subject}
-                </span>
+            <h3>
+              Extracted Schedules
+            </h3>
 
-                {s.section && (
-                  <span className="schedule-badge">
-                    {s.section}
-                  </span>
-                )}
+            <span className="bulk4-count">
+              {rawSchedules.length} schedules
+            </span>
+
+          </div>
+
+          <div className="bulk4-grid">
+
+            {rawSchedules.map((schedule, index) => (
+
+              <div
+                key={index}
+                className="bulk4-card"
+              >
+
+                <div className="bulk4-card-header">
+
+                  <h4>
+                    {schedule.subject}
+                  </h4>
+
+                  {schedule.section && (
+
+                    <span className="bulk4-section">
+
+                      {schedule.section}
+
+                    </span>
+
+                  )}
+
+                </div>
+
+                <div className="bulk4-card-body">
+
+                  <div className="bulk4-item">
+
+                    <i className="fa-regular fa-calendar"></i>
+
+                    <span>{schedule.day}</span>
+
+                  </div>
+
+                  <div className="bulk4-item">
+
+                    <i className="fa-regular fa-clock"></i>
+
+                    <span>
+
+                      {formatTime12Hour(schedule.startTime)}
+
+                      {" - "}
+
+                      {formatTime12Hour(schedule.endTime)}
+
+                    </span>
+
+                  </div>
+
+                  <div className="bulk4-item">
+
+                    <i className="fa-regular fa-user"></i>
+
+                    <span>
+
+                      {schedule.faculty || "TBA"}
+
+                    </span>
+
+                  </div>
+
+                </div>
+
               </div>
 
-              <div className="schedule-body">
-                <div className="schedule-row">
-                  <i className="fa-regular fa-calendar"></i>
-                  <span>{s.day}</span>
-                </div>
+            ))}
 
-                <div className="schedule-row time">
-                  <i className="fa-regular fa-clock"></i>
-                  <span>
-                    {formatTime12Hour(s.startTime)} - {formatTime12Hour(s.endTime)}
-                  </span>
-                </div>
+          </div>
 
-                <div className="schedule-row">
-                  <i className="fa-regular fa-user"></i>
-                  <span>{s.faculty || "TBA"}</span>
-                </div>
-              </div>
-
-            </div>
-          ))}
         </div>
-      </div>
       </div>
 
       {/* FOOTER */}

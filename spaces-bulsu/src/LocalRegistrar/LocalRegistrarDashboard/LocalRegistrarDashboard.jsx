@@ -5,15 +5,20 @@ import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
+  query,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 
 import { db } from "../../firebase";
 export default function LocalRegistrarDashboard() {
 const navigate = useNavigate();
 const [totalSchedules, setTotalSchedules] = useState(0);
-  
+const [activityLogs, setActivityLogs] = useState([]);
+
 useEffect(() => {
     loadDashboardStats();
+    loadActivityLogs();
 }, []);
 
 const loadDashboardStats = async () => {
@@ -39,6 +44,31 @@ const loadDashboardStats = async () => {
     } catch (error) {
         console.error(error);
     }
+};
+const loadActivityLogs = async () => {
+  try {
+
+    const q = query(
+      collection(db, "activityLogs"),
+      orderBy("timestamp", "desc"),
+      limit(5)
+    );
+
+    const snap = await getDocs(q);
+
+    const logs = snap.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      // Local Registrar lang
+      .filter(log => log.role === "Local Registrar");
+
+    setActivityLogs(logs);
+
+  } catch (err) {
+    console.error(err);
+  }
 };
 
 return (
@@ -114,27 +144,61 @@ return (
 
             <tbody>
 
-              <tr>
-                <td>June 6, 2026 | 9:00AM</td>
-                <td>Generated QR Code</td>
-                <td>Prof. Dela Cruz</td>
-                <td>
-                  <span className="status-chip success">
-                    Success
-                  </span>
-                </td>
-              </tr>
+            {activityLogs.length === 0 ? (
 
-              <tr>
-                <td>June 6, 2026 | 9:02AM</td>
-                <td>Generated QR Code</td>
-                <td>Prof. Dela Cruz</td>
-                <td>
-                  <span className="status-chip failed">
-                    Failed
-                  </span>
-                </td>
-              </tr>
+            <tr>
+            <td colSpan="4" style={{ textAlign:"center" }}>
+            No activity found.
+            </td>
+            </tr>
+
+            ) : (
+
+            activityLogs.map(log => (
+
+            <tr key={log.id}>
+
+            <td>
+
+            {log.timestamp
+            ?.toDate()
+            .toLocaleString()}
+
+            </td>
+
+            <td>
+
+            {log.action}
+
+            </td>
+
+            <td>
+
+            {log.user}
+
+            </td>
+
+            <td>
+
+            <span
+            className={`status-chip ${
+            log.status === "SUCCESS"
+            ? "success"
+            : "failed"
+            }`}
+            >
+
+            {log.status}
+
+            </span>
+
+            </td>
+
+            </tr>
+
+            ))
+
+            )}
 
             </tbody>
 

@@ -14,11 +14,52 @@ import {
 import { db } from "../../firebase";
 import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 
+const TABS = ["Pending", "Approved", "Denied"];
+const PAGE_SIZE = 8;
+
+// Simple inline icon set (no extra dependency needed)
+const EmptyIcon = () => (
+  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="5" width="18" height="16" rx="2" stroke="#CBD5E1" strokeWidth="1.5" />
+    <path d="M3 9H21" stroke="#CBD5E1" strokeWidth="1.5" />
+    <path d="M8 3V6" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M16 3V6" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M8 13.5L10.5 16L15.5 11" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// Skeleton placeholder shown while Firestore data is loading
+function SkeletonCard() {
+  return (
+    <div className="dept-skeleton-card">
+      <div className="dept-skeleton-line dept-skeleton-title" />
+      <div className="dept-skeleton-line dept-skeleton-subtitle" />
+      <div className="dept-skeleton-row">
+        <div className="dept-skeleton-pill" />
+        <div className="dept-skeleton-pill" />
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ label }) {
+  return (
+    <div className="dept-empty-state">
+      <EmptyIcon />
+      <p className="dept-empty-title">No {label} reservations</p>
+      <p className="dept-empty-subtitle">
+        Requests will show up here as soon as they come in.
+      </p>
+    </div>
+  );
+}
+
 function DepartmentHeadReservations() {
   const [activeTab, setActiveTab] = useState("Pending");
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     const q = query(
@@ -46,112 +87,119 @@ function DepartmentHeadReservations() {
     return unsubscribe;
   }, []);
 
-  const filteredReservations = reservations.filter((reservation) => {
-    if (activeTab === "Pending")
-      return reservation.status === "Pending";
+  // Reset pagination whenever the tab changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [activeTab]);
 
-    if (activeTab === "Approved")
-      return reservation.status === "Approved";
+  const statusForTab = {
+    Pending: "Pending",
+    Approved: "Approved",
+    Denied: "Rejected",
+  };
 
-    if (activeTab === "Denied")
-      return reservation.status === "Rejected";
+  // Approved/Denied cards are compact ticket-stubs, so they lay out
+  // in a responsive 2-3 column grid. Pending stays a single column
+  // since ReservationCard is a wider, denser layout.
+  const isGridTab = activeTab !== "Pending";
 
-    return true;
-  });
+  const filteredReservations = reservations.filter(
+    (reservation) => reservation.status === statusForTab[activeTab]
+  );
+
+  const visibleReservations = filteredReservations.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredReservations.length;
+
+  const counts = {
+    Pending: reservations.filter((r) => r.status === "Pending").length,
+    Approved: reservations.filter((r) => r.status === "Approved").length,
+    Denied: reservations.filter((r) => r.status === "Rejected").length,
+  };
+
+  const renderList = () => {
+    if (loading) {
+      return Array.from({ length: isGridTab ? 6 : 4 }).map((_, i) => (
+        <SkeletonCard key={i} />
+      ));
+    }
+
+    if (filteredReservations.length === 0) {
+      return <EmptyState label={activeTab.toLowerCase()} />;
+    }
+
+    if (activeTab === "Pending") {
+      return visibleReservations.map((reservation) => (
+        <ReservationCard key={reservation.id} reservation={reservation} />
+      ));
+    }
+
+    return visibleReservations.map((reservation) => (
+      <ApprovedAndDeniedCard
+        key={reservation.id}
+        reservation={reservation}
+        onClick={() =>
+          navigate(
+            activeTab === "Approved"
+              ? "/department-head/view-reservation-approved"
+              : "/department-head/view-reservation-denied",
+            { state: { reservation } }
+          )
+        }
+      />
+    ));
+  };
+
+  const isEmpty = !loading && filteredReservations.length === 0;
 
   return (
     <div className="dept-reservations">
-      <h1>Reservation Requests</h1>
+      <div className="dept-reservations-header">
+        <h1>Reservation Requests</h1>
+        <p className="dept-reservations-subtitle">
+          Review, approve, and track room reservation requests from your department.
+        </p>
+      </div>
 
       <div className="dept-white-box-reservations">
         <div className="dept-reservations-nav">
-          {["Pending", "Approved", "Denied"].map((tab) => (
+          {TABS.map((tab) => (
             <div
               key={tab}
               className={`dept-reservations-nav-item ${activeTab === tab ? "active" : ""}`}
               onClick={() => setActiveTab(tab)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setActiveTab(tab);
+              }}
             >
               {tab}
+              {!loading && (
+                <span className="dept-reservations-nav-count">{counts[tab]}</span>
+              )}
             </div>
           ))}
         </div>
         <hr className="dept-reservations-nav-divider" />
 
-        {activeTab === "Pending" && (
-          <>
-            {loading ? (
-              <p>Loading...</p>
-            ) : filteredReservations.length === 0 ? (
-              <p style={{ textAlign: "center", padding: "30px" }}>
-                No pending reservations.
-              </p>
-            ) : (
-              filteredReservations.map((reservation) => (
-                <ReservationCard
-                  key={reservation.id}
-                  reservation={reservation}
-                />
-              ))
-            )}
-            <div className="dept-load-more-reservations">
-              <button className="dept-load-more-btn-reservations">Load More</button>
-            </div>
-          </>
-        )}
+        <div
+          className={`dept-reservations-content ${
+            isGridTab ? "dept-reservations-content--grid" : ""
+          } ${isEmpty ? "dept-reservations-content--empty" : ""}`}
+        >
+          {renderList()}
+        </div>
 
-        {activeTab === "Approved" && (
-          <>
-          {loading ? (
-              <p>Loading...</p>
-            ) : filteredReservations.length === 0 ? (
-              <p style={{ textAlign: "center", padding: "30px" }}>
-                No approved reservations.
-              </p>
-            ) : (
-              filteredReservations.map((reservation) => (
-                <ApprovedAndDeniedCard
-                  key={reservation.id}
-                  reservation={reservation}
-                  onClick={() =>
-                    navigate("/department-head/view-reservation-approved", {
-                      state: { reservation },
-                    })
-                  }
-                />
-              ))
-            )}
-            <div className="dept-load-more-reservations">
-              <button className="dept-load-more-btn-reservations">Load More</button>
-            </div>
-          </>
+        {!loading && hasMore && (
+          <div className="dept-load-more-reservations">
+            <button
+              className="dept-load-more-btn-reservations"
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            >
+              Load More
+            </button>
+          </div>
         )}
-
-        {activeTab === "Denied" && (
-          <>
-          {loading ? (
-          <p>Loading...</p>
-        ) : filteredReservations.length === 0 ? (
-          <p style={{ textAlign: "center", padding: "30px" }}>
-            No denied reservations.
-          </p>
-        ) : (
-          filteredReservations.map((reservation) => (
-            <ApprovedAndDeniedCard
-              key={reservation.id}
-              reservation={reservation}
-              onClick={() =>
-                navigate("/department-head/view-reservation-denied", {
-                  state: { reservation },
-                })
-              }
-            />
-          ))
-        )}
-    <div className="dept-load-more-reservations">
-      <button className="dept-load-more-btn-reservations">Load More</button>
-    </div>
-  </>
-)}
       </div>
     </div>
   );
