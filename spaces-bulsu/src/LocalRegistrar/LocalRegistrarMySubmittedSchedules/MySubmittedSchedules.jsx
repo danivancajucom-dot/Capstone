@@ -1,71 +1,279 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
 import "./my-submitted-schedules.css";
 
-const schedules = [
-  { id: 1, schoolYear: "2026 - 2027", date: "2026-03-05", semester: "1st Semester" },
-  { id: 2, schoolYear: "2026 - 2027", date: "2026-03-05", semester: "2nd Semester" },
-];
+import {
+  collection,
+  getDocs,
+} from "firebase/firestore";
+
+import { db } from "../../firebase";
 
 export default function MySubmittedSchedules() {
-  const [page, setPage] = useState("submitted");
-  const [archived, setArchived] = useState([]);
-  const [active, setActive] = useState(schedules);
 
-  function handleArchive(item) {
-    setActive(active.filter(s => s.id !== item.id));
-    setArchived([...archived, item]);
-  }
+    const navigate = useNavigate();
 
-  function handleRestore(item) {
-    setArchived(archived.filter(s => s.id !== item.id));
-    setActive([...active, item]);
-  }
+    const [folders,setFolders] = useState({});
 
-  if (page === "archived") {
-    return (
-    <>
-          <div className="lr-submitted-schedules">
-        <div className="lr-ss-page-header">
-          <h1>Archived Schedules</h1>
-          <span className="view-archived" onClick={() => setPage("submitted")}>Back to Submitted Schedules</span>
-        </div>
-        <div className="list-card">
-          {archived.map(s => (
-            <div className="schedule-item" key={s.id}>
-              <div className="schedule-info">
-                <span className="schedule-title">S.Y. {s.schoolYear}</span>
-                <span className="schedule-meta"><strong>Date:</strong> {s.date}</span>
-                <span className="schedule-meta"><strong>Semester:</strong> {s.semester}</span>
-              </div>
-              <button className="lr-ss-btn-action" onClick={() => handleRestore(s)}>Restore Schedule</button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
-    );
-  }
+    const [expandedSY,setExpandedSY] = useState({});
+    const [expandedSem,setExpandedSem] = useState({});
 
-  return (
-    <>
+    useEffect(()=>{
+
+        loadSchedules();
+
+    },[]);
+
+    const loadSchedules = async()=>{
+
+        const roomSnapshot = await getDocs(
+            collection(db,"rooms")
+        );
+
+        const grouped = {};
+
+        for(const roomDoc of roomSnapshot.docs){
+
+            const room = {
+
+                id:roomDoc.id,
+                ...roomDoc.data()
+
+            };
+
+            const schedSnapshot = await getDocs(
+                collection(db,"rooms",room.id,"schedules")
+            );
+
+            const schedules = schedSnapshot.docs
+            .map(doc=>({
+
+                id:doc.id,
+                ...doc.data()
+
+            }))
+            .filter(s=>!s.initialized);
+
+            schedules.forEach(schedule=>{
+
+                const sy = schedule.schoolYear;
+                const sem = schedule.semester;
+
+                if(!grouped[sy])
+                    grouped[sy]={};
+
+                if(!grouped[sy][sem])
+                    grouped[sy][sem]=[];
+
+                const exists =
+                    grouped[sy][sem]
+                    .find(r=>r.id===room.id);
+
+                if(!exists){
+
+                    grouped[sy][sem].push(room);
+
+                }
+
+            });
+
+        }
+
+        setFolders(grouped);
+
+    };
+
+    const toggleSY=(sy)=>{
+
+        setExpandedSY(prev=>({
+
+            ...prev,
+
+            [sy]:!prev[sy]
+
+        }));
+
+    };
+
+    const toggleSem=(key)=>{
+
+        setExpandedSem(prev=>({
+
+            ...prev,
+
+            [key]:!prev[key]
+
+        }));
+
+    };
+
+    return(
+
         <div className="lr-submitted-schedules">
-      <div className="lr-ss-page-header">
-        <h1>My Submitted Schedules</h1>
-        <span className="view-archived" onClick={() => setPage("archived")}>View Archived Schedules</span>
-      </div>
-      <div className="list-card">
-        {active.map(s => (
-          <div className="schedule-item" key={s.id}>
-            <div className="schedule-info">
-              <span className="schedule-title">S.Y. {s.schoolYear}</span>
-              <span className="schedule-meta"><strong>Date:</strong> {s.date}</span>
-              <span className="schedule-meta"><strong>Semester:</strong> {s.semester}</span>
+
+            <div className="lr-ss-page-header">
+
+                <h1>
+                    My Submitted Schedules
+                </h1>
+
             </div>
-            <button className="lr-ss-btn-action" onClick={() => handleArchive(s)}>Archive Schedule</button>
-          </div>
-        ))}
-      </div>
-    </div>
-    </>
-  );
+
+            <div className="list-card">
+
+            {
+
+                Object.keys(folders).length===0 ?
+
+                (
+
+                    <h3>No submitted schedules.</h3>
+
+                )
+
+                :
+
+                Object.entries(folders).map(
+
+                    ([schoolYear,semesters])=>(
+
+                    <div
+                        className="folder-block"
+                        key={schoolYear}
+                    >
+
+                        <div
+                            className="folder-title"
+                            onClick={()=>toggleSY(schoolYear)}
+                        >
+
+                            <i
+                                className={`fa-solid ${
+                                    expandedSY[schoolYear]
+                                    ?
+                                    "fa-folder-open"
+                                    :
+                                    "fa-folder"
+                                }`}
+                            ></i>
+
+                            <span>
+
+                                {schoolYear}
+
+                            </span>
+
+                        </div>
+
+                        {
+
+                            expandedSY[schoolYear] &&
+
+                            Object.entries(semesters).map(
+
+                                ([semester,rooms])=>{
+
+                                    const key =
+                                    schoolYear+semester;
+
+                                    return(
+
+                                        <div
+                                            className="semester-block"
+                                            key={semester}
+                                        >
+
+                                            <div
+                                                className="semester-title"
+                                                onClick={()=>toggleSem(key)}
+                                            >
+
+                                                <i
+                                                    className={`fa-solid ${
+                                                        expandedSem[key]
+                                                        ?
+                                                        "fa-folder-open"
+                                                        :
+                                                        "fa-folder"
+                                                    }`}
+                                                ></i>
+
+                                                <span>
+
+                                                    {semester}
+
+                                                </span>
+
+                                            </div>
+
+                                            {
+
+                                                expandedSem[key] &&
+
+                                                rooms.map(room=>(
+
+                                                    <div
+
+                                                        key={room.id}
+
+                                                        className="room-item"
+
+                                                        onClick={()=>{
+
+                                                            navigate(
+                                                                "/local-registrar/room-card",
+                                                                {
+
+                                                                    state:{
+
+                                                                        room,
+                                                                        semester,
+                                                                        schoolYear
+
+                                                                    }
+
+                                                                }
+                                                            )
+
+                                                        }}
+
+                                                    >
+
+                                                        <i className="fa-solid fa-door-open"></i>
+
+                                                        <span>
+
+                                                            {room.roomName}
+
+                                                        </span>
+
+                                                    </div>
+
+                                                ))
+
+                                            }
+
+                                        </div>
+
+                                    )
+
+                                }
+
+                            )
+
+                        }
+
+                    </div>
+
+                ))
+
+            }
+
+            </div>
+
+        </div>
+
+    )
+
 }

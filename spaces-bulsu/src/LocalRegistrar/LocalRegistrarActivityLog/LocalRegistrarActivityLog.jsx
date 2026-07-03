@@ -1,94 +1,441 @@
 import "./local-registrar-activity-log.css";
+import { useEffect, useMemo, useState } from "react";
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy,
+} from "firebase/firestore";
+import { db } from "../../firebase";
+import { useNavigate } from "react-router-dom";
 
-function LocalRegistrarActivityLog() {
-  return (
-    <>
-        <div className="lr-activity-log">
-  <div className="lr-al-page-header">
-    <div>
-      <h1>Activity Log</h1>
-      <p>Track and monitor all actions performed in the system.</p>
-    </div>
-    <div className="header-buttons">
-      <button className="export-csv">
-        <i className="fa-solid fa-download"></i> Export CSV
-      </button>
-      <button className="print-btn">
-        <i className="fa-solid fa-print"></i> Print Report
-      </button>
-    </div>
-  </div>
+export default function LocalRegistrarActivityLog() {
 
-  <div className="summary-boxes">  
-    <div className="total-actions">
-         <span>Total Actions Today</span>
-    </div>
-    <div className="log-retention">
-         <span>Log Retention</span>
-    </div> 
-  </div>
-    <div className="white-box-log-lr">
-  <div className="log-filters">
-    <div className="dropdown-log">
-      <select className="dropdown-logs" defaultValue="">
-        <option value="" disabled hidden>Date Range</option>
-        <option value="today">Today</option>
-        <option value="this-week">This Week</option>
-        <option value="this-month">This Month</option>
-      </select>
-      <i className="fa-solid fa-angle-down dropdown-icon-log"></i>
-    </div>
+  const [logs, setLogs] = useState([]);
+  const navigate = useNavigate();
+  const [dateFilter, setDateFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
-    <div className="dropdown-log">
-      <select className="dropdown-logs" defaultValue="">
-        <option value="" disabled hidden>Action Type</option>
-        <option value="upload">Uploaded Schedule</option>
-        <option value="archive">Archived Schedule</option>
-        <option value="restore">Restored Schedule</option>
-        <option value="generate">Generated QR Code</option>
-        <option value="download">Downloaded QR Code</option>
-        <option value="zip">Downloaded All ZIP</option>
-      </select>
-      <i className="fa-solid fa-angle-down dropdown-icon-log"></i>
-    </div>
+  const [page, setPage] = useState(1);
 
-    <div className="dropdown-log">
-      <select className="dropdown-logs" defaultValue="">
-        <option value="" disabled hidden>Status</option>
-        <option value="success">Success</option>
-        <option value="failed">Failed</option>
-      </select>
-      <i className="fa-solid fa-angle-down dropdown-icon-log"></i>
-    </div>
+  const PAGE_SIZE = 10;
 
-    <button className="apply-filters-btn">Apply Filters</button>
-  </div>
-        <div className="log-table-wrapper">
-  <table className="log-table">
-    <thead>
-      <tr>
-        <th>Date & Time</th>
-        <th>Action</th>
-        <th>Performed By</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-    </tbody>
-  </table>
-</div>
-    <div className="log-pagination">
-    <span className="log-showing">Showing 5 of 50 activities</span>
-    <div className="log-pagination-controls">
-      <i className="fa-solid fa-chevron-left"></i>
-      <i className="fa-solid fa-chevron-right"></i>
-    </div>
-  </div>
-</div>
+  useEffect(() => {
+    loadLogs();
+  }, []);
 
-</div>
-    </>
+  useEffect(() => {
+
+    setPage(1);
+
+}, [
+
+    dateFilter,
+
+    actionFilter,
+
+    statusFilter,
+
+]);
+
+const LR_ACTIONS = [
+
+      "Uploaded Schedule",
+      "Archived Schedule",
+      "Restored Schedule",
+
+      "Generated QR Code",
+      "Downloaded QR Code",
+      "Downloaded All QR ZIP",
+
+  ];
+
+  const loadLogs = async () => {
+
+    try {
+
+      const q = query(
+        collection(db, "activityLogs"),
+        orderBy("timestamp", "desc")
+      );
+
+      const snap = await getDocs(q);
+
+      const data = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setLogs(data);
+
+    } catch (err) {
+      console.error(err);
+    }
+
+  };
+
+  const filteredLogs = useMemo(() => {
+
+    let data = logs.filter(log => {
+
+    return (
+
+        log.role === "Local Registrar" &&
+
+        LR_ACTIONS.includes(log.action)
+
+    );
+
+});
+
+      
+
+  const ACTION_FILTERS = {
+
+    upload: "Uploaded Schedule",
+
+    archive: "Archived Schedule",
+
+    restore: "Restored Schedule",
+
+    generate: "Generated QR Code",
+
+    download: "Downloaded QR Code",
+
+    zip: "Downloaded All QR ZIP",
+
+};
+
+    if (statusFilter) {
+      data = data.filter(
+        l => l.status?.toLowerCase() === statusFilter
+      );
+    }
+
+    if (actionFilter) {
+
+        data = data.filter(
+
+            log =>
+
+                log.action === ACTION_FILTERS[actionFilter]
+
+        );
+
+    }
+
+    if (dateFilter) {
+
+      const now = new Date();
+
+      data = data.filter(log => {
+
+        if (!log.timestamp) return false;
+
+        const d = log.timestamp.toDate();
+
+        if (dateFilter === "today") {
+
+          return d.toDateString() === now.toDateString();
+
+        }
+
+        if (dateFilter === "this-week") {
+
+          const weekAgo = new Date();
+
+          weekAgo.setDate(now.getDate() - 7);
+
+          return d >= weekAgo;
+
+        }
+
+        if (dateFilter === "this-month") {
+
+          return (
+            d.getMonth() === now.getMonth() &&
+            d.getFullYear() === now.getFullYear()
+          );
+
+        }
+
+        return true;
+
+      });
+
+    }
+
+    return data;
+
+  }, [logs, statusFilter, actionFilter, dateFilter]);
+
+  const totalPages = Math.ceil(filteredLogs.length / PAGE_SIZE);
+
+  const displayedLogs = filteredLogs.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
   );
-}
 
-export default LocalRegistrarActivityLog;
+  const totalToday = logs.filter(log => {
+
+    if (!log.timestamp) return false;
+
+    return (
+      log.role === "Local Registrar" &&
+      log.timestamp.toDate().toDateString() === new Date().toDateString()
+    );
+
+  }).length;
+
+  return (
+
+    <div className="lr-activity-log">
+
+      <div className="lr-al-page-header">
+
+      <div>
+
+        <button
+          className="back-btn"
+          onClick={() => navigate("/local-registrar")}
+        >
+          <i className="fa-solid fa-arrow-left"></i>
+          Back
+        </button>
+
+        <h1>Activity Log</h1>
+
+        <p>
+          Track and monitor all actions performed by the Local Registrar.
+        </p>
+
+      </div>
+
+    </div>
+
+      <div className="summary-boxes">
+
+        <div className="total-actions">
+
+          <span>Total Actions Today</span>
+
+          <h2>{totalToday}</h2>
+
+        </div>
+
+        <div className="log-retention">
+
+          <span>Total Logs</span>
+
+          <h2>{filteredLogs.length}</h2>
+
+        </div>
+
+      </div>
+
+      <div className="white-box-log-lr">
+
+        <div className="log-filters">
+
+          <div className="dropdown-log">
+
+            <select
+              className="dropdown-logs"
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+            >
+
+              <option value="">Date Range</option>
+
+              <option value="today">
+                Today
+              </option>
+
+              <option value="this-week">
+                This Week
+              </option>
+
+              <option value="this-month">
+                This Month
+              </option>
+
+            </select>
+
+          </div>
+
+          <div className="dropdown-log">
+
+            <select
+              className="dropdown-logs"
+              value={actionFilter}
+              onChange={e => setActionFilter(e.target.value)}
+            >
+
+              <option value="">Action</option>
+
+              <option value="upload">
+              Uploaded Schedule
+              </option>
+
+              <option value="archive">
+              Archived Schedule
+              </option>
+
+              <option value="restore">
+              Restored Schedule
+              </option>
+
+              <option value="generate">
+              Generated QR Code
+              </option>
+
+              <option value="download">
+              Downloaded QR Code
+              </option>
+
+              <option value="zip">
+              Downloaded All QR ZIP
+              </option>
+
+            </select>
+
+          </div>
+
+          <div className="dropdown-log">
+
+            <select
+              className="dropdown-logs"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+
+              <option value="">
+                Status
+              </option>
+
+              <option value="success">
+                SUCCESS
+              </option>
+
+              <option value="failed">
+                FAILED
+              </option>
+
+            </select>
+
+          </div>
+
+        </div>
+
+        <div className="log-table-wrapper">
+
+          <table className="log-table">
+
+            <thead>
+
+              <tr>
+
+                <th>Date & Time</th>
+
+                <th>Action</th>
+
+                <th>Performed By</th>
+
+                <th>Status</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {displayedLogs.map(log => (
+
+                <tr key={log.id}>
+
+                  <td>
+
+                    {log.timestamp
+                      ?.toDate()
+                      .toLocaleString()}
+
+                  </td>
+
+                  <td>
+
+                    {log.action}
+
+                  </td>
+
+                  <td>
+
+                    {log.user}
+
+                  </td>
+
+                  <td>
+
+                    <span
+                      className={`status-chip ${
+                        log.status === "SUCCESS"
+                          ? "success"
+                          : "failed"
+                      }`}
+                    >
+
+                      {log.status}
+
+                    </span>
+
+                  </td>
+
+                </tr>
+
+              ))}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+        <div className="log-pagination">
+
+          <span className="log-showing">
+
+            Showing {displayedLogs.length} of {filteredLogs.length}
+
+          </span>
+
+          <div className="log-pagination-controls">
+
+            <button
+              disabled={page === 1}
+              onClick={() => setPage(page - 1)}
+            >
+
+              <i className="fa-solid fa-chevron-left"/>
+
+            </button>
+
+            <button
+              disabled={page === totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+
+              <i className="fa-solid fa-chevron-right"/>
+
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
+}

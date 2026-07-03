@@ -136,11 +136,8 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
         equipment,
         floor,
 
-        // ginagamit ng scheduler
-        availability: "Available",
-
-        // ginagamit ng room management
-        roomStatus: "Active",
+        status: "AVAILABLE",
+        roomStatus: "active",
       });
 
       await setDoc(doc(db, "rooms", roomRef.id, "schedules", "_metadata"), {

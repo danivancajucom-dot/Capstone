@@ -1,23 +1,75 @@
 import "./occupied-room-card.css";
 
-function OccupiedRoomCard() {
-  return (
-    <div className="occupied-room-card">
-      <div className="occupied-room-header">
-        <span className="occupied-room-name">Room Name</span>
-        <span className="occupied-room-badge">OCCUPIED</span>
-      </div>
+function OccupiedRoomCard({ room }) {
 
-      <div className="occupied-room-details">
-        <i className="fa-solid fa-user occupied-room-icon"></i>
-        <div className="occupied-room-info">
-          <span>Faculty Name | Course Code</span>
-        </div>
-      </div>
+const booking=room.activeBooking;
 
-      <button className="view-schedule-btn">View Schedule</button>
-    </div>
-  );
+return(
+
+<div className="occupied-room-card">
+
+<div className="occupied-room-header">
+
+<span>
+
+{room.roomName}
+
+</span>
+
+<span>
+
+OCCUPIED
+
+</span>
+
+</div>
+
+<div className="occupied-room-details">
+
+<i className="fa-solid fa-user"/>
+
+<div>
+
+<span>
+
+{
+
+booking.requesterName ||
+
+booking.facultyName ||
+
+booking.subject
+
+}
+
+</span>
+
+<small>
+
+{
+
+booking.course ||
+
+booking.purpose
+
+}
+
+</small>
+
+</div>
+
+</div>
+
+<button>
+
+View Schedule
+
+</button>
+
+</div>
+
+);
+
 }
 
 export default OccupiedRoomCard;

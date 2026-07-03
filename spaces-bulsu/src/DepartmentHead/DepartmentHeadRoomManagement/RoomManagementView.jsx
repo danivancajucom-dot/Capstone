@@ -2,9 +2,14 @@ import { useState, useEffect } from "react";
 import {
   collection,
   onSnapshot,
+  getDocs,
   doc,
   updateDoc,
-  deleteDoc, 
+  deleteDoc,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useNavigate } from "react-router-dom";
@@ -44,6 +49,47 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const itemsPerPage = 10;
+  const DAYS = [
+    "SUN",
+    "MON",
+    "TUE",
+    "WED",
+    "THU",
+    "FRI",
+    "SAT",
+  ];
+
+  const getToday = () => DAYS[new Date().getDay()];
+
+  const toMinutes = (time) => {
+    if (!time) return 0;
+
+    const [h, m] = time.split(":").map(Number);
+
+    return h * 60 + m;
+  };
+
+  const isRoomOccupiedNow = (schedules = []) => {
+    const today = getToday();
+
+    const now = new Date();
+
+    const currentMinutes =
+      now.getHours() * 60 +
+      now.getMinutes();
+
+    return schedules.some((schedule) => {
+      if (schedule.day !== today) return false;
+
+      const start = toMinutes(schedule.startTime);
+      const end = toMinutes(schedule.endTime);
+
+      return (
+        currentMinutes >= start &&
+        currentMinutes < end
+      );
+    });
+  };
 
   const [toast, setToast] = useState({
     show: false,
@@ -76,7 +122,7 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
         r.id,
         r.capacity,
         r.typeLabel,
-        r.status,
+        r.roomStatus,
         r.equipment.join(", ")
       ]);
 
@@ -100,63 +146,324 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
       showToast("error", "Export failed. Try again.");
     }
   };
+  
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, "rooms"),
-      (snapshot) => {
-        const roomData = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
+    useEffect(() => {
+      
 
-          const equipment = [];
-          if (data.equipment?.projector) equipment.push("PROJECTOR");
-          if (data.equipment?.ac) equipment.push("AC");
-          if (data.equipment?.computer) equipment.push("COMPUTER");
-          if (data.equipment?.smartBoard) equipment.push("SMART BOARD");
-          if (data.equipment?.tvDisplay) equipment.push("TV DISPLAY");
+      setLoading(true);
 
-          return {
-            firestoreId: docSnap.id,
-            id: data.roomName,
-            floor: data.floor || "-",
-            capacity: data.capacity || 0,
-            type: data.roomType === "Computer Lab" ? "lab" : "lecture",
-            typeLabel: data.roomType,
-            equipment,
-            status: data.status === "inactive" ? "inactive" : "active",
-            inactive: data.status === "inactive",
-            iconVariant:
-              data.status === "inactive"
-                ? "muted"
-                : data.roomType === "Computer Lab"
-                ? "orange"
-                : "peach",
-          };
-        });
+      const roomListeners = [];
 
-        setRooms(roomData);
-        setLoading(false);
+      const checkExpiredMaintenance = async () => {
+
+      const roomSnapshot = await getDocs(collection(db, "rooms"));
+
+      const now = new Date();
+
+      for (const roomDoc of roomSnapshot.docs) {
+
+        const room = roomDoc.data();
+
+        if (room.roomStatus !== "maintenance")
+          continue;
+
+        if (
+          !room.maintenanceEndDate ||
+          !room.maintenanceEndTime
+        )
+          continue;
+
+        const endDateTime = new Date(
+          `${room.maintenanceEndDate}T${room.maintenanceEndTime}`
+        );
+
+        if (now >= endDateTime) {
+
+          await updateDoc(
+            doc(db, "rooms", roomDoc.id),
+            {
+
+              roomStatus: "active",
+
+              maintenanceStartDate: null,
+
+              maintenanceStartTime: null,
+
+              maintenanceEndDate: null,
+
+              maintenanceEndTime: null,
+
+            }
+          );
+
+        }
+
       }
-    );
 
-    return () => unsubscribe();
-  }, []);
+    };
+
+    checkExpiredMaintenance();
+
+      const unsubscribeRooms = onSnapshot(
+
+          collection(db,"rooms"),
+
+          (snapshot)=>{
+
+              roomListeners.forEach(u=>u());
+
+              roomListeners.length = 0;
+
+              if (snapshot.empty) {
+                setRooms([]);
+                setLoading(false);
+                return;
+              }
+
+              const roomCache = [];
+
+              snapshot.docs.forEach(roomDoc=>{
+
+                  const roomData = roomDoc.data();
+
+                  const unsub = onSnapshot(
+
+                      collection(
+                          db,
+                          "rooms",
+                          roomDoc.id,
+                          "schedules"
+                      ),
+
+                      (scheduleSnapshot)=>{
+
+                          const schedules =
+                              scheduleSnapshot.docs.map(doc=>({
+
+                                  id:doc.id,
+
+                                  ...doc.data()
+
+                              }));
+
+                          const index =
+                              roomCache.findIndex(
+                                  r=>r.firestoreId===roomDoc.id
+                              );
+
+                          const occupied = isRoomOccupiedNow(schedules);
+
+                          const room = {
+                            firestoreId: roomDoc.id,
+
+                            id: roomData.roomName,
+
+                            floor: roomData.floor,
+
+                            capacity: roomData.capacity,
+
+                            type:
+                              roomData.roomType === "Computer Lab"
+                                ? "lab"
+                                : "lecture",
+
+                            typeLabel: roomData.roomType,
+
+                            equipment: [
+                              roomData.equipment?.projector && "PROJECTOR",
+                              roomData.equipment?.ac && "AC",
+                              roomData.equipment?.computer && "COMPUTER",
+                              roomData.equipment?.smartBoard && "SMART BOARD",
+                              roomData.equipment?.tvDisplay && "TV DISPLAY",
+                            ].filter(Boolean),
+
+                            schedules,
+
+                            occupied,
+
+                            roomStatus: roomData.roomStatus ?? "active",
+
+                            status: occupied ? "OCCUPIED" : "AVAILABLE",
+                          };
+
+                          if(index>=0)
+                              roomCache[index]=room;
+                          else
+                              roomCache.push(room);
+
+                          setRooms([...roomCache]);
+
+                          setLoading(false);
+
+                      }
+
+                  );
+                  console.log(roomData.roomStatus);
+
+                  roomListeners.push(unsub);
+
+              });
+
+          }
+
+      );
+
+      return ()=>{
+
+          unsubscribeRooms();
+
+          roomListeners.forEach(u=>u());
+
+      };
+
+  },[]);
 
   const handleSwitchClick = (room) => {
-    if (room.status === 'active') {
+    if (room.roomStatus === "active") {
       modals.openDeactivateFlow(room.id);
     } else {
       modals.openActivateFlow(room.id);
     }
   };
 
-  const handleDeactivationConfirm = async () => {
-    const room = rooms.find((r) => r.id === modals.roomName);
+  const handleDeactivationConfirm = async ({
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+  }) => {
+
+    const room =
+      rooms.find((r) => r.id === modals.roomName);
+
     if (!room) return;
-    await updateDoc(doc(db, "rooms", room.firestoreId), { status: "inactive" });
+
+    try {
+
+      showToast(
+        "loading",
+        "Putting room under maintenance..."
+      );
+
+      await updateDoc(
+        doc(db, "rooms", room.firestoreId),
+        {
+
+          roomStatus: "maintenance",
+
+          maintenanceStartDate: startDate,
+
+          maintenanceStartTime: startTime,
+
+          maintenanceEndDate: endDate,
+
+          maintenanceEndTime: endTime,
+
+        }
+      );
+
+      //---------------------------------------
+      // Notify affected faculty
+      //---------------------------------------
+
+      const usersSnap =
+        await getDocs(collection(db, "users"));
+
+      const normalizeName = (name) =>
+        name
+          ?.toLowerCase()
+          .replace(/\./g, "")
+          .replace(/,/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const flipName = (name) => {
+
+        if (!name) return "";
+
+        const parts = name.split(",");
+
+        if (parts.length !== 2)
+          return normalizeName(name);
+
+        return normalizeName(
+          `${parts[1]} ${parts[0]}`
+        );
+
+      };
+
+      for (const schedule of room.schedules) {
+
+        if (!schedule.faculty) continue;
+
+        const faculty = usersSnap.docs.find((docUser) => {
+
+          const user = docUser.data();
+
+          const fullname = normalizeName(
+            `${user.firstName} ${user.lastName}`
+          );
+
+          return fullname === flipName(schedule.faculty);
+
+        });
+
+        if (!faculty) continue;
+
+        await addDoc(
+          collection(db, "notifications"),
+          {
+
+            userId: faculty.id,
+
+            ownerType: "faculty",
+
+            title: "Room Under Maintenance",
+
+            message:
+              `Room ${room.id} has been placed under maintenance from ${startDate} ${startTime} until ${endDate} ${endTime}. Your scheduled class may be affected.`,
+
+            type: "room-maintenance",
+
+            unread: true,
+
+            archived: false,
+
+            badge: "NEW",
+
+            createdAt: serverTimestamp(),
+
+          }
+        );
+
+      }
+
+      //---------------------------------------
+      // success
+      //---------------------------------------
+
+      showToast(
+        "success",
+        "Room is now under maintenance."
+      );
+      
+
+    } catch (err) {
+
+      console.error(err);
+
+      showToast(
+        "error",
+        "Failed to put room under maintenance."
+      );
+
+    }
+
     modals.closeAll();
+
   };
 
   const handleDeleteConfirm = async () => {
@@ -184,7 +491,17 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
   const handleActivateConfirm = async () => {
     const room = rooms.find((r) => r.id === modals.roomName);
     if (!room) return;
-    await updateDoc(doc(db, "rooms", room.firestoreId), { status: "active" });
+    await updateDoc(
+        doc(db, "rooms", room.firestoreId),
+        {
+            roomStatus: "active",
+
+            maintenanceStartDate: null,
+            maintenanceStartTime: null,
+            maintenanceEndDate: null,
+            maintenanceEndTime: null,
+        }
+    );
     modals.closeAll();
   };
 
@@ -193,8 +510,22 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
     navigate(`/department-head/affected-schedules`);
   };
 
-  const activeRooms = rooms.filter((room) => room.status === "active").length;
-  const inactiveRooms = rooms.filter((room) => room.status === "inactive").length;
+  const activeRooms = rooms.filter(
+    room => room.roomStatus === "active"
+  ).length;
+
+  const inactiveRooms = rooms.filter(
+    room => room.roomStatus === "inactive"
+  ).length;
+
+  const maintenanceRooms = rooms.filter(
+    room => room.roomStatus === "maintenance"
+  ).length;
+  const availableRooms = rooms.filter(
+    room =>
+      room.roomStatus === "active" &&
+      room.status === "AVAILABLE"
+  ).length;
 
   if (loading) {
     return <div className="rooms-loading">Loading rooms...</div>;
@@ -274,16 +605,22 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
 
         <div className="dashboard-status-grid">
           <article className="summary-card">
-            <span className="summary-label">ACTIVE BOOKINGS</span>
-            <strong className="summary-value summary-value--orange">{activeRooms}</strong>
+            <span className="summary-label">ACTIVE ROOMS</span>
+            <strong className="summary-value summary-value--orange">
+                {activeRooms}
+            </strong>
           </article>
           <article className="summary-card">
             <span className="summary-label">AVAILABLE NOW</span>
-            <strong className="summary-value summary-value--green">{totalRooms}</strong>
+            <strong className="summary-value summary-value--green">
+                {availableRooms}
+            </strong>
           </article>
           <article className="summary-card">
             <span className="summary-label">UNDER MAINTENANCE</span>
-            <strong className="summary-value summary-value--grey">{inactiveRooms}</strong>
+            <strong className="summary-value summary-value--grey">
+                {maintenanceRooms}
+            </strong>
           </article>
         </div>
 
@@ -302,18 +639,30 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
               </thead>
               <tbody>
                 {paginatedRooms.map((room) => (
+                  
                   <tr
                     key={room.firestoreId}
-                    className={`rooms-row ${room.inactive ? 'is-inactive' : 'clickable-row'}`}
+                    className={`rooms-row ${
+                      room.roomStatus !== "active"
+                        ? "is-inactive"
+                        : "clickable-row"
+                    }`}
                     onClick={() => {
-                      if (!room.inactive && typeof onOpenDetails === "function") {
+                      if (
+                        room.roomStatus === "active" &&
+                        typeof onOpenDetails === "function"
+                      ) {
                         onOpenDetails(room.id);
                       }
                     }}
                   >
                     <td>
                       <div className="room-name-cell">
-                        <span className={`room-icon room-icon--${room.iconVariant}`}>
+                        <span className={`room-icon room-icon--${room.roomStatus !== "active"
+                          ? "muted"
+                          : room.type === "lab"
+                          ? "orange"
+                          : "peach"}`}>
                           {room.id}
                         </span>
                         <span>
@@ -324,7 +673,7 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                     </td>
                     <td>{room.capacity} Seats</td>
                     <td>
-                      <span className={`type-pill type-pill--${room.type} ${room.inactive ? 'type-pill--inactive' : ''}`}>
+                      <span className={`type-pill type-pill--${room.type} ${room.roomStatus !== "active" ? 'type-pill--inactive' : ''}`}>
                         {room.typeLabel}
                       </span>
                     </td>
@@ -333,7 +682,7 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                         {room.equipment.map((item) => (
                           <span
                             key={item}
-                            className={`equipment-pill ${room.inactive ? 'equipment-pill--inactive' : ''}`}
+                            className={`equipment-pill ${room.roomStatus !== "active" ? 'equipment-pill--inactive' : ''}`}
                           >
                             {item}
                           </span>
@@ -341,9 +690,17 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                       </div>
                     </td>
                     <td>
-                      <span className={`room-status ${room.status === 'active' ? 'room-status--active' : 'room-status--inactive'}`}>
+                      <span
+                        className={`room-status ${
+                          room.roomStatus === "maintenance"
+                            ? "room-status--inactive"
+                            : room.roomStatus === "inactive"
+                            ? "room-status--inactive"
+                            : "room-status--active"
+                        }`}
+                      >
                         <span className="room-status-dot" />
-                        {room.status === 'active' ? 'ACTIVE' : 'INACTIVE'}
+                        {room.roomStatus.toUpperCase()}
                       </span>
                     </td>
                     <td>
@@ -360,7 +717,7 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                           <i className="fa-solid fa-pen" aria-hidden="true" />
                         </button>
                         <ToggleSwitch
-                          checked={room.status === 'active'}
+                          checked={room.roomStatus === "active"}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleSwitchClick(room);

@@ -34,22 +34,27 @@ export default function WalkInReservation() {
   const [availableSlots, setAvailableSlots] = useState([]);
 
   const [form, setForm] = useState({
+    requesterType: "",
 
-    studentId: "",
+    requesterId: "",
+    requesterName: "",
 
-    name: "",
+    organizationName: "",
+
+    purpose: "",
+    customPurpose: "",
+
+    course: "",
+    yearSectionGroup: "",
+
+    attendees: "",
 
     date: today,
-
-    startTime: "",
 
     duration: "",
 
     endTime: "",
-
-    purpose: "",
-
-  });
+});
 
   //---------------------------------------------------
   // Utilities
@@ -75,6 +80,18 @@ export default function WalkInReservation() {
 
   };
 
+  const formatTime = (time) => {
+
+    const [hour, minute] = time.split(":").map(Number);
+
+    const suffix = hour >= 12 ? "PM" : "AM";
+
+    const h = hour % 12 || 12;
+
+    return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+
+};
+
   const overlap = (aStart, aEnd, bStart, bEnd) => {
 
     return (
@@ -86,6 +103,18 @@ export default function WalkInReservation() {
     );
 
   };
+
+  const currentTime = useMemo(() => {
+
+    const now = new Date();
+
+    return (
+        String(now.getHours()).padStart(2,"0") +
+        ":" +
+        String(now.getMinutes()).padStart(2,"0")
+    );
+
+},[]);
 
   //---------------------------------------------------
   // Load Rooms
@@ -189,14 +218,27 @@ export default function WalkInReservation() {
   // Current Time
   //---------------------------------------------------
 
-  const nowMinutes = useMemo(() => {
+  const [nowMinutes, setNowMinutes] = useState(() => {
+      const now = new Date();
+      return now.getHours() * 60 + now.getMinutes();
+  });
 
-    const now = new Date();
+  useEffect(() => {
 
-    return now.getHours() * 60 + now.getMinutes();
+      const timer = setInterval(() => {
+
+          const now = new Date();
+
+          setNowMinutes(
+              now.getHours() * 60 +
+              now.getMinutes()
+          );
+
+      }, 60000);
+
+      return () => clearInterval(timer);
 
   }, []);
-
   //---------------------------------------------------
   // Handle Inputs
   //---------------------------------------------------
@@ -219,51 +261,184 @@ export default function WalkInReservation() {
 
 const availableRooms = useMemo(() => {
 
-    if (!form.startTime) return [];
+    const start = nowMinutes;
 
-    const start = convertToMinutes(form.startTime);
+    return rooms
+        .map(room => {
 
-    return rooms.filter(room => {
-
-        if (floor && room.floor !== floor)
-            return false;
-
-        // cannot book past time
-        if (start < nowMinutes)
-            return false;
-
-        // Today's academic schedule
-        const roomEvents = events.filter(
-            e => e.roomId === room.id
-        );
-
-        // Today's approved reservations
-        const roomReservations = reservations.filter(
-            r => r.roomId === room.id
-        );
-
-        // Room occupied at selected start time?
-        const occupied = [...roomEvents, ...roomReservations].some(item => {
-
-            return (
-                start >= convertToMinutes(item.startTime) &&
-                start < convertToMinutes(item.endTime)
+            const roomEvents = events.filter(
+                e => e.roomId === room.id
             );
 
-        });
+            const roomReservations = reservations.filter(
+                r => r.roomId === room.id
+            );
 
-        return !occupied;
+            const busy = [...roomEvents, ...roomReservations]
+                .sort(
+                    (a,b)=>
+                    convertToMinutes(a.startTime)-
+                    convertToMinutes(b.startTime)
+                );
 
-    });
+            const occupied = busy.find(item=>
 
-}, [
+                start>=convertToMinutes(item.startTime) &&
+                start<convertToMinutes(item.endTime)
+
+            );
+
+            if(occupied) return null;
+
+            const nextBusy = busy.find(item=>
+
+                convertToMinutes(item.startTime)>start
+
+            );
+
+            const availableUntil = nextBusy
+                ? nextBusy.startTime
+                : "23:59";
+
+            return{
+
+                ...room,
+
+                availableUntil,
+
+                maxMinutes:
+
+                    Math.min(
+
+                        240,
+
+                        convertToMinutes(availableUntil)-start
+
+                    )
+
+            };
+
+        })
+        .filter(Boolean);
+
+},[
     rooms,
     events,
     reservations,
-    floor,
-    form.startTime,
     nowMinutes
 ]);
+
+  const liveAvailability = useMemo(() => {
+
+      return rooms.map(room => {
+
+    //------------------------------------
+    // UNDER MAINTENANCE
+    //------------------------------------
+
+    if (
+        room.status === "Under Maintenance" ||
+        room.status === "Maintenance"
+    ) {
+
+          return {
+              ...room,
+              maintenance: true,
+              available: false,
+          };
+
+      }
+
+      const roomEvents = events.filter(
+          e => e.roomId === room.id
+      );
+
+      const roomReservations = reservations.filter(
+          r => r.roomId === room.id
+      );
+
+      const busy = [...roomEvents, ...roomReservations]
+          .sort(
+              (a,b)=>
+              convertToMinutes(a.startTime)-
+              convertToMinutes(b.startTime)
+          );
+
+      //------------------------------------
+      // CURRENT RESERVATION
+      //------------------------------------
+
+      const current = busy.find(item =>
+
+          nowMinutes >= convertToMinutes(item.startTime) &&
+          nowMinutes < convertToMinutes(item.endTime)
+
+      );
+
+      if(current){
+
+          const nextReservation = busy.find(item=>
+
+              convertToMinutes(item.startTime) >
+              convertToMinutes(current.endTime)
+
+          );
+
+          return{
+
+              ...room,
+
+              maintenance:false,
+
+              available:false,
+
+              nextAvailable:current.endTime,
+
+              nextBusyStart:
+                  nextReservation
+                  ? nextReservation.startTime
+                  : "23:59"
+
+          };
+
+      }
+
+      //------------------------------------
+      // AVAILABLE
+      //------------------------------------
+
+      const upcoming = busy.find(item=>
+
+          convertToMinutes(item.startTime)>
+          nowMinutes
+
+      );
+
+      return{
+
+          ...room,
+
+          maintenance:false,
+
+          available:true,
+
+          availableFrom:currentTime,
+
+          availableUntil:
+              upcoming
+              ? upcoming.startTime
+              : "23:59"
+
+      };
+
+  });
+
+  },[
+      rooms,
+      events,
+      reservations,
+      nowMinutes
+  ]);
 
 //---------------------------------------------------
 // Live Availability
@@ -271,9 +446,10 @@ const availableRooms = useMemo(() => {
 
 useEffect(() => {
 
-    if (!selectedRoom || !form.startTime) {
+    if (!selectedRoom) {
 
         setAvailableSlots([]);
+
         return;
 
     }
@@ -286,13 +462,16 @@ useEffect(() => {
         r => r.roomId === selectedRoom.id
     );
 
-    const busy = [...roomEvents, ...roomReservations].sort((a,b)=>
-        convertToMinutes(a.startTime)-convertToMinutes(b.startTime)
-    );
+    const busy = [...roomEvents, ...roomReservations]
+        .sort(
+            (a,b)=>
+            convertToMinutes(a.startTime)-
+            convertToMinutes(b.startTime)
+        );
 
     const start = convertToMinutes(form.startTime);
 
-    let nextBusy = 24 * 60;
+    let nextBusy = 24*60;
 
     busy.forEach(item=>{
 
@@ -309,18 +488,42 @@ useEffect(() => {
 
     });
 
-    const maxMinutes = Math.min(
-        240,
-        nextBusy - start
-    );
+    //--------------------------------
 
-    const slots = [];
+    const maxDuration =
+        Math.min(
+            240,
+            nextBusy-start
+        );
 
-    for(let mins=30; mins<=maxMinutes; mins+=30){
+    const slots=[];
+
+    for(let mins=30; mins<=maxDuration; mins+=30){
 
         slots.push({
-            label:`${mins/60} hr`,
-            value:mins
+
+            value:mins,
+
+            label:
+
+                mins<60
+
+                ?
+
+                `${mins} mins`
+
+                :
+
+                mins%60===0
+
+                ?
+
+                `${mins/60} Hour`
+
+                :
+
+                `${Math.floor(mins/60)} hr ${mins%60} mins`
+
         });
 
     }
@@ -328,57 +531,38 @@ useEffect(() => {
     setAvailableSlots(slots);
 
 },[
-    selectedRoom,
-    form.startTime,
-    events,
-    reservations
-]);
-
-//---------------------------------------------------
-// Auto End Time
-//---------------------------------------------------
-
-useEffect(()=>{
-
-    if(
-        !form.startTime ||
-        !form.duration
-    ){
-
-        setForm(prev=>({
-            ...prev,
-            endTime:""
-        }));
-
-        return;
-
-    }
-
-    const end =
-
-        convertToMinutes(form.startTime)+
-        Number(form.duration);
-
-    setForm(prev=>({
-
-        ...prev,
-
-        endTime:convertToTime(end)
-
-    }));
-
-},[
-    form.startTime,
-    form.duration
+selectedRoom,
+form.startTime,
+events,
+reservations
 ]);
 
 //---------------------------------------------------
 // Select Room
 //---------------------------------------------------
 
-const selectRoom=(room)=>{
+const selectRoom = (room) => {
 
     setSelectedRoom(room);
+
+    const current = new Date();
+
+    const currentTime =
+        String(current.getHours()).padStart(2, "0") +
+        ":" +
+        String(current.getMinutes()).padStart(2, "0");
+
+    const start = convertToMinutes(currentTime);
+    const end = convertToMinutes(room.availableUntil);
+
+    const duration = Math.min(240, end - start);
+
+    setForm(prev => ({
+        ...prev,
+        startTime: currentTime,
+        endTime: convertToTime(start + duration),
+        duration
+    }));
 
 };
 
@@ -597,18 +781,217 @@ if(pageLoading){
             Requester Information
           </div>
 
-          <div className="wir-row">
-            <div className="wir-field">
-              <label>Student or Faculty ID</label>
-              <input className="wir-input" placeholder="Enter ID"
-                value={form.studentId} onChange={handleChange("studentId")} />
-            </div>
-            <div className="wir-field">
-              <label>Name</label>
-              <input className="wir-input" placeholder="Enter name"
-                value={form.name} onChange={handleChange("name")} />
-            </div>
+          {/* Requester Type */}
+
+          <div className="wir-field">
+
+              <label>Requester Type</label>
+
+              <select
+                  className="wir-input"
+                  value={form.requesterType}
+                  onChange={handleChange("requesterType")}
+              >
+
+                  <option value="">
+                      Select Requester
+                  </option>
+
+                  <option value="faculty">
+                      Faculty
+                  </option>
+
+                  <option value="organization">
+                      Organization
+                  </option>
+
+              </select>
+
           </div>
+
+          <div className="wir-row">
+
+              <div className="wir-field">
+
+                  <label>
+                      {form.requesterType === "faculty"
+                          ? "Faculty ID"
+                          : "Organization / Student ID"}
+                  </label>
+
+                  <input
+                      className="wir-input"
+                      value={form.requesterId}
+                      onChange={handleChange("requesterId")}
+                  />
+
+              </div>
+
+              <div className="wir-field">
+
+                  <label>
+
+                      {form.requesterType === "faculty"
+                          ? "Faculty Name"
+                          : "Requester Name"}
+
+                  </label>
+
+                  <input
+                      className="wir-input"
+                      value={form.requesterName}
+                      onChange={handleChange("requesterName")}
+                  />
+
+              </div>
+
+          </div>
+          {form.requesterType === "organization" && (
+
+            <div className="wir-field">
+
+            <label>Organization Name</label>
+
+            <input
+            className="wir-input"
+            placeholder="Computer Society"
+            value={form.organizationName}
+            onChange={handleChange("organizationName")}
+            />
+
+            </div>
+          )}
+          <div className="wir-field">
+
+          {/*PURPOSE */}
+          <label>Purpose</label>
+
+          <select
+          className="wir-input"
+          value={form.purpose}
+          onChange={handleChange("purpose")}
+          >
+
+          <option value="">Select Purpose</option>
+
+          {
+          form.requesterType==="faculty" ? (
+
+          <>
+
+          <option value="Class">Class</option>
+
+          <option value="Meeting">Meeting</option>
+
+          </>
+
+          ):(
+
+          <>
+
+          <option value="Training">Training</option>
+
+          <option value="Meeting">Meeting</option>
+
+          <option value="Seminar">Seminar</option>
+
+          <option value="Other Activity">Other Activity</option>
+
+          </>
+
+          )
+
+          }
+
+          </select>
+
+          </div>
+
+          {form.requesterType==="faculty" &&
+            form.purpose==="Class" && (
+
+            <div className="wir-row">
+
+            <div className="wir-field">
+
+            <label>Course</label>
+
+            <input
+            className="wir-input"
+            placeholder="BSIT"
+            value={form.course}
+            onChange={handleChange("course")}
+            />
+
+            </div>
+
+            <div className="wir-field">
+
+            <label>Year / Section / Group</label>
+
+            <input
+            className="wir-input"
+            placeholder="4F-G2"
+            value={form.yearSectionGroup}
+            onChange={handleChange("yearSectionGroup")}
+            />
+
+            </div>
+
+            </div>
+
+            )}{ form.requesterType==="faculty" &&
+              form.purpose==="Meeting" && (
+
+              <div className="wir-field">
+
+              <label>Number of Attendees</label>
+
+              <input
+              type="number"
+              className="wir-input"
+              value={form.attendees}
+              onChange={handleChange("attendees")}
+              />
+
+              </div>
+
+              )
+              }{
+              form.requesterType==="organization" && (
+
+              <div className="wir-field">
+
+              <label>Number of Attendees</label>
+
+              <input
+              type="number"
+              className="wir-input"
+              value={form.attendees}
+              onChange={handleChange("attendees")}
+              />
+
+              </div>
+
+              )
+              }{
+                form.purpose==="Other Activity" && (
+
+                <div className="wir-field">
+
+                <label>Specify Activity</label>
+
+                <input
+                className="wir-input"
+                placeholder="Specify..."
+                value={form.customPurpose}
+                onChange={handleChange("customPurpose")}
+                />
+
+                </div>
+
+                )
+                }
 
           <div className="wir-section-title" style={{ marginTop: 24 }}>
             <span className="wir-section-bar" />
@@ -632,12 +1015,69 @@ if(pageLoading){
               ) : (availableRooms.map(room => (
                 <button
                     key={room.id}
-                    className={`wir-slot ${
-                        selectedRoom?.id === room.id ? "selected" : "available"
+                    className={`wir-room-card ${
+                        selectedRoom?.id===room.id
+                            ? "selected"
+                            : ""
                     }`}
-                    onClick={() => selectRoom(room)}
+                    onClick={()=>selectRoom(room)}
                 >
-                    {room.roomName}
+
+                    <div className="wir-room-card-top">
+
+                        <div>
+
+                            <h4>{room.roomName}</h4>
+
+                            <p>{room.roomType}</p>
+
+                        </div>
+
+                        <span className="wir-room-status">
+
+                            AVAILABLE
+
+                        </span>
+
+                    </div>
+
+                    <div className="wir-room-card-info">
+
+                        <div>
+
+                            <span>Start</span>
+
+                            <strong>{formatTime(currentTime)}</strong>
+
+                        </div>
+
+                        <div>
+
+                            <span>Until</span>
+
+                            <strong>{formatTime(room.availableUntil)}</strong>
+
+                        </div>
+
+                    </div>
+
+                    <div className="wir-room-duration">
+
+                        Maximum Booking
+
+                        <strong>
+
+                            {Math.floor(room.maxMinutes/60) > 0 &&
+                                `${Math.floor(room.maxMinutes/60)} hr `}
+
+                            {room.maxMinutes%60}
+
+                            mins
+
+                        </strong>
+
+                    </div>
+
                 </button>
             )))}
           </div>
@@ -655,67 +1095,83 @@ if(pageLoading){
                 />
               </div>
             </div>
-            <div className="wir-field">
-              <label>Duration</label>
-              <select
-                  className="wir-input"
-                  value={form.duration}
-                  onChange={handleChange("duration")}
-              >
+            {
 
-              <option value="">
-              Select Duration
-              </option>
+              selectedRoom && availableSlots.length>0 && (
 
-              {availableSlots.map(slot=>(
+              <div className="wir-max-duration">
 
-              <option
-              key={slot.value}
-              value={slot.value}
-              >
+              <i className="fa-solid fa-clock"/>
 
-              {slot.label}
+              Maximum Booking
 
-              </option>
+              <strong>
 
-              ))}
+              {
 
-              </select>
-            </div>
-          </div>
+              availableSlots[
+              availableSlots.length-1
+              ].label
 
-          <div className="wir-row">
-            <div className="wir-field">
-              <label>Start Time</label>
-              <div className="wir-icon-input">
-                <i className="fa-regular fa-clock" />
-                <input
-                type="time"
-                className="wir-plain-input"
-                min={ new Date().toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit"})}
-                value={form.startTime}
-                onChange={handleChange("startTime")}
-                />
+              }
+
+              </strong>
+
               </div>
-            </div>
-            <div className="wir-field">
-              <label>End Time</label>
-              <div className="wir-icon-input">
-                <i className="fa-regular fa-clock" />
-                <input
-                className="wir-plain-input"
-                value={form.endTime}
-                readOnly
-                />
+
+              )
+
+              }
+            <div className="wir-booking-preview">
+
+              <div className="wir-preview-header">
+                  <i className="fa-solid fa-clock"></i>
+                  <span>Booking Summary</span>
               </div>
-            </div>
+
+              <div className="wir-preview-grid">
+
+                  <div className="wir-preview-box">
+                      <small>START</small>
+                      <h3>
+                          {form.startTime
+                              ? formatTime(form.startTime)
+                              : "--"}
+                      </h3>
+                  </div>
+
+                  <div className="wir-preview-box">
+                      <small>END</small>
+                      <h3>
+                          {form.endTime
+                              ? formatTime(form.endTime)
+                              : "--"}
+                      </h3>
+                  </div>
+
+                  <div className="wir-preview-box full">
+                      <small>DURATION</small>
+                      <h3>
+                          {form.duration
+                              ? form.duration >= 60
+                                  ? `${Math.floor(form.duration / 60)} hr ${form.duration % 60 || ""}`
+                                  : `${form.duration} mins`
+                              : "--"}
+                      </h3>
+                  </div>
+
+              </div>
+
+          </div>
           </div>
 
-          <div className="wir-field">
-            <label>Purpose</label>
-            <textarea className="wir-textarea" placeholder="Enter purpose..."
-              value={form.purpose} onChange={handleChange("purpose")} />
+          <div className="wir-footer">
+            <button className="wir-confirm-btn" onClick={() => setShowModal(true)}>
+              Confirm Booking
+            </button>
           </div>
+
+      
         </div>
 
         <div className="wir-right-col">
@@ -733,6 +1189,75 @@ if(pageLoading){
               <span className="wir-avail-title">Live Availability</span>
               <span className="wir-live-dot" />
             </div>
+            {
+
+              selectedRoom && (
+
+              <div className="wir-room-timeline">
+
+              <h4>
+
+              Today's Schedule
+
+              </h4>
+
+              {
+
+              [...events,...reservations]
+
+              .filter(item=>item.roomId===selectedRoom.id)
+
+              .sort(
+
+              (a,b)=>
+
+              convertToMinutes(a.startTime)-
+
+              convertToMinutes(b.startTime)
+
+              )
+
+              .map(item=>(
+
+              <div
+              key={item.id}
+              className="timeline-item"
+              >
+
+              <div className="timeline-time">
+
+              {formatTime(item.startTime)}
+
+              -
+
+              {formatTime(item.endTime)}
+
+              </div>
+
+              <div className="timeline-label">
+
+              {
+
+              item.subject ||
+
+              item.purpose ||
+
+              "Reservation"
+
+              }
+
+              </div>
+
+              </div>
+
+              ))
+
+              }
+
+              </div>
+
+              )
+              }
             <div className="wir-avail-date">
 
             {new Date().toLocaleDateString("en-US",{
@@ -746,60 +1271,124 @@ if(pageLoading){
 
             <div className="wir-avail-list">
 
-            {loadingSchedule ? (
+              {
 
-            <div className="wir-inline-loading">
-            Loading schedule...
-            </div>
+              liveAvailability.map(room=>(
 
-            ) : selectedRoom ? (
+              <div
+              key={room.id}
+              className={`wir-live-room ${
+              room.available
+              ? "available"
+              : "occupied"
+              }`}
+              >
 
-                [...events, ...reservations]
-                    .filter(item => item.roomId === selectedRoom.id)
-                    .sort(
-                        (a,b)=>
-                        convertToMinutes(a.startTime)-
-                        convertToMinutes(b.startTime)
-                    )
-                    .map(item=>(
+              <div className="wir-live-top">
 
-                        <div
-                            key={item.id}
-                            className="wir-avail-item reserved"
-                        >
+              <div>
 
-                            <span className="wir-avail-time">
-                                {item.startTime} - {item.endTime}
-                            </span>
+              <div className="wir-live-room-name">
 
-                            <span className="wir-avail-label">
-                                {item.purpose || item.subject}
-                            </span>
+              {room.roomName}
 
+              </div>
+
+              <div className="wir-live-room-type">
+
+              {room.roomType}
+
+              </div>
+
+              </div>
+
+              <span
+              className={`wir-live-badge ${
+                  room.maintenance
+                      ? "gray"
+                      : room.available
+                      ? "green"
+                      : "red"
+              }`}
+              >
+
+              {
+              room.maintenance
+                  ? "MAINTENANCE"
+                  : room.available
+                  ? "AVAILABLE"
+                  : "OCCUPIED"
+              }
+
+              </span>
+
+              </div>
+
+              <div className="wir-live-bottom">
+
+                {
+                room.maintenance ? (
+
+                    <strong>
+                        Room is currently under maintenance
+                    </strong>
+
+                ) : room.available ? (
+
+                    <>
+                        <div className="live-info-row">
+                            <span>Available</span>
+                            <strong>
+                                {formatTime(currentTime)}
+                                {" "}until{" "}
+                                {formatTime(room.availableUntil)}
+                            </strong>
+                        </div>
+                    </>
+
+                ) : (
+
+                    <>
+                        <div className="live-info-row">
+                            <span>Occupied</span>
+                            <strong>
+                                Until {formatTime(room.nextAvailable)}
+                            </strong>
                         </div>
 
-                    ))
+                        <div className="live-info-row">
+                            <span>Available Again</span>
+                            <strong>
 
-            ) : (
+                                {
+                                    room.nextBusyStart === "23:59"
+                                    ? `${formatTime(room.nextAvailable)} onwards`
+                                    : `${formatTime(room.nextAvailable)} - ${formatTime(room.nextBusyStart)}`
+                                }
 
-                <div className="wir-empty">
-                    Select a room first
+                            </strong>
+                        </div>
+                    </>
+
+                )}
+
                 </div>
 
-            )}
+              </div>
 
-        </div>
+              ))
 
-            <button className="wir-view-btn">View Full Schedule</button>
+              }
+
+              </div>
+
+            <button className="wir-view-btn" onClick={()=>navigate("/clerk/schedule-view-academic-schedule")}>View Full Schedule</button>
           </div>
         </div>
+
       </div>
 
-      <div className="wir-footer">
-        <button className="wir-confirm-btn" onClick={() => setShowModal(true)}>
-          Confirm Booking
-        </button>
-      </div>
+      
 
       {showModal && (
         <div className="wir-modal-overlay">
