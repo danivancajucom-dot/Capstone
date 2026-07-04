@@ -18,6 +18,48 @@ const FLOORS = [
   "4th floor",
 ];
 
+const timeToMinutes = (time) => {
+  if (!time) return 0;
+
+  // 24-hour format (14:00)
+  if (!time.includes(" ")) {
+    const [hour, minute] = time.split(":").map(Number);
+    return hour * 60 + minute;
+  }
+
+  // 12-hour format (2:00 PM)
+  const [clock, period] = time.trim().split(" ");
+  let [hour, minute] = clock.split(":").map(Number);
+
+  if (period === "PM" && hour !== 12) hour += 12;
+  if (period === "AM" && hour === 12) hour = 0;
+
+  return hour * 60 + minute;
+};
+
+const getCurrentMinutes = () => {
+  const now = new Date();
+
+  return now.getHours() * 60 + now.getMinutes();
+};
+
+const getCurrentDay = () => {
+  const days = [
+    "SUN",
+    "MON",
+    "TUE",
+    "WED",
+    "THU",
+    "FRI",
+    "SAT",
+  ];
+
+  return days[new Date().getDay()];
+};
+
+const todayString = () =>
+  new Date().toISOString().split("T")[0];
+
 function DepartmentHeadViewAcademicSchedule() {
   const navigate = useNavigate();
 
@@ -53,21 +95,50 @@ function DepartmentHeadViewAcademicSchedule() {
 
       // Kung walang semester at school year filter,
       // ipakita agad ang room
-      if (!semester && !schoolYear) {
-        filteredRooms.push({
-          id: roomDoc.id,
-          ...roomData,
-        });
-        continue;
-      }
-
       const scheduleSnapshot = await getDocs(
-        collection(db, "rooms", roomDoc.id, "schedules")
+          collection(db, "rooms", roomDoc.id, "schedules")
       );
 
-      const schedules = scheduleSnapshot.docs
-        .map((doc) => doc.data())
-        .filter((s) => !s.initialized);
+      const schedules = scheduleSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+      }));
+      console.log("Room:", roomData.roomName);
+
+schedules.forEach(s => {
+  console.log({
+    date: s.date,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    today: todayString(),
+    now: getCurrentMinutes(),
+    start: timeToMinutes(s.startTime),
+    end: timeToMinutes(s.endTime),
+  });
+});
+
+      const currentMinutes = getCurrentMinutes();
+      const todayDay = getCurrentDay();
+      console.log("Today:", todayDay);
+      const occupied = schedules.some((schedule) => {
+
+          if (schedule.initialized) return false;
+
+          if (
+              schedule.day?.toLowerCase() !==
+              todayDay.toLowerCase()
+          )
+              return false;
+
+          const start = timeToMinutes(schedule.startTime);
+          const end = timeToMinutes(schedule.endTime);
+
+          return (
+              currentMinutes >= start &&
+              currentMinutes <= end
+          );
+
+      });
 
       const hasMatchingSchedule = schedules.some((schedule) => {
         const semesterMatch =
@@ -81,8 +152,12 @@ function DepartmentHeadViewAcademicSchedule() {
 
       if (hasMatchingSchedule) {
         filteredRooms.push({
-          id: roomDoc.id,
-          ...roomData,
+            id: roomDoc.id,
+            ...roomData,
+
+            status: occupied
+                ? "Occupied"
+                : "Available",
         });
       }
     }

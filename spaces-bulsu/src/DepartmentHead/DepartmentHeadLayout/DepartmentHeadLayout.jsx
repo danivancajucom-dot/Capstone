@@ -17,12 +17,21 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function DepartmentHeadLayout() {
   const navigate = useNavigate();
+  const [openRoom, setOpenRoom]           = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [loggingOut, setLoggingOut]               = useState(false);
   const [notifications, setNotifications]         = useState([]);
   const [activeTab, setActiveTab]                 = useState("all");
   const [profile, setProfile]                     = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
+  const roomRoutes = [
+    "/department-head/room-management",
+    "/department-head/room-usagement",
+  ];
+
+  const isRoomActive = roomRoutes.some((path) =>
+    location.pathname.startsWith(path)
+  );
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -62,6 +71,8 @@ export default function DepartmentHeadLayout() {
 
     return () => unsubscribeAuth();
   }, []);
+
+  
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
@@ -141,10 +152,24 @@ export default function DepartmentHeadLayout() {
               <i className="fa-solid fa-calendar-days"></i>
               <span>Schedule</span>
             </NavLink>
-            <NavLink to="/department-head/room-management">
-              <i className="fa-solid fa-building"></i>
-              <span>Room Management</span>
-            </NavLink>
+
+            <div className="nav-group">
+              <button
+                className={`lr-nav-parent ${isRoomActive ? "active-parent" : ""}`}
+                onClick={() => setOpenRoom(!openRoom)}
+              >
+                <div className="nav-left">
+                  <i className="fa-solid fa-building"></i>
+                  <span>Room</span>
+                </div>
+                <i className={`fa-solid fa-chevron-down arrow ${openRoom ? "open" : ""}`} />
+              </button>
+
+              <div className={`submenu-card ${openRoom ? "open" : ""}`}>
+                <NavLink to="/department-head/room-management">Room Management</NavLink>
+                <NavLink to="/department-head/room-usagement">Room Usagement</NavLink>
+              </div>
+            </div>
             <NavLink to="/department-head/room-activity">
               <i className="fa-solid fa-chart-line"></i>
               <span>Room Activity</span>
@@ -152,10 +177,6 @@ export default function DepartmentHeadLayout() {
             <NavLink to="/department-head/user-management">
               <i className="fa-solid fa-users"></i>
               <span>User Management</span>
-            </NavLink>
-            <NavLink to="/department-head/notification-management">
-              <i className="fa-solid fa-bell"></i>
-              <span>Notifications</span>
             </NavLink>
             <NavLink to="/department-head/broadcast-channel">
               <i className="fa-solid fa-bullhorn"></i>

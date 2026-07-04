@@ -36,6 +36,7 @@ import RoomManagementViewAffectedSchedule from "./DepartmentHead/DepartmentHeadR
 import DepartmentHeadProfile from "./DepartmentHead/DepartmentHeadProfile/DepartmentHeadProfile";
 import DepartmentHeadViewAcademicSchedule from "./DepartmentHead/DepartmentHeadSchedule/DepartmentHeadViewAcademicSchedule";
 import DepartmentHeadViewRoomCard from "./DepartmentHead/DepartmentHeadSchedule/DepartmentHeadViewRoomCard";
+import DepartmentHeadRoomUsage from "./DepartmentHead/DepartmentHeadRoomUsageTracking/RoomUsageTracking";
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
 import ClerkDashboard from "./Clerk/ClerkDashboard/ClerkDashboard";
@@ -94,9 +95,9 @@ function App() {
         <Route path="edit-room/:id" element={<DepartmentHeadEditRoom />}/>
         <Route path="room-activity" element={<RoomActivity />}/>
         <Route path="user-management" element={<UserManagement />}/>
-        <Route path="notification-management" element={<NotificationManagement />}/>
         <Route path="broadcast-channel" element={<BroadcastChannel />} />
         <Route path="affected-schedules" element={<RoomManagementViewAffectedSchedule />} />
+        <Route path="room-usagement" element={<DepartmentHeadRoomUsage />} />
 
       </Route>
         {/* Local Registrar */}

@@ -462,3 +462,98 @@ body { background-color: #F8F7F5; }
   color: #9ca3af;
   font-size: 14px;
 }
+
+.rut-upcoming-item{
+
+    margin-top:15px;
+
+    padding:12px;
+
+    border-radius:8px;
+
+    background:rgba(255,255,255,.15);
+
+}
+
+.rut-upcoming-item:not(:last-child){
+
+    margin-bottom:10px;
+
+}
+
+.rut-upcoming-subject{
+
+    color:#fff;
+
+    font-weight:700;
+
+    font-size:15px;
+
+}
+
+.rut-upcoming-info{
+
+    color:rgba(255,255,255,.85);
+
+    font-size:12px;
+
+    margin-top:4px;
+
+}
+
+
+.rut-analytics{
+
+    display:grid;
+
+    grid-template-columns:repeat(5,1fr);
+
+    gap:18px;
+
+    margin-bottom:25px;
+
+}
+
+.rut-analytics-card{
+
+    background:#fff;
+
+    padding:20px;
+
+    border-radius:14px;
+
+    box-shadow:0 2px 10px rgba(0,0,0,.08);
+
+}
+
+.rut-analytics-card h3{
+
+    font-size:13px;
+
+    color:#777;
+
+    margin-bottom:8px;
+
+}
+
+.rut-analytics-card h1{
+
+    font-size:34px;
+
+    color:#F97316;
+
+}
+
+.rut-analytics-card.utilization{
+
+    background:#F97316;
+
+}
+
+.rut-analytics-card.utilization h3,
+
+.rut-analytics-card.utilization h1{
+
+    color:white;
+
+}

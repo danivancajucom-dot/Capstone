@@ -110,6 +110,88 @@ width:20px;
 text-align:center;
 }
 
+.nav-group{
+display:flex;
+flex-direction:column;
+}
+
+.lr-nav-parent{
+width:100%;
+display:flex;
+align-items:center;
+justify-content:space-between;
+padding:14px 16px;
+border:1px solid transparent;
+cursor:pointer;
+border-radius:14px;
+background:transparent;
+color:#5f6c80;
+font-family:'Lexend',sans-serif;
+font-size:15px;
+font-weight:600;
+transition:.2s;
+}
+
+.lr-nav-parent:hover{
+background: #FEF0E7;
+color: #f57c00;
+}
+
+.lr-nav-parent.active-parent{
+background: #FEF0E7;
+border: solid 1px #f57c00;
+color: #f57c00;
+}
+
+.nav-left{
+display:flex;
+align-items:center;
+gap:12px;
+}
+
+.arrow{
+transition:.25s;
+}
+
+.arrow.open{
+transform:rotate(180deg);
+}
+
+/* =========================
+SUBMENU
+========================= */
+
+.submenu-card{
+display:none;
+flex-direction:column;
+background:#fff3e8;
+border-radius:14px;
+padding:10px;
+margin-top:8px;
+}
+
+.submenu-card.open{
+display:flex;
+}
+
+.submenu-card a{
+padding:12px;
+border-radius:10px;
+text-decoration:none;
+color:#5f6c80;
+font-size:14px;
+transition:.2s;
+}
+
+.submenu-card a:hover{
+background:rgba(245,124,0,.08);
+}
+
+.submenu-card a.active{
+color:#f57c00;
+font-weight:600;
+}
+
 /* =========================
 MAIN
 ========================= */
