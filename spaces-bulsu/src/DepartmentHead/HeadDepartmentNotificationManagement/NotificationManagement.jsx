@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./notification-management.css";
 
 import {
@@ -14,33 +14,70 @@ import {
 import { db } from "../../firebase";
 import { createNotification } from "../../utils/createNotification";
 
-const PLACEHOLDER_NOTIFICATIONS = [
-  { id: 1, content: "Maintenance Alert: Room SDL3",      group: "All Staff", status: "Requested", readDate: "--",  sentDate: "Today, 10:24AM",      reads: null, unread: null },
-  { id: 2, content: "End of Semester Grading Deadline",  group: "Faculty",   status: "Requested", readDate: "--",  sentDate: "Today, 10:00AM",      reads: null, unread: null },
-  { id: 3, content: "Automated: Room Conflict Alert",    group: "All Staff", status: "Delivered", readDate: null,  sentDate: "Yesterday, 1:00PM",   reads: 70,   unread: 30  },
-  { id: 4, content: "End of Semester Grading Deadline",  group: "Faculty",   status: "Delivered", readDate: null,  sentDate: "Yesterday, 12:01PM",  reads: 68,   unread: 32  },
-  { id: 5, content: "Automated: Room Conflict Alert",    group: "All Staff", status: "Delivered", readDate: null,  sentDate: "Yesterday, 7:17AM",   reads: 92,   unread: 8   },
-];
+const CLOUDINARY_CLOUD_NAME    = "dzu1qb8oz";
+const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
+
+async function uploadToCloudinary(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  formData.append("folder", "spaces/notifications");
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!res.ok) throw new Error("Image upload failed. Please try again.");
+  const data = await res.json();
+  return data.secure_url;
+}
 
 export default function NotificationManagement() {
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [message, setMessage] = useState("");
-  const [recipient, setRecipient] = useState("All Staff");
-
-  const [history, setHistory] = useState([]);
-  const [sending, setSending] = useState(false);
+  const [activeFilter, setActiveFilter]   = useState("All");
+  const [message, setMessage]             = useState("");
+  const [recipient, setRecipient]         = useState("All Staff");
+  const [history, setHistory]             = useState([]);
+  const [sending, setSending]             = useState(false);
+  const [imageFile, setImageFile]         = useState(null);
+  const [imagePreview, setImagePreview]   = useState(null);
+  const [uploading, setUploading]         = useState(false);
+  const fileInputRef                      = useRef(null);
 
   const filters = ["All", "Sent", "Drafts"];
 
   const filtered = history.filter((n) => {
     if (activeFilter === "Sent")
       return n.status === "Delivered";
-
     if (activeFilter === "Drafts")
       return n.status === "Draft";
-
     return true;
   });
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image must be smaller than 5 MB.");
+      return;
+    }
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+  };
 
   const handleSend = async () => {
     if (!message.trim()) {
@@ -48,49 +85,68 @@ export default function NotificationManagement() {
       return;
     }
 
+    setSending(true);
+    setUploading(false);
+
     try {
-      setSending(true);
+      let imageUrl = null;
 
-      console.log("STEP 1");
+      // Upload image if selected
+      if (imageFile) {
+        setUploading(true);
+        imageUrl = await uploadToCloudinary(imageFile);
+        setUploading(false);
+      }
 
-      const usersSnapshot = await getDocs(
-        collection(db, "users")
-      );
-
-      console.log("STEP 2", usersSnapshot.size);
+      console.log("Getting users...");
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      console.log("Found", usersSnapshot.size, "users");
 
       let recipients = usersSnapshot.docs;
 
-      console.log("STEP 3", recipients.length);
-
+      console.log("Creating notifications for each user...");
       for (const user of recipients) {
         console.log("Creating notification for", user.id);
-
         await createNotification({
           userId: user.id,
           title: "Announcement",
           message,
+          imageUrl,
           type: "announcement",
           badge: "NEW",
         });
       }
 
-      console.log("STEP 4");
-
+      console.log("Adding to notification_logs...");
       await addDoc(
         collection(db, "notification_logs"),
         {
           content: message,
+          imageUrl,
           group: recipient,
           status: "Delivered",
           createdAt: serverTimestamp(),
         }
       );
 
-      console.log("STEP 5");
+      console.log("Success! Clearing form...");
+
+      // Reset form
+      setMessage("");
+      setImageFile(null);
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+        setImagePreview(null);
+      }
+
+      alert("Notification sent successfully!");
 
     } catch (err) {
       console.error("SEND ERROR:", err);
+      alert("Failed to send notification:\n" + err.message);
+    } finally {
+      setSending(false);
+      setUploading(false);
     }
   };
 
@@ -147,11 +203,44 @@ export default function NotificationManagement() {
             />
           </div>
 
+          {/* IMAGE PREVIEW */}
+          {imagePreview && (
+            <div className="nm-image-preview-wrapper">
+              <div className="nm-image-preview">
+                <img src={imagePreview} alt="Preview" className="nm-preview-img" />
+                <button
+                  className="nm-remove-image-btn"
+                  onClick={handleRemoveImage}
+                  type="button"
+                  disabled={uploading}
+                >
+                  <i className="fa-solid fa-xmark" />
+                </button>
+              </div>
+              {uploading && <p className="nm-upload-status">Uploading image...</p>}
+            </div>
+          )}
+
           <div className="nm-compose-footer">
             <div className="nm-compose-tools">
-              <button className="nm-tool-btn"><i className="fa-regular fa-image" /></button>
-              <button className="nm-tool-btn"><i className="fa-solid fa-paperclip" /></button>
-              <button className="nm-tool-btn"><i className="fa-regular fa-calendar" /></button>
+              <button
+                className="nm-tool-btn"
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+                disabled={uploading}
+                title="Attach image"
+              >
+                <i className="fa-regular fa-image" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handleImageSelect}
+              />
+              <button className="nm-tool-btn" disabled><i className="fa-solid fa-paperclip" /></button>
+              <button className="nm-tool-btn" disabled><i className="fa-regular fa-calendar" /></button>
               <select
                 className="nm-recipient-select"
                 value={recipient}
@@ -164,14 +253,28 @@ export default function NotificationManagement() {
               </select>
             </div>
             <div className="nm-compose-actions">
-              <button className="nm-discard-btn" onClick={() => setMessage("")}>Discard</button>
+              <button
+                className="nm-discard-btn"
+                onClick={() => {
+                  setMessage("");
+                  setImageFile(null);
+                  if (imagePreview) {
+                    URL.revokeObjectURL(imagePreview);
+                    setImagePreview(null);
+                  }
+                }}
+                type="button"
+                disabled={sending}
+              >
+                Discard
+              </button>
               <button
                 className="nm-send-btn"
                 onClick={handleSend}
-                disabled={sending}
+                disabled={sending || uploading}
               >
                 <i className="fa-solid fa-paper-plane" />
-                {sending ? "Sending..." : "Send Now"}
+                {uploading ? "Uploading..." : sending ? "Sending..." : "Send Now"}
               </button>
             </div>
           </div>

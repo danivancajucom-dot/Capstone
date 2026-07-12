@@ -124,6 +124,63 @@
 .nm-textarea:focus { border-color: #f57c00; }
 .nm-textarea::placeholder { color: #9ca3af; font-weight: 300; }
 
+/* ── Image Preview ── */
+
+.nm-image-preview-wrapper {
+  padding: 0 24px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nm-image-preview {
+  position: relative;
+  width: 280px;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1.5px solid #e5e7eb;
+  overflow: hidden;
+  background: #f9fafb;
+}
+
+.nm-preview-img {
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+  object-fit: cover;
+  display: block;
+}
+
+.nm-remove-image-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.nm-remove-image-btn:hover:not(:disabled) { background: rgba(0, 0, 0, 0.8); }
+.nm-remove-image-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.nm-upload-status {
+  font-size: 13px;
+  color: #f57c00;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .nm-compose-footer {
   display: flex;
   justify-content: space-between;
@@ -152,7 +209,8 @@
   transition: background 0.15s;
 }
 
-.nm-tool-btn:hover { background: #f3f4f6; color: #f57c00; }
+.nm-tool-btn:hover:not(:disabled) { background: #f3f4f6; color: #f57c00; }
+.nm-tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .nm-recipient-select {
   border: 1.5px solid #e5e7eb;
@@ -203,11 +261,8 @@
   transition: .2s;
 }
 
-.nm-send-btn:hover {
-  background: #fff3e8;
-  border: solid 1px #f57c00;
-  color: #f57c00;
-}
+.nm-send-btn:hover:not(:disabled) { background: #fff3e8; border: solid 1px #f57c00; color: #f57c00; }
+.nm-send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .nm-history-section { margin-top: 8px; }
 
@@ -460,6 +515,10 @@
   .nm-table-footer {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .nm-image-preview {
+    width: 100%;
   }
 }
 

@@ -9,6 +9,7 @@ export const createNotification = async ({
   userId,
   title,
   message,
+  imageUrl = null,
   type = "announcement",
   badge = "",
   sender = "System",
@@ -19,13 +20,12 @@ export const createNotification = async ({
       userId,
       title,
       message,
+      imageUrl,
       type,
       badge,
       sender,
-
       unread: true,
       archived: false,
-
       createdAt: serverTimestamp(),
     }
   );
