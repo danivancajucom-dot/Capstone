@@ -12,12 +12,26 @@ import {
   arrayUnion,
   getDoc,
 } from "firebase/firestore";
-import { db, auth} from "../../firebase";
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
+import { db, auth } from "../../firebase";
+
+const CLOUDINARY_CLOUD_NAME    = "dzu1qb8oz";
+const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
+
+async function uploadToCloudinary(file, folder) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  formData.append("folder", `spaces/${folder}`);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!res.ok) throw new Error("Upload failed. Please try again.");
+  const data = await res.json();
+  return data.secure_url;
+}
 
 export default function BroadcastChannel() {
   const [messages, setMessages] = useState([]);
@@ -27,6 +41,7 @@ export default function BroadcastChannel() {
   const [senderName, setSenderName] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const imageRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -56,20 +71,20 @@ export default function BroadcastChannel() {
   }, []);
 
   useEffect(() => {
-  if (!userRole) return;
+    if (!userRole) return;
 
-  const q = query(
-    collection(db, "broadcastChannels"),
-    orderBy("createdAt", "asc")
-  );
+    const q = query(
+      collection(db, "broadcastChannels"),
+      orderBy("createdAt", "asc")
+    );
 
-  const unsub = onSnapshot(q, (snapshot) => {
-    const allMessages = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const allMessages = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-    const filteredMessages = allMessages.filter(
+      const filteredMessages = allMessages.filter(
         (msg) => {
           if (msg.recipient === "All Staffs")
             return true;
@@ -82,110 +97,79 @@ export default function BroadcastChannel() {
           return msg.recipient === userRole;
         }
       );
-    setMessages(filteredMessages);
-  });
+      setMessages(filteredMessages);
+    });
 
-  return () => unsub();
-}, [userRole]);
+    return () => unsub();
+  }, [userRole]);
 
   const sendMessage = async () => {
-  if (userRole !== "Department Head") {
-    alert(
-      "Only Department Head can send announcements."
-    );
-    return;
-  }
-
-  if (
-    !message.trim() &&
-    !selectedImage &&
-    !selectedFile
-  )
-    return;
-
-  try {
-    let imageUrl = "";
-    let fileUrl = "";
-    let fileName = "";
-
-    if (selectedImage) {
-      const imageStorageRef = ref(
-        storage,
-        `broadcast-images/${Date.now()}-${
-          selectedImage.name
-        }`
+    if (userRole !== "Department Head") {
+      alert(
+        "Only Department Head can send announcements."
       );
-
-      await uploadBytes(
-        imageStorageRef,
-        selectedImage
-      );
-
-      imageUrl =
-        await getDownloadURL(
-          imageStorageRef
-        );
+      return;
     }
 
-    if (selectedFile) {
-      const fileStorageRef = ref(
-        storage,
-        `broadcast-files/${Date.now()}-${
-          selectedFile.name
-        }`
-      );
+    if (
+      !message.trim() &&
+      !selectedImage &&
+      !selectedFile
+    )
+      return;
 
-      await uploadBytes(
-        fileStorageRef,
-        selectedFile
-      );
+    setUploading(true);
 
-      fileUrl =
-        await getDownloadURL(
-          fileStorageRef
-        );
+    try {
+      let imageUrl = "";
+      let fileUrl = "";
+      let fileName = "";
 
-      fileName =
-        selectedFile.name;
-    }
-
-    await addDoc(
-      collection(
-        db,
-        "broadcastChannels"
-      ),
-      {
-        content: message,
-        imageUrl,
-        fileUrl,
-        fileName,
-        senderId:
-          auth.currentUser.uid,
-        senderName,
-        senderRole: userRole,
-        recipient,
-        createdAt:
-          serverTimestamp(),
-        reactions: {
-          like: [],
-          love: [],
-        },
+      if (selectedImage) {
+        imageUrl = await uploadToCloudinary(selectedImage, "broadcast-images");
       }
-    );
 
-    setMessage("");
-    setSelectedImage(null);
-    setSelectedFile(null);
-  } catch (err) {
-    console.error(err);
-  }
-};
+      if (selectedFile) {
+        fileUrl = await uploadToCloudinary(selectedFile, "broadcast-files");
+        fileName = selectedFile.name;
+      }
+
+      await addDoc(
+        collection(db, "broadcastChannels"),
+        {
+          content: message,
+          imageUrl,
+          fileUrl,
+          fileName,
+          senderId: auth.currentUser.uid,
+          senderName,
+          senderRole: userRole,
+          recipient,
+          createdAt: serverTimestamp(),
+          reactions: {
+            like: [],
+            love: [],
+          },
+        }
+      );
+
+      setMessage("");
+      setSelectedImage(null);
+      setSelectedFile(null);
+      alert("Message sent successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to send message: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const reactToMessage = async (id, type) => {
     try {
-      const ref = doc(db, "broadcastChannels", id);
+      const messageRef = doc(db, "broadcastChannels", id);
 
-      await updateDoc(ref, {
+      await updateDoc(messageRef, {
         [`reactions.${type}`]: arrayUnion(auth.currentUser.uid),
       });
     } catch (err) {
@@ -194,47 +178,47 @@ export default function BroadcastChannel() {
   };
 
   const formatDateDivider = (timestamp) => {
-  if (!timestamp) return "";
+    if (!timestamp) return "";
 
-  const date = timestamp.toDate();
+    const date = timestamp.toDate();
 
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-};
+    return date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
-const formatTimestamp = (timestamp) => {
-  if (!timestamp) return "";
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return "";
 
-  const date = timestamp.toDate();
+    const date = timestamp.toDate();
 
-  return date.toLocaleString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
+    return date.toLocaleString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
 
-const shouldShowDivider = (currentMsg, previousMsg) => {
-  if (!currentMsg?.createdAt) return false;
+  const shouldShowDivider = (currentMsg, previousMsg) => {
+    if (!currentMsg?.createdAt) return false;
 
-  if (!previousMsg?.createdAt) return true;
+    if (!previousMsg?.createdAt) return true;
 
-  const current = currentMsg.createdAt.toDate();
-  const previous = previousMsg.createdAt.toDate();
+    const current = currentMsg.createdAt.toDate();
+    const previous = previousMsg.createdAt.toDate();
 
-  const sameDay =
-    current.toDateString() === previous.toDateString();
+    const sameDay =
+      current.toDateString() === previous.toDateString();
 
-  const diffMinutes =
-    (current - previous) / 1000 / 60;
+    const diffMinutes =
+      (current - previous) / 1000 / 60;
 
-  return !sameDay || diffMinutes >= 20;
-};
+    return !sameDay || diffMinutes >= 20;
+  };
 
   return (
     <div className="bc-container">
@@ -389,19 +373,22 @@ const shouldShowDivider = (currentMsg, previousMsg) => {
         <div className="bc-composer">
 
           <div className="bc-toolbar">
-          {selectedImage && (
-            <div className="bc-selected-file">
-              🖼️ {selectedImage.name}
-            </div>
-          )}
+            {selectedImage && (
+              <div className="bc-selected-file">
+                🖼️ {selectedImage.name}
+              </div>
+            )}
 
-          {selectedFile && (
-            <div className="bc-selected-file">
-              📎 {selectedFile.name}
-            </div>
-          )}
+            {selectedFile && (
+              <div className="bc-selected-file">
+                📎 {selectedFile.name}
+              </div>
+            )}
 
-            <button onClick={() => fileRef.current.click()}>
+            <button 
+              onClick={() => fileRef.current.click()}
+              disabled={uploading}
+            >
               <i className="fa-solid fa-paperclip"></i>
               Attach
             </button>
@@ -422,6 +409,7 @@ const shouldShowDivider = (currentMsg, previousMsg) => {
               onChange={(e) =>
                 setRecipient(e.target.value)
               }
+              disabled={uploading}
             >
               <option>All Staffs</option>
               <option>Faculty</option>
@@ -430,7 +418,10 @@ const shouldShowDivider = (currentMsg, previousMsg) => {
               <option>Local Registrar</option>
             </select>
 
-            <button onClick={() => imageRef.current.click()}>
+            <button 
+              onClick={() => imageRef.current.click()}
+              disabled={uploading}
+            >
               <i className="fa-regular fa-image"></i>
               Image
             </button>
@@ -458,11 +449,13 @@ const shouldShowDivider = (currentMsg, previousMsg) => {
               onChange={(e) =>
                 setMessage(e.target.value)
               }
+              disabled={uploading}
             />
 
             <button
               className="bc-send-btn"
               onClick={sendMessage}
+              disabled={uploading}
             >
               <i className="fa-solid fa-paper-plane"></i>
             </button>
@@ -470,7 +463,7 @@ const shouldShowDivider = (currentMsg, previousMsg) => {
           </div>
 
           <div className="bc-note">
-            Only Department Heads can publish announcements.
+            {uploading ? "Uploading..." : "Only Department Heads can publish announcements."}
           </div>
 
         </div>
