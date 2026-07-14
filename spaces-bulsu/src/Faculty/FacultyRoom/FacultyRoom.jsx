@@ -17,6 +17,7 @@ export default function FacultyRoom() {
 
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reservations, setReservations] = useState([]);
   const [activeTab, setActiveTab] = useState("All");
 
   useEffect(() => {
@@ -59,6 +60,10 @@ export default function FacultyRoom() {
 
       const eventSnapshot = await getDocs(
         collection(db, "events")
+      );
+
+      const reservationSnapshot = await getDocs(
+        collection(db, "reservationRequests")
       );
 
       const roomList = [];
@@ -137,6 +142,35 @@ export default function FacultyRoom() {
           ) {
             occupied = true;
             occupiedUntil = event.endTime;
+          }
+
+        });
+
+        // CHECK APPROVED RESERVATIONS
+        reservationSnapshot.docs.forEach((doc) => {
+
+          const reservation = doc.data();
+
+          if (reservation.roomId !== room.id) return;
+
+          if (reservation.status !== "approved") return;
+
+          if (reservation.date !== getToday()) return;
+
+          const start = convertToMinutes(
+            reservation.startTime
+          );
+
+          const end = convertToMinutes(
+            reservation.endTime
+          );
+
+          if (
+            currentMinutes >= start &&
+            currentMinutes < end
+          ) {
+            occupied = true;
+            occupiedUntil = reservation.endTime;
           }
 
         });

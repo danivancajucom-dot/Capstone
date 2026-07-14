@@ -535,36 +535,45 @@ function FacultySubmitReservation() {
               "Please wait..."
           );
 
-         await addDoc(collection(db, "reservationRequests"), {
-          userId: auth.currentUser.uid,
-          facultyName,
+         const reservationRef = await addDoc(
+          collection(db, "reservationRequests"),
+          {
+            userId: auth.currentUser.uid,
+            facultyName,
 
-          roomId: selectedRoom.id,
-          roomName: selectedRoom.roomName,
+            roomId: selectedRoom.id,
+            roomName: selectedRoom.roomName,
 
-          audienceType,
+            audienceType,
 
-          attendees: {
-            course,
-            yearSectionGroup,
-            organization,
-            otherAudience,
-          },
+            attendees: {
+              course,
+              yearSectionGroup,
+              organization,
+              otherAudience,
+            },
 
-          courseTitle,
-          purpose,
+            courseTitle,
+            purpose,
 
-          requiredEquipment: selectedEquipment,
-          studentRange,
+            requiredEquipment: selectedEquipment,
+            studentRange,
 
-          date,
-          startTime,
-          endTime,
+            date,
+            startTime,
+            endTime,
 
-          status: "Pending",
+            status: "Pending",
 
-          createdAt: serverTimestamp(),
-        });
+            createdAt: serverTimestamp(),
+          }
+        );
+
+        await notifyClerkAndDepartmentHead(
+            "New Reservation Request",
+            `${facultyName} submitted a reservation request for ${courseTitle}.`,
+            reservationRef.id
+          );
 
           setShowConfirm(false);
 

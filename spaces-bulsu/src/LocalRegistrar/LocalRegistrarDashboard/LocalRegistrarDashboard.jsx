@@ -14,6 +14,8 @@ import { db } from "../../firebase";
 export default function LocalRegistrarDashboard() {
 const navigate = useNavigate();
 const [totalSchedules, setTotalSchedules] = useState(0);
+const [qrGenerated, setQrGenerated] = useState(0);
+const [actionsToday, setActionsToday] = useState(0);
 const [activityLogs, setActivityLogs] = useState([]);
 
 useEffect(() => {
@@ -22,29 +24,76 @@ useEffect(() => {
 }, []);
 
 const loadDashboardStats = async () => {
-    try {
+  try {
+    // =========================
+    // TOTAL SCHEDULES
+    // =========================
+    const roomsSnapshot = await getDocs(collection(db, "rooms"));
 
-        const roomsSnapshot = await getDocs(collection(db, "rooms"));
+    let total = 0;
 
-        let total = 0;
+    for (const room of roomsSnapshot.docs) {
+      const schedulesSnapshot = await getDocs(
+        collection(db, "rooms", room.id, "schedules")
+      );
 
-        for (const room of roomsSnapshot.docs) {
-
-            const schedulesSnapshot = await getDocs(
-                collection(db, "rooms", room.id, "schedules")
-            );
-
-            total += schedulesSnapshot.docs.filter(
-                doc => !doc.data().initialized
-            ).length;
-        }
-
-        setTotalSchedules(total);
-
-    } catch (error) {
-        console.error(error);
+      total += schedulesSnapshot.docs.filter(
+        (doc) => !doc.data().initialized
+      ).length;
     }
+
+    setTotalSchedules(total);
+
+    // =========================
+    // QR GENERATED
+    // =========================
+
+    let qrCount = 0;
+
+    roomsSnapshot.forEach((doc) => {
+      const room = doc.data();
+
+      // kapag may QR field
+      if (room.qrCode || room.qrGenerated || room.qrUrl) {
+        qrCount++;
+      }
+    });
+
+    setQrGenerated(qrCount);
+
+    // =========================
+    // ACTIONS TODAY
+    // =========================
+
+    const logsSnapshot = await getDocs(collection(db, "activityLogs"));
+
+    const today = new Date();
+
+    let todayCount = 0;
+
+    logsSnapshot.forEach((doc) => {
+      const data = doc.data();
+
+      if (!data.timestamp) return;
+
+      const date = data.timestamp.toDate();
+
+      const sameDay =
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear();
+
+      if (sameDay && data.role === "Local Registrar") {
+        todayCount++;
+      }
+    });
+
+    setActionsToday(todayCount);
+  } catch (error) {
+    console.error(error);
+  }
 };
+
 const loadActivityLogs = async () => {
   try {
 
@@ -100,22 +149,17 @@ return (
         </div>
 
         <div className="stat-card">
-          <h2>48</h2>
-          <p>Conflicts Found</p>
+          <h2>{qrGenerated}</h2>
+          <p>QR Generated</p>
         </div>
 
         <div className="stat-card">
-          <h2>96%</h2>
-          <p>Room Utilization</p>
-        </div>
-
-        <div className="stat-card">
-          <h2>15</h2>
-          <p>Pending Reviews</p>
+          <h2>{actionsToday}</h2>
+          <p>Actions Today</p>
         </div>
 
       </div>
-
+      
       <div className="dashboard-table-card">
 
         <div className="lr-dashboard-table-header">

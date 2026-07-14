@@ -6,7 +6,11 @@
   box-sizing: border-box; 
   font-family: 'Lexend', sans-serif; 
 }
+.today{
 
+animation:pulseToday 2s infinite;
+
+}
 body { 
   background-color: #F8F7F5; }
 

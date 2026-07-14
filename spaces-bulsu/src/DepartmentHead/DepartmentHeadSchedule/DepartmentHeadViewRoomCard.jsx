@@ -36,6 +36,7 @@ function DepartmentHeadViewRoomCard() {
   }, [room, navigate]);
   const [schedules, setSchedules] = useState([]);
   const [events, setEvents] = useState([]);
+  const [reservations, setReservations] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   useEffect(() => {
@@ -71,6 +72,24 @@ function DepartmentHeadViewRoomCard() {
         ...doc.data()
       }))
       .filter(event => event.roomId === room.id);
+
+
+      // roomrequest
+      const reservationSnap = await getDocs(
+          collection(db, "reservationRequests")
+      );
+
+      const reservationList = reservationSnap.docs
+          .map(doc => ({
+              id: doc.id,
+              ...doc.data()
+          }))
+          .filter(reservation =>
+              reservation.roomId === room.id &&
+              reservation.status === "approved"
+          );
+
+      setReservations(reservationList);
 
     setEvents(eventList);
   };
@@ -159,23 +178,18 @@ function DepartmentHeadViewRoomCard() {
     );
   };
 
-  const getEventForDate = (date) => {
-    const yyyy =
-      date.getFullYear();
-
-    const mm =
-      String(date.getMonth()+1).padStart(2,"0");
-
-    const dd =
-      String(date.getDate()).padStart(2,"0");
+  const getItemsForDate = (date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
 
     const dateString = `${yyyy}-${mm}-${dd}`;
 
-    return events.filter(
-      e => e.date === dateString
-    );
-
-  };
+    return [
+        ...events.filter(e => e.date === dateString),
+        ...reservations.filter(r => r.date === dateString)
+    ];
+};
 
   return (
     <>
@@ -246,7 +260,9 @@ function DepartmentHeadViewRoomCard() {
               <div className="time-slot">08 PM</div>
             </div>
             <div className="calendar-grid">
-  {schedules.length === 0 && events.length === 0 ? (
+ {schedules.length === 0 &&
+ events.length === 0 &&
+ reservations.length === 0 ? (
 
     <div className="no-schedule">
       <i className="fa-regular fa-calendar-xmark"></i>
@@ -257,7 +273,7 @@ function DepartmentHeadViewRoomCard() {
   ) : (
 
     DAYS.map((day, index) => {
-                const dateEvents = getEventForDate(weekDates[index]);
+                const dateEvents = getItemsForDate(weekDates[index]);
 
                 return (
                   <div className="calendar-day" key={day}>
@@ -301,8 +317,15 @@ function DepartmentHeadViewRoomCard() {
                         key={event.id}
                         schedule={{
                           ...event,
-                          subject: event.title,
-                          faculty: "ROOM ACTIVITY"
+                          subject:
+                              event.title ||
+                              event.purpose ||
+                              "Walk-in Reservation",
+
+                          faculty:
+                              event.title
+                                  ? "ROOM ACTIVITY"
+                                  : event.requesterName || "Walk-in"
                         }}
                         top={getTopPosition(event.startTime)}
                         height={getCardHeight(
