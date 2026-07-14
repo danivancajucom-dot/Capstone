@@ -68,6 +68,8 @@ const LR_ACTIONS = [
       }));
 
       setLogs(data);
+      console.log(data);
+      
 
     } catch (err) {
       console.error(err);
@@ -84,6 +86,7 @@ const LR_ACTIONS = [
         log.role === "Local Registrar" &&
 
         LR_ACTIONS.includes(log.action)
+        
 
     );
 

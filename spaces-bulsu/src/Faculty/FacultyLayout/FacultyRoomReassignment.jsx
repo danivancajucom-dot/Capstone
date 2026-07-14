@@ -4,18 +4,38 @@ import {
   doc,
   getDoc,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  addDoc,
+  collection,
+  query,
+  where,
+  getDocs
 } from "firebase/firestore";
+
+import { auth } from "../../firebase";
 import { db } from "../../firebase";
 import "./faculty-room-reassignment.css";
 
+
 export default function FacultyRoomReassignment() {
 
-  const { id } = useParams();
+  const { assignmentId } = useParams();
   const navigate = useNavigate();
 
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const isExpired = () => {
+
+  if (!assignment) return false;
+
+    const scheduleDate = new Date(
+      `${assignment.date}T${assignment.endTime}`
+    );
+
+    return new Date() > scheduleDate;
+
+  };
 
   useEffect(() => {
 
@@ -24,9 +44,10 @@ export default function FacultyRoomReassignment() {
       try {
 
         const snap = await getDoc(
-          doc(db, "roomReassignments", id)
+          doc(db, "roomReassignments", assignmentId)
         );
 
+        console.log("exists:", snap.exists());
         if (snap.exists()) {
 
           setAssignment({
@@ -48,55 +69,154 @@ export default function FacultyRoomReassignment() {
 
     loadAssignment();
 
-  }, [id]);
+  }, [assignmentId]);
+
+    const sendDecisionNotifications = async (decision) => {
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    // current faculty
+    const facultySnap = await getDoc(
+      doc(db, "users", currentUser.uid)
+    );
+
+    const faculty = facultySnap.data();
+
+    const facultyName =
+      `${faculty.firstName} ${faculty.lastName}`;
+
+    // -----------------------------
+    // FACULTY NOTIFICATION
+    // -----------------------------
+
+    await addDoc(collection(db, "notifications"), {
+
+      userId: currentUser.uid,
+
+      ownerType: "faculty",
+
+      title: "Room Reassignment",
+
+      message:
+        `You ${decision} the room reassignment for ${assignment.courseTitle}.`,
+
+      type: "approved",
+
+      badge: decision.toUpperCase(),
+
+      unread: true,
+
+      archived: false,
+
+      createdAt: serverTimestamp()
+
+    });
+
+    // -----------------------------
+    // DEPARTMENT HEAD
+    // -----------------------------
+
+    const headQuery = query(
+
+      collection(db, "users"),
+
+      where("role", "==", "Department Head")
+
+    );
+
+    const headSnap = await getDocs(headQuery);
+
+    for (const head of headSnap.docs) {
+
+      await addDoc(collection(db, "notifications"), {
+
+        userId: head.id,
+
+        ownerType: "department-head",
+
+        title: "Faculty Response",
+
+        message:
+          `${facultyName} ${decision} the room reassignment request for ${assignment.courseTitle}.`,
+
+        type: "room-reassignment",
+
+        badge: decision.toUpperCase(),
+
+        unread: true,
+
+        archived: false,
+
+        assignmentId: assignment.id,
+
+        createdAt: serverTimestamp()
+
+      });
+
+    }
+
+  };
 
   const rejectAssignment = async () => {
 
-    try {
-
-      await updateDoc(
-        doc(db, "roomReassignments", assignment.id),
-        {
-          status: "rejected",
-          rejectedAt: serverTimestamp()
-        }
-      );
-
-      alert("Room reassignment rejected.");
-
-      navigate("/faculty");
-
-    } catch (err) {
-
-      console.log(err);
-
+  try {
+    if (isExpired()) {
+        alert("This room reassignment has already expired.");
+        return;
     }
 
-  };
+    await updateDoc(
+      doc(db, "roomReassignments", assignment.id),
+      {
+        status: "rejected",
+        rejectedAt: serverTimestamp()
+      }
+    );
+
+    await sendDecisionNotifications("rejected");
+
+    alert("Room reassignment rejected.");
+
+    navigate("/faculty");
+
+  } catch (err) {
+
+    console.log(err);
+
+  }
+
+};
 
   const approveAssignment = async () => {
 
-    try {
-
-      await updateDoc(
-        doc(db, "roomReassignments", assignment.id),
-        {
-          status: "approved",
-          approvedAt: serverTimestamp()
-        }
-      );
-
-      alert("Room reassignment accepted.");
-
-      navigate("/faculty");
-
-    } catch (err) {
-
-      console.log(err);
-
+  try {
+    if (isExpired()) {
+        alert("This room reassignment has already expired.");
+        return;
     }
 
-  };
+    await updateDoc(
+      doc(db, "roomReassignments", assignment.id),
+      {
+        status: "approved",
+        approvedAt: serverTimestamp()
+      }
+    );
+
+    await sendDecisionNotifications("accepted");
+
+    alert("Room reassignment accepted.");
+
+    navigate("/faculty");
+
+  } catch (err) {
+
+    console.log(err);
+
+  }
+
+};
 
   if (loading) {
 
@@ -212,23 +332,48 @@ export default function FacultyRoomReassignment() {
 
         </div>
 
-        <div className="faculty-room-actions">
+        {!isExpired() ? (
 
-          <button
-            className="reject-btn"
-            onClick={rejectAssignment}
+          <div className="faculty-room-actions">
+
+              <button
+                  className="reject-btn"
+                  onClick={rejectAssignment}
+              >
+                  Reject
+              </button>
+
+              <button
+                  className="approve-btn"
+                  onClick={approveAssignment}
+              >
+                  Accept Room
+              </button>
+
+          </div>
+
+          ) : (
+
+          <div
+              className="faculty-room-note"
+              style={{
+                  marginTop:30,
+                  background:"#fef2f2",
+                  border:"1px solid #fecaca",
+                  color:"#991b1b"
+              }}
           >
-            Reject
-          </button>
+              <i className="fa-solid fa-clock"></i>
 
-          <button
-            className="approve-btn"
-            onClick={approveAssignment}
-          >
-            Accept Room
-          </button>
+              <span>
 
-        </div>
+                  This room reassignment has already ended. The response period is now closed.
+
+              </span>
+
+          </div>
+
+          )}
 
       </div>
 

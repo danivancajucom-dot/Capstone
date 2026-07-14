@@ -577,13 +577,13 @@ const handleConfirm = async () => {
         return;
     }
 
-    if (!form.studentId.trim()) {
-        alert("Student/Faculty ID is required.");
+    if (!form.requesterId.trim()) {
+        alert("Requester ID is required.");
         return;
     }
 
-    if (!form.name.trim()) {
-        alert("Name is required.");
+    if (!form.requesterName.trim()) {
+        alert("Requester Name is required.");
         return;
     }
 
@@ -599,6 +599,15 @@ const handleConfirm = async () => {
 
     if (!form.purpose.trim()) {
         alert("Purpose is required.");
+        return;
+    }
+
+    if (
+        (form.requesterType === "organization" ||
+        form.purpose === "Meeting") &&
+        !form.studentRange
+    ) {
+        alert("Please select the estimated number of attendees.");
         return;
     }
 
@@ -635,13 +644,21 @@ const handleConfirm = async () => {
 
         setSavingReservation(true);
 
-        await addDoc(collection(db, "reservations"), {
+        await addDoc(collection(db, "reservationRequests"), {
 
             reservationType: "walk-in",
 
-            requesterId: form.studentId,
+            requesterId: form.requesterId,
 
-            requesterName: form.name,
+            requesterName: form.requesterName,
+
+            organizationName: form.organizationName,
+
+            course: form.course,
+
+            yearSectionGroup: form.yearSectionGroup,
+
+            estimatedAttendees: form.studentRange,
 
             roomId: selectedRoom.id,
 
@@ -657,7 +674,7 @@ const handleConfirm = async () => {
 
             duration: Number(form.duration),
 
-            purpose: form.purpose,
+            purpose: form.customPurpose || form.purpose,
 
             status: "approved",
 
@@ -703,19 +720,13 @@ const handleConfirm = async () => {
 
         setForm({
 
-            studentId: "",
-
-            name: "",
-
-            date: today,
-
-            startTime: "",
-
-            duration: "",
-
-            endTime: "",
-
-            purpose: "",
+            requesterId: "",
+            requesterName: "",
+            organizationName: "",
+            course: "",
+            yearSectionGroup: "",
+            studentRange: "",
+            customPurpose: "",
 
         });
 
@@ -945,16 +956,41 @@ if(pageLoading){
 
               <div className="wir-field">
 
-              <label>Number of Attendees</label>
+                <label>Estimated Number of Attendees</label>
 
-              <input
-              type="number"
-              className="wir-input"
-              value={form.attendees}
-              onChange={handleChange("attendees")}
-              />
+                <select
+                    className="wir-input"
+                    value={form.studentRange}
+                    onChange={handleChange("studentRange")}
+                >
 
-              </div>
+                    <option value="">
+                        Select Range
+                    </option>
+
+                    <option value="1-30">
+                        1 - 30 Persons
+                    </option>
+
+                    <option value="31-50">
+                        31 - 50 Persons
+                    </option>
+
+                    <option value="51-80">
+                        51 - 80 Persons
+                    </option>
+
+                    <option value="81-100">
+                        81 - 100 Persons
+                    </option>
+
+                    <option value="101+">
+                        101+ Persons
+                    </option>
+
+                </select>
+
+            </div>
 
               )
               }{
@@ -962,14 +998,39 @@ if(pageLoading){
 
               <div className="wir-field">
 
-              <label>Number of Attendees</label>
+              <label>Estimated Number of Attendees</label>
 
-              <input
-              type="number"
-              className="wir-input"
-              value={form.attendees}
-              onChange={handleChange("attendees")}
-              />
+                <select
+                    className="wir-input"
+                    value={form.studentRange}
+                    onChange={handleChange("studentRange")}
+                >
+
+                    <option value="">
+                        Select Range
+                    </option>
+
+                    <option value="1-30">
+                        1 - 30 Persons
+                    </option>
+
+                    <option value="31-50">
+                        31 - 50 Persons
+                    </option>
+
+                    <option value="51-80">
+                        51 - 80 Persons
+                    </option>
+
+                    <option value="81-100">
+                        81 - 100 Persons
+                    </option>
+
+                    <option value="101+">
+                        101+ Persons
+                    </option>
+
+                </select>
 
               </div>
 

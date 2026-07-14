@@ -1,8 +1,134 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./faculty-edit-pending-reservation.css";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  doc,
+  getDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { useNavigate, useLocation } from "react-router-dom";
+import { auth, db } from "../../firebase";
 
 function FacultyEditPendingReservation() {
   const [purpose, setPurpose] = useState("examination");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [courseTitle, setCourseTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [studentRange, setStudentRange] = useState("");
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const reservation = location.state?.reservation;
+
+
+  useEffect(() => {
+      if (!reservation) return;
+
+      setCourseTitle(reservation.courseTitle);
+      setDate(reservation.date);
+      setStartTime(reservation.startTime);
+      setEndTime(reservation.endTime);
+      setPurpose(reservation.purpose);
+      setStudentRange(reservation.studentRange);
+  }, [reservation]);
+
+  const notifyClerkAndDepartmentHead = async (
+  title,
+  message,
+  reservationId = null
+) => {
+  try {
+    const usersSnap = await getDocs(collection(db, "users"));
+
+    const recipients = usersSnap.docs.filter((d) => {
+      const user = d.data();
+
+      return (
+        user.role === "clerk" ||
+        user.role === "department-head"
+      );
+    });
+
+    for (const receiver of recipients) {
+      const user = receiver.data();
+
+      await addDoc(collection(db, "notifications"), {
+        userId: receiver.id,
+
+        ownerType:
+          user.role === "clerk"
+            ? "clerk"
+            : "department-head",
+
+        reservationId,
+
+        title,
+        message,
+
+        type: "reservation-request",
+
+        unread: true,
+        archived: false,
+
+        badge: "NEW",
+
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.error("Notification Error:", err);
+  }
+};
+
+  const handleSave = async () => {
+  try {
+    if (!reservation?.id) {
+      alert("Reservation not found.");
+      return;
+    }
+
+    const userSnap = await getDoc(
+      doc(db, "users", auth.currentUser.uid)
+    );
+
+    let facultyName = "";
+
+    if (userSnap.exists()) {
+      const user = userSnap.data();
+      facultyName = `${user.firstName} ${user.lastName}`;
+    }
+
+    await updateDoc(doc(db, "reservationRequests", reservation.id), {
+        courseTitle,
+        date,
+        startTime,
+        endTime,
+        purpose,
+        studentRange,
+        roomId: selectedRoom?.id,
+        roomName: selectedRoom?.roomName,
+        updatedAt: serverTimestamp(),
+    });
+
+    await notifyClerkAndDepartmentHead(
+      "Reservation Updated",
+      `${facultyName} updated a reservation request.`,
+      reservation.id
+    );
+
+    alert("Reservation updated successfully.");
+
+    navigate(-1);
+
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+  }
+};
 
   return (
     <>
@@ -14,7 +140,12 @@ function FacultyEditPendingReservation() {
           <div className="faculty-edit-pending-section">
             <div className="faculty-edit-pending-form-group">
               <label>Course Title</label>
-              <input type="text" className="faculty-edit-pending-input" placeholder="Enter course title" />
+              <input
+                type="text"
+                className="faculty-edit-pending-input"
+                value={courseTitle}
+                onChange={(e) => setCourseTitle(e.target.value)}
+              />
             </div>
 
             <div className="faculty-edit-pending-form-group">
@@ -28,7 +159,9 @@ function FacultyEditPendingReservation() {
                   type="date"
                   id="edit-date-input"
                   className="faculty-edit-pending-input"
-                  style={{ colorScheme: 'light' }}
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  style={{ colorScheme: "light" }}
                 />
               </div>
             </div>
@@ -45,6 +178,8 @@ function FacultyEditPendingReservation() {
                     type="time"
                     id="edit-start-time"
                     className="faculty-edit-pending-input faculty-edit-pending-time-input"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
                   />
                 </div>
               </div>
@@ -60,6 +195,8 @@ function FacultyEditPendingReservation() {
                     type="time"
                     id="edit-end-time"
                     className="faculty-edit-pending-input faculty-edit-pending-time-input"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
                   />
                 </div>
               </div>
@@ -74,9 +211,9 @@ function FacultyEditPendingReservation() {
                   onChange={(e) => setPurpose(e.target.value)}
                 >
                   <option value="" disabled hidden>Select Purpose</option>
-                  <option value="hands-on">Hands-On</option>
-                  <option value="lecture">Lecture</option>
-                  <option value="examination">Examination</option>
+                  <option value="Hands-on">Hands-On</option>
+                  <option value="Lecture">Lecture</option>
+                  <option value="Examination">Examination</option>
                 </select>
                 <i className="fa-solid fa-angle-down faculty-edit-pending-dropdown-icon"></i>
               </div>
@@ -97,7 +234,7 @@ function FacultyEditPendingReservation() {
               </div>
             </div>
 
-            {purpose === "hands-on" && (
+            {purpose === "Hands-on" && (
               <div className="faculty-edit-pending-form-group">
                 <label>Available Units/Equipment</label>
                 <input
@@ -108,11 +245,15 @@ function FacultyEditPendingReservation() {
               </div>
             )}
 
-            {(purpose === "lecture" || purpose === "examination") && (
+            {(purpose === "Lecture" || purpose === "Examination") && (
               <div className="faculty-edit-pending-form-group">
                 <label>Estimated Number of Students</label>
                 <div className="faculty-edit-pending-dropdown-wrapper">
-                  <select className="faculty-edit-pending-input faculty-edit-pending-dropdown" defaultValue="">
+                  <select
+                    className="faculty-edit-pending-input faculty-edit-pending-dropdown"
+                    value={studentRange}
+                    onChange={(e) => setStudentRange(e.target.value)}
+                  >
                     <option value="" disabled hidden>Select Range</option>
                     <option value="30-50">30-50</option>
                     <option value="50-60">50-60</option>
@@ -129,7 +270,12 @@ function FacultyEditPendingReservation() {
 
       <div className="faculty-edit-pending-footer">
         <button className="faculty-edit-pending-back-btn">Back</button>
-        <button className="faculty-edit-pending-save-btn">Save</button>
+        <button
+            className="faculty-edit-pending-save-btn"
+            onClick={handleSave}
+        >
+            Save
+        </button>
       </div>
     </div>
     </>

@@ -71,6 +71,7 @@ import FacultyRoomReassignment from "./Faculty/FacultyLayout/FacultyRoomReassign
 import Login from "./Login/Login";
 import BroadcastChannel from "./Components/BroadcastChannel/BroadcastChannel";
 import ResetPassword from "./ResetPassword/ResetPassword";
+import PublicRoomSchedule from "./Pages/PublicRoomSchedule/PublicRoomSchedule";
 
 function App() {
   return (
@@ -123,6 +124,10 @@ function App() {
         <Route path="*" element={<Navigate to="/login" replace />}/>
         {/* Reset Password */}
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route
+        path="/room/:roomId"
+        element={<PublicRoomSchedule/>}
+        />
 
         {/* Clerk */}
         <Route path="/clerk" element={<ClerkLayout />} >

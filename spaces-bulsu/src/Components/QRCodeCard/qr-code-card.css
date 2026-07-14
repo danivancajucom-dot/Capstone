@@ -6,12 +6,13 @@
   width: 300px;
 }
 
-.qr-code-image {
-  background-color: #F8F7F5;
-  height: 350px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.qr-code-image{
+    background:#f8f7f5;
+    min-height:330px;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
 }
 
 .qr-code-info {

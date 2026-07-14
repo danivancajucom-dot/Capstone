@@ -272,27 +272,13 @@ export default function FacultyLayout() {
                         {item.type === "room-reassignment" ? (
 
                           <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-
-                                console.log(item);
-
-                                navigate(`/faculty/room-reassignment/${item.assignmentId}`);
-                              }}
-                            >
-                              View
-                            </button>
-
-                        ) : item.type === "room-activity" ? (
-
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate("/faculty/room-reassignment");
-                                }}
-                            >
-                                View
-                            </button>
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/faculty/room-reassignment/${item.assignmentId}`);
+                            }}
+                          >
+                            View
+                          </button>
 
                         ) : (
 

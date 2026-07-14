@@ -82,6 +82,8 @@ function DepartmentHeadViewAcademicSchedule() {
 
     const filteredRooms = [];
 
+    const today = new Date().toISOString().split("T")[0];
+
     for (const roomDoc of roomSnapshot.docs) {
       const roomData = roomDoc.data();
 
@@ -103,42 +105,79 @@ function DepartmentHeadViewAcademicSchedule() {
           id: doc.id,
           ...doc.data(),
       }));
-      console.log("Room:", roomData.roomName);
 
-schedules.forEach(s => {
-  console.log({
-    date: s.date,
-    startTime: s.startTime,
-    endTime: s.endTime,
-    today: todayString(),
-    now: getCurrentMinutes(),
-    start: timeToMinutes(s.startTime),
-    end: timeToMinutes(s.endTime),
-  });
-});
+      const eventSnapshot = await getDocs(collection(db, "events"));
+
+      const roomEvents = eventSnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(event =>
+          event.roomId === roomDoc.id
+        );
+
+        const reservationSnapshot = await getDocs(
+            collection(db, "reservationRequests")
+        );
+
+        const roomReservations = reservationSnapshot.docs
+            .map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }))
+            .filter(reservation =>
+                reservation.roomId === roomDoc.id &&
+                reservation.status === "approved"
+            );
 
       const currentMinutes = getCurrentMinutes();
       const todayDay = getCurrentDay();
-      console.log("Today:", todayDay);
-      const occupied = schedules.some((schedule) => {
+     
+      const classOccupied = schedules.some(schedule => {
 
           if (schedule.initialized) return false;
 
           if (
-              schedule.day?.toLowerCase() !==
-              todayDay.toLowerCase()
-          )
-              return false;
+              schedule.day?.toUpperCase() !== todayDay
+          ) return false;
 
           const start = timeToMinutes(schedule.startTime);
           const end = timeToMinutes(schedule.endTime);
 
-          return (
-              currentMinutes >= start &&
-              currentMinutes <= end
-          );
+          return currentMinutes >= start &&
+                currentMinutes < end;
 
       });
+
+      const eventOccupied = roomEvents.some(event => {
+
+          if (event.date !== today) return false;
+
+          const start = timeToMinutes(event.startTime);
+          const end = timeToMinutes(event.endTime);
+
+          return currentMinutes >= start &&
+                currentMinutes < end;
+
+      });
+
+      const reservationOccupied = roomReservations.some(reservation => {
+
+          if (reservation.date !== today) return false;
+
+          const start = timeToMinutes(reservation.startTime);
+          const end = timeToMinutes(reservation.endTime);
+
+          return currentMinutes >= start &&
+                currentMinutes < end;
+
+      });
+
+      const occupied =
+          classOccupied ||
+          eventOccupied ||
+          reservationOccupied;
 
       const hasMatchingSchedule = schedules.some((schedule) => {
         const semesterMatch =
