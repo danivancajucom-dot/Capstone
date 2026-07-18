@@ -172,59 +172,32 @@
   max-width: 280px;
 }
 
-/* --- Skeleton loading state --- */
+/* --- Loading state --- */
 
-.dept-skeleton-card {
-  border: 1px solid #ECEAE6;
-  border-radius: 10px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.room-empty{
+    min-height:60vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    width: 100%;
 }
-
-.dept-skeleton-line {
-  height: 12px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, #F1F0EE 25%, #E7E5E1 37%, #F1F0EE 63%);
-  background-size: 400% 100%;
-  animation: dept-skeleton-shimmer 1.4s ease infinite;
+.room-empty i{
+    font-size:75px;
+    color:#CBD5E1;
+    margin-bottom:20px;
 }
-
-.dept-skeleton-title {
-  width: 45%;
-  height: 14px;
+.room-empty h2{
+    font-size:28px;
+    font-weight:700;
+    color:#334155;
 }
-
-.dept-skeleton-subtitle {
-  width: 65%;
-}
-
-.dept-skeleton-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.dept-skeleton-pill {
-  width: 80px;
-  height: 22px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #F1F0EE 25%, #E7E5E1 37%, #F1F0EE 63%);
-  background-size: 400% 100%;
-  animation: dept-skeleton-shimmer 1.4s ease infinite;
-}
-
-@keyframes dept-skeleton-shimmer {
-  0% { background-position: 100% 50%; }
-  100% { background-position: 0 50%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dept-skeleton-line,
-  .dept-skeleton-pill {
-    animation: none;
-  }
+.room-empty p{
+    margin-top:10px;
+    color:#64748B;
+    max-width:420px;
+    line-height:1.6;
 }
 
 /* --- Load more --- */

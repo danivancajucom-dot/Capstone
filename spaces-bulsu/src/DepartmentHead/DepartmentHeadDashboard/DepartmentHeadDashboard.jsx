@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./department-head-dashboard.css";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,28 +18,7 @@ const floors = [
   "4th Floor",
 ];
 
-const dayMap = {
-  SUN: "Sunday",
-  MON: "Monday",
-  TUE: "Tuesday",
-  WED: "Wednesday",
-  THU: "Thursday",
-  FRI: "Friday",
-  SAT: "Saturday",
-};
-
-const reverseDayMap = {
-  Sunday: "SUN",
-  Monday: "MON",
-  Tuesday: "TUE",
-  Wednesday: "WED",
-  Thursday: "THU",
-  Friday: "FRI",
-  Saturday: "SAT",
-};
-
-const normalize = (value) =>
-  value?.toString().trim().toLowerCase();
+const ROOMS_PER_PAGE = 8;
 
 const getCurrentDay = () => {
   const days = [
@@ -54,6 +33,12 @@ const getCurrentDay = () => {
 
   return days[new Date().getDay()];
 };
+
+const todayDateString = () =>
+  new Date().toISOString().split("T")[0];
+
+const normalize = (value) =>
+  value?.toString().trim().toLowerCase();
 
 const toMinutes = (time) => {
   if (!time) return 0;
@@ -119,10 +104,26 @@ const formatTimestamp = (timestamp) => {
 |--------------------------------------------------------------------------
 LIVE ROOM STATUS
 |--------------------------------------------------------------------------
+Kasama na ngayon dito ang:
+  - regular class schedules (rooms/{id}/schedules, hindi kasama ang
+    "initialized" placeholder docs)
+  - room activities / dept-head overrides ("events" collection, para sa
+    araw na ito)
+  - approved reservations ("reservationRequests" collection, status ===
+    "approved", para sa araw na ito)
+Kaya kahit reservation/room-activity lang ang nag-oocupy ng room (walang
+regular class), tama pa ring "Occupied" ang lalabas.
+|--------------------------------------------------------------------------
 */
 
-const getRoomLiveStatus = (room, schedules) => {
- if(room.statusField==="inactive") {
+const getRoomLiveStatus = (
+  room,
+  schedules,
+  todaysEvents = [],
+  todaysReservations = []
+) => {
+
+  if (normalize(room.statusField) === "maintenance") {
     return {
       status: "maintenance",
       message: "Under Maintenance",
@@ -137,14 +138,35 @@ const getRoomLiveStatus = (room, schedules) => {
     new Date().getMinutes();
 
   const todaysSchedules = schedules
-    .filter((s) => s.day === today)
-    .sort(
-      (a, b) =>
-        toMinutes(a.startTime) -
-        toMinutes(b.startTime)
-    );
+    .filter((s) => !s.initialized && s.day === today)
+    .map((s) => ({
+      startTime: s.startTime,
+      endTime: s.endTime,
+      label: s.section ? `${s.subject} • ${s.section}` : s.subject,
+    }));
 
-  if (todaysSchedules.length === 0) {
+  const activity = [
+    ...todaysEvents.map((e) => ({
+      startTime: e.startTime,
+      endTime: e.endTime,
+      label: e.title || e.purpose || "Room Activity",
+    })),
+    ...todaysReservations.map((r) => ({
+      startTime: r.startTime,
+      endTime: r.endTime,
+      label:
+        r.customPurpose ||
+        r.courseTitle ||
+        r.purpose ||
+        "Reservation",
+    })),
+  ];
+
+  const combined = [...todaysSchedules, ...activity].sort(
+    (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime)
+  );
+
+  if (combined.length === 0) {
     return {
       status: "free",
       message: "Available all day",
@@ -152,9 +174,9 @@ const getRoomLiveStatus = (room, schedules) => {
     };
   }
 
-  for (const sched of todaysSchedules) {
-    const start = toMinutes(sched.startTime);
-    const end = toMinutes(sched.endTime);
+  for (const item of combined) {
+    const start = toMinutes(item.startTime);
+    const end = toMinutes(item.endTime);
 
     if (
       currentMinutes >= start &&
@@ -162,19 +184,15 @@ const getRoomLiveStatus = (room, schedules) => {
     ) {
       return {
         status: "occupied",
-        message: `Available at ${format12Hour(
-          sched.endTime
-        )}`,
-        currentSubject: `${sched.subject} • ${sched.section}`,
+        message: `Available at ${format12Hour(item.endTime)}`,
+        currentSubject: item.label,
       };
     }
 
     if (currentMinutes < start) {
       return {
         status: "free",
-        message: `Available until ${format12Hour(
-          sched.startTime
-        )}`,
+        message: `Available until ${format12Hour(item.startTime)}`,
         currentSubject: "",
       };
     }
@@ -190,31 +208,25 @@ const getRoomLiveStatus = (room, schedules) => {
 export default function DepartmentHeadDashboard() {
   const navigate = useNavigate();
   const [activeFloor, setActiveFloor] = useState("All Floors");
-  const [rooms, setRooms] = useState([]);
+
+  const [roomsData, setRoomsData] = useState([]);
+  const [eventsData, setEventsData] = useState([]);
+  const [reservationsData, setReservationsData] = useState([]);
+
   const [recentActivity, setRecentActivity] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [stats, setStats] = useState({
-    totalRooms: 0,
-    occupied: 0,
-    available: 0,
-    maintenance: 0,
-    roomActivity:0,
-  });
-  const normalize = (value) =>
-  value?.toString().trim().toLowerCase();
+
+  // pinipilit i-recompute ang live status (occupied/free) bawat 1 min
+  const [tick, setTick] = useState(0);
+
+  const [visibleCount, setVisibleCount] = useState(ROOMS_PER_PAGE);
+
   const [loading, setLoading] = useState(true);
 
-  const getNextSchedule = (schedules = []) => {
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-
-  const upcoming = schedules
-    .filter(s => toMinutes(s.start) > nowMin)
-    .sort((a,b) => toMinutes(a.start) - toMinutes(b.start));
-
-  return upcoming[0];
-};
-
-    useEffect(() => {
+  // -----------------------------------------------------
+  // ROOMS + SCHEDULES
+  // -----------------------------------------------------
+  useEffect(() => {
 
     setLoading(true);
 
@@ -224,8 +236,7 @@ export default function DepartmentHeadDashboard() {
       collection(db, "rooms"),
       (snapshot) => {
 
-
-        let roomList = [];
+        let list = [];
 
         snapshot.docs.forEach((roomDoc) => {
 
@@ -237,103 +248,33 @@ export default function DepartmentHeadDashboard() {
 
             (scheduleSnap) => {
 
-              const schedules = scheduleSnap.docs.map(doc=>({
-
-                id:doc.id,
-
-                ...doc.data()
-
+              const schedules = scheduleSnap.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
               }));
 
-              roomList = roomList.filter(r=>r.docId!==roomDoc.id);
+              list = list.filter((r) => r.docId !== roomDoc.id);
 
-              roomList.push({
+              list.push({
 
-                docId:roomDoc.id,
+                docId: roomDoc.id,
 
-                roomName:room.roomName,
+                roomName: room.roomName,
 
-                roomType:room.roomType,
+                roomType: room.roomType,
 
-                floor:room.floor,
+                floor: room.floor,
 
-                statusField:room.status,
+                // ✅ tamang field name mula sa Firestore
+                statusField: room.roomStatus,
 
-                image:room.image || null,
+                image: room.image || null,
 
-                schedules
-
-              });
-
-              let occupied = 0;
-
-              let available = 0;
-
-              let maintenance = 0;
-
-              let scheduledToday = 0;
-
-              const processedRooms = roomList.map(r=>{
-
-                const live = getRoomLiveStatus(r,r.schedules);
-
-                const today = getCurrentDay();
-
-                const hasTodaySchedule = r.schedules.some(
-                  s=>s.day===today
-                );
-
-                if(hasTodaySchedule)
-                  scheduledToday++;
-
-                if(live.status==="occupied")
-                  occupied++;
-
-                else if(live.status==="maintenance")
-                  maintenance++;
-
-                else
-                  available++;
-
-                return{
-
-                  id:r.docId,
-
-                  roomName:r.roomName,
-
-                  roomType:r.roomType,
-
-                  floor:r.floor,
-
-                  image:r.image,
-
-                  schedules:r.schedules,
-
-                  status:live.status,
-
-                  liveMessage:live.message,
-
-                  currentSubject:live.currentSubject
-
-                };
+                schedules,
 
               });
 
-              setRooms(processedRooms);
-
-              setStats({
-
-                totalRooms:processedRooms.length,
-
-                occupied,
-
-                available,
-
-                maintenance,
-
-              });
-
-              setLastUpdated(new Date());
+              setRoomsData([...list]);
 
               setLoading(false);
 
@@ -349,26 +290,70 @@ export default function DepartmentHeadDashboard() {
 
     );
 
-    const refreshInterval = setInterval(()=>{
-
-        setLastUpdated(new Date());
-
-        setRooms(old=>[...old]);
-
-    },60000);
-
-    return()=>{
-
-        unsubRooms();
-
-        roomUnsubs.forEach(u=>u());
-
-        clearInterval(refreshInterval);
-
+    return () => {
+      unsubRooms();
+      roomUnsubs.forEach((u) => u());
     };
 
-  },[]);
+  }, []);
 
+  // -----------------------------------------------------
+  // ROOM ACTIVITIES ("events")
+  // -----------------------------------------------------
+  useEffect(() => {
+
+    const unsub = onSnapshot(
+      collection(db, "events"),
+      (snap) => {
+        setEventsData(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        );
+      }
+    );
+
+    return unsub;
+
+  }, []);
+
+  // -----------------------------------------------------
+  // APPROVED RESERVATIONS ("reservationRequests")
+  // -----------------------------------------------------
+  useEffect(() => {
+
+    const unsub = onSnapshot(
+      collection(db, "reservationRequests"),
+      (snap) => {
+
+        const data = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((r) => normalize(r.status) === "approved");
+
+        setReservationsData(data);
+
+      }
+    );
+
+    return unsub;
+
+  }, []);
+
+  // -----------------------------------------------------
+  // 1-MINUTE TICK (para tama palagi ang "Available at/until")
+  // -----------------------------------------------------
+  useEffect(() => {
+
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+      setLastUpdated(new Date());
+    }, 60000);
+
+    return () => clearInterval(interval);
+
+  }, []);
+
+  // -----------------------------------------------------
+  // RECENT ACTIVITY LOGS
+  // -----------------------------------------------------
   useEffect(() => {
     const q = query(
       collection(db, "activityLogs"),
@@ -393,14 +378,115 @@ export default function DepartmentHeadDashboard() {
     return () => unsub();
   }, []);
 
-  const filteredRooms =
-  activeFloor === "All Floors"
-    ? rooms
-    : rooms.filter((room) => {
-        if (!room.floor) return false;
+  // -----------------------------------------------------
+  // COMPUTED: rooms with live status
+  // (kasama na ang schedules + events + reservations)
+  // -----------------------------------------------------
+  const rooms = useMemo(() => {
 
-        return normalize(room.floor) === normalize(activeFloor);
-      });
+    const todayStr = todayDateString();
+
+    return roomsData.map((r) => {
+
+      const todaysEvents = eventsData.filter(
+        (e) => e.roomId === r.docId && e.date === todayStr
+      );
+
+      const todaysReservations = reservationsData.filter(
+        (res) => res.roomId === r.docId && res.date === todayStr
+      );
+
+      const live = getRoomLiveStatus(
+        r,
+        r.schedules,
+        todaysEvents,
+        todaysReservations
+      );
+
+      return {
+        id: r.docId,
+        roomName: r.roomName,
+        roomType: r.roomType,
+        floor: r.floor,
+        image: r.image,
+        schedules: r.schedules,
+        status: live.status,
+        liveMessage: live.message,
+        currentSubject: live.currentSubject,
+      };
+
+    });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomsData, eventsData, reservationsData, tick]);
+
+  // -----------------------------------------------------
+  // COMPUTED: stats
+  // -----------------------------------------------------
+  const stats = useMemo(() => {
+
+    let occupied = 0;
+    let available = 0;
+    let maintenance = 0;
+
+    rooms.forEach((r) => {
+      if (r.status === "occupied") occupied++;
+      else if (r.status === "maintenance") maintenance++;
+      else available++;
+    });
+
+    const todayStr = todayDateString();
+    const now =
+      new Date().getHours() * 60 + new Date().getMinutes();
+
+    // bilangin ang mga room activity ("events") na kasalukuyang
+    // ongoing ngayong araw
+    const roomActivity = eventsData.filter((e) => {
+      if (e.date !== todayStr) return false;
+
+      const start = toMinutes(e.startTime);
+      const end = toMinutes(e.endTime);
+
+      return now >= start && now < end;
+    }).length;
+
+    return {
+      totalRooms: rooms.length,
+      occupied,
+      available,
+      maintenance,
+      roomActivity,
+    };
+
+  }, [rooms, eventsData]);
+
+  // -----------------------------------------------------
+  // FILTER BY FLOOR + SORT
+  // -----------------------------------------------------
+  const filteredRooms = useMemo(() => {
+
+    const base =
+      activeFloor === "All Floors"
+        ? rooms
+        : rooms.filter(
+            (room) => normalize(room.floor) === normalize(activeFloor)
+          );
+
+    return [...base].sort((a, b) =>
+      a.roomName.localeCompare(b.roomName, undefined, {
+        numeric: true,
+      })
+    );
+
+  }, [rooms, activeFloor]);
+
+  // i-reset ang pagination pag nagpalit ng floor filter
+  useEffect(() => {
+    setVisibleCount(ROOMS_PER_PAGE);
+  }, [activeFloor]);
+
+  const visibleRooms = filteredRooms.slice(0, visibleCount);
+  const hasMoreRooms = filteredRooms.length > visibleCount;
 
   return (
     <div className="dept-db-dashboard">
@@ -509,28 +595,15 @@ export default function DepartmentHeadDashboard() {
                 Loading rooms...
               </div>
 
+            ) : visibleRooms.length === 0 ? (
+
+              <div className="dept-db-loading">
+                No rooms found.
+              </div>
+
             ) : (
 
-              rooms
-                .filter(room =>
-
-                  activeFloor === "All Floors"
-                    ? true
-                    : normalize(room.floor) === normalize(activeFloor)
-
-                )
-
-                .sort((a,b)=>
-
-                  a.roomName.localeCompare(
-                    b.roomName,
-                    undefined,
-                    {numeric:true}
-                  )
-
-                )
-
-                .map(room=>(
+              visibleRooms.map(room=>(
 
                   <div
                     key={room.id}
@@ -656,9 +729,19 @@ export default function DepartmentHeadDashboard() {
           </div>
 
           <p className="dept-db-last-updated">Last Updated: {lastUpdated.toLocaleTimeString()}</p>
-          <div className="dept-db-load-more">
-          <button className="dept-db-load-more-btn">Load More</button>
-        </div>
+
+          {hasMoreRooms && (
+            <div className="dept-db-load-more">
+              <button
+                className="dept-db-load-more-btn"
+                onClick={() =>
+                  setVisibleCount((c) => c + ROOMS_PER_PAGE)
+                }
+              >
+                Load More
+              </button>
+            </div>
+          )}
         </div>
 
         

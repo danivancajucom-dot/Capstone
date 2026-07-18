@@ -1,70 +1,82 @@
 import "./occupied-room-card.css";
 
-function OccupiedRoomCard({ room }) {
+const formatTime = (time) => {
+  if (!time) return "-";
 
-const booking=room.activeBooking;
+  const [hour, minute] = time.split(":").map(Number);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return time;
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+function OccupiedRoomCard({ room, onViewSchedule }) {
+
+const booking = room.activeBooking || {};
 
 return(
 
 <div className="occupied-room-card">
 
-<div className="occupied-room-header">
+  <div className="occupied-room-header">
 
-<span>
+    <span className="occupied-room-name">
 
-{room.roomName}
+      {room.roomName}
 
-</span>
+    </span>
 
-<span>
+    <span className="occupied-room-badge">
+      OCCUPIED
+    </span>
 
-OCCUPIED
+  </div>
 
-</span>
+  <div className="occupied-room-details">
 
-</div>
+    <i className="fa-solid fa-user"/>
 
-<div className="occupied-room-details">
+    <div>
 
-<i className="fa-solid fa-user"/>
+      <span className="occupied-room-person">
 
-<div>
+        {
+          booking.facultyName ||
+          booking.requesterName ||
+          "-"
+        }
 
-<span>
+      </span>
 
-{
+      <small className="occupied-room-sub">
 
-booking.requesterName ||
+        {
+          booking.subject ||
+          booking.course ||
+          booking.purpose ||
+          "-"
+        }
 
-booking.facultyName ||
+      </small>
 
-booking.subject
+    </div>
 
-}
+  </div>
 
-</span>
+  <div className="occupied-room-time">
+    <i className="fa-regular fa-clock"></i>
+    Until {formatTime(booking.endTime)}
+  </div>
 
-<small>
-
-{
-
-booking.course ||
-
-booking.purpose
-
-}
-
-</small>
-
-</div>
-
-</div>
-
-<button>
-
-View Schedule
-
-</button>
+  <button
+    className="occupied-room-btn"
+    onClick={onViewSchedule}
+  >
+    View Schedule
+  </button>
 
 </div>
 

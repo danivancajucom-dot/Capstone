@@ -4,7 +4,7 @@ import "./departmenthead-profile.css";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { sendPasswordResetEmail, onAuthStateChanged } from "firebase/auth";
-
+import { logActivity } from "../../utils/logActivity";
 const CLOUDINARY_CLOUD_NAME    = "dzu1qb8oz";
 const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
 
@@ -91,7 +91,18 @@ export default function DepartmentHeadProfile() {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("User session expired.");
 
-      let photoUrl = form.photoUrl;
+      const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+
+      if (!userSnap.exists()) {
+        throw new Error("User profile not found.");
+      }
+
+      const currentUserData = userSnap.data();
+
+      const fullName =
+        `${currentUserData.firstName} ${currentUserData.lastName}`.trim();
+      
+        let photoUrl = form.photoUrl;
       if (photoFile) {
         setUploading(true);
         photoUrl = await uploadToCloudinary(photoFile);
@@ -102,6 +113,28 @@ export default function DepartmentHeadProfile() {
         firstName: form.firstName.trim(),
         lastName:  form.lastName.trim(),
         photoUrl,
+      });
+
+      await logActivity({
+        userId: currentUser.uid,
+        user: fullName,
+        role: currentUserData.role,
+
+        action: "Updated Profile",
+        actionType: "success",
+
+        target: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        status: "SUCCESS",
+
+        details: {
+          previousFirstName: originalData.firstName,
+          previousLastName: originalData.lastName,
+
+          newFirstName: form.firstName.trim(),
+          newLastName: form.lastName.trim(),
+
+          photoUpdated: !!photoFile,
+        },
       });
 
       const updatedData = { ...form, photoUrl };

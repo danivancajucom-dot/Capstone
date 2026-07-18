@@ -18,6 +18,7 @@ function DepartmentHeadReassignRoom() {
   const navigate = useNavigate();
   const [floor, setFloor] = useState("");
   const [availableRooms, setAvailableRooms] = useState([]);
+  const [roomsLoading, setRoomsLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const location = useLocation();
 
@@ -58,7 +59,22 @@ const overlap = (aStart, aEnd, bStart, bEnd) => {
   return s1 < e2 && e1 > s2;
 };
 
+const formatTime = (time) => {
+  if (!time) return "";
+
+  const [hour, minute] = time.split(":").map(Number);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return time;
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
 const loadAvailableRooms = async () => {
+
+    setRoomsLoading(true);
 
     const roomSnap = await getDocs(collection(db,"rooms"));
 
@@ -110,6 +126,7 @@ const loadAvailableRooms = async () => {
     }
 
     setAvailableRooms(available);
+    setRoomsLoading(false);
 
 };
 
@@ -246,76 +263,124 @@ const loadAvailableRooms = async () => {
     }
   };
 
+  const courseTitle =
+    conflict?.subject || conflict?.schedule?.subject || "—";
+
   return (
     <>
       <div className="dept-reassign-room">
         <div className="dept-reassign-white-box">
-          <h2 className="dept-reassign-title">Reassign Room</h2>
 
-          <div className="dept-reassign-sections">
-            <div className="dept-reassign-section">
-              <div className="dept-reassign-section-label">
-                <span>General Information</span>
+          <div className="dept-reassign-heading">
+            <h2 className="dept-reassign-title">Reassign Room</h2>
+            <p className="dept-reassign-subtitle">
+              Move this class to another available room. The faculty will be
+              notified once you confirm.
+            </p>
+          </div>
+
+          {/* -------------------------------------------------- */}
+          {/* CONFLICT SUMMARY (read-only, compact) */}
+          {/* -------------------------------------------------- */}
+          <div className="dept-reassign-summary">
+
+            <div className="dept-reassign-summary-item">
+              <span className="dept-reassign-summary-label">Course Title</span>
+              <span className="dept-reassign-summary-value">{courseTitle}</span>
+            </div>
+
+            <div className="dept-reassign-summary-item">
+              <span className="dept-reassign-summary-label">Faculty</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.faculty || "—"}
+              </span>
+            </div>
+
+            <div className="dept-reassign-summary-item">
+              <span className="dept-reassign-summary-label">Section</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.section || "—"}
+              </span>
+            </div>
+
+            <div className="dept-reassign-summary-item">
+              <span className="dept-reassign-summary-label">Date</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.date || "—"}
+              </span>
+            </div>
+
+            <div className="dept-reassign-summary-item">
+              <span className="dept-reassign-summary-label">Current Room</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.roomName || "—"}
+              </span>
+            </div>
+
+            <div className="dept-reassign-summary-item">
+              <span className="dept-reassign-summary-label">Time</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.startTime && conflict?.endTime
+                  ? `${formatTime(conflict.startTime)} – ${formatTime(conflict.endTime)}`
+                  : "—"}
+              </span>
+            </div>
+
+          </div>
+
+          {/* -------------------------------------------------- */}
+          {/* ROOM SELECTION */}
+          {/* -------------------------------------------------- */}
+          <div className="dept-reassign-room-section">
+
+            <div className="dept-reassign-room-section-header">
+              <div>
+                <span className="dept-venue-title">Select a New Room</span>
+                <p className="dept-venue-hint">
+                  Only rooms free during this time slot are shown.
+                </p>
               </div>
 
-              <div className="dept-reassign-form-group">
-                <label>Course Title</label>
-                <input type="text" className="dept-reassign-form-input"value={conflict?.subject || conflict?.schedule?.subject || ""} readOnly />
-              </div>
+              <div className="dept-dropdown-wrapper-venue">
+                <select
+                    value={floor}
+                    onChange={(e) => setFloor(e.target.value)}
+                    className="dept-dropdown-venue"
+                    aria-label="Filter by floor"
+                >
+                    <option value="">All Floors</option>
+                    <option value="1st Floor">1st Floor</option>
+                    <option value="2nd Floor">2nd Floor</option>
+                    <option value="3rd Floor">3rd Floor</option>
+                    <option value="4th Floor">4th Floor</option>
+                </select>
 
-              <div className="dept-reassign-form-group">
-                <label>Assigned Faculty</label>
-                <input type="text" className="dept-reassign-form-input" value={conflict?.faculty || ""} readOnly />
-              </div>
-
-              <div className="dept-reassign-form-group">
-                <label>Section</label>
-                <input type="text" className="dept-reassign-form-input" value={conflict?.section || ""} readOnly />
-              </div>
-
-              <div className="dept-reassign-form-group">
-                <label>Date</label>
-                <div className="dept-reassign-input-icon-wrapper">
-                  <i className="fa-regular fa-calendar dept-reassign-input-icon"></i>
-                  <input type="date" className="dept-reassign-form-input" value={conflict?.date || ""} readOnly />
-                </div>
+                <i className="fa-solid fa-angle-down dept-dropdown-icon-venue"></i>
               </div>
             </div>
 
-            <div className="dept-reassign-section">
-              <div className="dept-reassign-section-label">
-                <span>Venue & Timing</span>
-              </div>
+            <div className="available-room-list">
 
-              <div className="dept-venue-header">
-                <span className="dept-venue-title">Available Room Slots</span>
-                <div className="dept-dropdown-wrapper-venue">
-                  <select
-                      value={floor}
-                      onChange={(e) => setFloor(e.target.value)}
-                      className="dept-dropdown-venue"
-                  >
-                      <option value="">All Floors</option>
-                      <option value="1st Floor">1st Floor</option>
-                      <option value="2nd Floor">2nd Floor</option>
-                      <option value="3rd Floor">3rd Floor</option>
-                      <option value="4th Floor">4th Floor</option>
-                  </select>
+                {roomsLoading ? (
 
-                  <i className="fa-solid fa-angle-down dept-dropdown-icon-venue"></i>
-              </div>
+                    <div className="room-select-empty">
+                        <i className="fa-solid fa-spinner fa-spin"></i>
+                        <p>Checking room availability...</p>
+                    </div>
 
-              <div className="available-room-list">
+                ) : availableRooms.length === 0 ? (
 
-                  {availableRooms.length === 0 && (
-                      <div className="no-room">
-                          No available room found.
-                      </div>
-                  )}
+                    <div className="room-select-empty">
+                        <i className="fa-regular fa-calendar-xmark"></i>
+                        <p>No available rooms found for this time slot.</p>
+                    </div>
 
-                  {availableRooms.map((room) => (
+                ) : (
 
-                      <div
+                  availableRooms.map((room) => (
+
+                      <button
+                          type="button"
                           key={room.id}
                           className={`available-room-card ${
                               selectedRoom?.id === room.id ? "selected" : ""
@@ -333,26 +398,32 @@ const loadAvailableRooms = async () => {
 
                           </div>
 
-                          <p>{room.floor}</p>
+                          <div className="room-card-meta">
+                            <span className="room-card-floor">
+                              <i className="fa-solid fa-building"></i>
+                              {room.floor}
+                            </span>
 
-                      </div>
+                            {room.roomType && (
+                              <span className="room-card-type">
+                                {room.roomType}
+                              </span>
+                            )}
 
-                  ))}
+                            {room.capacity && (
+                              <span className="room-card-capacity">
+                                <i className="fa-solid fa-users"></i>
+                                {room.capacity}
+                              </span>
+                            )}
+                          </div>
 
-              </div>
-              </div>
+                      </button>
 
-              <div className="dept-reassign-time-fields">
-                <div className="dept-reassign-form-group">
-                  <label>Start Time</label>
-                  <input type="text" className="dept-reassign-form-input" value={conflict?.startTime || ""} readOnly />
-                </div>
+                  ))
 
-                <div className="dept-reassign-form-group">
-                  <label>End Time</label>
-                  <input type="text" className="dept-reassign-form-input" value={conflict?.endTime || ""} readOnly />
-                </div>
-              </div>
+                )}
+
             </div>
           </div>
         </div>
@@ -364,7 +435,7 @@ const loadAvailableRooms = async () => {
           <button
             className="dept-reassign-confirm-btn"
             onClick={() => setShowConfirm(true)}
-            disabled={loading}
+            disabled={loading || !selectedRoom}
           >
             {loading ? "Processing..." : "Confirm"}
           </button>

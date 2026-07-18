@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import "./faculty-submit-reservation.css";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
+import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
 import {
   collection,
   getDocs,
@@ -246,8 +247,6 @@ function FacultySubmitReservation() {
 
         }
 
-        let occupied = false;
-
         // ----------------------------
         // CAPACITY FILTER
         // ----------------------------
@@ -267,6 +266,36 @@ function FacultySubmitReservation() {
             continue;
           }
         }
+
+        // ----------------------------
+        // MAINTENANCE WINDOW
+        // ----------------------------
+        // Kung naka-maintenance ang room sa loob ng hinihiling na
+        // petsa/oras, ipakita pa rin ito sa listahan (para malinaw sa
+        // faculty na bakit hindi ito available) pero hindi na
+        // kailangan pang tignan ang schedule/event/reservation
+        // conflicts — automatic na "hindi available".
+
+        const underMaintenance = isRoomUnderMaintenance(
+          room,
+          date,
+          startTime,
+          endTime
+        );
+
+        if (underMaintenance) {
+
+          roomList.push({
+            ...room,
+            available: false,
+            maintenance: true,
+          });
+
+          continue;
+
+        }
+
+        let occupied = false;
 
         // ----------------------------
         // CLASS SCHEDULES
@@ -374,6 +403,8 @@ function FacultySubmitReservation() {
           ...room,
 
           available: !occupied,
+
+          maintenance: false,
 
         });
 
@@ -496,6 +527,9 @@ function FacultySubmitReservation() {
 
     if (!selectedRoom)
       return "Select an available room.";
+
+    if (selectedRoom.maintenance)
+      return "This room is under maintenance during the selected time.";
 
     return null;
   };
@@ -1046,7 +1080,13 @@ function FacultySubmitReservation() {
 
                       className={`
                         room-card
-                        ${room.available ? "available":"occupied"}
+                        ${
+                          room.maintenance
+                            ? "maintenance"
+                            : room.available
+                            ? "available"
+                            : "occupied"
+                        }
                         ${
                           selectedRoom?.id===room.id
                           ? "selected"
@@ -1056,7 +1096,7 @@ function FacultySubmitReservation() {
 
                       onClick={()=>{
 
-                        if(!room.available)
+                        if(!room.available || room.maintenance)
                           return;
 
                         setSelectedRoom(room);
@@ -1085,12 +1125,16 @@ function FacultySubmitReservation() {
                       <div className="room-status">
                           <i
                               className={`fa-solid ${
-                                  room.available
+                                  room.maintenance
+                                      ? "fa-triangle-exclamation"
+                                      : room.available
                                       ? "fa-circle-check"
                                       : "fa-circle-xmark"
                               }`}
                           ></i>{" "}
-                          {room.available
+                          {room.maintenance
+                              ? "Under Maintenance"
+                              : room.available
                               ? "Available"
                               : "Occupied"}
                       </div>

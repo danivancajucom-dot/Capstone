@@ -1,68 +1,96 @@
 .occupied-room-card {
-  background-color: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-top: 20px;
+  background: #ffffff;
+  border: 1.5px solid #FEE2E2;
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  border: 2px solid #DC2626;
-  width: 250px;
-  height: 300px;
+  gap: 10px;
+  transition: box-shadow 0.18s ease, transform 0.12s ease;
+}
+
+.occupied-room-card:hover {
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.1);
+  transform: translateY(-1px);
 }
 
 .occupied-room-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .occupied-room-name {
-  font-size: 20px;
-  font-weight: 900;
-  color: #333333;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1E2430;
 }
 
 .occupied-room-badge {
-  color: #FEEDED;
-  background-color: #DC2626;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 20px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #FEEDED;
+  color: #DC2626;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .occupied-room-details {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.occupied-room-details i {
+  color: #DC2626;
   font-size: 13px;
-  color: #64748B;
-  flex: 1;
+  margin-top: 3px;
 }
 
-.occupied-room-info {
+.occupied-room-person {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1E2430;
+}
+
+.occupied-room-sub {
+  display: block;
+  font-size: 12px;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+
+.occupied-room-time {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #DC2626;
+  font-weight: 600;
+  background: #FEEDED;
+  padding: 6px 10px;
+  border-radius: 6px;
+  width: fit-content;
 }
 
-.occupied-room-icon {
-  color: #64748B;
-  font-size: 14px;
-}
-
-.view-schedule-btn {
-  padding: 10px;
+.occupied-room-btn {
+  margin-top: 4px;
+  padding: 9px;
+  border: 1.5px solid #E5E7EB;
   border-radius: 8px;
-  border: none;
-  background-color: #F2690D;
-  color: #ffffff;
+  background: #ffffff;
+  color: #374151;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  width: 100%;
-  margin-top: auto;
+  transition: 0.18s ease;
+}
+
+.occupied-room-btn:hover {
+  border-color: #DC2626;
+  color: #DC2626;
 }

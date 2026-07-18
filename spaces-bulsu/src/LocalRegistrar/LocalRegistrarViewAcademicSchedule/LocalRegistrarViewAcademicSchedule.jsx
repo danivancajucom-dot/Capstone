@@ -56,6 +56,18 @@ const getCurrentDay = () => {
   return days[new Date().getDay()];
 };
 
+// -------------------------------------------------------
+// Kinukuha kung "maintenance" ang isang room, base sa
+// "roomStatus" field (hindi "status") sa rooms collection.
+// -------------------------------------------------------
+const isUnderMaintenance = (roomData) => {
+  const roomStatus = String(roomData?.roomStatus || "")
+    .trim()
+    .toLowerCase();
+
+  return roomStatus === "maintenance";
+};
+
 function LocalRegistrarViewAcademicSchedule() {
   const navigate = useNavigate();
 
@@ -128,6 +140,8 @@ function LocalRegistrarViewAcademicSchedule() {
       const currentMinutes = getCurrentMinutes();
       const todayDay = getCurrentDay();
 
+      const maintenance = isUnderMaintenance(roomData);
+
       const classOccupied = schedules.some(schedule => {
 
             if (schedule.initialized) return false;
@@ -185,9 +199,15 @@ function LocalRegistrarViewAcademicSchedule() {
 
       if (hasMatchingSchedule) {
         filteredRooms.push({
-          id: roomDoc.id,
-          ...roomData,
-          status: occupied ? "Occupied" : "Available",
+            id: roomDoc.id,
+            ...roomData,
+
+            // Maintenance > Occupied > Available (priority order)
+            status: maintenance
+                ? "Under Maintenance"
+                : occupied
+                ? "Occupied"
+                : "Available",
         });
       }
     }
@@ -292,7 +312,13 @@ function LocalRegistrarViewAcademicSchedule() {
         <div className="lr-room-cards">
 
           {loading ? (
-            <h3>Loading rooms...</h3>
+            <div className="room-empty">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+
+              <h2>Loading Rooms</h2>
+
+              <p>Please wait while we retrieve available rooms.</p>
+            </div>
           ) : rooms.length === 0 ? (
             <h3>No rooms found.</h3>
           ) : (

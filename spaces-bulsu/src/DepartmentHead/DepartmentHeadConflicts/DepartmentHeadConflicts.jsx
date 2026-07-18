@@ -253,12 +253,13 @@ function DepartmentHeadConflicts() {
 
     <div className="conflict-body">
       {loading ? (
+        <div className="room-empty">
+          <i className="fa-solid fa-spinner fa-spin"></i>
 
-        <div className="conflict-loading">
-          <span className="conflict-spinner"></span>
-          <p>Loading conflicts...</p>
+          <h2>Loading Conflicts</h2>
+
+          <p>Please wait while we retrieve active conflicts.</p>
         </div>
-
       ) : displayConflicts.length === 0 ? (
 
         <div className="no-conflicts">

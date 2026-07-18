@@ -13,7 +13,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
-
+import { logActivity } from "../../utils/logActivity";
 const CLOUDINARY_CLOUD_NAME    = "dzu1qb8oz";
 const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
 
@@ -42,6 +42,7 @@ export default function BroadcastChannel() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const imageRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -71,6 +72,7 @@ export default function BroadcastChannel() {
   }, []);
 
   useEffect(() => {
+    setLoading(true);
     if (!userRole) return;
 
     const q = query(
@@ -99,6 +101,7 @@ export default function BroadcastChannel() {
       );
       setMessages(filteredMessages);
     });
+    setLoading(false);
 
     return () => unsub();
   }, [userRole]);
@@ -152,6 +155,27 @@ export default function BroadcastChannel() {
           },
         }
       );
+
+      await logActivity({
+        userId: auth.currentUser.uid,
+        user: senderName,
+        role: userRole,
+        action: "Sent Broadcast Announcement",
+        actionType: "success",
+        target: recipient,
+        status: "SUCCESS",
+        details: {
+          message:
+            message.trim() ||
+            (selectedImage
+              ? "Image Attachment"
+              : selectedFile
+              ? fileName
+              : "Announcement"),
+          hasImage: !!imageUrl,
+          hasFile: !!fileUrl,
+        },
+      });
 
       setMessage("");
       setSelectedImage(null);
@@ -253,7 +277,15 @@ export default function BroadcastChannel() {
 
       {/* MESSAGES */}
       <div className="bc-messages">
-        {messages.length === 0 && (
+        {loading ? (
+            <div className="room-empty">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+
+              <h2>Loading</h2>
+
+              <p>Please wait while we retrieve available contents.</p>
+            </div>
+          ) : messages.length === 0 && (
           <div className="bc-empty-state">
             <i className="fa-solid fa-bullhorn"></i>
             <p>No announcements yet.</p>

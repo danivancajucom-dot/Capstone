@@ -11,6 +11,7 @@ import {
     serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
+import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -266,6 +267,22 @@ const availableRooms = useMemo(() => {
     return rooms
         .map(room => {
 
+            // ------------------------------------
+            // UNDER MAINTENANCE — hindi kasama sa
+            // walk-in room slots kahit paano
+            // ------------------------------------
+
+            if (
+                isRoomUnderMaintenance(
+                    room,
+                    today,
+                    currentTime,
+                    currentTime
+                )
+            ) {
+                return null;
+            }
+
             const roomEvents = events.filter(
                 e => e.roomId === room.id
             );
@@ -325,7 +342,8 @@ const availableRooms = useMemo(() => {
     rooms,
     events,
     reservations,
-    nowMinutes
+    nowMinutes,
+    currentTime
 ]);
 
   const liveAvailability = useMemo(() => {
@@ -337,8 +355,12 @@ const availableRooms = useMemo(() => {
     //------------------------------------
 
     if (
-        room.status === "Under Maintenance" ||
-        room.status === "Maintenance"
+        isRoomUnderMaintenance(
+            room,
+            today,
+            currentTime,
+            currentTime
+        )
     ) {
 
           return {
@@ -437,7 +459,8 @@ const availableRooms = useMemo(() => {
       rooms,
       events,
       reservations,
-      nowMinutes
+      nowMinutes,
+      currentTime
   ]);
 
 //---------------------------------------------------
@@ -574,6 +597,23 @@ const handleConfirm = async () => {
 
     if (!selectedRoom) {
         alert("Please select a room.");
+        return;
+    }
+
+    // --------------------------------------------
+    // FINAL MAINTENANCE CHECK (defensive, in case
+    // ng maintenance na-set habang naka-open ang form)
+    // --------------------------------------------
+
+    if (
+        isRoomUnderMaintenance(
+            selectedRoom,
+            today,
+            form.startTime || currentTime,
+            form.endTime || currentTime
+        )
+    ) {
+        alert("This room is under maintenance and cannot be reserved.");
         return;
     }
 

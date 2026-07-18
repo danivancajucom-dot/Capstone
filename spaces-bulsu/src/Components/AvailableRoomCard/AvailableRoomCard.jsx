@@ -1,50 +1,58 @@
 import "./available-room-card.css";
 
-function AvailableRoomCard({ room }) {
+function AvailableRoomCard({ room, onReserve }) {
 
 return (
 
 <div className="available-room-card">
 
-<div className="available-room-header">
+  <div className="available-room-header">
 
-<span className="available-room-name">
+    <span className="available-room-name">
 
-{room.roomName}
+      {room.roomName}
 
-</span>
+    </span>
 
-<span className="available-room-badge">
+    <span className="available-room-badge">
 
-AVAILABLE
+      <span className="available-room-dot"></span>
+      AVAILABLE
 
-</span>
+    </span>
 
-</div>
+  </div>
 
-<div className="available-room-details">
+  <p className="available-room-type">
+    {room.roomType}
+  </p>
 
-<i className="fa-solid fa-users"/>
+  <div className="available-room-details">
 
-<span>
+    <i className="fa-solid fa-users"/>
 
-Capacity {room.capacity}
+    <span>
 
-</span>
+      Capacity {room.capacity || "-"}
 
-</div>
+    </span>
 
-<div>
+  </div>
 
-{room.roomType}
+  {room.floor && (
+    <div className="available-room-details">
+      <i className="fa-solid fa-building"/>
+      <span>{room.floor}</span>
+    </div>
+  )}
 
-</div>
-
-<button>
-
-Quick Reserve
-
-</button>
+  <button
+    className="available-room-btn"
+    onClick={onReserve}
+  >
+    <i className="fa-solid fa-bolt"></i>
+    Quick Reserve
+  </button>
 
 </div>
 

@@ -1,10 +1,20 @@
 import React, { useState,useEffect } from 'react';
 import './department-head-activity-log.css';
 import { useNavigate } from "react-router-dom";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  deleteDoc,
+  doc,
+  writeBatch,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 const tabs = ['All Activities', 'System Changes', 'Security Events'];
+
+const ITEMS_PER_PAGE = 10;
 
 const actionIcon = (type) => {
   switch (type) {
@@ -26,6 +36,10 @@ export default function DepartmentHeadActivityLog() {
   const [logs, setLogs] = useState([]);
   const [todayCount, setTodayCount] = useState(0);
   const [alertCount, setAlertCount] = useState(0);
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { ids: [...] }
+  const [deleting, setDeleting] = useState(false);
 
 
   const [toast, setToast] = useState({
@@ -57,6 +71,130 @@ export default function DepartmentHeadActivityLog() {
 
   return true;
 });
+
+  // -----------------------------------------------------------------
+  // PAGINATION (10 per page, based on the actually filtered logs)
+  // -----------------------------------------------------------------
+
+  const totalItems = filteredLogs.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
+
+  const paginatedLogs = filteredLogs.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE
+  );
+
+  // i-reset ang page (at ang selection) tuwing magpapalit ng tab
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedIds([]);
+  }, [activeTab]);
+
+  // i-clamp ang currentPage kung bumaba ang totalPages (hal. after delete)
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages]);
+
+  const renderPageNumbers = () => {
+    const pages = [];
+    const start = Math.max(1, safePage - 1);
+    const end = Math.min(totalPages, start + 2);
+
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    return pages;
+  };
+
+  const pageNumbers = renderPageNumbers();
+
+  // -----------------------------------------------------------------
+  // SELECTION
+  // -----------------------------------------------------------------
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  };
+
+  const allOnPageSelected =
+    paginatedLogs.length > 0 &&
+    paginatedLogs.every((l) => selectedIds.includes(l.id));
+
+  const toggleSelectAllOnPage = () => {
+    if (allOnPageSelected) {
+      setSelectedIds((prev) =>
+        prev.filter((id) => !paginatedLogs.some((l) => l.id === id))
+      );
+    } else {
+      setSelectedIds((prev) => [
+        ...new Set([...prev, ...paginatedLogs.map((l) => l.id)]),
+      ]);
+    }
+  };
+
+  // -----------------------------------------------------------------
+  // DELETE
+  // -----------------------------------------------------------------
+
+  const requestDeleteSingle = (id) => setDeleteTarget({ ids: [id] });
+  const requestDeleteSelected = () => setDeleteTarget({ ids: selectedIds });
+
+  const confirmDelete = async () => {
+
+    if (!deleteTarget || deleteTarget.ids.length === 0) return;
+
+    setDeleting(true);
+
+    try {
+
+      if (deleteTarget.ids.length === 1) {
+
+        await deleteDoc(doc(db, "activityLogs", deleteTarget.ids[0]));
+
+      } else {
+
+        const batch = writeBatch(db);
+
+        deleteTarget.ids.forEach((id) => {
+          batch.delete(doc(db, "activityLogs", id));
+        });
+
+        await batch.commit();
+
+      }
+
+      setSelectedIds((prev) =>
+        prev.filter((id) => !deleteTarget.ids.includes(id))
+      );
+
+      showToast(
+        `Deleted ${deleteTarget.ids.length} log${
+          deleteTarget.ids.length > 1 ? "s" : ""
+        }.`,
+        "success"
+      );
+
+    } catch (err) {
+
+      console.error(err);
+
+      showToast("Failed to delete log(s).", "error");
+
+    } finally {
+
+      setDeleting(false);
+      setDeleteTarget(null);
+
+    }
+
+  };
 
  const exportCSV = async () => {
     try {
@@ -154,6 +292,17 @@ export default function DepartmentHeadActivityLog() {
         </div>
 
         <div className="log-actions">
+          {selectedIds.length > 0 && (
+            <button
+              className="action-btn outline"
+              style={{ color: "#dc2626", borderColor: "#dc2626" }}
+              onClick={requestDeleteSelected}
+            >
+              <i className="fa-solid fa-trash"></i>
+              Delete Selected ({selectedIds.length})
+            </button>
+          )}
+
           <button className="action-btn outline" onClick={exportCSV}>
             <i className="fa-solid fa-download"></i>
             Export CSV
@@ -266,15 +415,32 @@ export default function DepartmentHeadActivityLog() {
         <table className="log-table">
           <thead>
             <tr>
+              <th style={{ width: 36 }}>
+                <input
+                  type="checkbox"
+                  checked={allOnPageSelected}
+                  onChange={toggleSelectAllOnPage}
+                  aria-label="Select all on this page"
+                />
+              </th>
               <th>USER</th>
               <th>ACTION</th>
               <th>TARGET</th>
               <th>DATE & TIME</th>
               <th>STATUS</th>
+              <th style={{ width: 60 }}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => {
+            {paginatedLogs.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}>
+                  No activity logs found.
+                </td>
+              </tr>
+            )}
+
+            {paginatedLogs.map((log) => {
               const date = log.timestamp?.toDate?.().toLocaleDateString?.() || "N/A";
               const time = log.timestamp?.toDate?.().toLocaleTimeString?.([], {
                 hour: "2-digit",
@@ -284,9 +450,23 @@ export default function DepartmentHeadActivityLog() {
               return (
                 <tr key={log.id}>
                   <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(log.id)}
+                      onChange={() => toggleSelect(log.id)}
+                      aria-label={`Select log ${log.id}`}
+                    />
+                  </td>
+
+                  <td>
                     <div className="user-cell">
                       <div className="user-avatar">
-                        {log.user?.split(" ")?.map(n => n[0]).join("").toUpperCase()}
+                        {(log.user || "")
+                          .split(" ")
+                          .filter(Boolean)
+                          .map(n => n[0])
+                          .join("")
+                          .toUpperCase()}
                       </div>
                       <div>
                         <p className="user-name">{log.user}</p>
@@ -314,6 +494,27 @@ export default function DepartmentHeadActivityLog() {
                       {log.status}
                     </span>
                   </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => requestDeleteSingle(log.id)}
+                      aria-label="Delete log entry"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#9ca3af",
+                        fontSize: 15,
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
+                    >
+                      <i className="fa-solid fa-trash"></i>
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -323,23 +524,147 @@ export default function DepartmentHeadActivityLog() {
 
       {/* PAGINATION */}
       <div className="log-pagination">
-        <span className="pagination-info">Showing 1 to 5 of 1,344 activities</span>
+        <span className="pagination-info">
+          Showing {totalItems === 0 ? 0 : startIndex + 1} to{" "}
+          {Math.min(startIndex + ITEMS_PER_PAGE, totalItems)} of {totalItems} activities
+        </span>
 
         <div className="pagination-controls">
-          <button className="page-btn" disabled>Previous</button>
-          {[1, 2, 3].map(p => (
+          <button
+            className="page-btn"
+            disabled={safePage === 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </button>
+
+          {pageNumbers[0] > 1 && (
+            <>
+              <button className="page-btn" onClick={() => setCurrentPage(1)}>1</button>
+              {pageNumbers[0] > 2 && <span className="page-ellipsis">...</span>}
+            </>
+          )}
+
+          {pageNumbers.map(p => (
             <button
               key={p}
-              className={`page-btn ${currentPage === p ? 'active' : ''}`}
+              className={`page-btn ${safePage === p ? 'active' : ''}`}
               onClick={() => setCurrentPage(p)}
             >
               {p}
             </button>
           ))}
-          <span className="page-ellipsis">...</span>
-          <button className="page-btn" onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
+
+          {pageNumbers[pageNumbers.length - 1] < totalPages && (
+            <>
+              {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && (
+                <span className="page-ellipsis">...</span>
+              )}
+              <button className="page-btn" onClick={() => setCurrentPage(totalPages)}>
+                {totalPages}
+              </button>
+            </>
+          )}
+
+          <button
+            className="page-btn"
+            disabled={safePage === totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </button>
         </div>
       </div>
+
+      {/* DELETE CONFIRM MODAL */}
+      {deleteTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 14,
+              padding: "28px 26px",
+              width: "100%",
+              maxWidth: 360,
+              textAlign: "center",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                background: "#fee2e2",
+                color: "#dc2626",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 20,
+                margin: "0 auto 14px",
+              }}
+            >
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+
+            <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800, color: "#1E2430" }}>
+              Delete {deleteTarget.ids.length > 1 ? `${deleteTarget.ids.length} logs` : "this log"}?
+            </h3>
+
+            <p style={{ margin: "0 0 20px", fontSize: 13.5, color: "#64748B" }}>
+              This action is permanent and cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                style={{
+                  padding: "10px 24px",
+                  borderRadius: 10,
+                  border: "1.5px solid #e5e7eb",
+                  background: "#fff",
+                  color: "#374151",
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                style={{
+                  padding: "10px 24px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#dc2626",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  cursor: "pointer",
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toast
         show={toast.show}
         type={toast.type}

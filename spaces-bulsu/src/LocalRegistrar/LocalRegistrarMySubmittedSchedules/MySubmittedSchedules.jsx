@@ -15,7 +15,7 @@ export default function MySubmittedSchedules() {
     const navigate = useNavigate();
 
     const [folders,setFolders] = useState({});
-
+    const [loading, setLoading] = useState(true);
     const [expandedSY,setExpandedSY] = useState({});
     const [expandedSem,setExpandedSem] = useState({});
 
@@ -27,6 +27,7 @@ export default function MySubmittedSchedules() {
 
     const loadSchedules = async()=>{
 
+        setLoading(true);
         const roomSnapshot = await getDocs(
             collection(db,"rooms")
         );
@@ -81,6 +82,7 @@ export default function MySubmittedSchedules() {
         }
 
         setFolders(grouped);
+        setLoading(false);
 
     };
 
@@ -122,19 +124,19 @@ export default function MySubmittedSchedules() {
 
             <div className="list-card">
 
-            {
+            {   loading ? (
+                <div className="room-empty">
+                    <i className="fa-solid fa-spinner fa-spin"></i>
 
-                Object.keys(folders).length===0 ?
+                    <h2>Loading Submitted Schedules</h2>
 
-                (
+                    <p>Please wait while we retrieve submitted schedules.</p>
+                </div>
+                ) : Object.keys(folders).length===0 ?(
 
                     <h3>No submitted schedules.</h3>
 
-                )
-
-                :
-
-                Object.entries(folders).map(
+                ) : Object.entries(folders).map(
 
                     ([schoolYear,semesters])=>(
 

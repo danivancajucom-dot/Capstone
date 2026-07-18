@@ -85,3 +85,23 @@
   font-weight: 700;
   color: #333333;
 }
+
+.class-details-badges {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+}
+.class-details-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.class-details-badge.type {
+  background: #e5e7eb;
+  color: #374151;
+}
+.class-details-badge.status.green { background: #dcfce7; color: #16a34a; }
+.class-details-badge.status.yellow { background: #fef9c3; color: #ca8a04; }
+.class-details-badge.status.red { background: #fee2e2; color: #dc2626; }
+.class-details-badge.status.gray { background: #e5e7eb; color: #4b5563; }

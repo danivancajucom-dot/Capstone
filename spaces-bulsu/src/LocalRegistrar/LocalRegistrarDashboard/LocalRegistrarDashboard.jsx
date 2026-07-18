@@ -17,6 +17,7 @@ const [totalSchedules, setTotalSchedules] = useState(0);
 const [qrGenerated, setQrGenerated] = useState(0);
 const [actionsToday, setActionsToday] = useState(0);
 const [activityLogs, setActivityLogs] = useState([]);
+const [loading, setLoading] = useState(true);
 
 useEffect(() => {
     loadDashboardStats();
@@ -116,7 +117,15 @@ const loadActivityLogs = async () => {
     setActivityLogs(logs);
 
   } catch (err) {
+
     console.error(err);
+
+  } finally {
+
+    // dati, hindi kailanman na-call ito, kaya nananatiling "loading"
+    // magpakailanman ang activity log table
+    setLoading(false);
+
   }
 };
 
@@ -188,7 +197,22 @@ return (
 
             <tbody>
 
-            {activityLogs.length === 0 ? (
+            {loading ? (
+
+              // dati, <div> ito nang direkta sa loob ng <tbody> —
+              // invalid HTML (dapat <tr>/<td> lang ang pwedeng anak
+              // nito). Binalot na ito sa tamang <tr><td colSpan>.
+              <tr>
+                <td colSpan="4">
+                  <div className="room-empty">
+                    <i className="fa-solid fa-spinner fa-spin"></i>
+                    <h2>Loading Activity Logs</h2>
+                    <p>Please wait while we retrieve activity logs.</p>
+                  </div>
+                </td>
+              </tr>
+
+            ) : activityLogs.length === 0 ? (
 
             <tr>
             <td colSpan="4" style={{ textAlign:"center" }}>

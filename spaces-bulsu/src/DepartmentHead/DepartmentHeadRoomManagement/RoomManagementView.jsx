@@ -301,7 +301,7 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                       }
 
                   );
-                  console.log(roomData.roomStatus);
+                
 
                   roomListeners.push(unsub);
 
@@ -692,11 +692,9 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                     <td>
                       <span
                         className={`room-status ${
-                          room.roomStatus === "maintenance"
-                            ? "room-status--inactive"
-                            : room.roomStatus === "inactive"
-                            ? "room-status--inactive"
-                            : "room-status--active"
+                          room.roomStatus === "active"
+                            ? "room-status--active"
+                            : "room-status--maintenance"
                         }`}
                       >
                         <span className="room-status-dot" />
