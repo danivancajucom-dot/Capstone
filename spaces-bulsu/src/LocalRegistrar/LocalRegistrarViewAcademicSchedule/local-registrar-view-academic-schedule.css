@@ -130,3 +130,31 @@
   margin-left: 60px;
   margin-right: 60px;
 }
+.room-empty{
+    min-height:60vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+}
+
+.room-empty i{
+    font-size:72px;
+    color:#F97316;
+    margin-bottom:22px;
+}
+
+.room-empty h2{
+    font-size:30px;
+    font-weight:700;
+    color:#1E293B;
+}
+
+.room-empty p{
+    margin-top:10px;
+    font-size:15px;
+    color:#64748B;
+    max-width:420px;
+    line-height:1.7;
+}

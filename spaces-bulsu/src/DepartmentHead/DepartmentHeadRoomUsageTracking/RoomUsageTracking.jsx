@@ -1,7 +1,6 @@
 import "./room-usage-tracking.css";
 
 import { useEffect, useMemo, useState } from "react";
-import "./room-usage-tracking.css";
 
 import {
   collection,
@@ -9,6 +8,22 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../../firebase";
+
+const DAY_ABBR = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+const todayString = () =>
+  new Date().toISOString().split("T")[0];
+
+// Kinukuha ang 3-letter day (MON/TUE/...) galing sa isang "YYYY-MM-DD"
+// date string, para maitugma sa "day" field ng rooms/{id}/schedules docs
+// (recurring weekly schedule, hindi specific na petsa).
+const getDayAbbrev = (dateStr) => {
+  const d = dateStr
+    ? new Date(`${dateStr}T00:00:00`)
+    : new Date();
+
+  return DAY_ABBR[d.getDay()];
+};
 
 const timeToMinutes = (time) => {
   if (!time) return 0;
@@ -22,24 +37,118 @@ const timeToMinutes = (time) => {
   return hour * 60 + minute;
 };
 
-const getStatus = (start, end) => {
+const format12Hour = (time) => {
+  if (!time) return "-";
+
+  const [hour, minute] = time.split(":").map(Number);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return time;
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+const getCurrentMinutes = () => {
   const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+};
 
-  const current =
-    now.getHours() * 60 +
-    now.getMinutes();
+// Status ng isang activity, base sa PETSA muna (kung nakaraan/susunod
+// na araw ito), tapos sa oras kung ito mismo ang araw ngayon.
+const getStatus = (dateStr, start, end) => {
+  const today = todayString();
 
+  if (dateStr && dateStr < today) return "COMPLETED";
+  if (dateStr && dateStr > today) return "UPCOMING";
+
+  const current = getCurrentMinutes();
   const startMin = timeToMinutes(start);
   const endMin = timeToMinutes(end);
 
-  if (current >= startMin && current <= endMin)
-    return "ONGOING";
-
-  if (current < startMin)
-    return "UPCOMING";
+  if (current >= startMin && current <= endMin) return "ONGOING";
+  if (current < startMin) return "UPCOMING";
 
   return "COMPLETED";
 };
+
+// -----------------------------------------------------------------
+// Normalizers: pinapareho ang shape ng 3 magkakaibang source
+// (class schedule / room activity / reservation) para iisa lang
+// ang logic na kailangan sa buong component.
+// -----------------------------------------------------------------
+
+const normalizeSchedule = (s) => ({
+  id: s.id,
+  kind: "schedule",
+  sourceLabel: "Class Schedule",
+
+  roomName: s.roomName,
+
+  day: s.day,
+  date: s.date || null,
+
+  startTime: s.startTime,
+  endTime: s.endTime,
+
+  subject: s.subject || "Class",
+
+  facultyName:
+    s.facultyName ||
+    s.faculty ||
+    "-",
+
+  faculty:
+    s.facultyName ||
+    s.faculty ||
+    "-",
+
+  section: s.section || "",
+
+  semester: s.semester || "",
+
+  schoolYear: s.schoolYear || "",
+
+  organization: null,
+});
+
+const normalizeEvent = (e) => ({
+  id: e.id,
+  kind: "event",
+  sourceLabel: "Room Activity",
+  roomName: e.roomName,
+  day: null,
+  date: e.date,
+  startTime: e.startTime,
+  endTime: e.endTime,
+  subject: e.title || e.purpose || "Room Activity",
+  facultyName: e.faculty || "Department Head",
+  section: "",
+  organization: null,
+});
+
+const normalizeReservation = (r) => ({
+  id: r.id,
+  kind: "reservation",
+  sourceLabel:
+    r.reservationType === "walk-in"
+      ? "Walk-in Reservation"
+      : "Faculty Reservation",
+  roomName: r.roomName,
+  day: null,
+  date: r.date,
+  startTime: r.startTime,
+  endTime: r.endTime,
+  subject:
+    r.customPurpose ||
+    r.courseTitle ||
+    r.purpose ||
+    "Reservation",
+  facultyName: r.requesterName || r.facultyName || "-",
+  section: r.yearSectionGroup || r.attendees?.yearSectionGroup || "",
+  organization: r.organizationName || r.attendees?.organization || null,
+});
 
 export default function RoomUsageTracking() {
  const [activeTab, setActiveTab] = useState("current");
@@ -53,6 +162,8 @@ export default function RoomUsageTracking() {
   );
 
   const [allSchedules, setAllSchedules] = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
+  const [allReservations, setAllReservations] = useState([]);
 
   const [currentSchedule, setCurrentSchedule] = useState(null);
 
@@ -78,6 +189,8 @@ export default function RoomUsageTracking() {
       utilization: 0,
   });
 
+  const isToday = (date || todayString()) === todayString();
+
   useEffect(() => {
 
     loadRooms();
@@ -94,7 +207,7 @@ export default function RoomUsageTracking() {
 
   useEffect(() => {
 
-    if (!allSchedules.length) return;
+    if (!room) return;
 
     trackRoom();
 
@@ -102,7 +215,13 @@ export default function RoomUsageTracking() {
 
     buildAnalytics();
 
-}, [room, date, allSchedules]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [room, date, allSchedules, allEvents, allReservations]);
+
+  // i-reset ang history pagination pag nagpalit ng room
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [room]);
 
   const loadRooms = async () => {
 
@@ -133,40 +252,62 @@ export default function RoomUsageTracking() {
 
         scheduleSnap.forEach(doc => {
 
-          scheduleList.push({
+          const data = doc.data();
 
-            id: doc.id,
+          if (data.initialized) return; // itago ang placeholder docs
 
-            roomId: roomDoc.id,
+          scheduleList.push(
+            normalizeSchedule({
 
-            roomName:
-              roomData.roomName ||
-              roomData.name,
+              id: doc.id,
 
-            ...doc.data(),
+              roomId: roomDoc.id,
 
-          });
+              roomName:
+                roomData.roomName ||
+                roomData.name,
+
+              ...data,
+
+            })
+          );
 
         });
 
       }
 
+      // room activities ("events" collection)
+      const eventSnap = await getDocs(collection(db, "events"));
+
+      const eventList = eventSnap.docs.map((d) =>
+        normalizeEvent({ id: d.id, ...d.data() })
+      );
+
+      // approved reservations ("reservationRequests" collection)
+      const reservationSnap = await getDocs(
+        collection(db, "reservationRequests")
+      );
+
+      const reservationList = reservationSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter(
+          (r) => String(r.status || "").toLowerCase() === "approved"
+        )
+        .map((r) => normalizeReservation(r));
+
       setRooms(roomList);
 
       setAllSchedules(scheduleList);
+      setAllEvents(eventList);
+      setAllReservations(reservationList);
 
-      if (
-        roomList.length &&
-        !room
-      ) {
+      setRoom(prev => {
+            if (prev) return prev;
 
-        setRoom(
-          roomList[0].roomName ||
-          roomList[0].name
-        );
-
-      }
-
+            return roomList.length
+                ? roomList[0].roomName || roomList[0].name
+                : "";
+        });
     }
 
     catch (err) {
@@ -179,55 +320,78 @@ export default function RoomUsageTracking() {
 
   };
 
+  // -----------------------------------------------------------------
+  // Kinukuha ang lahat ng nangyayari sa napiling room + petsa,
+  // kasama na ang class schedule (base sa araw ng linggo), room
+  // activity, at approved reservation.
+  // -----------------------------------------------------------------
+  const getOccurrencesForDate = (targetDate) => {
+
+    const dayAbbrev = getDayAbbrev(targetDate);
+
+    const scheduleOccurrences = allSchedules
+      .filter((s) => s.roomName === room && s.day === dayAbbrev)
+      .map((s) => ({ ...s, date: targetDate }));
+
+    const eventOccurrences = allEvents.filter(
+      (e) => e.roomName === room && e.date === targetDate
+    );
+
+    const reservationOccurrences = allReservations.filter(
+      (r) => r.roomName === room && r.date === targetDate
+    );
+
+    return [
+      ...scheduleOccurrences,
+      ...eventOccurrences,
+      ...reservationOccurrences,
+    ].sort(
+      (a, b) =>
+        timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+    );
+
+  };
+
   const trackRoom = () => {
 
     const currentDate = date || todayString();
 
-    const schedules = allSchedules
-        .filter(schedule =>
-            schedule.roomName === room &&
-            schedule.date === currentDate
-        )
-        .sort(
-            (a, b) =>
-                timeToMinutes(a.startTime) -
-                timeToMinutes(b.startTime)
-        );
-
-    const now = getCurrentMinutes();
+    const combined = getOccurrencesForDate(currentDate);
 
     let current = null;
-
     let next = null;
-
     const upcoming = [];
 
-    for (let i = 0; i < schedules.length; i++) {
+    if (isToday) {
 
-        const start = timeToMinutes(schedules[i].startTime);
+      const now = getCurrentMinutes();
 
-        const end = timeToMinutes(schedules[i].endTime);
+      combined.forEach((item, i) => {
+
+        const start = timeToMinutes(item.startTime);
+        const end = timeToMinutes(item.endTime);
 
         if (now >= start && now <= end) {
-
-            current = schedules[i];
-
-            next = schedules[i + 1] || null;
-
+          current = item;
+          next = combined[i + 1] || null;
         }
 
         if (start > now) {
-
-            upcoming.push(schedules[i]);
-
+          upcoming.push(item);
         }
+
+      });
+
+    } else {
+
+      // hindi ngayong araw ang napili — ipakita na lang buong listahan
+      // ng araw na iyon, walang "live/ongoing" concept
+      upcoming.push(...combined);
 
     }
 
     setCurrentSchedule(current);
-
     setNextSchedule(next);
-
     setUpcomingSchedules(upcoming);
 
 };
@@ -258,83 +422,81 @@ export default function RoomUsageTracking() {
 
   };
 
-  const todayString = () => {
+  const parseDateTime = (date, time) => {
+    if (!date || !time) return new Date(0);
 
-    return new Date().toISOString().split("T")[0];
+    const [clock, period] = time.split(" ");
+    let [h, m] = clock.split(":").map(Number);
 
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+
+    return new Date(
+        `${date}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00`
+    );
 };
 
-const getCurrentMinutes = () => {
-
-    const now = new Date();
-
-    return now.getHours() * 60 + now.getMinutes();
-
-};
-
-const formatDate = (date) => {
-
-    return new Date(date).toLocaleDateString();
-
-};
-
+  // -----------------------------------------------------------------
+  // History: galing lang sa "events" at "reservationRequests" kasi
+  // ito lang ang may totoong, specific na petsa. Ang class schedule
+  // (rooms/{id}/schedules) ay recurring weekly template lang (walang
+  // bukod-bukod na "nangyari noong petsa X" record), kaya hindi ito
+  // kasama sa historical log.
+  // -----------------------------------------------------------------
   const buildHistory = () => {
+    const currentDate = date || todayString();
 
-    const historyData = allSchedules
+    // Original schedules para sa selected date
+    const scheduleHistory = getOccurrencesForDate(currentDate).filter(
+        (item) => item.kind === "schedule"
+    );
 
-        .filter(schedule =>
+    // Events at Reservations
+    const otherHistory = [
+        ...allEvents.filter((e) => e.roomName === room),
+        ...allReservations.filter((r) => r.roomName === room),
+    ];
 
-            schedule.roomName === room
-
-        )
-
-        .sort((a, b) => {
-
-            const dateA = new Date(
-                `${a.date} ${a.startTime}`
-            );
-
-            const dateB = new Date(
-                `${b.date} ${b.startTime}`
-            );
-
-            return dateB - dateA;
-
-        });
-
-    setHistory(historyData);
-
-    const completed = historyData.filter(schedule => {
-
-        const scheduleDate = schedule.date;
-
-        const today = todayString();
-
-        if (scheduleDate < today)
-            return true;
-
-        if (scheduleDate > today)
-            return false;
-
-        return getStatus(
-            schedule.startTime,
-            schedule.endTime
-        ) === "COMPLETED";
-
+    const historyData = [
+        ...scheduleHistory,
+        ...otherHistory,
+    ].sort((a, b) => {
+        const aEnd = new Date(`${a.date}T${a.endTime}`);
+        const bEnd = new Date(`${b.date}T${b.endTime}`);
+        return bEnd - aEnd;
     });
 
-    setLastUser(completed[0] || null);
+    setHistory(historyData);
+    
 
-};
+    const ongoing = historyData.find(item =>
+        getStatus(item.date, item.startTime, item.endTime) === "ONGOING"
+    );
+
+    if (ongoing) {
+        setLastUser(ongoing);
+    } else {
+
+        const completed = historyData
+            .filter(item =>
+                getStatus(item.date, item.startTime, item.endTime) === "COMPLETED"
+            )
+            .sort((a, b) => {
+                return (
+                    parseDateTime(b.date, b.endTime) -
+                    parseDateTime(a.date, a.endTime)
+                );
+            });
+
+        setLastUser(completed[0] || null);
+    }
+    };
 
 const buildAnalytics = () => {
 
-    const today = todayString();
+    const currentDate = date || todayString();
 
-    const schedules = allSchedules.filter(schedule =>
-        schedule.roomName === room &&
-        schedule.date === today
-    );
+    const combined = getOccurrencesForDate(currentDate);
 
     let completed = 0;
     let ongoing = 0;
@@ -342,11 +504,12 @@ const buildAnalytics = () => {
 
     let occupiedMinutes = 0;
 
-    schedules.forEach(schedule => {
+    combined.forEach(item => {
 
         const status = getStatus(
-            schedule.startTime,
-            schedule.endTime
+            currentDate,
+            item.startTime,
+            item.endTime
         );
 
         if(status === "COMPLETED") completed++;
@@ -355,9 +518,10 @@ const buildAnalytics = () => {
 
         if(status === "UPCOMING") upcoming++;
 
-        occupiedMinutes +=
-            timeToMinutes(schedule.endTime) -
-            timeToMinutes(schedule.startTime);
+        occupiedMinutes += Math.max(
+          0,
+          timeToMinutes(item.endTime) - timeToMinutes(item.startTime)
+        );
 
     });
 
@@ -368,7 +532,7 @@ const buildAnalytics = () => {
 
     setAnalytics({
 
-        totalSchedules: schedules.length,
+        totalSchedules: combined.length,
 
         completed,
 
@@ -397,14 +561,14 @@ const buildAnalytics = () => {
           <div className="rut-filter-input">
             <i className="fa-regular fa-building" />
             <select value={room} onChange={e => setRoom(e.target.value)} className="rut-select">
-              {rooms.map(room => (
+              {rooms.map(r => (
 
               <option
-                  key={room.id}
-                  value={room.roomName || room.name}
+                  key={r.id}
+                  value={r.roomName || r.name}
               >
 
-                  {room.roomName || room.name}
+                  {r.roomName || r.name}
 
               </option>
 
@@ -419,25 +583,11 @@ const buildAnalytics = () => {
           <div className="rut-filter-input">
             <i className="fa-regular fa-calendar" />
             <input
-              type="text"
+              type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
               className="rut-date-input"
             />
-          </div>
-        </div>
-
-        <div className="rut-filter-group">
-          <span className="rut-filter-label">TIME SLOT</span>
-          <div className="rut-filter-input">
-            <i className="fa-regular fa-clock" />
-            <select className="rut-select">
-              <option>Current (Now)</option>
-              <option>Morning</option>
-              <option>Afternoon</option>
-              <option>Evening</option>
-            </select>
-            <i className="fa-solid fa-chevron-down rut-chevron" />
           </div>
         </div>
 
@@ -525,9 +675,9 @@ const buildAnalytics = () => {
 
       </div>
 
-        <button className="rut-track-btn">
-          <i className="fa-solid fa-magnifying-glass" />
-          Track Usage
+        <button className="rut-track-btn" onClick={loadRooms}>
+          <i className="fa-solid fa-arrows-rotate" />
+          Refresh
         </button>
       </div>
 
@@ -556,11 +706,13 @@ const buildAnalytics = () => {
 
                   <div className="rut-live-indicator">
 
-                      <span className="rut-live-dot"></span>
+                      {isToday && <span className="rut-live-dot"></span>}
 
                       <span className="rut-live-label">
 
-                          Live Status : {room}
+                          {isToday
+                            ? `Live Status : ${room}`
+                            : `Schedule for ${date} : ${room}`}
 
                       </span>
 
@@ -586,6 +738,10 @@ const buildAnalytics = () => {
 
                   <>
 
+                      <span className="rut-type-badge">
+                        {currentSchedule.sourceLabel}
+                      </span>
+
                       <div className="rut-live-grid">
 
                           <div className="rut-live-item">
@@ -600,7 +756,7 @@ const buildAnalytics = () => {
 
                                   <span className="rut-item-label">
 
-                                      SUBJECT
+                                      SUBJECT / PURPOSE
 
                                   </span>
 
@@ -626,7 +782,7 @@ const buildAnalytics = () => {
 
                                   <span className="rut-item-label">
 
-                                      RESERVED BY
+                                      ORGANIZATION
 
                                   </span>
 
@@ -634,9 +790,7 @@ const buildAnalytics = () => {
 
                               <span className="rut-item-value">
 
-                                  {currentSchedule.organization ||
-                                      currentSchedule.department ||
-                                      "N/A"}
+                                  {currentSchedule.organization || "N/A"}
 
                               </span>
 
@@ -654,7 +808,7 @@ const buildAnalytics = () => {
 
                                   <span className="rut-item-label">
 
-                                      FACULTY
+                                      FACULTY / REQUESTED BY
 
                                   </span>
 
@@ -688,11 +842,11 @@ const buildAnalytics = () => {
 
                               <span className="rut-item-value">
 
-                                  {currentSchedule.startTime}
+                                  {format12Hour(currentSchedule.startTime)}
 
                                   {" - "}
 
-                                  {currentSchedule.endTime}
+                                  {format12Hour(currentSchedule.endTime)}
 
                               </span>
 
@@ -716,16 +870,15 @@ const buildAnalytics = () => {
 
               ) : (
 
-                  <div
-                      style={{
-                          padding:"50px",
-                          textAlign:"center"
-                      }}
-                  >
+                  <div className="rut-empty-live">
+
+                      <i className="fa-regular fa-circle-check"></i>
 
                       <h2>
 
-                          Room is currently available.
+                          {isToday
+                            ? "Room is currently available."
+                            : "No ongoing activity to show for this date."}
 
                       </h2>
 
@@ -817,7 +970,7 @@ const buildAnalytics = () => {
 
                 <span className="rut-next-label">
 
-                    TODAY'S UPCOMING
+                    {isToday ? "TODAY'S UPCOMING" : `SCHEDULE FOR ${date}`}
 
                 </span>
 
@@ -834,7 +987,7 @@ const buildAnalytics = () => {
                             }}
                         >
 
-                            No more schedules today.
+                            No schedules found for this day.
 
                         </div>
 
@@ -845,7 +998,7 @@ const buildAnalytics = () => {
                     upcomingSchedules.map(schedule=>(
 
                         <div
-                            key={schedule.id}
+                            key={`${schedule.kind}-${schedule.id}`}
                             className="rut-upcoming-item"
                         >
 
@@ -857,17 +1010,23 @@ const buildAnalytics = () => {
 
                             <div className="rut-upcoming-info">
 
-                                {schedule.startTime}
+                                {format12Hour(schedule.startTime)}
 
                                 {" - "}
 
-                                {schedule.endTime}
+                                {format12Hour(schedule.endTime)}
 
                             </div>
 
                             <div className="rut-upcoming-info">
 
                                 {schedule.facultyName}
+
+                            </div>
+
+                            <div className="rut-upcoming-info rut-upcoming-tag">
+
+                                {schedule.sourceLabel}
 
                             </div>
 
@@ -929,7 +1088,11 @@ const buildAnalytics = () => {
 
       <br/>
 
-      {lastUser.startTime} - {lastUser.endTime}
+      {format12Hour(lastUser.startTime)} - {format12Hour(lastUser.endTime)}
+
+      <br/>
+
+      <span className="rut-type-badge">{lastUser.sourceLabel}</span>
 
       </>
 
@@ -938,17 +1101,6 @@ const buildAnalytics = () => {
       "No previous usage."
 
       )}
-
-      </div>
-
-      <div className="rut-progress-bar">
-
-      <div
-      className="rut-progress-fill"
-      style={{
-      width:"100%"
-      }}
-      />
 
       </div>
 
@@ -970,12 +1122,23 @@ const buildAnalytics = () => {
             <tr>
               <th>DATE &amp; TIME</th>
               <th>SUBJECT/EVENT</th>
-              <th>FACULTY</th>
+              <th>REQUESTED BY</th>
+              <th>TYPE</th>
               <th>STATUS</th>
               <th>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
+
+          {history.length === 0 && (
+
+            <tr>
+              <td colSpan={6} className="rut-history-placeholder">
+                No history yet for this room.
+              </td>
+            </tr>
+
+          )}
 
           {history
 
@@ -989,7 +1152,7 @@ const buildAnalytics = () => {
 
           .map(schedule=>(
 
-          <tr key={schedule.id}>
+          <tr key={`${schedule.kind}-${schedule.id}`}>
 
           <td>
 
@@ -1003,11 +1166,11 @@ const buildAnalytics = () => {
 
           <span className="rut-time">
 
-          {schedule.startTime}
+          {format12Hour(schedule.startTime)}
 
           {" - "}
 
-          {schedule.endTime}
+          {format12Hour(schedule.endTime)}
 
           </span>
 
@@ -1029,8 +1192,17 @@ const buildAnalytics = () => {
 
           <td>
 
+          <span className="rut-type-badge">
+            {schedule.sourceLabel}
+          </span>
+
+          </td>
+
+          <td>
+
           <span
           className={`rut-badge ${getStatus(
+          schedule.date,
           schedule.startTime,
           schedule.endTime
           ).toLowerCase()}`}
@@ -1038,6 +1210,7 @@ const buildAnalytics = () => {
           >
 
           {getStatus(
+          schedule.date,
           schedule.startTime,
           schedule.endTime
           )}
@@ -1054,17 +1227,12 @@ const buildAnalytics = () => {
 
           alert(
 
-          `Faculty : ${schedule.facultyName}
-
-          Subject : ${schedule.subject}
-
-          Section : ${schedule.section}
-
-          Program : ${schedule.program}
-
-          Date : ${schedule.date}
-
-          Time : ${schedule.startTime} - ${schedule.endTime}`
+          `Type : ${schedule.sourceLabel}
+            Requested By : ${schedule.facultyName}
+            Subject : ${schedule.subject}
+            Section : ${schedule.section || "-"}
+            Date : ${schedule.date}
+            Time : ${format12Hour(schedule.startTime)} - ${format12Hour(schedule.endTime)}`
 
           );
 
@@ -1104,7 +1272,7 @@ const buildAnalytics = () => {
 
       <span>
 
-      Page {historyPage} of {Math.ceil(history.length/HISTORY_PAGE_SIZE)||1}
+      Page {historyPage} of {Math.max(1, Math.ceil(history.length/HISTORY_PAGE_SIZE))}
 
       </span>
 
@@ -1112,7 +1280,7 @@ const buildAnalytics = () => {
 
       disabled={
 
-      historyPage===Math.ceil(history.length/HISTORY_PAGE_SIZE)
+      historyPage>=Math.max(1, Math.ceil(history.length/HISTORY_PAGE_SIZE))
 
       }
 

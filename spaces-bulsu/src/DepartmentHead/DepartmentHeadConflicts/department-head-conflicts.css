@@ -228,6 +228,37 @@
 }
 
 /* --- Loading animation (spinner, in theme orange) --- */
+.room-empty{
+    min-height:60vh;
+
+    display:flex;
+    flex-direction:column;
+
+    align-items:center;
+    justify-content:center;
+
+    text-align:center;
+}
+
+.room-empty i{
+    font-size:75px;
+    color:#CBD5E1;
+
+    margin-bottom:20px;
+}
+
+.room-empty h2{
+    font-size:28px;
+    font-weight:700;
+    color:#334155;
+}
+
+.room-empty p{
+    margin-top:10px;
+    color:#64748B;
+    max-width:420px;
+    line-height:1.6;
+}
 
 .conflict-loading {
   display: flex;

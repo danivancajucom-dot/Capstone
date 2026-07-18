@@ -28,16 +28,13 @@ const EmptyIcon = () => (
   </svg>
 );
 
-// Skeleton placeholder shown while Firestore data is loading
-function SkeletonCard() {
+// Full-screen style loading state, shown while Firestore data is loading
+function LoadingState() {
   return (
-    <div className="dept-skeleton-card">
-      <div className="dept-skeleton-line dept-skeleton-title" />
-      <div className="dept-skeleton-line dept-skeleton-subtitle" />
-      <div className="dept-skeleton-row">
-        <div className="dept-skeleton-pill" />
-        <div className="dept-skeleton-pill" />
-      </div>
+    <div className="room-empty">
+      <i className="fa-solid fa-spinner fa-spin"></i>
+      <h2>Loading Reservations</h2>
+      <p>Please wait while we retrieve the reservation requests.</p>
     </div>
   );
 }
@@ -118,9 +115,7 @@ function DepartmentHeadReservations() {
 
   const renderList = () => {
     if (loading) {
-      return Array.from({ length: isGridTab ? 6 : 4 }).map((_, i) => (
-        <SkeletonCard key={i} />
-      ));
+      return <LoadingState />;
     }
 
     if (filteredReservations.length === 0) {
@@ -184,8 +179,8 @@ function DepartmentHeadReservations() {
 
         <div
           className={`dept-reservations-content ${
-            isGridTab ? "dept-reservations-content--grid" : ""
-          } ${isEmpty ? "dept-reservations-content--empty" : ""}`}
+            isGridTab && !loading ? "dept-reservations-content--grid" : ""
+          } ${loading || isEmpty ? "dept-reservations-content--empty" : ""}`}
         >
           {renderList()}
         </div>

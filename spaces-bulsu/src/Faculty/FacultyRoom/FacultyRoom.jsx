@@ -9,8 +9,9 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../../firebase";
+import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
 
-const TABS = ["All", "Available", "Occupied"];
+const TABS = ["All", "Available", "Occupied", "Maintenance"];
 
 export default function FacultyRoom() {
   const navigate = useNavigate();
@@ -50,6 +51,16 @@ export default function FacultyRoom() {
     return days[new Date().getDay()];
   };
 
+  const getCurrentTimeString = () => {
+    const now = new Date();
+
+    return (
+      String(now.getHours()).padStart(2, "0") +
+      ":" +
+      String(now.getMinutes()).padStart(2, "0")
+    );
+  };
+
   const loadRooms = async () => {
     setLoading(true);
 
@@ -73,12 +84,40 @@ export default function FacultyRoom() {
       const currentMinutes =
         now.getHours() * 60 + now.getMinutes();
 
+      const currentTimeString = getCurrentTimeString();
+
       for (const roomDoc of roomSnapshot.docs) {
 
         const room = {
           id: roomDoc.id,
           ...roomDoc.data(),
         };
+
+        // ----------------------------
+        // UNDER MAINTENANCE
+        // ----------------------------
+        // Priority ito kaysa sa occupied/available — kung
+        // naka-maintenance ang room ngayon, hindi na kailangan pang
+        // tignan ang schedule/event/reservation.
+
+        const maintenance = isRoomUnderMaintenance(
+          room,
+          getToday(),
+          currentTimeString,
+          currentTimeString
+        );
+
+        if (maintenance) {
+
+          roomList.push({
+            ...room,
+            status: "Maintenance",
+            occupiedUntil: "",
+          });
+
+          continue;
+
+        }
 
         let occupied = false;
         let occupiedUntil = "";
@@ -203,6 +242,9 @@ export default function FacultyRoom() {
     if (activeTab === "Occupied")
       return room.status === "Occupied";
 
+    if (activeTab === "Maintenance")
+      return room.status === "Maintenance";
+
     return true;
 
   });
@@ -264,11 +306,17 @@ export default function FacultyRoom() {
                         },
                     })
                 }
-                onReserve={() =>
+                onReserve={() => {
+
+                    // hindi dapat makapag-reserve sa room na
+                    // naka-maintenance
+                    if (room.status === "Maintenance") return;
+
                     navigate("/faculty/submit-reservation", {
                         state: { room }
-                    })
-                }
+                    });
+
+                }}
             />
 
           ))}

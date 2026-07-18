@@ -5,6 +5,7 @@ import "./faculty-view-room.css";
 
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
+import { normalizeScheduleItem } from "../../utils/normalizeScheduleItem";
 
 import {
   collection,
@@ -171,19 +172,29 @@ function FacultyViewRoomCard() {
     );
   };
 
+  // ---------------------------------------------------------
+  // Tinatag na dito ang bawat item ng "_source" nito
+  // (event o reservation) para malaman kung papaano i-normalize
+  // pagka-click sa block.
+  // ---------------------------------------------------------
   const getItemsForDate = (date) => {
 
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
 
-  const dateString = `${yyyy}-${mm}-${dd}`;
+    const dateString = `${yyyy}-${mm}-${dd}`;
 
-  return [
-    ...events.filter(e => e.date === dateString),
-    ...reservations.filter(r => r.date === dateString)
-  ];
-};
+    return [
+      ...events
+        .filter(e => e.date === dateString)
+        .map(e => ({ ...e, _source: "event" })),
+
+      ...reservations
+        .filter(r => r.date === dateString)
+        .map(r => ({ ...r, _source: "reservation" })),
+    ];
+  };
 
   return (
     <>
@@ -225,6 +236,13 @@ function FacultyViewRoomCard() {
           </div>
 
           <div className="days-container">
+            {/* Spacer na gumagamit mismo ng "time-column" class (walang
+                laman) para GUARANTEED na kaparehas ang lapad nito sa
+                .time-column sa ibaba — tumapat ang MON...SUN labels sa
+                tamang column ng calendar-grid imbes na sumingit sa
+                time axis. Walang bagong CSS na kailangan idagdag. */}
+            <div className="time-column" aria-hidden="true"></div>
+
             {weekDates.map((date, index) => (
               <div
                 className={`day ${isToday(date) ? "today" : ""}`}
@@ -301,12 +319,16 @@ function FacultyViewRoomCard() {
                             schedule.startTime,
                             schedule.endTime
                           )}
-                          onClick={() => setSelectedSchedule(schedule)}
+                          onClick={() =>
+                            setSelectedSchedule(
+                              normalizeScheduleItem(schedule, "schedule")
+                            )
+                          }
                         />
 
                       ))}
 
-                    {/* ROOM ACTIVITIES */}
+                    {/* ROOM ACTIVITIES / RESERVATIONS */}
                     {dateEvents.map(event => (
 
                       <ScheduleCard
@@ -316,19 +338,26 @@ function FacultyViewRoomCard() {
                           subject:
                             event.title ||
                             event.purpose ||
+                            event.courseTitle ||
                             "Walk-in Reservation",
 
                           faculty:
                             event.title
                               ? "ROOM ACTIVITY"
-                              : event.requesterName || "Walk-in"
+                              : event.requesterName ||
+                                event.facultyName ||
+                                "Walk-in"
                         }}
                         top={getTopPosition(event.startTime)}
                         height={getCardHeight(
                           event.startTime,
                           event.endTime
                         )}
-                        onClick={() => setSelectedSchedule(event)}
+                        onClick={() =>
+                          setSelectedSchedule(
+                            normalizeScheduleItem(event, event._source)
+                          )
+                        }
                       />
 
                     ))}

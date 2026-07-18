@@ -6,23 +6,44 @@ return(
 
 <div className="maintenance-room-card">
 
-<h3>
+  <div className="maintenance-room-header">
 
-{room.roomName}
+    <span className="maintenance-room-name">
+      {room.roomName}
+    </span>
 
-</h3>
+    <span className="maintenance-room-badge">
+      <i className="fa-solid fa-screwdriver-wrench"></i>
+      MAINTENANCE
+    </span>
 
-<p>
+  </div>
 
-{room.roomType}
+  <p className="maintenance-room-type">
+    {room.roomType}
+  </p>
 
-</p>
+  {room.capacity && (
+    <div className="maintenance-room-details">
+      <i className="fa-solid fa-users"></i>
+      <span>Capacity {room.capacity}</span>
+    </div>
+  )}
 
-<span>
+  {(room.maintenanceStartDate || room.maintenanceEndDate) && (
+    <div className="maintenance-room-window">
+      <i className="fa-regular fa-calendar"></i>
+      <span>
+        {room.maintenanceStartDate || "—"}
+        {" "}to{" "}
+        {room.maintenanceEndDate || "—"}
+      </span>
+    </div>
+  )}
 
-Under Maintenance
-
-</span>
+  <div className="maintenance-room-notice">
+    Room is currently unavailable for reservation.
+  </div>
 
 </div>
 

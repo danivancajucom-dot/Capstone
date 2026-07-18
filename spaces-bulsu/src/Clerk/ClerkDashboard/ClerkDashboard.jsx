@@ -12,16 +12,21 @@ import OccupiedRoomCard from "../../Components/OccupiedRoomCard/OccupiedRoomCard
 import MaintenanceRoomCard from "../../Components/MaintenanceRoomCard/MaintenanceRoomCard";
 import ReservedRoomCard from "../../Components/ReservedRoomCard/ReservedRoomCard";
 import { useNavigate } from "react-router-dom";
+import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
 
+const DAY_ABBR = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
+const ROOMS_PER_PAGE = 9;
 
 function ClerkDashboard() {
   const [activeNav, setActiveNav] = useState("all-rooms");
   const [rooms, setRooms] = useState([]);
+  const [roomSchedules, setRoomSchedules] = useState({}); // { [roomId]: schedule[] }
   const [events, setEvents] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(ROOMS_PER_PAGE);
   const navigate = useNavigate();
-  
+
   useEffect(() => {
     const unsubRooms = onSnapshot(
       collection(db, "rooms"),
@@ -47,14 +52,23 @@ function ClerkDashboard() {
       }
     );
 
+    // FIX: dating "reservations" collection ang tinitignan, pero sa
+    // buong app, "reservationRequests" talaga ang ginagamit para sa
+    // walk-in at faculty reservations. Laging walang laman yung dating
+    // "reservations", kaya laging walang Reserved room at walang
+    // lumalabas na Upcoming Schedule mula rito.
     const unsubReservations = onSnapshot(
-      collection(db, "reservations"),
+      collection(db, "reservationRequests"),
       (snapshot) => {
         setReservations(
-          snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
+          snapshot.docs
+            .map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }))
+            .filter(
+              (r) => String(r.status || "").toLowerCase() === "approved"
+            )
         );
       }
     );
@@ -66,6 +80,37 @@ function ClerkDashboard() {
     };
 
   }, []);
+
+  // Per-room class schedule (rooms/{id}/schedules) — kailangan ito
+  // para masali ang regular class schedule sa Occupied/Reserved/
+  // Upcoming detection. Dati wala talaga nito dito, kaya "Available"
+  // pa rin ang lumalabas kahit may klase ngayon.
+  useEffect(() => {
+
+    if (rooms.length === 0) return;
+
+    const unsubs = rooms.map((room) =>
+      onSnapshot(
+        collection(db, "rooms", room.id, "schedules"),
+        (snap) => {
+
+          const list = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((s) => !s.initialized);
+
+          setRoomSchedules((prev) => ({
+            ...prev,
+            [room.id]: list,
+          }));
+
+        }
+      )
+    );
+
+    return () => unsubs.forEach((u) => u());
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rooms.map((r) => r.id).join(",")]);
 
   const toMinutes = (time) => {
   if (!time) return 0;
@@ -84,13 +129,15 @@ const currentMinutes =
 const today =
   new Date().toISOString().split("T")[0];
 
+const todayAbbrev = DAY_ABBR[now.getDay()];
+
   const roomStatus = rooms.map(room => {
 
     //-------------------------------------
     // Maintenance
     //-------------------------------------
 
-    if(room.status === "Maintenance"){
+    if (isRoomUnderMaintenance(room, today)) {
 
         return {
 
@@ -103,15 +150,29 @@ const today =
     }
 
     //-------------------------------------
-    // Today's Schedule
+    // Today's Schedule — class + room activity + reservation
     //-------------------------------------
+
+    const roomClasses = (roomSchedules[room.id] || [])
+      .filter((s) => s.day === todayAbbrev)
+      .map((s) => ({
+        ...s,
+        subject: s.subject,
+        roomName: room.roomName,
+        facultyName: s.facultyName || s.faculty,
+      }));
 
     const roomEvents = events.filter(e=>
 
         e.roomId===room.id &&
         e.date===today
 
-    );
+    ).map((e) => ({
+        ...e,
+        subject: e.title || e.purpose || "Room Activity",
+        roomName: e.roomName || room.roomName,
+        facultyName: e.faculty || "Department Head",
+    }));
 
     //-------------------------------------
     // Approved Reservations
@@ -120,12 +181,18 @@ const today =
     const roomReservations = reservations.filter(r=>
 
         r.roomId===room.id &&
-        r.date===today &&
-        r.status.toLowerCase()==="approved"
+        r.date===today
 
-    );
+    ).map((r) => ({
+        ...r,
+        subject: r.customPurpose || r.courseTitle || r.purpose || "Reservation",
+        roomName: r.roomName || room.roomName,
+        facultyName: r.requesterName || r.facultyName,
+    }));
 
     const busy=[
+
+        ...roomClasses,
 
         ...roomEvents,
 
@@ -159,14 +226,13 @@ const today =
     }
 
     //-------------------------------------
-    // Reserved
+    // Reserved (may susunod na booking ngayong araw)
     //-------------------------------------
 
-    const upcoming=busy.find(item=>
+    const upcoming = busy
 
-        toMinutes(item.startTime)>currentMinutes
-
-    );
+      .filter(item => toMinutes(item.startTime) > currentMinutes)
+      .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime))[0];
 
     if(upcoming){
 
@@ -254,10 +320,69 @@ const today =
 
     }
 
-  const upcomingSchedules = [...events, ...reservations]
-    .filter(item =>
-      item.date === today &&
-      toMinutes(item.startTime) > currentMinutes
+  // i-reset ang pagination pag nagpalit ng filter tab
+  useEffect(() => {
+    setVisibleCount(ROOMS_PER_PAGE);
+  }, [activeNav]);
+
+  const visibleRooms = displayedRooms.slice(0, visibleCount);
+  const hasMoreRooms = displayedRooms.length > visibleCount;
+
+  // -----------------------------------------------------------------
+  // UPCOMING SCHEDULE — kasama na ngayon ang class schedule (base sa
+  // araw ng linggo), room activity, at approved reservation. Dati
+  // events + yung maling "reservations" collection lang ang
+  // pinagmumulan, kaya laging walang laman.
+  // -----------------------------------------------------------------
+
+  const allClassOccurrencesToday = rooms.flatMap((room) =>
+    (roomSchedules[room.id] || [])
+      .filter((s) => s.day === todayAbbrev)
+      .map((s) => ({
+        id: `${room.id}_${s.id}`,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        subject: s.subject,
+        roomName: room.roomName,
+        facultyName: s.facultyName || s.faculty,
+      }))
+  );
+
+  const todaysEvents = events
+    .filter((e) => e.date === today)
+    .map((e) => ({
+      id: e.id,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      subject: e.title || e.purpose || "Room Activity",
+      roomName: e.roomName,
+      facultyName: e.faculty || "Department Head",
+    }));
+
+  const todaysReservations = reservations
+    .filter((r) => r.date === today)
+    .map((r) => ({
+      id: r.id,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      subject:
+        r.customPurpose ||
+        r.courseTitle ||
+        r.purpose ||
+        "Reservation",
+      roomName: r.roomName,
+      facultyName: r.requesterName || r.facultyName,
+    }));
+
+  const upcomingSchedules = [
+    ...allClassOccurrencesToday,
+    ...todaysEvents,
+    ...todaysReservations,
+  ]
+    .filter(
+      (item) =>
+        item.startTime &&
+        toMinutes(item.startTime) > currentMinutes
     )
     .sort(
       (a, b) =>
@@ -297,7 +422,16 @@ const today =
           </div>
            <div className="status-rooms-grid">
 
-              {displayedRooms.map(room => {
+              {visibleRooms.length === 0 ? (
+
+                <div className="clerk-empty-rooms">
+                  <i className="fa-regular fa-building"></i>
+                  <p>No rooms under this filter.</p>
+                </div>
+
+              ) : (
+
+              visibleRooms.map(room => {
 
                 switch(room.displayStatus){
 
@@ -306,6 +440,9 @@ const today =
                       <AvailableRoomCard
                         key={room.id}
                         room={room}
+                        onReserve={() =>
+                          navigate("/clerk/walk-in-reservation")
+                        }
                       />
                     );
 
@@ -314,6 +451,9 @@ const today =
                       <OccupiedRoomCard
                         key={room.id}
                         room={room}
+                        onViewSchedule={() =>
+                          navigate("/clerk/schedule-view-academic-schedule")
+                        }
                       />
                     );
 
@@ -330,18 +470,32 @@ const today =
                       <ReservedRoomCard
                         key={room.id}
                         room={room}
+                        onViewSchedule={() =>
+                          navigate("/clerk/schedule-view-academic-schedule")
+                        }
                       />
                     );
 
                 }
 
-              })}
+              })
+
+              )}
 
             </div>
             
-           <div className="clerk-load-more">
-    <button className="clerk-load-more-btn">Load More</button>
-  </div>
+           {hasMoreRooms && (
+            <div className="clerk-load-more">
+              <button
+                className="clerk-load-more-btn"
+                onClick={() =>
+                  setVisibleCount((c) => c + ROOMS_PER_PAGE)
+                }
+              >
+                Load More
+              </button>
+            </div>
+           )}
         </div>
 
         <div className="clerk-dashboard-right">
@@ -372,7 +526,7 @@ const today =
                 />
               ))
             ) : (
-              <p>No upcoming schedule.</p>
+              <p className="clerk-upcoming-empty">No upcoming schedule for today.</p>
             )}
 
             <div className="clerk-upcoming-footer">

@@ -60,6 +60,18 @@ const getCurrentDay = () => {
 const todayString = () =>
   new Date().toISOString().split("T")[0];
 
+// -------------------------------------------------------
+// Kinukuha kung "maintenance" ang isang room, base sa
+// "roomStatus" field (hindi "status") sa rooms collection.
+// -------------------------------------------------------
+const isUnderMaintenance = (roomData) => {
+  const roomStatus = String(roomData?.roomStatus || "")
+    .trim()
+    .toLowerCase();
+
+  return roomStatus === "maintenance";
+};
+
 function DepartmentHeadViewAcademicSchedule() {
   const navigate = useNavigate();
 
@@ -133,7 +145,9 @@ function DepartmentHeadViewAcademicSchedule() {
 
       const currentMinutes = getCurrentMinutes();
       const todayDay = getCurrentDay();
-     
+
+      const maintenance = isUnderMaintenance(roomData);
+
       const classOccupied = schedules.some(schedule => {
 
           if (schedule.initialized) return false;
@@ -194,7 +208,10 @@ function DepartmentHeadViewAcademicSchedule() {
             id: roomDoc.id,
             ...roomData,
 
-            status: occupied
+            // Maintenance > Occupied > Available (priority order)
+            status: maintenance
+                ? "Under Maintenance"
+                : occupied
                 ? "Occupied"
                 : "Available",
         });
@@ -301,7 +318,13 @@ function DepartmentHeadViewAcademicSchedule() {
         <div className="lr-room-cards">
 
           {loading ? (
-            <h3>Loading rooms...</h3>
+            <div className="room-empty">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+
+              <h2>Loading Rooms</h2>
+
+              <p>Please wait while we retrieve available rooms.</p>
+            </div>
           ) : rooms.length === 0 ? (
             <h3>No rooms found.</h3>
           ) : (

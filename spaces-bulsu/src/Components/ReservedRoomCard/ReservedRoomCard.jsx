@@ -1,70 +1,82 @@
 import "./reserved-room-card.css";
 
-function ReservedRoomCard({ room }) {
+const formatTime = (time) => {
+  if (!time) return "-";
 
-const booking=room.activeBooking;
+  const [hour, minute] = time.split(":").map(Number);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return time;
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+function ReservedRoomCard({ room, onViewSchedule }) {
+
+const booking = room.activeBooking || {};
 
 return(
 
-<div className="occupied-room-card">
+<div className="reserved-room-card">
 
-<div className="occupied-room-header">
+  <div className="reserved-room-header">
 
-<span>
+    <span className="reserved-room-name">
 
-{room.roomName}
+      {room.roomName}
 
-</span>
+    </span>
 
-<span>
+    <span className="reserved-room-badge">
+      RESERVED
+    </span>
 
-OCCUPIED
+  </div>
 
-</span>
+  <div className="reserved-room-details">
 
-</div>
+    <i className="fa-solid fa-user"/>
 
-<div className="occupied-room-details">
+    <div>
 
-<i className="fa-solid fa-user"/>
+      <span className="reserved-room-person">
 
-<div>
+        {
+          booking.facultyName ||
+          booking.requesterName ||
+          "-"
+        }
 
-<span>
+      </span>
 
-{
+      <small className="reserved-room-sub">
 
-booking.requesterName ||
+        {
+          booking.subject ||
+          booking.course ||
+          booking.purpose ||
+          "-"
+        }
 
-booking.facultyName ||
+      </small>
 
-booking.subject
+    </div>
 
-}
+  </div>
 
-</span>
+  <div className="reserved-room-time">
+    <i className="fa-regular fa-clock"></i>
+    Starts at {formatTime(booking.startTime)}
+  </div>
 
-<small>
-
-{
-
-booking.course ||
-
-booking.purpose
-
-}
-
-</small>
-
-</div>
-
-</div>
-
-<button>
-
-View Schedule
-
-</button>
+  <button
+    className="reserved-room-btn"
+    onClick={onViewSchedule}
+  >
+    View Schedule
+  </button>
 
 </div>
 

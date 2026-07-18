@@ -229,6 +229,13 @@ function DepartmentHeadViewRoomCard() {
           </div>
 
           <div className="days-container">
+            {/* Spacer na gumagamit mismo ng "time-column" class (walang
+                laman) para GUARANTEED na kaparehas ang lapad nito sa
+                .time-column sa ibaba — tumapat ang MON...SUN labels sa
+                tamang column ng calendar-grid imbes na sumingit sa
+                time axis. Walang bagong CSS na kailangan idagdag. */}
+            <div className="time-column" aria-hidden="true"></div>
+
             {weekDates.map((date, index) => (
               <div
                 className={`day ${isToday(date) ? "today" : ""}`}

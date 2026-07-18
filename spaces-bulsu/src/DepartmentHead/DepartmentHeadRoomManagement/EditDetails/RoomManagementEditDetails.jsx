@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { db, auth } from "../../../firebase";
+import { logActivity } from "../../../utils/logActivity";
 import "./room-management-edit-details.css";
 import SavePopup from "../../../Popup/SavePopup/SavePopup";
 
@@ -23,7 +24,7 @@ const EQUIPMENT_OPTIONS = [
 function RoomManagementEditDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
-
+  const [originalRoom, setOriginalRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [roomName, setRoomName] = useState("");
   const [capacity, setCapacity] = useState(30);
@@ -60,6 +61,12 @@ function RoomManagementEditDetails() {
           computer: data.equipment?.computer || false,
           smartBoard: data.equipment?.smartBoard || false,
         });
+        setOriginalRoom({
+          roomName: data.roomName || "",
+          capacity: data.capacity || 0,
+          roomType: data.roomType || "",
+          equipment: data.equipment || {},
+        });
         setLoading(false);
       } catch (error) {
         console.error(error);
@@ -84,13 +91,57 @@ function RoomManagementEditDetails() {
 
   const handleSaveRoom = async () => {
     try {
+      const firebaseUser = auth.currentUser;
+
+      if (!firebaseUser) {
+        alert("No authenticated user.");
+        return;
+      }
+
+      const userSnap = await getDoc(
+        doc(db, "users", firebaseUser.uid)
+      );
+
+      if (!userSnap.exists()) {
+        throw new Error("User record not found.");
+      }
+
+      const currentUser = userSnap.data();
+
+      const fullName =
+        `${currentUser.firstName} ${currentUser.lastName}`.trim();
+
       await updateDoc(doc(db, "rooms", id), {
         roomName,
         capacity,
         roomType,
         equipment,
       });
+
+      await logActivity({
+        userId: firebaseUser.uid,
+        user: fullName,
+        role: currentUser.role,
+
+        action: "Updated Room",
+        actionType: "success",
+
+        target: roomName,
+        status: "SUCCESS",
+
+        details: {
+          previous: originalRoom,
+          updated: {
+            roomName,
+            capacity,
+            roomType,
+            equipment,
+          },
+        },
+      });
+
       navigate("/department-head/room-management");
+
     } catch (error) {
       console.error(error);
       alert("Failed to update room.");

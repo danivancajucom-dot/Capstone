@@ -223,6 +223,8 @@ function LocalRegistrarViewRoomCard() {
           </div>
 
           <div className="days-container">
+            <div className="time-column" aria-hidden="true"></div>
+
             {weekDates.map((date, index) => (
               <div
                 className={`day ${isToday(date) ? "today" : ""}`}
