@@ -242,3 +242,36 @@ body {
   font-weight: 400;
   opacity: 0.8;
 }
+
+/* Idagdag ito sa faculty-schedule.css mo */
+
+.wc-legend-term {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #64748B;
+  background: #F1F0EE;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.wc-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 20px;
+  color: #94A3B8;
+  text-align: center;
+}
+
+.wc-empty-state i {
+  font-size: 36px;
+  color: #CBD5E1;
+}
+
+.wc-empty-state p {
+  margin: 0;
+  font-size: 14px;
+}

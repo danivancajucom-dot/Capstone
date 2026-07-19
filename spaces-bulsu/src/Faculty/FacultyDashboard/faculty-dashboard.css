@@ -386,3 +386,54 @@ html, body {
     font-size: 22px;
   }
 }
+
+/* Idagdag ito sa faculty-dashboard.css mo */
+
+.status-ongoing {
+  background: #dbe8ff;
+  color: #2b66f6;
+}
+
+.status-upcoming {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.status-completed {
+  background: #eef1f5;
+  color: #677285;
+}
+
+.schedule-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: #94A3B8;
+  text-align: center;
+  background: #FAFAFA;
+  border-radius: 24px;
+}
+
+.schedule-empty i {
+  font-size: 32px;
+  color: #CBD5E1;
+}
+
+.schedule-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.upcoming-empty {
+  padding: 20px 4px;
+  color: #94A3B8;
+  font-size: 14px;
+}
+
+.slide-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
