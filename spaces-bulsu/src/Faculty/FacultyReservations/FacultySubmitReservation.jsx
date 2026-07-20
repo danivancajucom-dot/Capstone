@@ -534,6 +534,51 @@ function FacultySubmitReservation() {
     return null;
   };
 
+  const notifyClerkAndDepartmentHead = async (
+  title,
+  message,
+  reservationId
+) => {
+  const usersSnap = await getDocs(collection(db, "users"));
+
+  const notifications = [];
+
+  usersSnap.forEach((userDoc) => {
+    const user = userDoc.data();
+
+    if (
+      user.role === "clerk" ||
+      user.role === "department-head"
+    ) {
+      notifications.push(
+        addDoc(collection(db, "notifications"), {
+          userId: userDoc.id,
+
+          ownerType:
+            user.role === "clerk"
+              ? "clerk"
+              : "department-head",
+
+          reservationId,
+
+          title,
+          message,
+
+          type: "reservation-request",
+
+          unread: true,
+          archived: false,
+          badge: "NEW",
+
+          createdAt: serverTimestamp(),
+        })
+      );
+    }
+  });
+
+  await Promise.all(notifications);
+};
+
   const handleSubmit=async()=>{
 
       const error=validate();
@@ -604,10 +649,43 @@ function FacultySubmitReservation() {
         );
 
         await notifyClerkAndDepartmentHead(
-            "New Reservation Request",
-            `${facultyName} submitted a reservation request for ${courseTitle}.`,
-            reservationRef.id
-          );
+          "New Reservation Request",
+          `${facultyName} submitted a reservation request for ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
+          reservationRef.id
+        );
+
+        await addDoc(collection(db, "notifications"), {
+          userId: auth.currentUser.uid,
+          ownerType: "faculty",
+
+          reservationId: reservationRef.id,
+
+          title: "Reservation Submitted",
+
+          message: `Your reservation request for ${selectedRoom.roomName} on ${date} (${startTime} - ${endTime}) has been submitted successfully and is waiting for approval.`,
+
+          type: "reservation-submitted",
+
+          unread: true,
+          archived: false,
+
+          badge: "INFO",
+
+          createdAt: serverTimestamp(),
+        });
+
+          // ===============================
+          // Activity Log
+          // ===============================
+          await addDoc(collection(db, "activityLogs"), {
+            userId: auth.currentUser.uid,
+            userRole: "Faculty",
+            action: "Submitted Reservation Request",
+            description: `${facultyName} submitted a reservation request for "${courseTitle}" in Room ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
+            targetId: reservationRef.id,
+            targetType: "Reservation",
+            createdAt: serverTimestamp(),
+          });
 
           setShowConfirm(false);
 

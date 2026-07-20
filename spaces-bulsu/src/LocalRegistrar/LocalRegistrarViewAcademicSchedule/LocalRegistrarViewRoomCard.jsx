@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import "./local-registrar-view-room-card.css";
+import { normalizeScheduleItem } from "../../utils/normalizeScheduleItem";
 
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
@@ -23,11 +24,21 @@ const DAYS = [
   "SUN",
 ];
 
+// Gumagamit ng LOCAL na date parts (hindi toISOString/UTC) — para
+// hindi ma-shift ang petsa sa mga timezone na nasa unahan ng UTC
+// (gaya ng Philippines, UTC+8).
+const toDateStr = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
 function LocalRegistrarViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
   const location = useLocation();
-
+  const [releasedKeys, setReleasedKeys] = useState(new Set()); // `${scheduleId}_${date}`
   const room = location.state?.room;
   const [schedules, setSchedules] = useState([]);
   const [events, setEvents] = useState([]);
@@ -84,6 +95,23 @@ function LocalRegistrarViewRoomCard() {
           );
 
       setReservations(reservationList);
+
+      // ----------------------------------------------------------
+      // Mga na-release na schedule occurrences para sa room na ito —
+      // itatago sila sa kanilang specific na petsa
+      // ----------------------------------------------------------
+      const releaseSnap = await getDocs(
+        collection(db, "roomReleases")
+      );
+
+      const keys = new Set(
+        releaseSnap.docs
+          .map((d) => d.data())
+          .filter((r) => r.roomId === room.id)
+          .map((r) => `${r.scheduleId}_${r.date}`)
+      );
+
+      setReleasedKeys(keys);
 
     setEvents(eventList);
   };
@@ -172,7 +200,8 @@ function LocalRegistrarViewRoomCard() {
     );
   };
 
-  const getItemsForDate = (date) => {
+const getItemsForDate = (date) => {
+
     const yyyy = date.getFullYear();
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     const dd = String(date.getDate()).padStart(2, "0");
@@ -180,10 +209,15 @@ function LocalRegistrarViewRoomCard() {
     const dateString = `${yyyy}-${mm}-${dd}`;
 
     return [
-        ...events.filter(e => e.date === dateString),
-        ...reservations.filter(r => r.date === dateString)
+      ...events
+        .filter(e => e.date === dateString)
+        .map(e => ({ ...e, _source: "event" })),
+
+      ...reservations
+        .filter(r => r.date === dateString)
+        .map(r => ({ ...r, _source: "reservation" })),
     ];
-};
+  };
 
   return (
     <>
@@ -270,12 +304,24 @@ function LocalRegistrarViewRoomCard() {
 
     DAYS.map((day, index) => {
                 const dateEvents = getItemsForDate(weekDates[index]);
+                const occurrenceDateStr = toDateStr(weekDates[index]);
+
                 return (
                   <div className="calendar-day" key={day}>
 
                     {/* REGULAR SCHEDULE */}
                     {getSchedulesByDay(day)
                       .filter(schedule => {
+
+                        // itago kung na-release na ang schedule
+                        // occurrence na ito sa specific na petsang ito
+                        if (
+                          releasedKeys.has(
+                            `${schedule.id}_${occurrenceDateStr}`
+                          )
+                        ) {
+                          return false;
+                        }
 
                         const sStart = convertToMinutes(schedule.startTime);
                         const sEnd = convertToMinutes(schedule.endTime);
@@ -300,7 +346,11 @@ function LocalRegistrarViewRoomCard() {
                             schedule.startTime,
                             schedule.endTime
                           )}
-                          onClick={() => setSelectedSchedule(schedule)}
+                          onClick={() =>
+                            setSelectedSchedule(
+                              normalizeScheduleItem(schedule, "schedule")
+                            )
+                          }
                         />
 
                       ))}
@@ -327,7 +377,10 @@ function LocalRegistrarViewRoomCard() {
                           event.startTime,
                           event.endTime
                         )}
-                        onClick={() => setSelectedSchedule(event)}
+                        onClick={() =>
+                          setSelectedSchedule(
+                          normalizeScheduleItem(event, event._source)
+                          )}
                       />
 
                     ))}

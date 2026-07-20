@@ -1,0 +1,252 @@
+.rrm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.rrm-panel {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 28px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.rrm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.rrm-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.rrm-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: #FFF3E8;
+  color: #f57c00;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.rrm-close:hover {
+  background: #FDE3CC;
+}
+
+.rrm-card {
+  border: 1.5px solid #ECEAE6;
+  border-radius: 16px;
+  padding: 16px;
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.rrm-status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  margin-bottom: 12px;
+}
+
+.rrm-status-badge.in-progress {
+  background: #FFE8CC;
+  color: #f57c00;
+}
+
+.rrm-status-badge.upcoming {
+  background: #DBEAFE;
+  color: #2563EB;
+}
+
+.rrm-status-badge.completed {
+  background: #E2E8F0;
+  color: #64748B;
+}
+
+.rrm-image-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  height: 180px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.rrm-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rrm-image-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.65),
+    rgba(0, 0, 0, 0.05) 60%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  color: #ffffff;
+}
+
+.rrm-image-overlay h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.rrm-image-overlay p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.rrm-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.rrm-detail-row i {
+  color: #f57c00;
+  font-size: 16px;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.rrm-detail-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94A3B8;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.rrm-detail-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.rrm-detail-value.accent {
+  color: #f57c00;
+}
+
+.rrm-reason-section h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.rrm-reason-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.rrm-pill {
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1.5px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.rrm-pill:hover {
+  border-color: #f57c00;
+}
+
+.rrm-pill.selected {
+  background: #f57c00;
+  border-color: #f57c00;
+  color: #ffffff;
+}
+
+.rrm-textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid #e5e7eb;
+  background: #F8F7F5;
+  font-family: 'Lexend', sans-serif;
+  font-size: 13.5px;
+  color: #1a1a1a;
+  outline: none;
+  resize: none;
+  transition: border-color 0.2s;
+}
+
+.rrm-textarea:focus {
+  border-color: #f57c00;
+  background: #ffffff;
+}
+
+.rrm-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.rrm-release-btn {
+  width: 100%;
+  margin-top: 22px;
+  padding: 15px;
+  border: none;
+  border-radius: 12px;
+  background: #f57c00;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(245, 124, 0, 0.25);
+  transition: background 0.2s;
+}
+
+.rrm-release-btn:hover:not(:disabled) {
+  background: #d96c00;
+}
+
+.rrm-release-btn:disabled {
+  background: #F1F0EE;
+  color: #94A3B8;
+  box-shadow: none;
+  cursor: not-allowed;
+}

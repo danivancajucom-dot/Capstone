@@ -10,7 +10,7 @@ import {
   doc,
   getDoc
 } from "firebase/firestore";
-
+import { logActivity } from "../../utils/logActivity";
 import { auth, db } from "../../firebase";
 
 function DepartmentHeadReassignRoom() {
@@ -250,6 +250,21 @@ const loadAvailableRooms = async () => {
       archived: false,
       badge: "INFO",
       createdAt: serverTimestamp(),
+    });
+
+    // =========================
+    // Activity Log
+    // =========================
+    const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+    const userData = userDoc.data();
+
+    await logActivity({
+      user: `${userData.firstName} ${userData.lastName}`,
+      role: userData.role,
+      action: "Submitted room reassignment",
+      actionType: "edit",
+      target: `${conflict.faculty} • ${courseTitle} • ${conflict.roomName} → ${selectedRoom.roomName}`,
+      status: "Success",
     });
 
       alert("Room reassigned successfully!");

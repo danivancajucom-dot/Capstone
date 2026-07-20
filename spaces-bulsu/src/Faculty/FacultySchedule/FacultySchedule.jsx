@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import "./faculty-schedule.css";
+import ReleaseRoomModal from "../../Components/ReleaseRoomModal/ReleaseRoomModal";
 import { auth, db } from "../../firebase";
 import {
   collection,
   getDocs,
   doc,
   getDoc,
+  addDoc,
+  query,
+  where,
+  serverTimestamp,
 } from "firebase/firestore";
-
+import { logActivity } from "../../utils/logActivity";
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const START_HOUR = 7;
 const END_HOUR = 21;
@@ -73,6 +78,20 @@ const parseTimeParts = (time) => {
   ];
 };
 
+// Gumagamit ng LOCAL na date parts (hindi toISOString/UTC) — dahil
+// kung UTC ang gagamitin, sa mga timezone na nasa unahan ng UTC
+// (gaya ng Philippines, UTC+8), maaaring lumipat pababa ng isang
+// araw ang resulta (hal. local midnight ng July 19 ay July 18,
+// 4PM pa lang sa UTC).
+const toDateStr = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const todayStr = () => toDateStr(new Date());
+
 function fmtHour(h) {
   if (h < 12) return `${String(h).padStart(2,"0")} AM`;
   if (h === 12) return `12 PM`;
@@ -85,6 +104,105 @@ function fmtTime(h, m) {
   return `${hh}:${mm}`;
 }
 
+function fmt12Hour(time) {
+  const [h, m] = parseTimeParts(time);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hh = h % 12 || 12;
+  return `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+// Status + natitirang oras ng isang schedule occurrence, base sa
+// specific na petsa nito (hindi lang sa "day")
+const computeStatus = (dateStr, startTime, endTime) => {
+
+  const today = todayStr();
+
+  if (dateStr < today) return { status: "COMPLETED", remainingMinutes: 0 };
+  if (dateStr > today) return { status: "UPCOMING", remainingMinutes: 0 };
+
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const [sh, sm] = parseTimeParts(startTime);
+  const [eh, em] = parseTimeParts(endTime);
+
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+
+  if (nowMin >= startMin && nowMin < endMin) {
+    return { status: "ONGOING", remainingMinutes: endMin - nowMin };
+  }
+
+  if (nowMin < startMin) return { status: "UPCOMING", remainingMinutes: 0 };
+
+  return { status: "COMPLETED", remainingMinutes: 0 };
+
+};
+
+const notifyReleaseRoom = async ({
+  facultyId,
+  facultyName,
+  roomName,
+  subject,
+  date,
+  startTime,
+  endTime,
+}) => {
+  try {
+    const usersSnap = await getDocs(collection(db, "users"));
+
+    const notifications = [];
+
+    usersSnap.forEach((userDoc) => {
+      const user = userDoc.data();
+
+      const role = String(user.role || "").toLowerCase();
+
+      // Notify Department Head and Clerk
+      if (role === "department head" || role === "clerk") {
+        notifications.push(
+          addDoc(collection(db, "notifications"), {
+            userId: userDoc.id,
+            ownerType: role,
+            title: "Room Released",
+            message: `${facultyName} released ${roomName} for ${subject}.`,
+            type: "room-release",
+            roomName,
+            subject,
+            date,
+            startTime,
+            endTime,
+            isRead: false,
+            createdAt: serverTimestamp(),
+          })
+        );
+      }
+    });
+
+    // Notify the faculty himself
+    notifications.push(
+      addDoc(collection(db, "notifications"), {
+        userId: facultyId,
+        ownerType: "faculty",
+        title: "Room Released",
+        message: `You successfully released ${roomName} (${subject}).`,
+        type: "room-release",
+        roomName,
+        subject,
+        date,
+        startTime,
+        endTime,
+        isRead: false,
+        createdAt: serverTimestamp(),
+      })
+    );
+
+    await Promise.all(notifications);
+  } catch (err) {
+    console.error("Notification Error:", err);
+  }
+};
+
 export default function WeeklyCalendar() {
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -95,6 +213,11 @@ export default function WeeklyCalendar() {
   const [scheduleEvents, setScheduleEvents] = useState([]);   // Academic (recurring, by day)
   const [overrideEvents, setOverrideEvents] = useState([]);   // Institutional (by date)
   const [reservationEvents, setReservationEvents] = useState([]); // Reservation (by date)
+
+  const [releasedKeys, setReleasedKeys] = useState(new Set()); // `${scheduleId}_${date}`
+
+  const [releaseTarget, setReleaseTarget] = useState(null);
+  const [submittingRelease, setSubmittingRelease] = useState(false);
 
   useEffect(() => {
     loadFacultySchedule();
@@ -158,6 +281,7 @@ export default function WeeklyCalendar() {
               roomId: room.id,
               roomName: room.roomName,
               floor: room.floor,
+              image: room.image || null,
             });
 
           }
@@ -216,9 +340,7 @@ export default function WeeklyCalendar() {
 
       // ---------------------------------------------------------
       // Room activities (overrides) sa mga room kung saan may
-      // klase ang faculty — code-reference: ganito rin ang
-      // pagtukoy ng "affected faculty" sa RoomActivity.jsx (dept
-      // head side), dito lang ito ipinapakita sa sariling calendar
+      // klase ang faculty
       // ---------------------------------------------------------
 
       const eventSnap = await getDocs(collection(db, "events"));
@@ -230,9 +352,7 @@ export default function WeeklyCalendar() {
       setOverrideEvents(myEvents);
 
       // ---------------------------------------------------------
-      // Sariling approved reservations — ipapakita sa aktwal na
-      // petsa na na-reserve (hindi recurring, hindi tulad ng class
-      // schedule)
+      // Sariling approved reservations
       // ---------------------------------------------------------
 
       const reservationSnap = await getDocs(
@@ -250,6 +370,27 @@ export default function WeeklyCalendar() {
 
       setReservationEvents(myReservations);
 
+      // ---------------------------------------------------------
+      // Mga na-release na schedule occurrences (para itago sila sa
+      // kanilang specific na petsa)
+      // ---------------------------------------------------------
+
+      const releaseQ = query(
+        collection(db, "roomReleases"),
+        where("releasedBy", "==", firebaseUser.uid)
+      );
+
+      const releaseSnap = await getDocs(releaseQ);
+
+      const keys = new Set(
+        releaseSnap.docs.map((d) => {
+          const r = d.data();
+          return `${r.scheduleId}_${r.date}`;
+        })
+      );
+
+      setReleasedKeys(keys);
+
     } catch (err) {
 
       console.error(err);
@@ -262,7 +403,18 @@ export default function WeeklyCalendar() {
 
   };
 
-  const baseMonday = new Date(2026, 9, 19); 
+  // Kinukuha ang Monday ng KASALUKUYANG linggo base sa totoong petsa
+  // ngayon.
+  const getStartOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 = Sunday
+    const diff = day === 0 ? -6 : 1 - day; // Monday ang simula
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const baseMonday = getStartOfWeek(new Date());
   const weekStart  = new Date(baseMonday);
   weekStart.setDate(baseMonday.getDate() + weekOffset * 7);
   const weekEnd = new Date(weekStart);
@@ -284,7 +436,7 @@ export default function WeeklyCalendar() {
 
     if (now < weekStart || now > weekEnd) return -1;
 
-    return mondayIndexFromDate(now.toISOString().split("T")[0]) - 1;
+    return mondayIndexFromDate(toDateStr(now)) - 1;
 
   })();
 
@@ -292,28 +444,48 @@ export default function WeeklyCalendar() {
 
   // -----------------------------------------------------------------
   // I-convert ang 3 sources papunta sa iisang shape na kayang i-render
-  // ng calendar grid
+  // ng calendar grid — itinatago rin dito ang mga na-release na
+  // schedule occurrence (base sa specific na petsa lang, hindi sa
+  // buong recurring schedule)
   // -----------------------------------------------------------------
 
   const calendarEvents = useMemo(() => {
 
     const items = [];
 
-    // ACADEMIC — recurring, base sa araw ng linggo, laging ipinapakita
+    // ACADEMIC — recurring, base sa araw ng linggo
     scheduleEvents.forEach((s) => {
 
       const dayIdx = DAYS.indexOf(s.day) + 1;
 
       if (dayIdx < 1) return;
 
+      const occurrenceDate = new Date(weekStart);
+      occurrenceDate.setDate(weekStart.getDate() + (dayIdx - 1));
+      const occurrenceDateStr = toDateStr(occurrenceDate);
+
+      // itago kung na-release na ang occurrence na ito sa petsang ito
+      if (releasedKeys.has(`${s.id}_${occurrenceDateStr}`)) return;
+
       const [startH, startM] = parseTimeParts(s.startTime);
       const [endH, endM] = parseTimeParts(s.endTime);
 
       items.push({
-        id: `sched-${s.id}`,
+        id: `sched-${s.id}-${occurrenceDateStr}`,
+        kind: "schedule",
+        scheduleId: s.id,
+        roomId: s.roomId,
+        roomName: s.roomName,
+        image: s.image,
+        subject: s.subject,
+        section: s.section,
+        day: s.day,
+        date: occurrenceDateStr,
+        rawStartTime: s.startTime,
+        rawEndTime: s.endTime,
         title: s.subject || "Class",
         location: `${s.roomName || "-"}${s.floor ? ` | ${s.floor}` : ""}`,
-        day: dayIdx,
+        dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
         colorIdx: 0,
@@ -321,8 +493,7 @@ export default function WeeklyCalendar() {
 
     });
 
-    // INSTITUTIONAL (override) — base sa aktwal na petsa, lalabas lang
-    // kung nasa loob ng kasalukuyang naka-display na linggo
+    // INSTITUTIONAL (override) — base sa aktwal na petsa
     overrideEvents.forEach((e) => {
 
       if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
@@ -334,9 +505,10 @@ export default function WeeklyCalendar() {
 
       items.push({
         id: `event-${e.id}`,
+        kind: "event",
         title: e.title || e.purpose || "Room Activity",
         location: `${e.roomName || "-"} | Room Activity`,
-        day: dayIdx,
+        dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
         colorIdx: 1,
@@ -356,13 +528,14 @@ export default function WeeklyCalendar() {
 
       items.push({
         id: `resv-${r.id}`,
+        kind: "reservation",
         title:
           r.customPurpose ||
           r.courseTitle ||
           r.purpose ||
           "Reservation",
         location: `${r.roomName || "-"} | Reservation`,
-        day: dayIdx,
+        dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
         colorIdx: 2,
@@ -377,9 +550,146 @@ export default function WeeklyCalendar() {
     scheduleEvents,
     overrideEvents,
     reservationEvents,
+    releasedKeys,
     weekStart.getTime(),
     weekEnd.getTime(),
   ]);
+
+  // -----------------------------------------------------------------
+  // RELEASE ROOM
+  // -----------------------------------------------------------------
+
+  const openReleaseModal = (ev) => {
+
+    if (ev.kind !== "schedule") return;
+
+    const { status, remainingMinutes } = computeStatus(
+      ev.date,
+      ev.rawStartTime,
+      ev.rawEndTime
+    );
+
+    setReleaseTarget({
+      scheduleId: ev.scheduleId,
+      roomId: ev.roomId,
+      roomName: ev.roomName,
+      image: ev.image,
+      subject: ev.subject,
+      section: ev.section,
+      day: ev.day,
+      date: ev.date,
+      startTime: ev.rawStartTime,
+      endTime: ev.rawEndTime,
+      startTimeLabel: fmt12Hour(ev.rawStartTime),
+      endTimeLabel: fmt12Hour(ev.rawEndTime),
+      status,
+      remainingMinutes,
+    });
+
+  };
+
+  const handleConfirmRelease = async ({ reason, details }) => {
+
+    if (!releaseTarget) return;
+
+    setSubmittingRelease(true);
+
+    try {
+
+      const firebaseUser = auth.currentUser;
+
+      if (!firebaseUser) return;
+
+      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+      const me = userSnap.exists() ? userSnap.data() : {};
+
+      const fullName = `${me.firstName || ""} ${me.lastName || ""}`.trim();
+
+      await addDoc(collection(db, "roomReleases"), {
+
+        scheduleId: releaseTarget.scheduleId,
+        roomId: releaseTarget.roomId,
+        roomName: releaseTarget.roomName,
+
+        date: releaseTarget.date,
+        day: releaseTarget.day,
+
+        subject: releaseTarget.subject || "",
+        section: releaseTarget.section || "",
+
+        startTime: releaseTarget.startTime,
+        endTime: releaseTarget.endTime,
+
+        faculty: fullName,
+        releasedBy: firebaseUser.uid,
+        releasedByName: fullName,
+
+        reason,
+        details: details || "",
+
+        status: "released",
+        releasedAt: serverTimestamp(),
+
+      });
+
+      await notifyReleaseRoom({
+        facultyId: firebaseUser.uid,
+        facultyName: fullName,
+        roomName: releaseTarget.roomName,
+        subject: releaseTarget.subject,
+        date: releaseTarget.date,
+        startTime: releaseTarget.startTime,
+        endTime: releaseTarget.endTime,
+      });
+
+      // NOTE: gumagamit ng "releaseTarget" (hindi "target" — wala
+      // talagang variable na ganon, ito yung dating bug na
+      // nagdudulot ng ReferenceError pagkatapos ng successful na
+      // addDoc, kaya hindi na-reach yung setReleasedKeys sa ibaba)
+      try {
+
+        await logActivity({
+            user: fullName || auth.currentUser.displayName || "Faculty",
+            userId: firebaseUser.uid,
+            role: "Faculty",
+
+            action: "Released Room",
+            actionType: "UPDATE",
+
+            target: `${releaseTarget.roomName} | ${releaseTarget.subject || ""}`,
+
+            status: "SUCCESS",
+        });
+
+      } catch (logErr) {
+
+        // hindi dapat ma-block ang buong release kung mag-fail lang
+        // ang activity log
+        console.error("logActivity failed:", logErr);
+
+      }
+
+      // itago agad sa calendar nang hindi na kailangan mag full-reload
+      setReleasedKeys((prev) => {
+        const next = new Set(prev);
+        next.add(`${releaseTarget.scheduleId}_${releaseTarget.date}`);
+        return next;
+      });
+
+      setReleaseTarget(null);
+
+    } catch (err) {
+
+      console.error(err);
+      alert("Failed to release room. Please try again.");
+
+    } finally {
+
+      setSubmittingRelease(false);
+
+    }
+
+  };
 
   return (
     <>
@@ -463,13 +773,15 @@ export default function WeeklyCalendar() {
                 const color   = CARD_COLORS[ev.colorIdx];
                 const topPx   = ((ev.startH - START_HOUR) + ev.startM / 60) * HOUR_HEIGHT;
                 const heightPx = ((ev.endH - ev.startH) + (ev.endM - ev.startM) / 60) * HOUR_HEIGHT - 4;
-                const leftPct  = ((ev.day - 1) / 7) * 100;
+                const leftPct  = ((ev.dayIdx - 1) / 7) * 100;
                 const widthPct = (ev.daySpan / 7) * 100;
+                const clickable = ev.kind === "schedule";
 
                 return (
                   <div
                     key={ev.id}
-                    className="wc-event"
+                    className={`wc-event ${clickable ? "wc-event--clickable" : ""}`}
+                    onClick={clickable ? () => openReleaseModal(ev) : undefined}
                     style={{
                       top:             topPx,
                       height:          Math.max(heightPx, 24),
@@ -477,6 +789,7 @@ export default function WeeklyCalendar() {
                       width:           `calc(${widthPct}% - 4px)`,
                       backgroundColor: color.bg,
                       borderLeft:      `4px solid ${color.border}`,
+                      cursor:          clickable ? "pointer" : "default",
                     }}
                   >
                     <div className="wc-event-top">
@@ -496,6 +809,13 @@ export default function WeeklyCalendar() {
         )}
       </div>
     </div>
+
+    <ReleaseRoomModal
+      target={releaseTarget}
+      onClose={() => setReleaseTarget(null)}
+      onConfirm={handleConfirmRelease}
+      submitting={submittingRelease}
+    />
     </>
 
   );

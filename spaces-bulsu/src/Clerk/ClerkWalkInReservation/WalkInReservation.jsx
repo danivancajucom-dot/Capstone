@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import "./WalkInReservation.css";
 import {
-    collection,
-    query,
-    where,
-    onSnapshot,
-    addDoc,
-    updateDoc,
-    doc,
-    serverTimestamp,
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  doc,
+  serverTimestamp,
+  getDocs,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
-
+import { logActivity } from "../../utils/logActivity";
 const today = new Date().toISOString().split("T")[0];
+import { createNotification } from "../../utils/createNotification";
 
 export default function WalkInReservation() {
 
@@ -592,6 +594,51 @@ const selectRoom = (room) => {
 //---------------------------------------------------
 // Confirm Reservation
 //---------------------------------------------------
+const notifyClerkAndDepartmentHead = async (
+  title,
+  message,
+  reservationId
+) => {
+  const usersSnap = await getDocs(collection(db, "users"));
+
+  const notifications = [];
+
+  usersSnap.forEach((userDoc) => {
+    const user = userDoc.data();
+
+    if (
+      user.role === "clerk" ||
+      user.role === "department-head"
+    ) {
+      notifications.push(
+        addDoc(collection(db, "notifications"), {
+          userId: userDoc.id,
+
+          ownerType:
+            user.role === "clerk"
+              ? "clerk"
+              : "department-head",
+
+          reservationId,
+
+          title,
+          message,
+
+          type: "walk-in-reservation",
+
+          unread: true,
+          archived: false,
+
+          badge: "NEW",
+
+          createdAt: serverTimestamp(),
+        })
+      );
+    }
+  });
+
+  await Promise.all(notifications);
+};
 
 const handleConfirm = async () => {
 
@@ -684,7 +731,7 @@ const handleConfirm = async () => {
 
         setSavingReservation(true);
 
-        await addDoc(collection(db, "reservationRequests"), {
+        const reservationRef = await addDoc(collection(db, "reservationRequests"), {
 
             reservationType: "walk-in",
 
@@ -726,6 +773,32 @@ const handleConfirm = async () => {
 
         });
 
+        await notifyClerkAndDepartmentHead(
+            "Walk-In Reservation Created",
+            `${form.requesterName} created a walk-in reservation for ${selectedRoom.roomName} today from ${form.startTime} to ${form.endTime}.`,
+            reservationRef.id
+        );
+
+        await addDoc(collection(db, "notifications"), {
+            userId: auth.currentUser.uid,
+            ownerType: "clerk",
+
+            reservationId: reservationRef.id,
+
+            title: "Walk-In Reservation Saved",
+
+            message: `The walk-in reservation for ${selectedRoom.roomName} has been successfully recorded.`,
+
+            type: "walk-in-created",
+
+            unread: true,
+            archived: false,
+
+            badge: "INFO",
+
+            createdAt: serverTimestamp(),
+        });
+
         //-------------------------------------------------
         // Optional Room Status Update
         //-------------------------------------------------
@@ -749,6 +822,22 @@ const handleConfirm = async () => {
             );
 
         }
+
+        // ===============================
+        // ACTIVITY LOG
+        // ===============================
+        await logActivity({
+            user: auth.currentUser.displayName || "Local Registrar",
+            userId: auth.currentUser.uid,
+            role: "Local Registrar",
+
+            action: "Created Walk-In Reservation",
+            actionType: "CREATE",
+
+            target: `${selectedRoom.roomName} | ${form.requesterName}`,
+
+            status: "SUCCESS",
+        });
 
         alert("Walk-in reservation successful!");
 
@@ -775,6 +864,19 @@ const handleConfirm = async () => {
     catch (err) {
 
         console.error(err);
+
+        await logActivity({
+            user: auth.currentUser?.displayName || "Local Registrar",
+            userId: auth.currentUser?.uid || "",
+            role: "Clerk",
+
+            action: "Created Walk-In Reservation",
+            actionType: "CREATE",
+
+            target: selectedRoom?.roomName || "Unknown Room",
+
+            status: "FAILED",
+        });
 
         alert("Failed to save reservation.");
 

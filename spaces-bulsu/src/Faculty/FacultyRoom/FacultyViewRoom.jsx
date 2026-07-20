@@ -24,7 +24,17 @@ const DAYS = [
   "SUN",
 ];
 
-function FacultyViewRoomCard() {
+// Gumagamit ng LOCAL na date parts (hindi toISOString/UTC) — para
+// hindi ma-shift ang petsa sa mga timezone na nasa unahan ng UTC
+// (gaya ng Philippines, UTC+8).
+const toDateStr = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+function FacultyViewRoom() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,6 +43,7 @@ function FacultyViewRoomCard() {
   const [schedules, setSchedules] = useState([]);
   const [events, setEvents] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [releasedKeys, setReleasedKeys] = useState(new Set()); // `${scheduleId}_${date}`
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   useEffect(() => {
@@ -86,6 +97,23 @@ function FacultyViewRoomCard() {
       );
 
     setReservations(reservationList);
+
+    // ----------------------------------------------------------
+    // Mga na-release na schedule occurrences para sa room na ito —
+    // itatago sila sa kanilang specific na petsa
+    // ----------------------------------------------------------
+    const releaseSnap = await getDocs(
+      collection(db, "roomReleases")
+    );
+
+    const keys = new Set(
+      releaseSnap.docs
+        .map((d) => d.data())
+        .filter((r) => r.roomId === room.id)
+        .map((r) => `${r.scheduleId}_${r.date}`)
+    );
+
+    setReleasedKeys(keys);
   };
 
     
@@ -179,11 +207,7 @@ function FacultyViewRoomCard() {
   // ---------------------------------------------------------
   const getItemsForDate = (date) => {
 
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-
-    const dateString = `${yyyy}-${mm}-${dd}`;
+    const dateString = toDateStr(date);
 
     return [
       ...events
@@ -288,6 +312,7 @@ function FacultyViewRoomCard() {
 
     DAYS.map((day, index) => {
                 const dateEvents = getItemsForDate(weekDates[index]);
+                const occurrenceDateStr = toDateStr(weekDates[index]);
 
                 return (
                   <div className="calendar-day" key={day}>
@@ -295,6 +320,16 @@ function FacultyViewRoomCard() {
                     {/* REGULAR SCHEDULE */}
                     {getSchedulesByDay(day)
                       .filter(schedule => {
+
+                        // itago kung na-release na ang schedule
+                        // occurrence na ito sa specific na petsang ito
+                        if (
+                          releasedKeys.has(
+                            `${schedule.id}_${occurrenceDateStr}`
+                          )
+                        ) {
+                          return false;
+                        }
 
                         const sStart = convertToMinutes(schedule.startTime);
                         const sEnd = convertToMinutes(schedule.endTime);
@@ -382,4 +417,4 @@ function FacultyViewRoomCard() {
   );
 }
 
-export default FacultyViewRoomCard;
+export default FacultyViewRoom;
