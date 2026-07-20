@@ -39,17 +39,7 @@ export default function LocalRegistrarActivityLog() {
 
 ]);
 
-const LR_ACTIONS = [
 
-      "Uploaded Schedule",
-      "Archived Schedule",
-      "Restored Schedule",
-
-      "Generated QR Code",
-      "Downloaded QR Code",
-      "Downloaded All QR ZIP",
-
-  ];
 
   const loadLogs = async () => {
 
@@ -82,12 +72,8 @@ const LR_ACTIONS = [
     let data = logs.filter(log => {
 
     return (
-
-        log.role === "Local Registrar" &&
-
-        LR_ACTIONS.includes(log.action)
-        
-
+        log.role &&
+        log.role.toLowerCase() === "local registrar"
     );
 
 });
@@ -117,15 +103,9 @@ const LR_ACTIONS = [
     }
 
     if (actionFilter) {
-
         data = data.filter(
-
-            log =>
-
-                log.action === ACTION_FILTERS[actionFilter]
-
+            log => log.actionType === actionFilter
         );
-
     }
 
     if (dateFilter) {
@@ -185,7 +165,7 @@ const LR_ACTIONS = [
     if (!log.timestamp) return false;
 
     return (
-      log.role === "Local Registrar" &&
+      log.role?.toLowerCase() === "local registrar" &&
       log.timestamp.toDate().toDateString() === new Date().toDateString()
     );
 
@@ -277,7 +257,7 @@ const LR_ACTIONS = [
 
               <option value="">Action</option>
 
-              <option value="upload">
+              <option value="schedule">
               Uploaded Schedule
               </option>
 
@@ -289,7 +269,7 @@ const LR_ACTIONS = [
               Restored Schedule
               </option>
 
-              <option value="generate">
+              <option value="qr">
               Generated QR Code
               </option>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import "./faculty-profile.css";
-
+import { logActivity } from "../../utils/logActivity";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { sendPasswordResetEmail, onAuthStateChanged } from "firebase/auth";
@@ -137,6 +137,15 @@ export default function UserProfile() {
         firstName: form.firstName.trim(),
         lastName:  form.lastName.trim(),
         photoUrl,
+      });
+
+      await logActivity({
+        user: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        role: form.role,
+        action: "Updated profile",
+        actionType: "edit",
+        target: "Faculty Profile",
+        status: "Success",
       });
 
       const updatedData = { ...form, photoUrl };

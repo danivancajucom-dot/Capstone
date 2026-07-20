@@ -11,7 +11,8 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
+import { logActivity } from "../../utils/logActivity";
 import { useNavigate } from "react-router-dom";
 import RoomManagementModals from "./Modals/RoomManagementModals";
 import { useDeactivationModals } from "./hooks/useDeactivationModals";
@@ -347,6 +348,28 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
         "loading",
         "Putting room under maintenance..."
       );
+
+      const firebaseUser = auth.currentUser;
+
+      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+      const currentUser = userSnap.data();
+
+      const fullName =
+        `${currentUser.firstName} ${currentUser.lastName}`.trim();
+
+      await logActivity({
+        userId: firebaseUser.uid,
+        user: fullName,
+        role: currentUser.role,
+
+        action: "Marked Room Under Maintenance",
+        actionType: "warning",
+
+        target: room.roomName,
+        details: "Changed room status to Under Maintenance",
+
+        status: "SUCCESS",
+      });
 
       await updateDoc(
         doc(db, "rooms", room.firestoreId),

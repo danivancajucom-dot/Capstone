@@ -258,7 +258,7 @@ export default function RoomActivity() {
       const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
 
       // create room activity
-      await addDoc(collection(db, "events"), {
+      const activityRef = await addDoc(collection(db, "events"), {
         roomId: roomDoc.id,
         roomName: roomDoc.roomName,
 
@@ -307,8 +307,8 @@ export default function RoomActivity() {
 
         const scheduleName = normalizeName(conflict.faculty);
 
-        const facultyUser = usersSnap.docs.find((doc) => {
-          const user = doc.data();
+        const facultyUser = usersSnap.docs.find((userDoc) => {
+          const user = userDoc.data();
 
           const accountName = normalizeName(
             `${user.lastName}, ${user.firstName}${
@@ -316,38 +316,74 @@ export default function RoomActivity() {
             }`
           );
 
-          return accountName === scheduleName;
+          return (
+            user.role === "faculty" &&
+            accountName === scheduleName
+          );
         });
 
         if (!facultyUser) {
           console.log("Faculty not found:", conflict.faculty);
           continue;
         }
-
+        //AFFECTED FACULTY
         await addDoc(collection(db, "notifications"), {
           userId: facultyUser.id,
+          ownerType: "faculty",
+
+          activityId: activityRef.id,
 
           title: "Room Activity Override",
 
-          message: `${form.title} will use ${roomDoc.roomName} on ${form.date} (${form.startTime}-${form.endTime}). Your scheduled class may be affected.`,
+          message: `${form.title} will use ${roomDoc.roomName} on ${form.date} (${formatTime12(
+            form.startTime
+          )} - ${formatTime12(
+            form.endTime
+          )}). Your scheduled class may be affected.`,
 
           type: "room-activity",
 
           unread: true,
-
           archived: false,
 
           badge: "NEW",
 
-          activityTitle: form.title,
-
+          roomId: roomDoc.id,
           roomName: roomDoc.roomName,
 
+          activityTitle: form.title,
+          activityReason: form.reason,
+
           activityDate: form.date,
-
           activityStart: form.startTime,
-
           activityEnd: form.endTime,
+
+          affectedScheduleId: conflict.id,
+          affectedSubject: conflict.title || "",
+          affectedFaculty: conflict.faculty || "",
+
+          createdAt: serverTimestamp(),
+        });
+
+        //DEPARTMENT HEAD
+        await addDoc(collection(db, "notifications"), {
+          userId: auth.currentUser.uid,
+          ownerType: "department-head",
+
+          activityId: activityRef.id,
+
+          title: "Room Activity Created",
+
+          message:
+            conflicts.length > 0
+              ? `${form.title} has been created. ${conflicts.length} faculty schedule(s) were affected and notified.`
+              : `${form.title} has been created successfully.`,
+
+          type: "room-activity-status",
+
+          unread: true,
+          archived: false,
+          badge: "INFO",
 
           createdAt: serverTimestamp(),
         });

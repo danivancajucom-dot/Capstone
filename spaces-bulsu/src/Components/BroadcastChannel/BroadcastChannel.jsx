@@ -216,7 +216,7 @@ export default function BroadcastChannel() {
         fileName = selectedFile.name;
       }
 
-      await addDoc(collection(db, "broadcastChannels"), {
+      const broadcastRef = await addDoc(collection(db, "broadcastChannels"), {
         content: message,
         imageUrl,
         fileUrl,
@@ -231,6 +231,50 @@ export default function BroadcastChannel() {
           love: [],
         },
       });
+
+      const usersSnap = await getDocs(collection(db, "users"));
+
+      const notifications = [];
+
+      usersSnap.forEach((userDoc) => {
+        const user = userDoc.data();
+
+        const shouldNotify =
+          recipient === "All Staffs"
+            ? true
+            : user.role?.toLowerCase() === recipient.toLowerCase();
+
+        if (shouldNotify) {
+          notifications.push(
+            addDoc(collection(db, "notifications"), {
+              userId: userDoc.id,
+
+              ownerType: user.role.toLowerCase(),
+
+              broadcastId: broadcastRef.id,
+
+              title: "New Announcement",
+
+              message: `${senderName} posted a new announcement.`,
+
+              imageUrl,
+
+              type: "broadcast",
+
+              unread: true,
+              archived: false,
+
+              badge: "NEW",
+
+              sender: senderName,
+
+              createdAt: serverTimestamp(),
+            })
+          );
+        }
+      });
+
+      await Promise.all(notifications);
 
       await logActivity({
         userId: auth.currentUser.uid,

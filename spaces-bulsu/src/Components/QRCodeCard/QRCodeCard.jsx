@@ -1,6 +1,12 @@
 import { useRef } from "react";
 import "./qr-code-card.css";
+import { auth, db } from "../../firebase";
 
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+} from "firebase/firestore";
 import QRCode from "react-qr-code";
 import { toPng } from "html-to-image";
 import { saveAs } from "file-saver";
@@ -30,6 +36,17 @@ function QRCodeCard({ room }) {
         dataUrl,
         `${room.roomName}-QR.png`
       );
+
+      await addDoc(collection(db, "activityLogs"), {
+        userId: auth.currentUser.uid,
+        userRole: "Local Registrar",
+        action: "Downloaded QR Code",
+        actionType: "qr",
+        description: `Downloaded the QR Code for room ${room.roomName}.`,
+        targetId: room.id,
+        targetType: "Room",
+        createdAt: serverTimestamp(),
+      });
 
     } catch (err) {
 

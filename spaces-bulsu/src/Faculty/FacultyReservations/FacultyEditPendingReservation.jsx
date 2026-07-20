@@ -39,50 +39,49 @@ function FacultyEditPendingReservation() {
   const notifyClerkAndDepartmentHead = async (
   title,
   message,
-  reservationId = null
+  reservationId
 ) => {
-  try {
-    const usersSnap = await getDocs(collection(db, "users"));
+  const usersSnap = await getDocs(collection(db, "users"));
 
-    const recipients = usersSnap.docs.filter((d) => {
-      const user = d.data();
+  const notifications = [];
 
-      return (
-        user.role === "clerk" ||
-        user.role === "department-head"
+  usersSnap.forEach((userDoc) => {
+    const user = userDoc.data();
+
+    if (
+      user.role === "clerk" ||
+      user.role === "department-head"
+    ) {
+      notifications.push(
+        addDoc(collection(db, "notifications"), {
+          userId: userDoc.id,
+
+          ownerType:
+            user.role === "clerk"
+              ? "clerk"
+              : "department-head",
+
+          reservationId,
+
+          title,
+          message,
+
+          type: "reservation-request",
+
+          unread: true,
+          archived: false,
+          badge: "NEW",
+
+          createdAt: serverTimestamp(),
+        })
       );
-    });
-
-    for (const receiver of recipients) {
-      const user = receiver.data();
-
-      await addDoc(collection(db, "notifications"), {
-        userId: receiver.id,
-
-        ownerType:
-          user.role === "clerk"
-            ? "clerk"
-            : "department-head",
-
-        reservationId,
-
-        title,
-        message,
-
-        type: "reservation-request",
-
-        unread: true,
-        archived: false,
-
-        badge: "NEW",
-
-        createdAt: serverTimestamp(),
-      });
     }
-  } catch (err) {
-    console.error("Notification Error:", err);
-  }
+  });
+
+  await Promise.all(notifications);
 };
+
+
 
   const handleSave = async () => {
   try {
@@ -114,11 +113,47 @@ function FacultyEditPendingReservation() {
         updatedAt: serverTimestamp(),
     });
 
-    await notifyClerkAndDepartmentHead(
-      "Reservation Updated",
-      `${facultyName} updated a reservation request.`,
-      reservation.id
-    );
+    // ===============================
+    // Activity Log
+    // ===============================
+    await addDoc(collection(db, "activityLogs"), {
+      userId: auth.currentUser.uid,
+      userRole: "Faculty",
+      action: "Updated Reservation Request",
+      description: `${facultyName} updated the reservation request for "${courseTitle}" scheduled on ${date} from ${startTime} to ${endTime}.`,
+      targetId: reservation.id,
+      targetType: "Reservation",
+      createdAt: serverTimestamp(),
+    });
+
+   await notifyClerkAndDepartmentHead(
+    "Reservation Updated",
+    `${facultyName} updated the reservation request for ${courseTitle} in ${selectedRoom?.roomName || reservation.roomName} on ${date} from ${startTime} to ${endTime}.`,
+    reservation.id
+  );
+
+  // ===============================
+  // Notification for Faculty
+  // ===============================
+  await addDoc(collection(db, "notifications"), {
+    userId: auth.currentUser.uid,
+    ownerType: "faculty",
+
+    reservationId: reservation.id,
+
+    title: "Reservation Updated",
+
+    message: `Your reservation request for ${selectedRoom?.roomName || reservation.roomName} on ${date} (${startTime} - ${endTime}) has been updated successfully and is waiting for approval.`,
+
+    type: "reservation-updated",
+
+    unread: true,
+    archived: false,
+
+    badge: "INFO",
+
+    createdAt: serverTimestamp(),
+  });
 
     alert("Reservation updated successfully.");
 

@@ -11,7 +11,7 @@ import {
   where,
   getDocs
 } from "firebase/firestore";
-
+import { logActivity } from "../../utils/logActivity";
 import { auth } from "../../firebase";
 import { db } from "../../firebase";
 import "./faculty-room-reassignment.css";
@@ -176,6 +176,18 @@ export default function FacultyRoomReassignment() {
 
     await sendDecisionNotifications("rejected");
 
+    const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+    const userData = userSnap.data();
+
+    await logActivity({
+      user: `${userData.firstName} ${userData.lastName}`,
+      role: userData.role,
+      action: "Rejected room reassignment",
+      actionType: "denied",
+      target: `${assignment.courseTitle} | ${assignment.oldRoomName} → ${assignment.newRoomName}`,
+      status: "Rejected",
+    });
+
     alert("Room reassignment rejected.");
 
     navigate("/faculty");
@@ -205,6 +217,18 @@ export default function FacultyRoomReassignment() {
     );
 
     await sendDecisionNotifications("accepted");
+
+    const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+    const userData = userSnap.data();
+
+    await logActivity({
+      user: `${userData.firstName} ${userData.lastName}`,
+      role: userData.role,
+      action: "Accepted room reassignment",
+      actionType: "success",
+      target: `${assignment.courseTitle} | ${assignment.oldRoomName} → ${assignment.newRoomName}`,
+      status: "Success",
+    });
 
     alert("Room reassignment accepted.");
 

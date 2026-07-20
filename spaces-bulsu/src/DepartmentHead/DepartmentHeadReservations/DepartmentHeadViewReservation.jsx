@@ -7,9 +7,11 @@ import {
   collection,
   addDoc,
   serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
-
+import { auth } from "../../firebase";
+import { logActivity } from "../../utils/logActivity";
 import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 
@@ -31,6 +33,35 @@ function DepartmentHeadViewReservation() {
   }
   const [showDenial, setShowDenial] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  const notifyReservationDecision = async (
+  receiverId,
+  ownerType,
+  title,
+  message,
+  reservationId,
+  type,
+  badge = "INFO"
+) => {
+  await addDoc(collection(db, "notifications"), {
+    userId: receiverId,
+    ownerType,
+
+    reservationId,
+
+    title,
+    message,
+
+    type,
+
+    unread: true,
+    archived: false,
+
+    badge,
+
+    createdAt: serverTimestamp(),
+  });
+};
 
   const approveReservation = async () => {
     try {
@@ -65,6 +96,67 @@ function DepartmentHeadViewReservation() {
 
       });
 
+      const firebaseUser = auth.currentUser;
+
+        if (firebaseUser) {
+          const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+
+          if (userSnap.exists()) {
+            const currentUser = userSnap.data();
+
+            await logActivity({
+              userId: firebaseUser.uid,
+              user: `${currentUser.firstName} ${currentUser.lastName}`.trim(),
+              role: currentUser.role,
+
+              action: "Approved Reservation",
+              actionType: "success",
+
+              target: `${reservation.roomName} - ${reservation.courseTitle}`,
+
+              status: "SUCCESS",
+            });
+
+            // ===============================
+            // Notify Faculty
+            // ===============================
+            await notifyReservationDecision(
+              reservation.userId,
+              "faculty",
+
+              "Reservation Approved",
+
+              `Your reservation request for ${reservation.roomName} on ${reservation.date} (${reservation.startTime} - ${reservation.endTime}) has been approved.`,
+
+              reservation.id,
+
+              "reservation-approved",
+
+              "SUCCESS"
+            );
+
+            // ===============================
+            // Notify Current Department Head / Clerk
+            // ===============================
+            await notifyReservationDecision(
+              auth.currentUser.uid,
+              "department-head",
+
+              "Reservation Approved",
+
+              `You approved ${reservation.facultyName}'s reservation request for ${reservation.roomName}.`,
+
+              reservation.id,
+
+              "reservation-approved",
+
+              "INFO"
+            );
+            
+          }
+        }
+        
+
       setShowConfirm(false);
 
       navigate("/department-head/reservations");
@@ -86,6 +178,68 @@ function DepartmentHeadViewReservation() {
           denialReason: reason,
         }
       );
+
+      const firebaseUser = auth.currentUser;
+
+      if (firebaseUser) {
+        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+
+        if (userSnap.exists()) {
+          const currentUser = userSnap.data();
+
+          await logActivity({
+            userId: firebaseUser.uid,
+            user: `${currentUser.firstName} ${currentUser.lastName}`.trim(),
+            role: currentUser.role,
+
+            action: "Rejected Reservation",
+            actionType: "warning",
+
+            target: `${reservation.roomName} - ${reservation.courseTitle}`,
+
+            details: `Reason: ${reason}`,
+
+            status: "SUCCESS",
+          });
+
+          // ===============================
+          // Notify Faculty
+          // ===============================
+          await notifyReservationDecision(
+            reservation.userId,
+            "faculty",
+
+            "Reservation Rejected",
+
+            `Your reservation request for ${reservation.roomName} was rejected.\nReason: ${reason}`,
+
+            reservation.id,
+
+            "reservation-rejected",
+
+            "WARNING"
+          );
+
+          // ===============================
+          // Notify Current Department Head / Clerk
+          // ===============================
+          await notifyReservationDecision(
+            auth.currentUser.uid,
+            "department-head",
+
+            "Reservation Rejected",
+
+            `You rejected ${reservation.facultyName}'s reservation request.`,
+
+            reservation.id,
+
+            "reservation-rejected",
+
+            "INFO"
+          );
+          
+        }
+      }
 
       setShowDenial(false);
 

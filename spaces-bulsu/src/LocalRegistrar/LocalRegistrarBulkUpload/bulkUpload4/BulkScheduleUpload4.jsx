@@ -1,10 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
 import "./bulk-schedule-upload4.css";
-
 import ConfirmPopup from "../../../Popup/ConfirmPopup/ConfirmPopup";
-
 import {
   collection,
   query,
@@ -158,8 +155,8 @@ export default function BulkScheduleUpload4() {
         userId: currentUserData.userId,
         user: currentUserData.user,
         role: currentUserData.role,
-        action: "Bulk Uploaded Schedule",
-        actionType: "success",
+        action: "Uploaded Schedule",
+        actionType: "schedule",
         target: `${rawSchedules.length} schedules for ${room} (${semester}, ${schoolYear})`,
         status: "SUCCESS",
       });

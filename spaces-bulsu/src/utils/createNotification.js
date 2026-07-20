@@ -13,20 +13,31 @@ export const createNotification = async ({
   type = "announcement",
   badge = "",
   sender = "System",
+
+  // bagong fields
+  reservationId = null,
+  ownerType = "",
 }) => {
-  await addDoc(
-    collection(db, "notifications"),
-    {
-      userId,
-      title,
-      message,
-      imageUrl,
-      type,
-      badge,
-      sender,
-      unread: true,
-      archived: false,
-      createdAt: serverTimestamp(),
-    }
-  );
+  await addDoc(collection(db, "notifications"), {
+    userId,
+    ownerType,
+
+    reservationId,
+
+    title,
+    message,
+
+    imageUrl,
+
+    type,
+
+    badge,
+
+    sender,
+
+    unread: true,
+    archived: false,
+
+    createdAt: serverTimestamp(),
+  });
 };
