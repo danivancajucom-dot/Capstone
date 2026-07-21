@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import "./WalkInReservation.css";
 import {
   collection,
@@ -14,6 +14,8 @@ import {
 import { auth, db } from "../../firebase";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
 import { logActivity } from "../../utils/logActivity";
+import Toast from "../../Popup/Toast/Toast";
+import { useNavigate } from "react-router-dom";
 
 // ─── Constants ───────────────────────────────────────────────────────
 const TODAY = new Date().toISOString().split("T")[0];
@@ -58,18 +60,49 @@ const normalize = (value) => value?.toString().trim().toLowerCase();
 
 // ─── Main Component ──────────────────────────────────────────────────
 export default function WalkInReservation() {
+  const navigate = useNavigate();
+  const toastTimeoutRef = useRef(null);
+
   const [pageLoading, setPageLoading] = useState(true);
   const [savingReservation, setSavingReservation] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
 
+  // ─── Toast state ────────────────────────────────────────────────────
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+  const showToast = (type, title, message) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast((prev) => ({ ...prev, show: false }));
+        toastTimeoutRef.current = null;
+      }, 4000);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
+
   // ─── State ──────────────────────────────────────────────────────
   const [rooms, setRooms] = useState([]);
   const [events, setEvents] = useState([]);
-  const [reservations, setReservations] = useState([]); // approved
+  const [reservations, setReservations] = useState([]);
   const [releases, setReleases] = useState([]);
   const [reassignments, setReassignments] = useState([]);
-  const [roomSchedules, setRoomSchedules] = useState({}); // { roomId: schedule[] }
+  const [roomSchedules, setRoomSchedules] = useState({});
 
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [floor, setFloor] = useState("");
@@ -85,7 +118,7 @@ export default function WalkInReservation() {
     customPurpose: "",
     course: "",
     yearSectionGroup: "",
-    attendees: "",
+    studentRange: "", // Added for attendees count
     date: TODAY,
     duration: "",
     endTime: "",
@@ -181,7 +214,6 @@ export default function WalkInReservation() {
   const getBusyItemsForRoom = (roomId, date, dayAbbrev) => {
     const items = [];
 
-    // 1. Class schedules
     const schedules = roomSchedules[roomId] || [];
     const releaseKeys = new Set(
       releases
@@ -209,7 +241,6 @@ export default function WalkInReservation() {
         });
       });
 
-    // 2. Events
     events
       .filter((e) => e.roomId === roomId && e.date === date)
       .forEach((e) => {
@@ -221,7 +252,6 @@ export default function WalkInReservation() {
         });
       });
 
-    // 3. Approved reservations
     reservations
       .filter((r) => r.roomId === roomId && r.date === date)
       .forEach((r) => {
@@ -233,7 +263,6 @@ export default function WalkInReservation() {
         });
       });
 
-    // 4. Reassigned‑in
     reassignments
       .filter((r) => r.newRoomId === roomId && r.date === date)
       .forEach((r) => {
@@ -261,7 +290,6 @@ export default function WalkInReservation() {
 
     return rooms
       .map((room) => {
-        // Maintenance check
         if (isRoomUnderMaintenance(room, today, currentTime, currentTime)) {
           return null;
         }
@@ -279,13 +307,12 @@ export default function WalkInReservation() {
         );
         const availableUntil = nextBusy ? nextBusy.startTime : "23:59";
 
-        // Enforce 8:00 PM limit
         const maxAllowedEnd = Math.min(
           convertToMinutes(availableUntil),
           MAX_HOUR * 60
         );
-        const maxMinutes = maxAllowedEnd - start; // NO CAP – full available window
-        if (maxMinutes < 30) return null; // at least 30 mins available
+        const maxMinutes = maxAllowedEnd - start;
+        if (maxMinutes < 30) return null;
 
         return {
           ...room,
@@ -356,7 +383,7 @@ export default function WalkInReservation() {
     const dayAbbrev = getDayAbbrev();
     const busy = getBusyItemsForRoom(selectedRoom.id, today, dayAbbrev);
 
-    let nextBusy = MAX_HOUR * 60; // default to 8:00 PM
+    let nextBusy = MAX_HOUR * 60;
     busy.forEach((item) => {
       const busyStart = convertToMinutes(item.startTime);
       if (busyStart > start && busyStart < nextBusy) {
@@ -365,13 +392,12 @@ export default function WalkInReservation() {
     });
 
     const maxEnd = Math.min(nextBusy, MAX_HOUR * 60);
-    const maxDuration = maxEnd - start; // NO CAP
+    const maxDuration = maxEnd - start;
     if (maxDuration < 30) {
       setAvailableSlots([]);
       return;
     }
 
-    // Generate options in 30-minute steps
     const slots = [];
     for (let mins = 30; mins <= maxDuration; mins += 30) {
       slots.push({
@@ -391,12 +417,10 @@ export default function WalkInReservation() {
   const selectRoom = (room) => {
     setSelectedRoom(room);
 
-    // Start from now (or earliest allowed)
     const nowMinutes = currentMinutes;
     const startMins = Math.max(nowMinutes, MIN_HOUR * 60);
     const startTime = convertToTime(startMins);
 
-    // Find next busy
     const dayAbbrev = getDayAbbrev();
     const busy = getBusyItemsForRoom(room.id, today, dayAbbrev);
     let nextBusy = MAX_HOUR * 60;
@@ -407,8 +431,8 @@ export default function WalkInReservation() {
       }
     });
     const maxEnd = Math.min(nextBusy, MAX_HOUR * 60);
-    const maxDuration = maxEnd - startMins; // NO CAP
-    const duration = Math.max(30, maxDuration); // at least 30 mins
+    const maxDuration = maxEnd - startMins;
+    const duration = Math.max(30, maxDuration);
 
     setForm((prev) => ({
       ...prev,
@@ -425,7 +449,6 @@ export default function WalkInReservation() {
     setForm((prev) => {
       const updated = { ...prev, [field]: value };
 
-      // If duration changes, recalculate end time
       if (field === "duration" && selectedRoom && updated.startTime) {
         const start = convertToMinutes(updated.startTime);
         const dur = parseInt(value, 10);
@@ -434,7 +457,6 @@ export default function WalkInReservation() {
         }
       }
 
-      // If startTime changes, recalculate end time based on current duration
       if (field === "startTime" && selectedRoom && updated.duration) {
         const start = convertToMinutes(updated.startTime);
         const dur = parseInt(updated.duration, 10);
@@ -459,17 +481,18 @@ export default function WalkInReservation() {
     if (!form.startTime) return "Select a start time.";
     if (!form.duration) return "Select a duration.";
     if (!form.purpose.trim()) return "Purpose is required.";
+    if ((form.requesterType === "organization" || form.purpose === "Meeting") && !form.studentRange) {
+      return "Please select the estimated number of attendees.";
+    }
 
     const start = convertToMinutes(form.startTime);
     const end = convertToMinutes(form.endTime);
 
-    // Time range enforcement
     if (start < MIN_HOUR * 60) return "Reservations can only start from 7:00 AM.";
     if (end > MAX_HOUR * 60) return "Reservations must end before 8:00 PM.";
     if (start >= end) return "End time must be after start time.";
     if (start < currentMinutes && today === TODAY) return "You cannot reserve a past time today.";
 
-    // Conflict check
     const dayAbbrev = getDayAbbrev();
     const busy = getBusyItemsForRoom(selectedRoom.id, today, dayAbbrev);
     const conflict = busy.find(
@@ -486,18 +509,19 @@ export default function WalkInReservation() {
     return null;
   };
 
-  // ─── Confirm Reservation ──────────────────────────────────────────
+  // ─── Notifications ──────────────────────────────────────────────────
 
   const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
     usersSnap.forEach((userDoc) => {
       const user = userDoc.data();
-      if (user.role === "clerk" || user.role === "department-head") {
+      const role = normalize(user.role);
+      if (role === "clerk" || role === "department-head") {
         notifications.push(
           addDoc(collection(db, "notifications"), {
             userId: userDoc.id,
-            ownerType: user.role === "clerk" ? "clerk" : "department-head",
+            ownerType: role === "clerk" ? "clerk" : "department-head",
             reservationId,
             title,
             message,
@@ -510,18 +534,31 @@ export default function WalkInReservation() {
         );
       }
     });
-    await Promise.all(notifications);
+    if (notifications.length > 0) await Promise.all(notifications);
   };
+
+  // ─── Confirm Reservation ──────────────────────────────────────────
 
   const handleConfirm = async () => {
     const error = validate();
     if (error) {
-      alert(error);
+      showToast("error", "Validation Error", error);
       return;
     }
 
+    setSavingReservation(true);
+    showToast("loading", "Processing", "Creating walk-in reservation...");
+
     try {
-      setSavingReservation(true);
+      const firebaseUser = auth.currentUser;
+      let clerkName = "Clerk";
+      if (firebaseUser) {
+        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          clerkName = `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Clerk";
+        }
+      }
 
       const reservationRef = await addDoc(collection(db, "reservationRequests"), {
         reservationType: "walk-in",
@@ -540,29 +577,33 @@ export default function WalkInReservation() {
         duration: Number(form.duration),
         purpose: form.customPurpose || form.purpose,
         status: "approved",
-        approvedBy: auth.currentUser.uid,
-        createdBy: auth.currentUser.uid,
+        approvedBy: firebaseUser?.uid || "",
+        createdBy: firebaseUser?.uid || "",
         createdAt: serverTimestamp(),
       });
 
+      // Notify all clerks and department heads
       await notifyClerkAndDepartmentHead(
         "Walk-In Reservation Created",
         `${form.requesterName} created a walk-in reservation for ${selectedRoom.roomName} today from ${form.startTime} to ${form.endTime}.`,
         reservationRef.id
       );
 
-      await addDoc(collection(db, "notifications"), {
-        userId: auth.currentUser.uid,
-        ownerType: "clerk",
-        reservationId: reservationRef.id,
-        title: "Walk-In Reservation Saved",
-        message: `The walk-in reservation for ${selectedRoom.roomName} has been successfully recorded.`,
-        type: "walk-in-created",
-        unread: true,
-        archived: false,
-        badge: "INFO",
-        createdAt: serverTimestamp(),
-      });
+      // Notify the clerk who created it (self)
+      if (firebaseUser?.uid) {
+        await addDoc(collection(db, "notifications"), {
+          userId: firebaseUser.uid,
+          ownerType: "clerk",
+          reservationId: reservationRef.id,
+          title: "Walk-In Reservation Created",
+          message: `You successfully created a walk-in reservation for ${selectedRoom.roomName} (${form.startTime} - ${form.endTime}).`,
+          type: "walk-in-created",
+          unread: true,
+          archived: false,
+          badge: "SUCCESS",
+          createdAt: serverTimestamp(),
+        });
+      }
 
       // Update room status if currently within reservation
       const start = convertToMinutes(form.startTime);
@@ -571,17 +612,26 @@ export default function WalkInReservation() {
         await updateDoc(doc(db, "rooms", selectedRoom.id), { status: "Occupied" });
       }
 
+      // Activity log (department heads will see this)
       await logActivity({
-        user: auth.currentUser.displayName || "Clerk",
-        userId: auth.currentUser.uid,
+        userId: firebaseUser?.uid || "",
+        user: clerkName,
         role: "Clerk",
         action: "Created Walk-In Reservation",
         actionType: "CREATE",
         target: `${selectedRoom.roomName} | ${form.requesterName}`,
         status: "SUCCESS",
+        details: {
+          reservationId: reservationRef.id,
+          requester: form.requesterName,
+          date: today,
+          startTime: form.startTime,
+          endTime: form.endTime,
+          purpose: form.customPurpose || form.purpose,
+        },
       });
 
-      alert("Walk-in reservation successful!");
+      showToast("success", "Success", "Walk-in reservation created successfully!");
       setShowModal(false);
       setSelectedRoom(null);
       setAvailableSlots([]);
@@ -600,18 +650,24 @@ export default function WalkInReservation() {
         endTime: "",
         startTime: "",
       });
+
+      // Navigate or stay
+      setTimeout(() => {
+        // Optionally navigate to reservations list
+      }, 1500);
     } catch (err) {
       console.error(err);
+      showToast("error", "Error", err.message || "Failed to save reservation.");
       await logActivity({
-        user: auth.currentUser?.displayName || "Clerk",
         userId: auth.currentUser?.uid || "",
+        user: clerkName || "Clerk",
         role: "Clerk",
         action: "Created Walk-In Reservation",
         actionType: "CREATE",
         target: selectedRoom?.roomName || "Unknown Room",
         status: "FAILED",
+        details: { error: err.message },
       });
-      alert("Failed to save reservation.");
     } finally {
       setSavingReservation(false);
     }
@@ -854,7 +910,6 @@ export default function WalkInReservation() {
                 </div>
               )}
 
-              {/* Duration selection */}
               {selectedRoom && availableSlots.length > 0 && (
                 <div className="wir-field" style={{ flex: 1 }}>
                   <label>Duration</label>
@@ -907,7 +962,11 @@ export default function WalkInReservation() {
             </div>
 
             <div className="wir-footer">
-              <button className="wir-confirm-btn" onClick={() => setShowModal(true)}>
+              <button
+                className="wir-confirm-btn"
+                onClick={() => setShowModal(true)}
+                disabled={savingReservation}
+              >
                 Confirm Booking
               </button>
             </div>
@@ -1060,6 +1119,14 @@ export default function WalkInReservation() {
           </div>
         )}
       </div>
+
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+      />
     </div>
   );
 }

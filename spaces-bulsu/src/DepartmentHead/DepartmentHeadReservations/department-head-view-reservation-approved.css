@@ -186,3 +186,171 @@
     width: 100%;
   }
 }
+
+.dh-approved-reservation-room {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
+}
+
+.dh-white-box-approved {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 24px 28px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dh-approved-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #16213e;
+}
+
+/* ── Grid layout ───────────────────────────────────────────────── */
+.dh-approved-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.dh-approved-info-box {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.dh-approved-info-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dh-approved-info-box-title i {
+  color: #f57c00;
+  width: 20px;
+}
+
+.dh-approved-info-box-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dh-approved-info-box-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.dh-approved-info-box-content strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* ── Status badge ──────────────────────────────────────────────── */
+.dh-approved-status-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dh-approved-status-badge.approved {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+.dh-approved-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.dh-approved-back-arrow {
+  color: #5f6c80;
+  transition: color 0.2s;
+}
+
+.dh-approved-back-arrow:hover {
+  color: #f57c00;
+}
+
+.dh-approved-back-btn {
+  padding: 10px 30px;
+  color: #f57c00;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  border: 1.5px solid #f57c00;
+  cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.dh-approved-back-btn:hover {
+  background-color: #FEF0E7;
+}
+
+.dh-approved-edit-btn {
+  padding: 10px 30px;
+  border: none;
+  background-color: #f57c00;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.dh-approved-edit-btn:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dh-approved-reservation-room {
+    padding: 14px;
+  }
+
+  .dh-approved-info-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .dh-white-box-approved {
+    padding: 16px;
+  }
+
+  .dh-approved-title {
+    font-size: 18px;
+  }
+
+  .dh-approved-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dh-approved-back-btn,
+  .dh-approved-edit-btn {
+    width: 100%;
+  }
+}

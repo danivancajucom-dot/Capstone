@@ -1,9 +1,11 @@
 // ============================================================
-// FILE: WeeklyCalendar.jsx (FIXED)
+// FILE: WeeklyCalendar.jsx (with Toast & details modal)
 // ============================================================
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
 import ReleaseRoomModal from "../../Components/ReleaseRoomModal/ReleaseRoomModal";
+import ScheduleDetailsModal from "../../Components/ScheduleDetailsModal/ScheduleDetailsModal"; // ← new component
+import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
 import {
   collection,
@@ -36,9 +38,8 @@ const LEGEND = [
   { label: "Reassigned",    color: "#8B5CF6" },
 ];
 
-// -------------------------------------------------------------
-// Helpers (unchanged)
-// -------------------------------------------------------------
+// ─── Helpers ──────────────────────────────────────────────────────────
+
 const normalizeName = (name = "") =>
   name
     .toLowerCase()
@@ -128,6 +129,8 @@ const computeStatus = (dateStr, startTime, endTime) => {
   return { status: "COMPLETED", remainingMinutes: 0 };
 };
 
+// ─── Notification helper ──────────────────────────────────────────────
+
 const notifyReleaseRoom = async ({
   facultyId,
   facultyName,
@@ -145,24 +148,33 @@ const notifyReleaseRoom = async ({
       const user = userDoc.data();
       const role = String(user.role || "").toLowerCase();
 
-      if (role === "department head" || role === "clerk") {
-        notifications.push(
-          addDoc(collection(db, "notifications"), {
-            userId: userDoc.id,
-            ownerType: role,
-            title: "Room Released",
-            message: `${facultyName} released ${roomName} for ${subject}.`,
-            type: "room-release",
-            roomName,
-            subject,
-            date,
-            startTime,
-            endTime,
-            isRead: false,
-            createdAt: serverTimestamp(),
-          })
-        );
+      let ownerType = "";
+      if (role === "clerk") {
+        ownerType = "clerk";
+      } else if (role === "department head" || role === "department-head") {
+        ownerType = "department-head";
+      } else {
+        return;
       }
+
+      notifications.push(
+        addDoc(collection(db, "notifications"), {
+          userId: userDoc.id,
+          ownerType: ownerType,
+          title: "Room Released",
+          message: `${facultyName} released ${roomName} for ${subject} on ${date} (${startTime} - ${endTime}).`,
+          type: "room-release",
+          roomName,
+          subject,
+          date,
+          startTime,
+          endTime,
+          unread: true,
+          archived: false,
+          badge: "NEW",
+          createdAt: serverTimestamp(),
+        })
+      );
     });
 
     notifications.push(
@@ -170,14 +182,16 @@ const notifyReleaseRoom = async ({
         userId: facultyId,
         ownerType: "faculty",
         title: "Room Released",
-        message: `You successfully released ${roomName} (${subject}).`,
+        message: `You successfully released ${roomName} (${subject}) on ${date} (${startTime} - ${endTime}).`,
         type: "room-release",
         roomName,
         subject,
         date,
         startTime,
         endTime,
-        isRead: false,
+        unread: true,
+        archived: false,
+        badge: "SUCCESS",
         createdAt: serverTimestamp(),
       })
     );
@@ -185,6 +199,7 @@ const notifyReleaseRoom = async ({
     await Promise.all(notifications);
   } catch (err) {
     console.error("Notification Error:", err);
+    throw err;
   }
 };
 
@@ -204,14 +219,43 @@ export default function WeeklyCalendar() {
   const [releasedKeys, setReleasedKeys] = useState(new Set());
 
   const [releaseTarget, setReleaseTarget] = useState(null);
+  const [detailsTarget, setDetailsTarget] = useState(null); // ← new state
   const [submittingRelease, setSubmittingRelease] = useState(false);
+
+  // ─── Toast state ──────────────────────────────────────────────────────
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (type, title, message) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast((prev) => ({ ...prev, show: false }));
+        toastTimeoutRef.current = null;
+      }, 4000);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     loadFacultySchedule();
   }, []);
 
-  // ─── LOAD FUNCTION (reservations always loaded) ─────────────────
-
+  // ─── LOAD FUNCTION (unchanged) ──────────────────────────────────────
   const loadFacultySchedule = async () => {
     setLoading(true);
 
@@ -296,10 +340,8 @@ export default function WeeklyCalendar() {
         setScheduleEvents([]);
         setActiveTerm(null);
         setNoSchedule(true);
-        // continue to load reservations
       }
 
-      // Load override events only if there are schedules
       if (hasSchedules) {
         const eventSnap = await getDocs(collection(db, "events"));
         const myEvents = eventSnap.docs
@@ -310,70 +352,53 @@ export default function WeeklyCalendar() {
         setOverrideEvents([]);
       }
 
-      // ---------------------------------------------------------
-      // SARILING APPROVED RESERVATIONS (always fetch)
-      // ---------------------------------------------------------
+      // Approved reservations
       const reservationSnap = await getDocs(
         collection(db, "reservationRequests")
       );
-
       const myReservations = reservationSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((r) => {
           const isOwnerById =
             r.userId === firebaseUser.uid ||
             r.createdBy === firebaseUser.uid;
-
           const isOwnerByName =
             normalizeName(r.requesterName || r.facultyName || "") === myName;
-
           const isApproved =
             String(r.status || "").toLowerCase() === "approved";
-
           return (isOwnerById || isOwnerByName) && isApproved;
         });
-
       setReservationEvents(myReservations);
 
-      // ---------------------------------------------------------
-      // NA‑RELEASE NA SCHEDULE OCCURRENCES
-      // ---------------------------------------------------------
+      // Releases
       const releaseQ = query(
         collection(db, "roomReleases"),
         where("releasedBy", "==", firebaseUser.uid)
       );
-
       const releaseSnap = await getDocs(releaseQ);
-
       const keys = new Set(
         releaseSnap.docs.map((d) => {
           const r = d.data();
           return `${r.scheduleId}_${r.date}`;
         })
       );
-
       setReleasedKeys(keys);
 
-      // ---------------------------------------------------------
-      // APPROVED ROOM REASSIGNMENTS
-      // ---------------------------------------------------------
+      // Reassignments
       const reassignQ = query(
         collection(db, "roomReassignments"),
         where("facultyId", "==", firebaseUser.uid),
         where("status", "==", "approved")
       );
-
       const reassignSnap = await getDocs(reassignQ);
-
       const myReassignments = reassignSnap.docs.map((d) => ({
         id: d.id,
         ...d.data(),
       }));
-
       setReassignedEvents(myReassignments);
-
     } catch (err) {
       console.error(err);
+      showToast("error", "Error", "Failed to load your schedule.");
     } finally {
       setLoading(false);
     }
@@ -390,7 +415,7 @@ export default function WeeklyCalendar() {
   };
 
   const baseMonday = getStartOfWeek(new Date());
-  const weekStart  = new Date(baseMonday);
+  const weekStart = new Date(baseMonday);
   weekStart.setDate(baseMonday.getDate() + weekOffset * 7);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
@@ -524,9 +549,27 @@ export default function WeeklyCalendar() {
     weekEnd.getTime(),
   ]);
 
-  const openReleaseModal = (ev) => {
-    if (ev.kind !== "schedule") return;
+  // ─── Click handler ──────────────────────────────────────────────────
 
+  const handleEventClick = (ev) => {
+    if (ev.kind === "schedule") {
+      const status = computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime);
+      if (status.status !== "COMPLETED") {
+        // Ongoing or Upcoming → allow release
+        openReleaseModal(ev);
+      } else {
+        // Completed → show details only
+        setDetailsTarget(ev);
+      }
+    } else {
+      // Reservation or Reassignment → show details only
+      setDetailsTarget(ev);
+    }
+  };
+
+  // ─── Release modal helpers ──────────────────────────────────────────
+
+  const openReleaseModal = (ev) => {
     const { status, remainingMinutes } = computeStatus(
       ev.date,
       ev.rawStartTime,
@@ -555,10 +598,14 @@ export default function WeeklyCalendar() {
     if (!releaseTarget) return;
 
     setSubmittingRelease(true);
+    showToast("loading", "Releasing", "Processing room release...");
 
     try {
       const firebaseUser = auth.currentUser;
-      if (!firebaseUser) return;
+      if (!firebaseUser) {
+        showToast("error", "Error", "You must be logged in.");
+        return;
+      }
 
       const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
       const me = userSnap.exists() ? userSnap.data() : {};
@@ -569,23 +616,17 @@ export default function WeeklyCalendar() {
         scheduleId: releaseTarget.scheduleId,
         roomId: releaseTarget.roomId,
         roomName: releaseTarget.roomName,
-
         date: releaseTarget.date,
         day: releaseTarget.day,
-
         subject: releaseTarget.subject || "",
         section: releaseTarget.section || "",
-
         startTime: releaseTarget.startTime,
         endTime: releaseTarget.endTime,
-
         faculty: fullName,
         releasedBy: firebaseUser.uid,
         releasedByName: fullName,
-
         reason,
         details: details || "",
-
         status: "released",
         releasedAt: serverTimestamp(),
       });
@@ -602,16 +643,14 @@ export default function WeeklyCalendar() {
 
       try {
         await logActivity({
-          user: fullName || auth.currentUser.displayName || "Faculty",
+          user: fullName || "Faculty",
           userId: firebaseUser.uid,
           role: "Faculty",
-
           action: "Released Room",
           actionType: "UPDATE",
-
           target: `${releaseTarget.roomName} | ${releaseTarget.subject || ""}`,
-
           status: "SUCCESS",
+          details: { reason, details },
         });
       } catch (logErr) {
         console.error("logActivity failed:", logErr);
@@ -624,9 +663,10 @@ export default function WeeklyCalendar() {
       });
 
       setReleaseTarget(null);
+      showToast("success", "Success", "Room released successfully! Notifications sent.");
     } catch (err) {
-      console.error(err);
-      alert("Failed to release room. Please try again.");
+      console.error("Release error:", err);
+      showToast("error", "Error", err.message || "Failed to release room. Please try again.");
     } finally {
       setSubmittingRelease(false);
     }
@@ -674,20 +714,18 @@ export default function WeeklyCalendar() {
           <div className="wc-divider" />
 
           {loading ? (
-  <div className="wc-empty-state">
-    <i className="fa-solid fa-spinner fa-spin"></i>
-    <p>Loading your schedule...</p>
-  </div>
-) : calendarEvents.length === 0 ? (
-  // Show this only if there are NO events at all
-  <div className="wc-empty-state">
-    <i className="fa-regular fa-calendar-xmark"></i>
-    <p>No events found for this week.</p>
-  </div>
-) : (
-  // Render the calendar grid
-  <div className="wc-scroll-area">
-    <div className="wc-grid" style={{ height: totalH }}>
+            <div className="wc-empty-state">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+              <p>Loading your schedule...</p>
+            </div>
+          ) : calendarEvents.length === 0 ? (
+            <div className="wc-empty-state">
+              <i className="fa-regular fa-calendar-xmark"></i>
+              <p>No events found for this week.</p>
+            </div>
+          ) : (
+            <div className="wc-scroll-area">
+              <div className="wc-grid" style={{ height: totalH }}>
                 <div className="wc-time-col">
                   {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
                     <div className="wc-time-slot" key={i}>
@@ -711,13 +749,13 @@ export default function WeeklyCalendar() {
                     const heightPx = ((ev.endH - ev.startH) + (ev.endM - ev.startM) / 60) * HOUR_HEIGHT - 4;
                     const leftPct  = ((ev.dayIdx - 1) / 7) * 100;
                     const widthPct = (ev.daySpan / 7) * 100;
-                    const clickable = ev.kind === "schedule";
+                    const isClickable = ev.kind === "schedule" && computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime).status !== "COMPLETED";
 
                     return (
                       <div
                         key={ev.id}
-                        className={`wc-event ${clickable ? "wc-event--clickable" : ""}`}
-                        onClick={clickable ? () => openReleaseModal(ev) : undefined}
+                        className={`wc-event ${isClickable ? "wc-event--clickable" : "wc-event--viewable"}`}
+                        onClick={() => handleEventClick(ev)}
                         style={{
                           top:             topPx,
                           height:          Math.max(heightPx, 24),
@@ -725,7 +763,7 @@ export default function WeeklyCalendar() {
                           width:           `calc(${widthPct}% - 4px)`,
                           backgroundColor: color.bg,
                           borderLeft:      `4px solid ${color.border}`,
-                          cursor:          clickable ? "pointer" : "default",
+                          cursor:          isClickable ? "pointer" : "default",
                         }}
                       >
                         <div className="wc-event-top">
@@ -738,7 +776,6 @@ export default function WeeklyCalendar() {
                       </div>
                     );
                   })}
-                  
                 </div>
               </div>
             </div>
@@ -746,11 +783,26 @@ export default function WeeklyCalendar() {
         </div>
       </div>
 
+      {/* ─── Modals ────────────────────────────────────────────────── */}
+
       <ReleaseRoomModal
         target={releaseTarget}
         onClose={() => setReleaseTarget(null)}
         onConfirm={handleConfirmRelease}
         submitting={submittingRelease}
+      />
+
+      <ScheduleDetailsModal
+        target={detailsTarget}
+        onClose={() => setDetailsTarget(null)}
+      />
+
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
       />
     </>
   );

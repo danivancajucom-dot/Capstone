@@ -160,3 +160,186 @@
     width: 100%;
   }
 }
+
+.dh-denied-reservation-room {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
+}
+
+.dh-denied-white-box {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 24px 28px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dh-denied-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #16213e;
+}
+
+/* ─── Denial Reason (highlighted) ─────────────────────────────── */
+.dh-denied-reason-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.dh-denied-reason-icon {
+  font-size: 24px;
+  color: #dc2626;
+  margin-top: 2px;
+}
+
+.dh-denied-reason-box strong {
+  font-size: 14px;
+  color: #991b1b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.dh-denied-reason-box p {
+  margin: 0;
+  font-size: 14px;
+  color: #7f1d1d;
+}
+
+/* ── Grid layout ───────────────────────────────────────────────── */
+.dh-denied-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.dh-denied-info-box {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.dh-denied-info-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dh-denied-info-box-title i {
+  color: #f57c00;
+  width: 20px;
+}
+
+.dh-denied-info-box-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dh-denied-info-box-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.dh-denied-info-box-content strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* ── Status badge ──────────────────────────────────────────────── */
+.dh-denied-status-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dh-denied-status-badge.denied {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+.dh-denied-footer {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.dh-denied-back-arrow {
+  color: #5f6c80;
+  transition: color 0.2s;
+}
+
+.dh-denied-back-arrow:hover {
+  color: #f57c00;
+}
+
+.dh-denied-back-btn {
+  padding: 10px 30px;
+  color: #f57c00;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  border: 1.5px solid #f57c00;
+  cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.dh-denied-back-btn:hover {
+  background-color: #FEF0E7;
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dh-denied-reservation-room {
+    padding: 14px;
+  }
+
+  .dh-denied-info-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .dh-denied-white-box {
+    padding: 16px;
+  }
+
+  .dh-denied-title {
+    font-size: 18px;
+  }
+
+  .dh-denied-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dh-denied-back-btn {
+    width: 100%;
+  }
+
+  .dh-denied-reason-box {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

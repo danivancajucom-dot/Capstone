@@ -10,7 +10,6 @@ function DepartmentHeadViewReservationDenied() {
     return (
       <div className="dh-denied-reservation-room">
         <h2>Reservation not found.</h2>
-
         <button onClick={() => navigate("/department-head/reservations")}>
           Back
         </button>
@@ -18,66 +17,197 @@ function DepartmentHeadViewReservationDenied() {
     );
   }
 
+  // ─── Duration helper ──────────────────────────────────────────────
+  const getDuration = (start, end) => {
+    if (!start || !end) return "N/A";
+    const [startHour, startMin] = start.split(":").map(Number);
+    const [endHour, endMin] = end.split(":").map(Number);
+    const diffMs = new Date().setHours(endHour, endMin, 0) - new Date().setHours(startHour, startMin, 0);
+    if (diffMs <= 0) return "N/A";
+    const totalMinutes = Math.floor(diffMs / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours && minutes) return `${hours} hr ${minutes} min`;
+    if (hours) return `${hours} hr`;
+    return `${minutes} min`;
+  };
+
+  const duration = getDuration(reservation.startTime, reservation.endTime);
+
+  const createdDate =
+    reservation.createdAt?.seconds
+      ? new Date(reservation.createdAt.seconds * 1000)
+      : new Date(reservation.createdAt);
+
+  // Format equipment list
+  const equipmentList = reservation.requiredEquipment
+    ?.map((eq) => {
+      const labels = {
+        projector: "Projector",
+        tvDisplay: "TV Display",
+        ac: "AC",
+        computer: "Computer",
+        smartBoard: "Smart Board",
+      };
+      return labels[eq] || eq;
+    })
+    .join(", ") || "None";
+
   return (
     <div className="dh-denied-reservation-room">
+      <i
+        className="fa-solid fa-arrow-left dh-denied-back-arrow"
+        onClick={() => navigate(-1)}
+        style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
+      ></i>
+
       <div className="dh-denied-white-box">
-        <h2 className="dh-denied-title">Reservation Details</h2>
+        <h2 className="dh-denied-title">Denied Reservation Details</h2>
 
-        <div className="dh-denied-sections">
-          <div className="dh-denied-section">
-            <div className="dh-denied-section-label">
-              <span>General Information</span>
-            </div>
+        {/* ─── Denial Reason (highlighted) ───────────────────────── */}
+        <div className="dh-denied-reason-box">
+          <i className="fa-solid fa-circle-exclamation dh-denied-reason-icon"></i>
+          <div>
+            <strong>Reason for Denial:</strong>
+            <p>{reservation.denialReason || "No reason provided."}</p>
+          </div>
+        </div>
 
-            <div className="dh-denied-form-group">
-              <label>Course Title</label>
-              <input type="text" className="dh-denied-form-input" value={reservation.courseTitle || ""} readOnly />
-            </div>
-
-            <div className="dh-denied-form-group">
-              <label>Assigned Faculty</label>
-              <input type="text" className="dh-denied-form-input" value={reservation.facultyName || ""} readOnly />
-            </div>
-
-            <div className="dh-denied-form-group">
-              <label>Section</label>
-              <input type="text" className="dh-denied-form-input" value={reservation.attendees.yearSectionGroup || ""} readOnly />
-            </div>
-
-            <div className="dh-denied-form-group">
-              <label>Reason for Denial</label>
-              <input type="text" className="dh-denied-form-input" value={reservation.denialReason || ""} readOnly />
+        <div className="dh-denied-info-grid">
+          {/* ─── Faculty / Requester ────────────────────────────── */}
+          <div className="dh-denied-info-box">
+            <h3 className="dh-denied-info-box-title">
+              <i className="fa-solid fa-user"></i> Requester
+            </h3>
+            <div className="dh-denied-info-box-content">
+              <p>
+                <strong>Name:</strong> {reservation.facultyName || reservation.requesterName || "Unknown"}
+              </p>
+              {reservation.audienceType === "Organization" && (
+                <p>
+                  <strong>Organization:</strong> {reservation.attendees?.organization || "N/A"}
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="dh-denied-section">
-            <div className="dh-denied-section-label">
-              <span>Venue & Timing</span>
+          {/* ─── Course & Purpose ────────────────────────────────── */}
+          <div className="dh-denied-info-box">
+            <h3 className="dh-denied-info-box-title">
+              <i className="fa-solid fa-book"></i> Course & Purpose
+            </h3>
+            <div className="dh-denied-info-box-content">
+              <p>
+                <strong>Course Title:</strong> {reservation.courseTitle || "N/A"}
+              </p>
+              <p>
+                <strong>Purpose:</strong> {reservation.purpose || "N/A"}
+              </p>
+              {reservation.purpose === "Other Activity" && reservation.attendees?.customPurpose && (
+                <p>
+                  <strong>Specified Activity:</strong> {reservation.attendees.customPurpose}
+                </p>
+              )}
             </div>
+          </div>
 
-            <div className="dh-denied-form-group">
-              <label>Room</label>
-              <input type="text" className="dh-denied-form-input" value={reservation.roomName || ""} readOnly />
+          {/* ─── Room & Schedule ─────────────────────────────────── */}
+          <div className="dh-denied-info-box">
+            <h3 className="dh-denied-info-box-title">
+              <i className="fa-solid fa-calendar-days"></i> Room & Schedule
+            </h3>
+            <div className="dh-denied-info-box-content">
+              <p>
+                <strong>Room:</strong> {reservation.roomName || "N/A"}
+              </p>
+              <p>
+                <strong>Date:</strong> {reservation.date || "N/A"}
+              </p>
+              <p>
+                <strong>Time:</strong> {reservation.startTime || "N/A"} – {reservation.endTime || "N/A"}
+              </p>
+              <p>
+                <strong>Duration:</strong> {duration}
+              </p>
             </div>
+          </div>
 
-            <div className="dh-denied-form-group">
-              <label>Date</label>
-              <div className="dh-denied-input-icon-wrapper">
-                <i className="fa-regular fa-calendar dh-denied-input-icon"></i>
-                <input type="date" className="dh-denied-form-input" value={reservation.date || ""} readOnly />
-              </div>
+          {/* ─── Audience ─────────────────────────────────────────── */}
+          <div className="dh-denied-info-box">
+            <h3 className="dh-denied-info-box-title">
+              <i className="fa-solid fa-users"></i> Audience
+            </h3>
+            <div className="dh-denied-info-box-content">
+              <p>
+                <strong>Type:</strong> {reservation.audienceType || "N/A"}
+              </p>
+
+              {reservation.audienceType === "Class" && (
+                <>
+                  <p>
+                    <strong>Course:</strong> {reservation.attendees?.course || "N/A"}
+                  </p>
+                  <p>
+                    <strong>Year/Section/Group:</strong> {reservation.attendees?.yearSectionGroup || "N/A"}
+                  </p>
+                </>
+              )}
+
+              {reservation.audienceType === "Organization" && (
+                <p>
+                  <strong>Organization Name:</strong> {reservation.attendees?.organization || "N/A"}
+                </p>
+              )}
+
+              {reservation.audienceType === "Faculty" && (
+                <p>
+                  <strong>Attendees:</strong> Faculty Members
+                </p>
+              )}
+
+              {reservation.audienceType === "Others" && (
+                <p>
+                  <strong>Attendees:</strong> {reservation.attendees?.otherAudience || "N/A"}
+                </p>
+              )}
             </div>
+          </div>
 
-            <div className="dh-denied-time-fields">
-              <div className="dh-denied-form-group">
-                <label>Start Time</label>
-                <input type="text" className="dh-denied-form-input" value={reservation.startTime || ""} readOnly />
-              </div>
+          {/* ─── Equipment & Capacity ────────────────────────────── */}
+          <div className="dh-denied-info-box">
+            <h3 className="dh-denied-info-box-title">
+              <i className="fa-solid fa-toolbox"></i> Equipment & Capacity
+            </h3>
+            <div className="dh-denied-info-box-content">
+              <p>
+                <strong>Required Equipment:</strong> {equipmentList}
+              </p>
+              {reservation.studentRange && (
+                <p>
+                  <strong>Estimated Attendees:</strong> {reservation.studentRange}
+                </p>
+              )}
+            </div>
+          </div>
 
-              <div className="dh-denied-form-group">
-                <label>End Time</label>
-                <input type="text" className="dh-denied-form-input" value={reservation.endTime || ""} readOnly />
-              </div>
+          {/* ─── Metadata ──────────────────────────────────────────── */}
+          <div className="dh-denied-info-box">
+            <h3 className="dh-denied-info-box-title">
+              <i className="fa-solid fa-circle-info"></i> Metadata
+            </h3>
+            <div className="dh-denied-info-box-content">
+              <p>
+                <strong>Status:</strong>{" "}
+                <span className="dh-denied-status-badge denied">Denied</span>
+              </p>
+              <p>
+                <strong>Requested On:</strong> {createdDate.toLocaleDateString()} | {createdDate.toLocaleTimeString()}
+              </p>
+              {reservation.roomCapacity && (
+                <p>
+                  <strong>Room Capacity:</strong> {reservation.roomCapacity}
+                </p>
+              )}
             </div>
           </div>
         </div>

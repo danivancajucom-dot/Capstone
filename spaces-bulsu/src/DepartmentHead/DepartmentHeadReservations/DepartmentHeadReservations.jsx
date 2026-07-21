@@ -12,12 +12,17 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../../firebase";
-import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 
 const TABS = ["Pending", "Approved", "Denied"];
 const PAGE_SIZE = 8;
 
-// Simple inline icon set (no extra dependency needed)
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+// Normalize status for case‑insensitive comparison
+const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
+
+// ─── Empty / Loading States ─────────────────────────────────────────────
+
 const EmptyIcon = () => (
   <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect x="3" y="5" width="18" height="16" rx="2" stroke="#CBD5E1" strokeWidth="1.5" />
@@ -28,7 +33,6 @@ const EmptyIcon = () => (
   </svg>
 );
 
-// Full-screen style loading state, shown while Firestore data is loading
 function LoadingState() {
   return (
     <div className="room-empty">
@@ -51,12 +55,16 @@ function EmptyState({ label }) {
   );
 }
 
+// ─── Main Component ──────────────────────────────────────────────────────
+
 function DepartmentHeadReservations() {
   const [activeTab, setActiveTab] = useState("Pending");
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // ─── Real‑time listener ─────────────────────────────────────────────
 
   useEffect(() => {
     const q = query(
@@ -72,11 +80,12 @@ function DepartmentHeadReservations() {
           ...doc.data(),
         }));
 
+        console.log("📦 Reservations updated:", list.length);
         setReservations(list);
         setLoading(false);
       },
       (error) => {
-        console.error(error);
+        console.error("🔥 Firestore error:", error);
         setLoading(false);
       }
     );
@@ -84,67 +93,77 @@ function DepartmentHeadReservations() {
     return unsubscribe;
   }, []);
 
-  // Reset pagination whenever the tab changes
+  // ─── Reset pagination on tab change ──────────────────────────────────
+
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [activeTab]);
 
-  const statusForTab = {
-    Pending: "Pending",
-    Approved: "Approved",
-    Denied: "Rejected",
+  // ─── Tab status mapping (case‑insensitive) ──────────────────────────
+
+  const statusMap = {
+    Pending: "pending",
+    Approved: "approved",
+    Denied: "rejected",
   };
 
-  // Approved/Denied cards are compact ticket-stubs, so they lay out
-  // in a responsive 2-3 column grid. Pending stays a single column
-  // since ReservationCard is a wider, denser layout.
-  const isGridTab = activeTab !== "Pending";
+  // ─── Filter reservations ─────────────────────────────────────────────
 
-  const filteredReservations = reservations.filter(
-    (reservation) => reservation.status === statusForTab[activeTab]
-  );
+  const filteredReservations = reservations.filter((r) => {
+    const normalizedStatus = normalizeStatus(r.status);
+    return normalizedStatus === statusMap[activeTab];
+  });
 
   const visibleReservations = filteredReservations.slice(0, visibleCount);
   const hasMore = visibleCount < filteredReservations.length;
 
+  // ─── Counts (also case‑insensitive) ──────────────────────────────────
+
   const counts = {
-    Pending: reservations.filter((r) => r.status === "Pending").length,
-    Approved: reservations.filter((r) => r.status === "Approved").length,
-    Denied: reservations.filter((r) => r.status === "Rejected").length,
+    Pending: reservations.filter((r) => normalizeStatus(r.status) === "pending").length,
+    Approved: reservations.filter((r) => normalizeStatus(r.status) === "approved").length,
+    Denied: reservations.filter((r) => normalizeStatus(r.status) === "rejected").length,
   };
 
-  const renderList = () => {
-    if (loading) {
-      return <LoadingState />;
-    }
+  // ─── Render helpers ──────────────────────────────────────────────────
 
+  const isGridTab = activeTab !== "Pending";
+
+  const renderList = () => {
+    if (loading) return <LoadingState />;
     if (filteredReservations.length === 0) {
       return <EmptyState label={activeTab.toLowerCase()} />;
     }
 
     if (activeTab === "Pending") {
       return visibleReservations.map((reservation) => (
-        <ReservationCard key={reservation.id} reservation={reservation} />
+        <ReservationCard
+          key={reservation.id}
+          reservation={reservation}
+        />
       ));
     }
+
+    // Approved / Denied
+    const viewPath =
+      activeTab === "Approved"
+        ? "/department-head/view-reservation-approved"
+        : "/department-head/view-reservation-denied";
 
     return visibleReservations.map((reservation) => (
       <ApprovedAndDeniedCard
         key={reservation.id}
         reservation={reservation}
         onClick={() =>
-          navigate(
-            activeTab === "Approved"
-              ? "/department-head/view-reservation-approved"
-              : "/department-head/view-reservation-denied",
-            { state: { reservation } }
-          )
+          navigate(viewPath, { state: { reservation } })
         }
       />
     ));
   };
 
   const isEmpty = !loading && filteredReservations.length === 0;
+
+  // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="dept-reservations">
