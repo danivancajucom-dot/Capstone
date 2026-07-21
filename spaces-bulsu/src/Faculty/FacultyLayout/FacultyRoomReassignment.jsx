@@ -159,20 +159,23 @@ export default function FacultyRoomReassignment() {
   };
 
   const rejectAssignment = async () => {
-
   try {
     if (isExpired()) {
-        alert("This room reassignment has already expired.");
-        return;
+      alert("This room reassignment has already expired.");
+      return;
     }
 
-    await updateDoc(
-      doc(db, "roomReassignments", assignment.id),
-      {
-        status: "rejected",
-        rejectedAt: serverTimestamp()
-      }
-    );
+    await updateDoc(doc(db, "roomReassignments", assignment.id), {
+      status: "rejected",
+      rejectedAt: serverTimestamp(),
+    });
+
+    // BAGO: i-resolve din ang conflict sa events collection
+    if (assignment.eventId) {
+      await updateDoc(doc(db, "events", assignment.eventId), {
+        conflictResolved: true,
+      });
+    }
 
     await sendDecisionNotifications("rejected");
 
@@ -208,13 +211,16 @@ export default function FacultyRoomReassignment() {
         return;
     }
 
-    await updateDoc(
-      doc(db, "roomReassignments", assignment.id),
-      {
-        status: "approved",
-        approvedAt: serverTimestamp()
-      }
-    );
+    await updateDoc(doc(db, "roomReassignments", assignment.id), {
+      status: "approved",
+      approvedAt: serverTimestamp(),
+    });
+
+    if (assignment.eventId) {
+      await updateDoc(doc(db, "events", assignment.eventId), {
+        conflictResolved: true,
+      });
+    }
 
     await sendDecisionNotifications("accepted");
 

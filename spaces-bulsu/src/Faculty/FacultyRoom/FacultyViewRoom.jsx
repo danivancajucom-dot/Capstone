@@ -1,3 +1,6 @@
+// ============================================================
+// FILE: FacultyViewRoom.jsx (FIXED — case‑insensitive status)
+// ============================================================
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -14,19 +17,8 @@ import {
 
 import { db } from "../../firebase";
 
-const DAYS = [
-  "MON",
-  "TUE",
-  "WED",
-  "THU",
-  "FRI",
-  "SAT",
-  "SUN",
-];
+const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
-// Gumagamit ng LOCAL na date parts (hindi toISOString/UTC) — para
-// hindi ma-shift ang petsa sa mga timezone na nasa unahan ng UTC
-// (gaya ng Philippines, UTC+8).
 const toDateStr = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -43,7 +35,9 @@ function FacultyViewRoom() {
   const [schedules, setSchedules] = useState([]);
   const [events, setEvents] = useState([]);
   const [reservations, setReservations] = useState([]);
-  const [releasedKeys, setReleasedKeys] = useState(new Set()); // `${scheduleId}_${date}`
+  const [releasedKeys, setReleasedKeys] = useState(new Set());
+  const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
+  const [reassignedInto, setReassignedInto] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   useEffect(() => {
@@ -51,60 +45,54 @@ function FacultyViewRoom() {
   }, []);
 
   const loadSchedules = async () => {
-
     if (!room?.id) return;
 
     // regular schedules
     const snapshot = await getDocs(
-        collection(db, "rooms", room.id, "schedules")
+      collection(db, "rooms", room.id, "schedules")
     );
 
-    const list = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+    const list = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
     }));
 
-    setSchedules(
-        list.filter(item => !item.initialized)
-    );
+    setSchedules(list.filter((item) => !item.initialized));
 
     // room activities
-    const eventSnap = await getDocs(
-      collection(db, "events")
-    );
+    const eventSnap = await getDocs(collection(db, "events"));
 
     const eventList = eventSnap.docs
-      .map(doc => ({
+      .map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }))
-      .filter(event => event.roomId === room.id);
+      .filter((event) => event.roomId === room.id);
 
     setEvents(eventList);
 
+    // ─── APPROVED RESERVATIONS — FIX: case‑insensitive status ───
     const reservationSnap = await getDocs(
       collection(db, "reservationRequests")
     );
 
     const reservationList = reservationSnap.docs
-      .map(doc => ({
+      .map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }))
-      .filter(reservation =>
-        reservation.roomId === room.id &&
-        reservation.status === "approved"
+      .filter(
+        (reservation) =>
+          reservation.roomId === room.id &&
+          String(reservation.status).toLowerCase() === "approved"  // ✅ case‑insensitive
       );
 
     setReservations(reservationList);
 
     // ----------------------------------------------------------
-    // Mga na-release na schedule occurrences para sa room na ito —
-    // itatago sila sa kanilang specific na petsa
+    // FIX: Mga na-release na schedule occurrences para sa room na ito
     // ----------------------------------------------------------
-    const releaseSnap = await getDocs(
-      collection(db, "roomReleases")
-    );
+    const releaseSnap = await getDocs(collection(db, "roomReleases"));
 
     const keys = new Set(
       releaseSnap.docs
@@ -114,22 +102,42 @@ function FacultyViewRoom() {
     );
 
     setReleasedKeys(keys);
-  };
 
-    
+    // ----------------------------------------------------------
+    // Approved room reassignments na may kinalaman sa room na ito
+    // ----------------------------------------------------------
+    const reassignSnap = await getDocs(collection(db, "roomReassignments"));
+
+    const roomReassignments = reassignSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter(
+        (r) =>
+          String(r.status || "").toLowerCase() === "approved" &&
+          (r.oldRoomId === room.id || r.newRoomId === room.id)
+      );
+
+    setReassignedAwayKeys(
+      new Set(
+        roomReassignments
+          .filter((r) => r.oldRoomId === room.id)
+          .map((r) => `${r.scheduleId}_${r.date}`)
+      )
+    );
+
+    setReassignedInto(
+      roomReassignments.filter((r) => r.newRoomId === room.id)
+    );
+  };
 
   const getSchedulesByDay = (day) => {
     return schedules.filter(
-      (schedule) =>
-        schedule.day?.trim().toUpperCase() === day
+      (schedule) => schedule.day?.trim().toUpperCase() === day
     );
   };
 
   const convertToMinutes = (time) => {
     if (!time) return 0;
-
     const [hour, minute] = time.split(":").map(Number);
-
     return hour * 60 + minute;
   };
 
@@ -138,28 +146,21 @@ function FacultyViewRoom() {
   const getTopPosition = (startTime) => {
     const startMinutes = convertToMinutes(startTime);
     const calendarStart = 7 * 60;
-
     return ((startMinutes - calendarStart) / 60) * HOUR_HEIGHT + 30;
   };
 
   const getCardHeight = (startTime, endTime) => {
     const startMinutes = convertToMinutes(startTime);
     const endMinutes = convertToMinutes(endTime);
-
     return ((endMinutes - startMinutes) / 60) * 60;
   };
 
   const getStartOfWeek = (date) => {
     const d = new Date(date);
-
-    const day = d.getDay(); // 0 = Sunday
-
-    // Monday ang start
+    const day = d.getDay();
     const diff = day === 0 ? -6 : 1 - day;
-
     d.setDate(d.getDate() + diff);
     d.setHours(0, 0, 0, 0);
-
     return d;
   };
 
@@ -192,7 +193,6 @@ function FacultyViewRoom() {
 
   const isToday = (date) => {
     const today = new Date();
-
     return (
       today.getDate() === date.getDate() &&
       today.getMonth() === date.getMonth() &&
@@ -200,23 +200,21 @@ function FacultyViewRoom() {
     );
   };
 
-  // ---------------------------------------------------------
-  // Tinatag na dito ang bawat item ng "_source" nito
-  // (event o reservation) para malaman kung papaano i-normalize
-  // pagka-click sa block.
-  // ---------------------------------------------------------
   const getItemsForDate = (date) => {
-
     const dateString = toDateStr(date);
 
     return [
       ...events
-        .filter(e => e.date === dateString)
-        .map(e => ({ ...e, _source: "event" })),
+        .filter((e) => e.date === dateString)
+        .map((e) => ({ ...e, _source: "event" })),
 
       ...reservations
-        .filter(r => r.date === dateString)
-        .map(r => ({ ...r, _source: "reservation" })),
+        .filter((r) => r.date === dateString)
+        .map((r) => ({ ...r, _source: "reservation" })),
+
+      ...reassignedInto
+        .filter((r) => r.date === dateString)
+        .map((r) => ({ ...r, _source: "reassignment" })),
     ];
   };
 
@@ -225,9 +223,7 @@ function FacultyViewRoom() {
       <div className="lr-view-room">
         <i
           className="fa-solid fa-arrow-left lr-back-arrow"
-          onClick={() =>
-              navigate("/faculty/rooms")
-          }
+          onClick={() => navigate("/faculty/rooms")}
           style={{ cursor: "pointer" }}
         ></i>
 
@@ -254,17 +250,10 @@ function FacultyViewRoom() {
                 }}
               ></i>
             </div>
-            <span className="room-name">
-              {room?.roomName}
-            </span>
+            <span className="room-name">{room?.roomName}</span>
           </div>
 
           <div className="days-container">
-            {/* Spacer na gumagamit mismo ng "time-column" class (walang
-                laman) para GUARANTEED na kaparehas ang lapad nito sa
-                .time-column sa ibaba — tumapat ang MON...SUN labels sa
-                tamang column ng calendar-grid imbes na sumingit sa
-                time axis. Walang bagong CSS na kailangan idagdag. */}
             <div className="time-column" aria-hidden="true"></div>
 
             {weekDates.map((date, index) => (
@@ -297,118 +286,102 @@ function FacultyViewRoom() {
               <div className="time-slot">07 PM</div>
               <div className="time-slot">08 PM</div>
             </div>
+
             <div className="calendar-grid">
-  {schedules.length === 0 &&
- events.length === 0 &&
- reservations.length === 0 ? (
+              {schedules.length === 0 &&
+              events.length === 0 &&
+              reservations.length === 0 ? (
+                <div className="no-schedule">
+                  <i className="fa-regular fa-calendar-xmark"></i>
+                  <h3>No schedules available</h3>
+                  <p>There are no schedules or room activities.</p>
+                </div>
+              ) : (
+                DAYS.map((day, index) => {
+                  const dateEvents = getItemsForDate(weekDates[index]);
+                  const occurrenceDateStr = toDateStr(weekDates[index]);
 
-    <div className="no-schedule">
-      <i className="fa-regular fa-calendar-xmark"></i>
-      <h3>No schedules available</h3>
-      <p>There are no schedules or room activities.</p>
-    </div>
+                  return (
+                    <div className="calendar-day" key={day}>
+                      {/* REGULAR SCHEDULE — sinasala gamit ang releasedKeys at reassignedAwayKeys */}
+                      {getSchedulesByDay(day)
+                        .filter((schedule) => {
+                          if (releasedKeys.has(`${schedule.id}_${occurrenceDateStr}`)) {
+                            return false;
+                          }
+                          if (reassignedAwayKeys.has(`${schedule.id}_${occurrenceDateStr}`)) {
+                            return false;
+                          }
 
-  ) : (
+                          const sStart = convertToMinutes(schedule.startTime);
+                          const sEnd = convertToMinutes(schedule.endTime);
 
-    DAYS.map((day, index) => {
-                const dateEvents = getItemsForDate(weekDates[index]);
-                const occurrenceDateStr = toDateStr(weekDates[index]);
+                          return !dateEvents.some((event) => {
+                            const eStart = convertToMinutes(event.startTime);
+                            const eEnd = convertToMinutes(event.endTime);
+                            return sStart < eEnd && sEnd > eStart;
+                          });
+                        })
+                        .map((schedule) => (
+                          <ScheduleCard
+                            key={schedule.id}
+                            schedule={schedule}
+                            top={getTopPosition(schedule.startTime)}
+                            height={getCardHeight(
+                              schedule.startTime,
+                              schedule.endTime
+                            )}
+                            onClick={() =>
+                              setSelectedSchedule(
+                                normalizeScheduleItem(schedule, "schedule")
+                              )
+                            }
+                          />
+                        ))}
 
-                return (
-                  <div className="calendar-day" key={day}>
-
-                    {/* REGULAR SCHEDULE */}
-                    {getSchedulesByDay(day)
-                      .filter(schedule => {
-
-                        // itago kung na-release na ang schedule
-                        // occurrence na ito sa specific na petsang ito
-                        if (
-                          releasedKeys.has(
-                            `${schedule.id}_${occurrenceDateStr}`
-                          )
-                        ) {
-                          return false;
-                        }
-
-                        const sStart = convertToMinutes(schedule.startTime);
-                        const sEnd = convertToMinutes(schedule.endTime);
-
-                        // itago kapag may room activity na nag-ooverlap
-                        return !dateEvents.some(event => {
-
-                          const eStart = convertToMinutes(event.startTime);
-                          const eEnd = convertToMinutes(event.endTime);
-
-                          return sStart < eEnd && sEnd > eStart;
-                        });
-
-                      })
-                      .map(schedule => (
-
+                      {/* ROOM ACTIVITIES / RESERVATIONS */}
+                      {dateEvents.map((event) => (
                         <ScheduleCard
-                          key={schedule.id}
-                          schedule={schedule}
-                          top={getTopPosition(schedule.startTime)}
+                          key={event.id}
+                          schedule={{
+                            ...event,
+                            subject:
+                              event.title ||
+                              event.purpose ||
+                              event.courseTitle ||
+                              "Walk-in Reservation",
+
+                            faculty:
+                              event.title
+                                ? "ROOM ACTIVITY"
+                                : event.requesterName ||
+                                  event.facultyName ||
+                                  "Walk-in",
+                          }}
+                          top={getTopPosition(event.startTime)}
                           height={getCardHeight(
-                            schedule.startTime,
-                            schedule.endTime
+                            event.startTime,
+                            event.endTime
                           )}
                           onClick={() =>
                             setSelectedSchedule(
-                              normalizeScheduleItem(schedule, "schedule")
+                              normalizeScheduleItem(event, event._source)
                             )
                           }
                         />
-
                       ))}
-
-                    {/* ROOM ACTIVITIES / RESERVATIONS */}
-                    {dateEvents.map(event => (
-
-                      <ScheduleCard
-                        key={event.id}
-                        schedule={{
-                          ...event,
-                          subject:
-                            event.title ||
-                            event.purpose ||
-                            event.courseTitle ||
-                            "Walk-in Reservation",
-
-                          faculty:
-                            event.title
-                              ? "ROOM ACTIVITY"
-                              : event.requesterName ||
-                                event.facultyName ||
-                                "Walk-in"
-                        }}
-                        top={getTopPosition(event.startTime)}
-                        height={getCardHeight(
-                          event.startTime,
-                          event.endTime
-                        )}
-                        onClick={() =>
-                          setSelectedSchedule(
-                            normalizeScheduleItem(event, event._source)
-                          )
-                        }
-                      />
-
-                    ))}
-
-                  </div>
-                );
-              })
+                    </div>
+                  );
+                })
               )}
             </div>
-
           </div>
+
           <div className="class-details-container">
             <ClassDetailsCard
-                schedule={selectedSchedule}
-                roomName={room?.roomName}
-                onClose={() => setSelectedSchedule(null)}
+              schedule={selectedSchedule}
+              roomName={room?.roomName}
+              onClose={() => setSelectedSchedule(null)}
             />
           </div>
         </div>

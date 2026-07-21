@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "./department-head-layout.css";
 import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
+import NotificationCard from "../../Components/NotificationCard/Notification"; 
 import { auth, db } from "../../firebase";
 import {
   collection,
@@ -12,6 +13,7 @@ import {
   doc,
   updateDoc,
   getDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
@@ -72,8 +74,6 @@ export default function DepartmentHeadLayout() {
     return () => unsubscribeAuth();
   }, []);
 
-  
-
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const now  = new Date();
@@ -95,11 +95,31 @@ export default function DepartmentHeadLayout() {
     catch (err) { console.error(err); }
   };
 
+  const markAllAsRead = async () => {
+    const unread = notifications.filter((n) => n.unread && !n.archived);
+    if (unread.length === 0) return;
+    try {
+      const batch = writeBatch(db);
+      unread.forEach((n) => batch.update(doc(db, "notifications", n.id), { unread: false }));
+      await batch.commit();
+    } catch (err) { console.error(err); }
+  };
+
+  const unreadCount   = notifications.filter((n) => n.unread && !n.archived).length;
+  const archivedCount = notifications.filter((n) => n.archived).length;
+  const allCount      = notifications.filter((n) => !n.archived).length;
+
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread")   return item.unread && !item.archived;
     if (activeTab === "archived") return item.archived;
     return !item.archived;
   });
+
+  const emptyCopy = {
+    all:      { icon: "fa-bell-slash",   title: "Wala pang abiso",      text: "Dito lalabas ang mga update tungkol sa schedules, reservations, at conflicts." },
+    unread:   { icon: "fa-check-double", title: "Up to date ka na!",    text: "Nabasa mo na lahat ng notification." },
+    archived: { icon: "fa-box-open",     title: "Walang naka-archive", text: "Ang mga na-archive mong abiso ay makikita rito." },
+  }[activeTab];
 
   const handleLogout = async () => {
     try {
@@ -117,6 +137,12 @@ export default function DepartmentHeadLayout() {
 
   const fullName = `${profile.firstName} ${profile.lastName}`.trim();
   const initials = `${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase();
+
+  const typeIcon = {
+    schedule: "fa-regular fa-calendar",
+    urgent:   "fa-solid fa-exclamation",
+    approved: "fa-solid fa-check",
+  };
 
   return (
     <>
@@ -211,12 +237,84 @@ export default function DepartmentHeadLayout() {
 
             <div className="header-actions">
               <div className="notification-container">
-                <button className="dept-header-btn" onClick={() => setShowNotifications(true)}>
-                  <i className={`fa-bell ${notifications.some((n) => n.unread) ? "fa-solid bell-active" : "fa-regular"}`}></i>
-                  {notifications.filter(n => n.unread).length > 0 && (
-                    <span className="notif-count">{notifications.filter(n => n.unread).length}</span>
+                <button
+                  className={`dept-header-btn ${showNotifications ? "notif-btn-open" : ""}`}
+                  onClick={() => setShowNotifications((v) => !v)}
+                >
+                  <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active" : "fa-regular"}`}></i>
+                  {unreadCount > 0 && (
+                    <span className="notif-count">{unreadCount > 9 ? "9+" : unreadCount}</span>
                   )}
                 </button>
+
+                {/* NOTIFICATIONS — floating panel anchored to the bell */}
+                {showNotifications && (
+                  <>
+                    <div className="notif-clickaway" onClick={() => setShowNotifications(false)}></div>
+                    <div className="notif-panel">
+                      <span className="notif-panel-arrow"></span>
+
+                      <div className="notif-top">
+                        <div className="notif-top-title">
+                          <h2>Notifications</h2>
+                          {unreadCount > 0 && <span className="notif-top-badge">{unreadCount} new</span>}
+                        </div>
+                        <button className="notif-close" onClick={() => setShowNotifications(false)}>
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      </div>
+
+                      <div className="notif-tabs">
+                        <button className={activeTab === "all"      ? "active" : ""} onClick={() => setActiveTab("all")}>
+                          All <span className="notif-tab-count">{allCount}</span>
+                        </button>
+                        <button className={activeTab === "unread"   ? "active" : ""} onClick={() => setActiveTab("unread")}>
+                          Unread <span className="notif-tab-count">{unreadCount}</span>
+                        </button>
+                        <button className={activeTab === "archived" ? "active" : ""} onClick={() => setActiveTab("archived")}>
+                          Archived <span className="notif-tab-count">{archivedCount}</span>
+                        </button>
+                      </div>
+
+                      {activeTab === "unread" && unreadCount > 0 && (
+                        <div className="notif-mark-all-row">
+                          <button className="notif-mark-all" onClick={markAllAsRead}>
+                            <i className="fa-solid fa-check-double"></i> Mark all as read
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="notif-list">
+                        {filteredNotifications.length === 0 ? (
+                          <div className="notif-empty">
+                            <div className="notif-empty-icon">
+                              <i className={`fa-solid ${emptyCopy.icon}`}></i>
+                            </div>
+                            <h4>{emptyCopy.title}</h4>
+                            <p>{emptyCopy.text}</p>
+                          </div>
+                        ) : (
+                          filteredNotifications.map((item, i) => (
+                            <div key={item.id} style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+                              <NotificationCard
+                                icon={typeIcon[item.type] || "fa-solid fa-bell"}
+                                title={item.title}
+                                message={item.message}
+                                time={formatTime(item.createdAt)}
+                                badge={item.badge}
+                                type={item.type}
+                                unread={item.unread}
+                                archived={item.archived}
+                                onClick={() => markAsRead(item.id)}
+                                onArchive={() => archiveNotification(item.id)}
+                              />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
               <button className="dept-header-btn dept-logout-btn" onClick={() => setShowLogoutConfirm(true)}>
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
@@ -230,52 +328,6 @@ export default function DepartmentHeadLayout() {
 
         </div>
       </div>
-
-      {/* NOTIFICATIONS */}
-      {showNotifications && (
-        <>
-          <div className="notif-overlay" onClick={() => setShowNotifications(false)}></div>
-          <div className="notif-drawer">
-            <div className="notif-top">
-              <h2>Notifications</h2>
-              <button className="notif-close" onClick={() => setShowNotifications(false)}>
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-            <div className="notif-tabs">
-              <button className={activeTab === "all"      ? "active" : ""} onClick={() => setActiveTab("all")}>All</button>
-              <button className={activeTab === "unread"   ? "active" : ""} onClick={() => setActiveTab("unread")}>Unread</button>
-              <button className={activeTab === "archived" ? "active" : ""} onClick={() => setActiveTab("archived")}>Archived</button>
-            </div>
-            <div className="notif-list">
-              {filteredNotifications.map((item) => (
-                <div key={item.id} className={`notif-card ${item.type}`} onClick={() => markAsRead(item.id)}>
-                  <div className="notif-icon">
-                    {item.type === "schedule" && <i className="fa-regular fa-calendar"></i>}
-                    {item.type === "urgent"   && <i className="fa-solid fa-exclamation"></i>}
-                    {item.type === "approved" && <i className="fa-solid fa-check"></i>}
-                  </div>
-                  <div className="notif-body">
-                    <div className="notif-title-row">
-                      <h4>{item.title}</h4>
-                      {item.badge && <span className="notif-badge">{item.badge}</span>}
-                    </div>
-                    <p>{item.message}</p>
-                    <span className="notif-time">{formatTime(item.createdAt)}</span>
-                    <div className="notif-actions">
-                      {!item.archived && (
-                        <button onClick={(e) => { e.stopPropagation(); archiveNotification(item.id); }}>
-                          Archive
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* LOGOUT MODAL */}
       {showLogoutConfirm && (

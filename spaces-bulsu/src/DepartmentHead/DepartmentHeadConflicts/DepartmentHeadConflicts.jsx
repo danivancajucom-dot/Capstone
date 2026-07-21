@@ -7,6 +7,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import Toast from "../../Popup/Toast/Toast";
 
 function DepartmentHeadConflicts() {
   const [conflicts, setConflicts] = useState([]);
@@ -14,6 +15,16 @@ function DepartmentHeadConflicts() {
   const [activeTab, setActiveTab] = useState("all");
   const [unresolved, setUnresolved] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [autoResolve, setAutoResolve] = useState(false);
+
+  const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
+
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
+    }
+  };
 
   useEffect(() => {
     loadConflicts();
@@ -63,6 +74,14 @@ function DepartmentHeadConflicts() {
   try {
     const rooms = await getDocs(collection(db, "rooms"));
     const events = await getDocs(collection(db, "events"));
+    const reassignSnap = await getDocs(collection(db, "roomReassignments")); // BAGO
+
+    const pendingKeys = new Set(
+      reassignSnap.docs
+        .map((d) => d.data())
+        .filter((r) => String(r.status || "").toLowerCase() === "pending")
+        .map((r) => `${r.scheduleId}_${r.eventId}`)
+    );
 
     const activeFound = [];
     const unresolvedFound = [];
@@ -155,7 +174,8 @@ function DepartmentHeadConflicts() {
             conflictStartTime: overlapTime.start,
             conflictEndTime: overlapTime.end,
 
-             status: "",
+            reassignPending: pendingKeys.has(`${schedule.id}_${event.id}`),
+            status: "",
           };
 
           if (event.conflictResolved) {
@@ -187,6 +207,7 @@ function DepartmentHeadConflicts() {
 
   } catch (err) {
     console.error(err);
+    showToast("error", "Load Failed", "Could not retrieve conflicts. Please try again.");
   } finally {
     setLoading(false);
   }
@@ -206,6 +227,57 @@ function DepartmentHeadConflicts() {
       ? "No unresolved conflicts."
       : "No resolved conflicts.";
 
+  const emptyHint =
+    activeTab === "all"
+      ? "New booking collisions will show up here as they happen."
+      : activeTab === "unresolved"
+      ? "Great — nothing has slipped through unaddressed."
+      : "Resolved conflicts will be logged here for your records.";
+
+  const suggestions = conflicts.filter((c) => !c.reassignPending).slice(0, 3);
+
+  const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+  const handleExport = () => {
+    if (displayConflicts.length === 0) {
+      showToast("error", "Nothing to Export", "There are no conflicts in this view.");
+      return;
+    }
+
+    const headers = [
+      "Room", "Floor", "Course", "Faculty", "Section",
+      "Day", "Date", "Class Time", "Activity", "Overlap Time", "Status",
+    ];
+
+    const rows = displayConflicts.map((c) => [
+      c.roomName,
+      c.floor,
+      c.courseTitle,
+      c.faculty,
+      c.section,
+      c.day,
+      c.date,
+      `${c.startTime}-${c.endTime}`,
+      c.activityTitle,
+      `${c.conflictStartTime}-${c.conflictEndTime}`,
+      c.status,
+    ]);
+
+    const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `conflict-report-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast("success", "Exported", `${displayConflicts.length} conflict${displayConflicts.length === 1 ? "" : "s"} downloaded.`);
+  };
+
   return (
    <>
    <div className="dept-conflict">
@@ -214,10 +286,44 @@ function DepartmentHeadConflicts() {
       <h1>Conflict Monitoring</h1>
       <p>Resolve booking collisions and schedule overlaps within the CICT department.</p>
     </div>
-    <button className="dept-conflict-export-btn" disabled={loading}>
+    <button className="dept-conflict-export-btn" disabled={loading} onClick={handleExport}>
       <i className="fa-solid fa-download"></i> Export Report
     </button>
   </div>
+
+  {/* STATS */}
+  <div className="dept-stats-row">
+    <div className="dept-stat-card">
+      <div className="dept-stat-icon">
+        <i className="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <div>
+        <div className="dept-stat-value">{loading ? "—" : conflicts.length}</div>
+        <div className="dept-stat-label">Active Conflicts</div>
+      </div>
+    </div>
+
+    <div className="dept-stat-card">
+      <div className="dept-stat-icon is-danger">
+        <i className="fa-solid fa-clock-rotate-left"></i>
+      </div>
+      <div>
+        <div className="dept-stat-value">{loading ? "—" : unresolved.length}</div>
+        <div className="dept-stat-label">Unresolved</div>
+      </div>
+    </div>
+
+    <div className="dept-stat-card">
+      <div className="dept-stat-icon is-success">
+        <i className="fa-solid fa-circle-check"></i>
+      </div>
+      <div>
+        <div className="dept-stat-value">{loading ? "—" : resolved.length}</div>
+        <div className="dept-stat-label">Resolved</div>
+      </div>
+    </div>
+  </div>
+
   <div className="conflict-boxes">
   <div className="conflict-main-box">
     <div className="conflict-nav">
@@ -229,6 +335,7 @@ function DepartmentHeadConflicts() {
         onClick={() => setActiveTab("all")}
       >
         All Conflicts
+        <span className="conflict-nav-count">{conflicts.length}</span>
       </div>
 
       <div
@@ -238,6 +345,7 @@ function DepartmentHeadConflicts() {
         onClick={() => setActiveTab("unresolved")}
       >
         Unresolved
+        <span className="conflict-nav-count">{unresolved.length}</span>
       </div>
 
       <div
@@ -247,6 +355,7 @@ function DepartmentHeadConflicts() {
         onClick={() => setActiveTab("resolved")}
       >
         Resolved
+        <span className="conflict-nav-count">{resolved.length}</span>
       </div>
 
     </div>
@@ -254,7 +363,7 @@ function DepartmentHeadConflicts() {
     <div className="conflict-body">
       {loading ? (
         <div className="room-empty">
-          <i className="fa-solid fa-spinner fa-spin"></i>
+          <span className="conflict-spinner"></span>
 
           <h2>Loading Conflicts</h2>
 
@@ -265,6 +374,7 @@ function DepartmentHeadConflicts() {
         <div className="no-conflicts">
           <i className="fa-solid fa-calendar-check"></i>
           <p>{emptyMessage}</p>
+          <span className="no-conflicts-hint">{emptyHint}</span>
         </div>
 
       ) : (
@@ -274,7 +384,7 @@ function DepartmentHeadConflicts() {
           <ConflictCard
             key={`${conflict.schedule.id}-${conflict.event.id}-${index}`}
             conflict={conflict}
-            showReassign={activeTab === "all"}
+            showReassign={activeTab === "all" && !conflict.reassignPending}
           />
 
         ))
@@ -293,8 +403,14 @@ function DepartmentHeadConflicts() {
         <span className="conflict-spinner conflict-spinner--small"></span>
         <p>Loading suggestions...</p>
       </div>
+    ) : suggestions.length === 0 ? (
+      <div className="side-box-empty">
+        <i className="fa-regular fa-lightbulb"></i>
+        <p>No suggestions right now.</p>
+        <span>New alternatives will appear here when a conflict is detected.</span>
+      </div>
     ) : (
-      conflicts.slice(0,3).map(conflict=>(
+      suggestions.map((conflict) => (
       <RoomReassignCard
           key={`${conflict.schedule.id}-${conflict.event.id}`}
           conflict={conflict}
@@ -305,7 +421,11 @@ function DepartmentHeadConflicts() {
     <div className="auto-resolve-header">
       <span className="auto-resolve-title">Auto-resolve conflicts</span>
       <label className="toggle-smart">
-        <input type="checkbox" />
+        <input
+          type="checkbox"
+          checked={autoResolve}
+          onChange={(e) => setAutoResolve(e.target.checked)}
+        />
         <span className="toggle-slider"></span>
       </label>
     </div>
@@ -315,6 +435,13 @@ function DepartmentHeadConflicts() {
     </div>
 </div>
 
+    <Toast
+      show={toast.show}
+      type={toast.type}
+      title={toast.title}
+      message={toast.message}
+      onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+    />
     </>
 
   );

@@ -8,7 +8,9 @@ import {
   addDoc,
   serverTimestamp,
   doc,
-  getDoc
+  getDoc,
+  query,
+  where,
 } from "firebase/firestore";
 import { logActivity } from "../../utils/logActivity";
 import { auth, db } from "../../firebase";
@@ -21,6 +23,32 @@ function DepartmentHeadReassignRoom() {
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const location = useLocation();
+
+  const [alreadyPending, setAlreadyPending] = useState(false);
+  const [checkingPending, setCheckingPending] = useState(true);
+
+  useEffect(() => {
+    checkPendingReassignment();
+  }, []);
+
+  const checkPendingReassignment = async () => {
+    if (!conflict?.schedule?.id) {
+      setCheckingPending(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "roomReassignments"),
+      where("scheduleId", "==", conflict.schedule.id),
+      where("date", "==", conflict.date),
+      where("status", "==", "pending")
+    );
+
+    const snap = await getDocs(q);
+
+    setAlreadyPending(!snap.empty);
+    setCheckingPending(false);
+  };
 
   const conflict =
   location.state?.conflict;
@@ -132,11 +160,17 @@ const loadAvailableRooms = async () => {
 
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleConfirm = async () => {
-    if (!selectedRoom) {
-      alert("Select a room.");
-      return;
-    }
+ const handleConfirm = async () => {
+  if (!selectedRoom) {
+    alert("Select a room.");
+    return;
+  }
+
+  if (alreadyPending) {
+    alert("May nakabinbing reassignment na para sa klaseng ito. Hintayin muna ang sagot ng faculty.");
+    setShowConfirm(false);
+    return;
+  }
 
     setLoading(true);
 
@@ -450,10 +484,15 @@ const loadAvailableRooms = async () => {
           <button
             className="dept-reassign-confirm-btn"
             onClick={() => setShowConfirm(true)}
-            disabled={loading || !selectedRoom}
+            disabled={loading || !selectedRoom || alreadyPending || checkingPending}
           >
             {loading ? "Processing..." : "Confirm"}
           </button>
+          {alreadyPending && (
+            <div className="dept-reassign-summary-item" style={{ color: "#991b1b" }}>
+              <span>Reassigned. Wait for the faculty response.</span>
+            </div>
+          )}
         </div>
       </div>
 
