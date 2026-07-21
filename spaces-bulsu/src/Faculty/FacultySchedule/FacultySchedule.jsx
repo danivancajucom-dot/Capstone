@@ -37,9 +37,8 @@ const LEGEND = [
 ];
 
 // -------------------------------------------------------------
-// Helpers
+// Helpers (unchanged)
 // -------------------------------------------------------------
-
 const normalizeName = (name = "") =>
   name
     .toLowerCase()
@@ -189,6 +188,8 @@ const notifyReleaseRoom = async ({
   }
 };
 
+// ─── MAIN COMPONENT ─────────────────────────────────────────────────────
+
 export default function WeeklyCalendar() {
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -208,6 +209,8 @@ export default function WeeklyCalendar() {
   useEffect(() => {
     loadFacultySchedule();
   }, []);
+
+  // ─── LOAD FUNCTION (reservations always loaded) ─────────────────
 
   const loadFacultySchedule = async () => {
     setLoading(true);
@@ -259,54 +262,56 @@ export default function WeeklyCalendar() {
         });
       }
 
-      if (matchedSchedules.length === 0) {
+      let hasSchedules = false;
+      let myRoomIds = [];
+
+      if (matchedSchedules.length > 0) {
+        const rank = (s) => [
+          schoolYearStart(s.schoolYear),
+          semesterRank(s.semester),
+        ];
+
+        const latest = matchedSchedules.reduce((best, cur) => {
+          const [by, bs] = rank(best);
+          const [cy, cs] = rank(cur);
+          if (cy > by || (cy === by && cs > bs)) return cur;
+          return best;
+        }, matchedSchedules[0]);
+
+        const latestSchedules = matchedSchedules.filter(
+          (s) =>
+            (s.schoolYear || "") === (latest.schoolYear || "") &&
+            (s.semester || "") === (latest.semester || "")
+        );
+
+        setScheduleEvents(latestSchedules);
+        setActiveTerm({
+          semester: latest.semester,
+          schoolYear: latest.schoolYear,
+        });
+        setNoSchedule(false);
+        hasSchedules = true;
+        myRoomIds = [...new Set(latestSchedules.map((s) => s.roomId))];
+      } else {
         setScheduleEvents([]);
-        setOverrideEvents([]);
-        setReservationEvents([]);
         setActiveTerm(null);
         setNoSchedule(true);
-        setLoading(false);
-        return;
+        // continue to load reservations
       }
 
-      const rank = (s) => [
-        schoolYearStart(s.schoolYear),
-        semesterRank(s.semester),
-      ];
-
-      const latest = matchedSchedules.reduce((best, cur) => {
-        const [by, bs] = rank(best);
-        const [cy, cs] = rank(cur);
-        if (cy > by || (cy === by && cs > bs)) return cur;
-        return best;
-      }, matchedSchedules[0]);
-
-      const latestSchedules = matchedSchedules.filter(
-        (s) =>
-          (s.schoolYear || "") === (latest.schoolYear || "") &&
-          (s.semester || "") === (latest.semester || "")
-      );
-
-      setScheduleEvents(latestSchedules);
-      setActiveTerm({
-        semester: latest.semester,
-        schoolYear: latest.schoolYear,
-      });
-      setNoSchedule(false);
-
-      const myRoomIds = [...new Set(latestSchedules.map((s) => s.roomId))];
-
-      const eventSnap = await getDocs(collection(db, "events"));
-      const myEvents = eventSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((e) => myRoomIds.includes(e.roomId));
-
-      setOverrideEvents(myEvents);
+      // Load override events only if there are schedules
+      if (hasSchedules) {
+        const eventSnap = await getDocs(collection(db, "events"));
+        const myEvents = eventSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((e) => myRoomIds.includes(e.roomId));
+        setOverrideEvents(myEvents);
+      } else {
+        setOverrideEvents([]);
+      }
 
       // ---------------------------------------------------------
-      // FIX: Sariling approved reservations — pareho:
-      // (1) sarili mismong sinubmit (userId/createdBy match), O
-      // (2) ginawa ng clerk na naka-pangalan sa kanya (requesterName/facultyName match)
+      // SARILING APPROVED RESERVATIONS (always fetch)
       // ---------------------------------------------------------
       const reservationSnap = await getDocs(
         collection(db, "reservationRequests")
@@ -331,7 +336,7 @@ export default function WeeklyCalendar() {
       setReservationEvents(myReservations);
 
       // ---------------------------------------------------------
-      // Mga na-release na schedule occurrences
+      // NA‑RELEASE NA SCHEDULE OCCURRENCES
       // ---------------------------------------------------------
       const releaseQ = query(
         collection(db, "roomReleases"),
@@ -350,7 +355,7 @@ export default function WeeklyCalendar() {
       setReleasedKeys(keys);
 
       // ---------------------------------------------------------
-      // Approved room reassignments para sa faculty na ito
+      // APPROVED ROOM REASSIGNMENTS
       // ---------------------------------------------------------
       const reassignQ = query(
         collection(db, "roomReassignments"),
@@ -366,6 +371,7 @@ export default function WeeklyCalendar() {
       }));
 
       setReassignedEvents(myReassignments);
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -373,6 +379,7 @@ export default function WeeklyCalendar() {
     }
   };
 
+  // ─── Week computation ──────────────────────────────────────────────
   const getStartOfWeek = (date) => {
     const d = new Date(date);
     const day = d.getDay();
@@ -625,6 +632,8 @@ export default function WeeklyCalendar() {
     }
   };
 
+  // ─── RENDER ──────────────────────────────────────────────────────────
+
   return (
     <>
       <div className="wc-page">
@@ -665,18 +674,20 @@ export default function WeeklyCalendar() {
           <div className="wc-divider" />
 
           {loading ? (
-            <div className="wc-empty-state">
-              <i className="fa-solid fa-spinner fa-spin"></i>
-              <p>Loading your schedule...</p>
-            </div>
-          ) : noSchedule ? (
-            <div className="wc-empty-state">
-              <i className="fa-regular fa-calendar-xmark"></i>
-              <p>No class schedule found under your name yet.</p>
-            </div>
-          ) : (
-            <div className="wc-scroll-area">
-              <div className="wc-grid" style={{ height: totalH }}>
+  <div className="wc-empty-state">
+    <i className="fa-solid fa-spinner fa-spin"></i>
+    <p>Loading your schedule...</p>
+  </div>
+) : calendarEvents.length === 0 ? (
+  // Show this only if there are NO events at all
+  <div className="wc-empty-state">
+    <i className="fa-regular fa-calendar-xmark"></i>
+    <p>No events found for this week.</p>
+  </div>
+) : (
+  // Render the calendar grid
+  <div className="wc-scroll-area">
+    <div className="wc-grid" style={{ height: totalH }}>
                 <div className="wc-time-col">
                   {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
                     <div className="wc-time-slot" key={i}>
@@ -727,6 +738,7 @@ export default function WeeklyCalendar() {
                       </div>
                     );
                   })}
+                  
                 </div>
               </div>
             </div>

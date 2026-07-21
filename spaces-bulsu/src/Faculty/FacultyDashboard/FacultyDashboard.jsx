@@ -13,7 +13,7 @@ const DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const DAY_TO_INDEX = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
 
 // -----------------------------------------------------------------
-// Helpers (parehong pattern gamit na sa WeeklyCalendar.jsx)
+// Helpers
 // -----------------------------------------------------------------
 
 const normalizeName = (name = "") =>
@@ -51,10 +51,6 @@ const formatTime = (time) => {
   return `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")} ${suffix}`;
 };
 
-// Kinukuha ang PINAKAMALAPIT na susunod na petsa (kasama ang ngayong
-// araw) kung kailan matatapat ang recurring "day" ng schedule, base sa
-// current time. Ginagamit ito dahil ang class schedule ay
-// recurring-weekly lang (walang specific date field).
 const getNextOccurrenceDate = (dayAbbrev, startTime, now) => {
   const targetDow = DAY_TO_INDEX[dayAbbrev];
   if (targetDow === undefined) return null;
@@ -97,9 +93,6 @@ const formatCountdown = (target, now) => {
   return `in ${mins}m`;
 };
 
-// -----------------------------------------------------------------
-// Convert date to local string YYYY-MM-DD
-// -----------------------------------------------------------------
 const toDateStr = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -118,7 +111,6 @@ export default function FacultyDashboard({ onLogout }) {
   const [latestSchedules, setLatestSchedules] = useState([]);
   const [facultyName, setFacultyName] = useState("");
 
-  // ─── New state for releases, reassignments, reservations ───
   const [releasedKeys, setReleasedKeys] = useState(new Set());
   const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
   const [reassignedInto, setReassignedInto] = useState([]);
@@ -126,8 +118,6 @@ export default function FacultyDashboard({ onLogout }) {
 
   const [bannerIndex, setBannerIndex] = useState(0);
 
-  // Keeps ONGOING / UPCOMING / COMPLETED and "next occurrence" accurate
-  // even if the dashboard is left open past a class's start/end time.
   const [, forceTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => forceTick((t) => t + 1), 60000);
@@ -138,6 +128,7 @@ export default function FacultyDashboard({ onLogout }) {
     loadMySchedule();
   }, []);
 
+  // ─── MAIN LOAD FUNCTION (reservations always loaded) ────────────
   const loadMySchedule = async () => {
     setLoading(true);
 
@@ -188,44 +179,43 @@ export default function FacultyDashboard({ onLogout }) {
         });
       }
 
-      if (matchedSchedules.length === 0) {
+      // Set schedules & active term (if any)
+      if (matchedSchedules.length > 0) {
+        const rank = (s) => [
+          schoolYearStart(s.schoolYear),
+          semesterRank(s.semester),
+        ];
+
+        const latest = matchedSchedules.reduce((best, cur) => {
+          const [by, bs] = rank(best);
+          const [cy, cs] = rank(cur);
+          if (cy > by || (cy === by && cs > bs)) return cur;
+          return best;
+        }, matchedSchedules[0]);
+
+        const filtered = matchedSchedules.filter(
+          (s) =>
+            (s.schoolYear || "") === (latest.schoolYear || "") &&
+            (s.semester || "") === (latest.semester || "")
+        );
+
+        setLatestSchedules(filtered);
+        setActiveTerm({
+          semester: latest.semester,
+          schoolYear: latest.schoolYear,
+        });
+      } else {
         setLatestSchedules([]);
         setActiveTerm(null);
-        setLoading(false);
-        return;
+        // No schedules, but we still load reservations below
       }
-
-      // piliin lang ang pinakabagong term (schoolYear + semester)
-      const rank = (s) => [
-        schoolYearStart(s.schoolYear),
-        semesterRank(s.semester),
-      ];
-
-      const latest = matchedSchedules.reduce((best, cur) => {
-        const [by, bs] = rank(best);
-        const [cy, cs] = rank(cur);
-        if (cy > by || (cy === by && cs > bs)) return cur;
-        return best;
-      }, matchedSchedules[0]);
-
-      const filtered = matchedSchedules.filter(
-        (s) =>
-          (s.schoolYear || "") === (latest.schoolYear || "") &&
-          (s.semester || "") === (latest.semester || "")
-      );
-
-      setLatestSchedules(filtered);
-      setActiveTerm({
-        semester: latest.semester,
-        schoolYear: latest.schoolYear,
-      });
 
       // ─── 2. LOAD RELEASES ──────────────────────────────────
       const releaseSnap = await getDocs(collection(db, "roomReleases"));
       const keys = new Set(
         releaseSnap.docs
           .map((d) => d.data())
-          .filter((r) => r.releasedBy === firebaseUser.uid) // only this faculty's releases
+          .filter((r) => r.releasedBy === firebaseUser.uid)
           .map((r) => `${r.scheduleId}_${r.date}`)
       );
       setReleasedKeys(keys);
@@ -240,18 +230,15 @@ export default function FacultyDashboard({ onLogout }) {
             r.facultyId === firebaseUser.uid
         );
 
-      // Moved out of the original rooms
       const awayKeys = new Set(
         allReassignments
           .filter((r) => r.oldRoomId)
           .map((r) => `${r.scheduleId}_${r.date}`)
       );
       setReassignedAwayKeys(awayKeys);
-
-      // Moved into new rooms
       setReassignedInto(allReassignments);
 
-      // ─── 4. LOAD APPROVED RESERVATIONS ──────────────────────
+      // ─── 4. LOAD APPROVED RESERVATIONS (ALWAYS) ────────────
       const reservationSnap = await getDocs(
         collection(db, "reservationRequests")
       );
@@ -278,26 +265,22 @@ export default function FacultyDashboard({ onLogout }) {
     }
   };
 
+  // ─── rest of component unchanged ──────────────────────────────────
+  // (allItems, todaysItems, upcomingItems, render, etc.)
+  // ... (same as before)
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const todayAbbrev = DAY_LABELS[now.getDay()];
   const todayStr = toDateStr(now);
 
-  // ─── Combine academic schedules + reassigned‑in + reservations ───
-  // We create a unified array of "items" for today and upcoming.
-  // Each item has: id, kind, subject, roomName, startTime, endTime, date (if applicable), day (if recurring)
-
   const allItems = useMemo(() => {
     const items = [];
 
-    // 1. Academic schedules (filtered by released & reassigned‑away)
     latestSchedules.forEach((s) => {
       const occurrenceDate = getNextOccurrenceDate(s.day, s.startTime, now);
       if (!occurrenceDate) return;
-
       const dateStr = toDateStr(occurrenceDate);
       const key = `${s.id}_${dateStr}`;
-
       if (releasedKeys.has(key)) return;
       if (reassignedAwayKeys.has(key)) return;
 
@@ -318,11 +301,9 @@ export default function FacultyDashboard({ onLogout }) {
       });
     });
 
-    // 2. Reassigned‑in (specific dates)
     reassignedInto.forEach((r) => {
       const occurrence = new Date(`${r.date}T${r.startTime}:00`);
-      if (occurrence < now) return; // only future or today
-
+      if (occurrence < now) return;
       items.push({
         id: r.id,
         kind: "reassignment",
@@ -339,11 +320,9 @@ export default function FacultyDashboard({ onLogout }) {
       });
     });
 
-    // 3. Approved reservations (specific dates)
     approvedReservations.forEach((r) => {
       const occurrence = new Date(`${r.date}T${r.startTime}:00`);
       if (occurrence < now) return;
-
       items.push({
         id: r.id,
         kind: "reservation",
@@ -359,7 +338,6 @@ export default function FacultyDashboard({ onLogout }) {
       });
     });
 
-    // Sort by occurrence time
     items.sort((a, b) => a.occurrence - b.occurrence);
     return items;
   }, [
@@ -372,7 +350,6 @@ export default function FacultyDashboard({ onLogout }) {
     todayStr,
   ]);
 
-  // ─── TODAY'S SCHEDULE (items that occur today) ──────────────
   const todaysItems = useMemo(() => {
     return allItems
       .filter((item) => item.isToday)
@@ -381,27 +358,21 @@ export default function FacultyDashboard({ onLogout }) {
         const [endH, endM] = parseTimeParts(item.endTime);
         const startMin = startH * 60 + startM;
         const endMin = endH * 60 + endM;
-
         const status =
           currentMinutes >= startMin && currentMinutes < endMin
             ? "ONGOING"
             : currentMinutes < startMin
             ? "UPCOMING"
             : "COMPLETED";
-
         return { ...item, status, startMin, endMin };
       })
       .sort((a, b) => a.startMin - b.startMin);
   }, [allItems, currentMinutes]);
 
-  // ─── UPCOMING CLASSES (top 5 future items) ──────────────────
   const upcomingItems = useMemo(() => {
-    return allItems
-      .filter((item) => item.occurrence > now)
-      .slice(0, 5);
+    return allItems.filter((item) => item.occurrence > now).slice(0, 5);
   }, [allItems, now]);
 
-  // i-clamp ang bannerIndex
   useEffect(() => {
     if (bannerIndex >= todaysItems.length) {
       setBannerIndex(0);
@@ -423,7 +394,6 @@ export default function FacultyDashboard({ onLogout }) {
         )
       : null;
 
-  // ─── Stats ────────────────────────────────────────────────────
   const roomsThisWeek = useMemo(
     () => new Set(allItems.map((item) => item.roomName)).size,
     [allItems]
@@ -431,7 +401,7 @@ export default function FacultyDashboard({ onLogout }) {
 
   const nextClass = upcomingItems[0] || null;
 
-  // ─── Render ────────────────────────────────────────────────────
+  // ─── Render ────────────────────────────────────────────────────────────
   return (
     <div className="dashboard-shell">
       <div className="container">
@@ -442,7 +412,6 @@ export default function FacultyDashboard({ onLogout }) {
               <div className="dash-greeting-icon">
                 <i className={greetingIconForHour(now.getHours())}></i>
               </div>
-
               <div>
                 <h1 className="dash-title">
                   {greetingForHour(now.getHours())}{facultyName ? `, ${facultyName}` : ""}!

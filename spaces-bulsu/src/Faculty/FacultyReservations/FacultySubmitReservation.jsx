@@ -1,5 +1,5 @@
 // ============================================================
-// FILE: FacultySubmitReservation.jsx (FIXED)
+// FILE: FacultySubmitReservation.jsx (FIXED – activity log & notifications)
 // ============================================================
 import { useState, useEffect } from "react";
 import "./faculty-submit-reservation.css";
@@ -34,7 +34,7 @@ function FacultySubmitReservation() {
   const [course, setCourse] = useState("");
   const [yearSectionGroup, setYearSectionGroup] = useState("");
   const [organization, setOrganization] = useState("");
-  const [otherAudience, setOtherAudience] = useState("");
+  const [customPurposeText, setCustomPurposeText] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [showConfirm, setShowConfirm] = useState(false);
@@ -46,25 +46,13 @@ function FacultySubmitReservation() {
     message: "",
   });
 
-  // ------------------------------------------------------------
-  // state para sa mga na-release na schedule occurrences
-  // ------------------------------------------------------------
   const [releasedKeys, setReleasedKeys] = useState(new Set());
 
   const showToast = (type, title, message) => {
-    setToast({
-      show: true,
-      type,
-      title,
-      message,
-    });
-
+    setToast({ show: true, type, title, message });
     if (type !== "loading") {
       setTimeout(() => {
-        setToast((prev) => ({
-          ...prev,
-          show: false,
-        }));
+        setToast((prev) => ({ ...prev, show: false }));
       }, 4000);
     }
   };
@@ -79,9 +67,7 @@ function FacultySubmitReservation() {
 
   const toggleEquipment = (id) => {
     setSelectedEquipment((prev) =>
-      prev.includes(id)
-        ? prev.filter((item) => item !== id)
-        : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
@@ -140,9 +126,6 @@ function FacultySubmitReservation() {
     return days[new Date(date).getDay()];
   };
 
-  // ------------------------------------------------------------
-  // FIX: loadAvailableRooms — isama sa check ang roomReleases
-  // ------------------------------------------------------------
   const loadAvailableRooms = async () => {
     if (!date || !startTime || !endTime) {
       setRooms([]);
@@ -154,13 +137,12 @@ function FacultySubmitReservation() {
     try {
       const roomSnapshot = await getDocs(collection(db, "rooms"));
       const activitySnapshot = await getDocs(collection(db, "events"));
-      const requestSnapshot = await getDocs(collection(db, "reservationRequests"));
+      const requestSnapshot = await getDocs(
+        collection(db, "reservationRequests")
+      );
 
-      // ----------------------------------------------------------
-      // KUNIN LAHAT NG RELEASES PARA SA PETSA NA ITO
-      // ----------------------------------------------------------
       const releaseSnap = await getDocs(collection(db, "roomReleases"));
-      const releaseMap = new Map(); // roomId -> Set ng `${scheduleId}_${date}`
+      const releaseMap = new Map();
 
       releaseSnap.docs.forEach((d) => {
         const r = d.data();
@@ -180,39 +162,33 @@ function FacultySubmitReservation() {
           ...roomDoc.data(),
         };
 
-        // FLOOR FILTER
+        // Floor filter
         if (selectedFloor) {
           const roomFloor = String(room.floor).toLowerCase();
           const selected = selectedFloor.toLowerCase();
-          if (!roomFloor.includes(selected)) {
-            continue;
-          }
+          if (!roomFloor.includes(selected)) continue;
         }
 
-        // EQUIPMENT FILTER
+        // Equipment filter (only for Hands-on)
         if (purpose === "Hands-on" && selectedEquipment.length > 0) {
           const roomEquipment = Object.entries(room.equipment || {})
             .filter(([key, value]) => value === true)
             .map(([key]) => key.toLowerCase());
 
-          const hasAllEquipment = selectedEquipment.every(eq =>
+          const hasAllEquipment = selectedEquipment.every((eq) =>
             roomEquipment.includes(eq.toLowerCase())
           );
 
-          if (!hasAllEquipment) {
-            continue;
-          }
+          if (!hasAllEquipment) continue;
         }
 
-        // CAPACITY FILTER
+        // Capacity filter (only for Lecture & Examination)
         if ((purpose === "Lecture" || purpose === "Examination") && studentRange) {
           const requiredCapacity = getMinimumCapacity(studentRange);
-          if (Number(room.capacity || 0) < requiredCapacity) {
-            continue;
-          }
+          if (Number(room.capacity || 0) < requiredCapacity) continue;
         }
 
-        // MAINTENANCE WINDOW
+        // Maintenance check
         const underMaintenance = isRoomUnderMaintenance(
           room,
           date,
@@ -231,13 +207,10 @@ function FacultySubmitReservation() {
 
         let occupied = false;
 
-        // --------------------------------------------------------
-        // CLASS SCHEDULES — isama ang roomReleases sa pagsala
-        // --------------------------------------------------------
+        // Class schedules (skip released)
         const scheduleSnapshot = await getDocs(
           collection(db, "rooms", room.id, "schedules")
         );
-
         const releasesForRoom = releaseMap.get(room.id) || new Set();
 
         occupied = scheduleSnapshot.docs.some((doc) => {
@@ -245,12 +218,8 @@ function FacultySubmitReservation() {
           if (sched.initialized) return false;
           if (sched.day !== getDay(date)) return false;
 
-          // FIX: kung na-release ang schedule na ito sa petsang ito,
-          // hindi ito dapat maging hadlang sa reservation
           const releaseKey = `${doc.id}_${date}`;
-          if (releasesForRoom.has(releaseKey)) {
-            return false;
-          }
+          if (releasesForRoom.has(releaseKey)) return false;
 
           return isOverlapping(
             startTime,
@@ -260,7 +229,7 @@ function FacultySubmitReservation() {
           );
         });
 
-        // ROOM ACTIVITIES
+        // Room activities
         if (!occupied) {
           occupied = activitySnapshot.docs.some((doc) => {
             const event = doc.data();
@@ -276,7 +245,7 @@ function FacultySubmitReservation() {
           });
         }
 
-        // PENDING RESERVATIONS
+        // Pending reservations (exclude Rejected)
         if (!occupied) {
           occupied = requestSnapshot.docs.some((doc) => {
             const req = doc.data();
@@ -313,15 +282,36 @@ function FacultySubmitReservation() {
     if (!date) return "Select a reservation date.";
     if (!audienceType) return "Select audience type.";
 
+    // Class-specific validation
     if (audienceType === "Class") {
       if (!course) return "Enter course.";
       if (!yearSectionGroup) return "Enter Year / Section Group.";
+      if (!["Lecture", "Hands-on", "Examination"].includes(purpose)) {
+        return "Select a valid purpose for Class (Lecture, Hands-on, Examination).";
+      }
+      if (purpose === "Hands-on" && selectedEquipment.length === 0) {
+        return "Select at least one required equipment.";
+      }
+      if ((purpose === "Lecture" || purpose === "Examination") && !studentRange) {
+        return "Select the estimated number of students.";
+      }
     }
-    if (audienceType === "Organization" && !organization)
-      return "Enter organization name.";
-    if (audienceType === "Others" && !otherAudience)
-      return "Describe the attendees.";
 
+    // Organization-specific validation
+    if (audienceType === "Organization") {
+      if (!organization) return "Enter organization name.";
+      if (!["Workshop", "Training", "Meeting", "Other Activity"].includes(purpose)) {
+        return "Select a valid purpose for Organization (Workshop, Training, Meeting, Other Activity).";
+      }
+      if (purpose === "Other Activity" && !customPurposeText.trim()) {
+        return "Please specify the activity.";
+      }
+      if (!studentRange) {
+        return "Select the estimated number of attendees.";
+      }
+    }
+
+    // Time validation
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const selectedDate = new Date(date);
@@ -347,13 +337,6 @@ function FacultySubmitReservation() {
       }
     }
 
-    if (!purpose) return "Select reservation purpose.";
-    if (purpose === "Hands-on" && selectedEquipment.length === 0) {
-      return "Select at least one required equipment.";
-    }
-    if ((purpose === "Lecture" || purpose === "Examination") && !studentRange) {
-      return "Select the estimated number of students.";
-    }
     if (!selectedRoom) return "Select an available room.";
     if (selectedRoom.maintenance)
       return "This room is under maintenance during the selected time.";
@@ -361,36 +344,41 @@ function FacultySubmitReservation() {
     return null;
   };
 
-  const notifyClerkAndDepartmentHead = async (
-    title,
-    message,
-    reservationId
-  ) => {
+  // ─── NOTIFICATION HELPER (ownerType normalized) ────────────────────
+
+  const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
 
     usersSnap.forEach((userDoc) => {
       const user = userDoc.data();
-      if (user.role === "clerk" || user.role === "department-head") {
-        notifications.push(
-          addDoc(collection(db, "notifications"), {
-            userId: userDoc.id,
-            ownerType: user.role === "clerk" ? "clerk" : "department-head",
-            reservationId,
-            title,
-            message,
-            type: "reservation-request",
-            unread: true,
-            archived: false,
-            badge: "NEW",
-            createdAt: serverTimestamp(),
-          })
-        );
-      }
+      const role = (user.role || "").toLowerCase().trim();
+
+      let ownerType = "";
+      if (role === "clerk") ownerType = "clerk";
+      else if (role.includes("department") && role.includes("head")) ownerType = "department-head";
+      else return; // skip others
+
+      notifications.push(
+        addDoc(collection(db, "notifications"), {
+          userId: userDoc.id,
+          ownerType, // ← MUST be "clerk" or "department-head"
+          reservationId,
+          title,
+          message,
+          type: "reservation-request",
+          unread: true,
+          archived: false,
+          badge: "NEW",
+          createdAt: serverTimestamp(),
+        })
+      );
     });
 
     await Promise.all(notifications);
   };
+
+  // ─── MAIN SUBMIT ────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     const error = validate();
@@ -403,14 +391,21 @@ function FacultySubmitReservation() {
     const userSnap = await getDoc(userRef);
 
     let facultyName = "";
+    let userData = {};
     if (userSnap.exists()) {
-      const userData = userSnap.data();
+      userData = userSnap.data();
       facultyName = `${userData.firstName} ${userData.lastName}`;
+    }
+
+    let finalPurpose = purpose;
+    if (purpose === "Other Activity") {
+      finalPurpose = customPurposeText.trim() || "Other Activity";
     }
 
     try {
       showToast("loading", "Submitting", "Please wait...");
 
+      // 1. Create reservation request
       const reservationRef = await addDoc(
         collection(db, "reservationRequests"),
         {
@@ -426,11 +421,11 @@ function FacultySubmitReservation() {
             course,
             yearSectionGroup,
             organization,
-            otherAudience,
+            customPurpose: customPurposeText,
           },
 
           courseTitle,
-          purpose,
+          purpose: finalPurpose,
 
           requiredEquipment: selectedEquipment,
           studentRange,
@@ -445,40 +440,46 @@ function FacultySubmitReservation() {
         }
       );
 
+      // 2. Notify clerks & department heads (ownerType normalized)
       await notifyClerkAndDepartmentHead(
         "New Reservation Request",
-        `${facultyName} submitted a reservation request for ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
+        `${facultyName} submitted a reservation request for "${courseTitle}" in ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
         reservationRef.id
       );
 
+      // 3. Notify faculty (self)
       await addDoc(collection(db, "notifications"), {
         userId: auth.currentUser.uid,
         ownerType: "faculty",
-
         reservationId: reservationRef.id,
-
         title: "Reservation Submitted",
-
         message: `Your reservation request for ${selectedRoom.roomName} on ${date} (${startTime} - ${endTime}) has been submitted successfully and is waiting for approval.`,
-
         type: "reservation-submitted",
-
         unread: true,
         archived: false,
-
         badge: "INFO",
-
         createdAt: serverTimestamp(),
       });
 
+      // 4. ACTIVITY LOG – direct write with exact fields dashboard expects
       await addDoc(collection(db, "activityLogs"), {
-        userId: auth.currentUser.uid,
-        userRole: "Faculty",
+        timestamp: serverTimestamp(),
         action: "Submitted Reservation Request",
-        description: `${facultyName} submitted a reservation request for "${courseTitle}" in Room ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
-        targetId: reservationRef.id,
-        targetType: "Reservation",
-        createdAt: serverTimestamp(),
+        actionType: "success",
+        user: facultyName,
+        role: "Faculty",
+        target: `${selectedRoom.roomName} | ${courseTitle}`,
+        status: "SUCCESS",
+        details: {
+          courseTitle,
+          room: selectedRoom.roomName,
+          date,
+          startTime,
+          endTime,
+          purpose: finalPurpose,
+          audienceType,
+        },
+        userId: auth.currentUser.uid,
       });
 
       setShowConfirm(false);
@@ -489,23 +490,28 @@ function FacultySubmitReservation() {
         "Your reservation request has been sent for approval."
       );
 
+      // Reset form
       setCourseTitle("");
       setAudienceType("");
       setCourse("");
       setYearSectionGroup("");
       setOrganization("");
-      setOtherAudience("");
+      setCustomPurposeText("");
       setPurpose("");
       setDate("");
       setStartTime("");
       setEndTime("");
       setSelectedRoom(null);
       setRooms([]);
+      setSelectedEquipment([]);
+      setStudentRange("");
     } catch (err) {
       console.error(err);
       showToast("error", "Firestore Error", err.message);
     }
   };
+
+  // ─── Render ──────────────────────────────────────────────────────────
 
   return (
     <>
@@ -530,7 +536,7 @@ function FacultySubmitReservation() {
                 />
               </div>
 
-              {/* AUDIENCE */}
+              {/* AUDIENCE TYPE */}
               <div className="faculty-submit-form-group">
                 <label>Audience Type</label>
                 <div className="faculty-submit-dropdown-wrapper">
@@ -539,21 +545,23 @@ function FacultySubmitReservation() {
                     value={audienceType}
                     onChange={(e) => {
                       setAudienceType(e.target.value);
+                      setPurpose(""); // reset purpose when audience changes
+                      setSelectedEquipment([]);
+                      setStudentRange("");
                       setCourse("");
                       setYearSectionGroup("");
                       setOrganization("");
-                      setOtherAudience("");
+                      setCustomPurposeText("");
                     }}
                   >
                     <option value="">Select Audience</option>
                     <option value="Class">Class</option>
                     <option value="Organization">Organization</option>
-                    <option value="Faculty">Faculty</option>
-                    <option value="Others">Others</option>
                   </select>
                   <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
                 </div>
 
+                {/* CLASS FIELDS */}
                 {audienceType === "Class" && (
                   <>
                     <div className="faculty-submit-form-group">
@@ -576,6 +584,8 @@ function FacultySubmitReservation() {
                     </div>
                   </>
                 )}
+
+                {/* ORGANIZATION FIELDS */}
                 {audienceType === "Organization" && (
                   <div className="faculty-submit-form-group">
                     <label>Organization Name</label>
@@ -587,28 +597,121 @@ function FacultySubmitReservation() {
                     />
                   </div>
                 )}
-                {audienceType === "Faculty" && (
-                  <div className="faculty-submit-form-group">
-                    <label>Faculty Group</label>
-                    <input
-                      className="faculty-submit-input"
-                      value="Faculty Members"
-                      readOnly
-                    />
-                  </div>
-                )}
-                {audienceType === "Others" && (
-                  <div className="faculty-submit-form-group">
-                    <label>Describe Attendees</label>
-                    <input
-                      className="faculty-submit-input"
-                      placeholder="Seminar Participants"
-                      value={otherAudience}
-                      onChange={(e) => setOtherAudience(e.target.value)}
-                    />
-                  </div>
-                )}
               </div>
+
+              {/* PURPOSE */}
+              <div className="faculty-submit-form-group">
+                <label>Purpose</label>
+                <div className="faculty-submit-dropdown-wrapper">
+                  <select
+                    className="faculty-submit-input faculty-submit-dropdown"
+                    value={purpose}
+                    onChange={(e) => {
+                      setPurpose(e.target.value);
+                      setSelectedEquipment([]);
+                      setStudentRange("");
+                      setCustomPurposeText("");
+                    }}
+                  >
+                    <option value="">Select Purpose</option>
+                    {audienceType === "Class" && (
+                      <>
+                        <option value="Lecture">Lecture</option>
+                        <option value="Hands-on">Hands-on</option>
+                        <option value="Examination">Examination</option>
+                      </>
+                    )}
+                    {audienceType === "Organization" && (
+                      <>
+                        <option value="Workshop">Workshop</option>
+                        <option value="Training">Training</option>
+                        <option value="Meeting">Meeting</option>
+                        <option value="Other Activity">Other Activity</option>
+                      </>
+                    )}
+                  </select>
+                  <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
+                </div>
+              </div>
+
+              {/* CLASS SUB‑OPTIONS */}
+              {audienceType === "Class" && purpose === "Hands-on" && (
+                <div className="faculty-submit-form-group">
+                  <label>Required Equipment</label>
+                  <div className="equipment-grid">
+                    {EQUIPMENT_OPTIONS.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`equipment-card ${
+                          selectedEquipment.includes(item.id) ? "selected" : ""
+                        }`}
+                        onClick={() => toggleEquipment(item.id)}
+                      >
+                        <span className="equipment-icon">{item.icon}</span>
+                        <span className="equipment-name">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* CLASS: Lecture / Examination -> studentRange */}
+              {audienceType === "Class" &&
+                (purpose === "Lecture" || purpose === "Examination") && (
+                  <div className="faculty-submit-form-group">
+                    <label>Estimated Number of Students</label>
+                    <div className="faculty-submit-dropdown-wrapper">
+                      <select
+                        className="faculty-submit-input faculty-submit-dropdown"
+                        value={studentRange}
+                        onChange={(e) => setStudentRange(e.target.value)}
+                      >
+                        <option value="">Select Range</option>
+                        <option value="30-50">30 - 50 Students</option>
+                        <option value="50-60">50 - 60 Students</option>
+                        <option value="60-80">60 - 80 Students</option>
+                        <option value="80-100">80 - 100 Students</option>
+                      </select>
+                      <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
+                    </div>
+                  </div>
+                )}
+
+              {/* ORGANIZATION: all purposes -> studentRange */}
+              {audienceType === "Organization" && purpose && (
+                <div className="faculty-submit-form-group">
+                  <label>Estimated Number of Attendees</label>
+                  <div className="faculty-submit-dropdown-wrapper">
+                    <select
+                      className="faculty-submit-input faculty-submit-dropdown"
+                      value={studentRange}
+                      onChange={(e) => setStudentRange(e.target.value)}
+                    >
+                      <option value="">Select Range</option>
+                      <option value="1-30">1 - 30 Persons</option>
+                      <option value="31-50">31 - 50 Persons</option>
+                      <option value="51-80">51 - 80 Persons</option>
+                      <option value="81-100">81 - 100 Persons</option>
+                      <option value="101+">101+ Persons</option>
+                    </select>
+                    <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
+                  </div>
+                </div>
+              )}
+
+              {/* ORGANIZATION: "Other Activity" -> custom text */}
+              {audienceType === "Organization" && purpose === "Other Activity" && (
+                <div className="faculty-submit-form-group">
+                  <label>Specify Activity</label>
+                  <input
+                    className="faculty-submit-input"
+                    placeholder="Describe the activity..."
+                    value={customPurposeText}
+                    onChange={(e) => setCustomPurposeText(e.target.value)}
+                  />
+                </div>
+              )}
 
               {/* DATE */}
               <div className="faculty-submit-form-group">
@@ -675,71 +778,6 @@ function FacultySubmitReservation() {
                   </div>
                 </div>
               </div>
-
-              {/* PURPOSE */}
-              <div className="faculty-submit-form-group">
-                <label>Purpose of Reservation</label>
-                <div className="faculty-submit-dropdown-wrapper">
-                  <select
-                    className="faculty-submit-input faculty-submit-dropdown"
-                    value={purpose}
-                    onChange={(e) => {
-                      setPurpose(e.target.value);
-                      setSelectedEquipment([]);
-                      setStudentRange("");
-                    }}
-                  >
-                    <option value="">Select Purpose</option>
-                    <option value="Lecture">Lecture</option>
-                    <option value="Hands-on">Hands-on</option>
-                    <option value="Examination">Examination</option>
-                  </select>
-                  <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
-                </div>
-              </div>
-
-              {/* HANDS ON */}
-              {purpose === "Hands-on" && (
-                <div className="faculty-submit-form-group">
-                  <label>Required Equipment</label>
-                  <div className="equipment-grid">
-                    {EQUIPMENT_OPTIONS.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={`equipment-card ${
-                          selectedEquipment.includes(item.id) ? "selected" : ""
-                        }`}
-                        onClick={() => toggleEquipment(item.id)}
-                      >
-                        <span className="equipment-icon">{item.icon}</span>
-                        <span className="equipment-name">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* LECTURE / EXAM */}
-              {(purpose === "Lecture" || purpose === "Examination") && (
-                <div className="faculty-submit-form-group">
-                  <label>Estimated Number of Students</label>
-                  <div className="faculty-submit-dropdown-wrapper">
-                    <select
-                      className="faculty-submit-input faculty-submit-dropdown"
-                      value={studentRange}
-                      onChange={(e) => setStudentRange(e.target.value)}
-                    >
-                      <option value="">Select Range</option>
-                      <option value="30-50">30 - 50 Students</option>
-                      <option value="50-60">50 - 60 Students</option>
-                      <option value="60-80">60 - 80 Students</option>
-                      <option value="80-100">80 - 100 Students</option>
-                    </select>
-                    <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* RIGHT SIDE */}
