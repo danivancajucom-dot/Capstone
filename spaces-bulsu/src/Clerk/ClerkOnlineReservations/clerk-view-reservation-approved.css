@@ -186,3 +186,170 @@
     width: 100%;
   }
 }
+.clerk-approved-reservation-room {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
+}
+
+.clerk-white-box-approved {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 24px 28px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.clerk-approved-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #16213e;
+}
+
+/* ── Grid layout ───────────────────────────────────────────────── */
+.clerk-approved-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.clerk-approved-info-box {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.clerk-approved-info-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clerk-approved-info-box-title i {
+  color: #f57c00;
+  width: 20px;
+}
+
+.clerk-approved-info-box-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clerk-approved-info-box-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.clerk-approved-info-box-content strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* ── Status badge ──────────────────────────────────────────────── */
+.clerk-approved-status-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clerk-approved-status-badge.approved {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+.clerk-approved-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.clerk-approved-back-arrow {
+  color: #5f6c80;
+  transition: color 0.2s;
+}
+
+.clerk-approved-back-arrow:hover {
+  color: #f57c00;
+}
+
+.clerk-approved-back-btn {
+  padding: 10px 30px;
+  color: #f57c00;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  border: 1.5px solid #f57c00;
+  cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.clerk-approved-back-btn:hover {
+  background-color: #FEF0E7;
+}
+
+.clerk-approved-edit-btn {
+  padding: 10px 30px;
+  border: none;
+  background-color: #f57c00;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.clerk-approved-edit-btn:hover {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .clerk-approved-reservation-room {
+    padding: 14px;
+  }
+
+  .clerk-approved-info-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .clerk-white-box-approved {
+    padding: 16px;
+  }
+
+  .clerk-approved-title {
+    font-size: 18px;
+  }
+
+  .clerk-approved-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .clerk-approved-back-btn,
+  .clerk-approved-edit-btn {
+    width: 100%;
+  }
+}

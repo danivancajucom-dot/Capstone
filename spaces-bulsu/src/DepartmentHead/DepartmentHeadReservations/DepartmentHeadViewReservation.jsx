@@ -9,8 +9,6 @@ import {
   serverTimestamp,
   getDoc,
   getDocs,
-  query,
-  where,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import { auth } from "../../firebase";
@@ -19,16 +17,27 @@ import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import Toast from "../../Popup/Toast/Toast";
 
+// ─── Helper: find user by name ─────────────────────────────────────────
+const findUserByName = async (name) => {
+  if (!name) return null;
+  const usersSnap = await getDocs(collection(db, "users"));
+  const normalized = name.trim().toLowerCase();
+  for (const doc of usersSnap.docs) {
+    const data = doc.data();
+    const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim().toLowerCase();
+    if (fullName === normalized) return { id: doc.id, ...data };
+  }
+  return null;
+};
+
 function DepartmentHeadViewReservation() {
   const navigate = useNavigate();
   const { state } = useLocation();
-
   const reservation = state?.reservation;
 
   const [showDenial, setShowDenial] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
   const toastTimeoutRef = useRef(null);
 
   const [toast, setToast] = useState({
@@ -39,14 +48,11 @@ function DepartmentHeadViewReservation() {
   });
 
   const showToast = (type, title, message) => {
-    // Clear any existing timeout
     if (toastTimeoutRef.current) {
       clearTimeout(toastTimeoutRef.current);
       toastTimeoutRef.current = null;
     }
-
     setToast({ show: true, type, title, message });
-
     if (type !== "loading") {
       toastTimeoutRef.current = setTimeout(() => {
         setToast((prev) => ({ ...prev, show: false }));
@@ -55,12 +61,9 @@ function DepartmentHeadViewReservation() {
     }
   };
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (toastTimeoutRef.current) {
-        clearTimeout(toastTimeoutRef.current);
-      }
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, []);
 
@@ -68,14 +71,12 @@ function DepartmentHeadViewReservation() {
     return (
       <div className="dh-view-reservation">
         <h2>Reservation not found.</h2>
-        <button onClick={() => navigate("/department-head/reservations")}>
-          Back
-        </button>
+        <button onClick={() => navigate("/department-head/reservations")}>Back</button>
       </div>
     );
   }
 
-  // ─── Notification helpers ──────────────────────────────────────
+  // ─── Notification helpers ──────────────────────────────────────────────
 
   const notifyReservationDecision = async (
     receiverId,
@@ -86,7 +87,10 @@ function DepartmentHeadViewReservation() {
     type,
     badge = "INFO"
   ) => {
-    if (!receiverId) return; // skip if no receiver
+    if (!receiverId) {
+      console.warn("Skipping notification: no receiverId");
+      return;
+    }
     await addDoc(collection(db, "notifications"), {
       userId: receiverId,
       ownerType,
@@ -99,9 +103,9 @@ function DepartmentHeadViewReservation() {
       badge,
       createdAt: serverTimestamp(),
     });
+    console.log(`Notification sent to ${ownerType} (${receiverId})`);
   };
 
-  // ─── Send to all clerks (case‑insensitive role match) ────────
   const notifyAllClerks = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
@@ -126,24 +130,25 @@ function DepartmentHeadViewReservation() {
     });
     if (notifications.length > 0) {
       await Promise.all(notifications);
+      console.log(`Notified ${notifications.length} clerk(s)`);
     } else {
       console.warn("No clerks found to notify.");
     }
   };
 
-  // ─── Approve ────────────────────────────────────────────────────
+  // ─── Approve ────────────────────────────────────────────────────────────
 
   const approveReservation = async () => {
     setSubmitting(true);
     showToast("loading", "Processing", "Approving reservation...");
 
     try {
-      // 1. Update reservation status
+      // 1. Update reservation
       await updateDoc(doc(db, "reservationRequests", reservation.id), {
         status: "Approved",
       });
 
-      // 2. Create event (room activity)
+      // 2. Create event
       await addDoc(collection(db, "events"), {
         roomId: reservation.roomId,
         roomName: reservation.roomName,
@@ -159,12 +164,14 @@ function DepartmentHeadViewReservation() {
 
       const firebaseUser = auth.currentUser;
       let currentUser = {};
+      let deptHeadName = "Department Head";
       if (firebaseUser) {
         const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userSnap.exists()) currentUser = userSnap.data();
+        if (userSnap.exists()) {
+          currentUser = userSnap.data();
+          deptHeadName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() || "Department Head";
+        }
       }
-
-      const deptHeadName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim();
 
       // 3. Activity log
       await logActivity({
@@ -184,11 +191,19 @@ function DepartmentHeadViewReservation() {
         },
       });
 
-      // 4. Notifications
-      // Faculty (if userId exists)
-      if (reservation.userId) {
+      // ─── 4. Notifications ───────────────────────────────────────────
+
+      // a) Faculty (try reservation.userId, else fallback to name lookup)
+      let facultyUserId = reservation.userId;
+      if (!facultyUserId && reservation.facultyName) {
+        const user = await findUserByName(reservation.facultyName);
+        if (user) facultyUserId = user.id;
+        else console.warn("Faculty user not found by name:", reservation.facultyName);
+      }
+
+      if (facultyUserId) {
         await notifyReservationDecision(
-          reservation.userId,
+          facultyUserId,
           "faculty",
           "Reservation Approved",
           `Your reservation request for ${reservation.roomName} on ${reservation.date} (${reservation.startTime} - ${reservation.endTime}) has been approved.`,
@@ -196,9 +211,11 @@ function DepartmentHeadViewReservation() {
           "reservation-approved",
           "SUCCESS"
         );
+      } else {
+        console.warn("No faculty userId found, skipping faculty notification.");
       }
 
-      // Department head (self)
+      // b) Department head (self)
       if (firebaseUser?.uid) {
         await notifyReservationDecision(
           firebaseUser.uid,
@@ -211,7 +228,7 @@ function DepartmentHeadViewReservation() {
         );
       }
 
-      // All clerks
+      // c) All clerks
       await notifyAllClerks(
         "Reservation Approved",
         `${reservation.facultyName}'s reservation for ${reservation.roomName} was approved by Department Head.`,
@@ -221,18 +238,16 @@ function DepartmentHeadViewReservation() {
       setShowConfirm(false);
       showToast("success", "Success", "Reservation approved successfully!");
 
-      setTimeout(() => {
-        navigate("/department-head/reservations");
-      }, 1500);
+      setTimeout(() => navigate("/department-head/reservations"), 1500);
     } catch (err) {
       console.error("Approve error:", err);
-      showToast("error", "Error", "Failed to approve reservation. Please try again.");
+      showToast("error", "Error", err.message || "Failed to approve reservation.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ─── Deny ──────────────────────────────────────────────────────
+  // ─── Deny ──────────────────────────────────────────────────────────────
 
   const denyReservation = async (reason) => {
     setSubmitting(true);
@@ -246,12 +261,14 @@ function DepartmentHeadViewReservation() {
 
       const firebaseUser = auth.currentUser;
       let currentUser = {};
+      let deptHeadName = "Department Head";
       if (firebaseUser) {
         const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userSnap.exists()) currentUser = userSnap.data();
+        if (userSnap.exists()) {
+          currentUser = userSnap.data();
+          deptHeadName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() || "Department Head";
+        }
       }
-
-      const deptHeadName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim();
 
       // Activity log
       await logActivity({
@@ -269,10 +286,16 @@ function DepartmentHeadViewReservation() {
         },
       });
 
-      // Faculty
-      if (reservation.userId) {
+      // Notifications (same fallback logic)
+      let facultyUserId = reservation.userId;
+      if (!facultyUserId && reservation.facultyName) {
+        const user = await findUserByName(reservation.facultyName);
+        if (user) facultyUserId = user.id;
+      }
+
+      if (facultyUserId) {
         await notifyReservationDecision(
-          reservation.userId,
+          facultyUserId,
           "faculty",
           "Reservation Rejected",
           `Your reservation request for ${reservation.roomName} was rejected.\nReason: ${reason}`,
@@ -282,7 +305,6 @@ function DepartmentHeadViewReservation() {
         );
       }
 
-      // Self
       if (firebaseUser?.uid) {
         await notifyReservationDecision(
           firebaseUser.uid,
@@ -295,7 +317,6 @@ function DepartmentHeadViewReservation() {
         );
       }
 
-      // Clerks
       await notifyAllClerks(
         "Reservation Rejected",
         `${reservation.facultyName}'s reservation for ${reservation.roomName} was rejected by Department Head.`,
@@ -305,38 +326,26 @@ function DepartmentHeadViewReservation() {
       setShowDenial(false);
       showToast("success", "Success", "Reservation denied successfully.");
 
-      setTimeout(() => {
-        navigate("/department-head/reservations");
-      }, 1500);
+      setTimeout(() => navigate("/department-head/reservations"), 1500);
     } catch (err) {
       console.error("Deny error:", err);
-      showToast("error", "Error", "Failed to deny reservation. Please try again.");
+      showToast("error", "Error", err.message || "Failed to deny reservation.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ─── Duration helper ──────────────────────────────────────────────
+  // ─── Duration helper ────────────────────────────────────────────────────
 
   const getDuration = (start, end) => {
     if (!start || !end) return "N/A";
-
     const [startHour, startMin] = start.split(":").map(Number);
     const [endHour, endMin] = end.split(":").map(Number);
-
-    const startDate = new Date();
-    startDate.setHours(startHour, startMin, 0);
-
-    const endDate = new Date();
-    endDate.setHours(endHour, endMin, 0);
-
-    const diffMs = endDate - startDate;
+    const diffMs = new Date().setHours(endHour, endMin, 0) - new Date().setHours(startHour, startMin, 0);
     if (diffMs <= 0) return "N/A";
-
     const totalMinutes = Math.floor(diffMs / 60000);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-
     if (hours && minutes) return `${hours} hr ${minutes} min`;
     if (hours) return `${hours} hr`;
     return `${minutes} min`;
@@ -349,7 +358,7 @@ function DepartmentHeadViewReservation() {
 
   const duration = getDuration(reservation.startTime, reservation.endTime);
 
-  // ─── Render ──────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <>
