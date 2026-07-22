@@ -37,7 +37,7 @@ async function uploadToCloudinary(file, folder) {
 
   if (!res.ok) throw new Error("Upload failed. Please try again.");
   const data = await res.json();
-  return data.secure_url; // returns URL for any file type (images, PDFs, etc.)
+  return data.secure_url;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -82,38 +82,29 @@ const extractUrls = (text) => {
   return matches || [];
 };
 
+// ✅ REPLACE this function with the Microlink version
 const fetchLinkPreview = async (url) => {
   try {
+    // Microlink API – free, 50 requests/day, no auth required
     const response = await fetch(
-      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
+      `https://api.microlink.io?url=${encodeURIComponent(url)}`
     );
-    if (!response.ok) throw new Error("Failed to fetch preview");
+
+    if (!response.ok) throw new Error(`Microlink API error: ${response.status}`);
+
     const data = await response.json();
-    const html = data.contents;
 
-    const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : url;
+    // Check if the API returned valid data
+    if (!data.data) throw new Error("No preview data returned");
 
-    const descMatch = html.match(
-      /<meta\s+name=["']description["']\s+content=["'](.*?)["']/i
-    );
-    const description = descMatch ? descMatch[1].trim() : "";
+    const { title, description, image } = data.data;
 
-    const imageMatch = html.match(
-      /<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i
-    );
-    const image = imageMatch ? imageMatch[1].trim() : null;
-
-    let finalImage = image;
-    if (!finalImage) {
-      try {
-        const faviconUrl = new URL("/favicon.ico", url).href;
-        const iconCheck = await fetch(faviconUrl, { method: "HEAD" });
-        if (iconCheck.ok) finalImage = faviconUrl;
-      } catch (e) { /* ignore */ }
-    }
-
-    return { title, description, image: finalImage, url };
+    return {
+      title: title || url,
+      description: description || "",
+      image: image?.url || null,
+      url: url,
+    };
   } catch (err) {
     console.warn("Link preview failed:", err);
     return null;
@@ -241,24 +232,36 @@ export default function BroadcastChannel() {
     return () => URL.revokeObjectURL(url);
   }, [selectedImage]);
 
-  // ─── Link preview ──────────────────────────────────────────────────
+  // ─── Link preview effect (unchanged) ──────────────────────────────────
 
-  useEffect(() => {
-    const fetchPreview = async () => {
-      const urls = extractUrls(message);
-      if (urls.length === 0) {
-        setLinkPreview(null);
-        return;
-      }
-      setFetchingPreview(true);
-      const preview = await fetchLinkPreview(urls[0]);
-      setLinkPreview(preview);
+useEffect(() => {
+  const fetchPreview = async () => {
+    const urls = extractUrls(message);
+    console.log("🔗 Extracted URLs:", urls);
+
+    if (urls.length === 0) {
+      setLinkPreview(null);
       setFetchingPreview(false);
-    };
+      return;
+    }
 
-    const timer = setTimeout(fetchPreview, 600);
-    return () => clearTimeout(timer);
-  }, [message]);
+    setFetchingPreview(true);
+    try {
+      const preview = await fetchLinkPreview(urls[0]);
+      console.log("📄 Preview data:", preview);
+      setLinkPreview(preview);
+    } catch (err) {
+      console.error("❌ Preview fetch error:", err);
+      setLinkPreview(null);
+      // Don't show toast for preview failures – it's non‑critical
+    } finally {
+      setFetchingPreview(false);
+    }
+  };
+
+  const timer = setTimeout(fetchPreview, 700);
+  return () => clearTimeout(timer);
+}, [message]);
 
   // ─── Click outside menu ────────────────────────────────────────────
 
@@ -286,7 +289,7 @@ export default function BroadcastChannel() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // ─── Send Message (Cloudinary) ─────────────────────────────────────
+  // ─── Send Message ─────────────────────────────────────────────────────
 
   const sendMessage = async () => {
     if (userRole !== "Department Head") {
@@ -309,17 +312,13 @@ export default function BroadcastChannel() {
       }
 
       if (selectedFile) {
-        // Upload to Cloudinary – works for all file types
         fileUrl = await uploadToCloudinary(selectedFile, "broadcast-files");
         fileName = selectedFile.name;
         fileType = selectedFile.type;
       }
 
-      const urls = extractUrls(message);
-      let previewData = null;
-      if (urls.length > 0) {
-        previewData = await fetchLinkPreview(urls[0]);
-      }
+      // ✅ FIX: Use the existing linkPreview state (already fetched in composer)
+      const previewData = linkPreview; // ← use state, don't re‑fetch
 
       const broadcastRef = await addDoc(collection(db, "broadcastChannels"), {
         content: message,
@@ -382,6 +381,7 @@ export default function BroadcastChannel() {
           message: message.trim() || (selectedImage ? "Image Attachment" : selectedFile ? fileName : "Announcement"),
           hasImage: !!imageUrl,
           hasFile: !!fileUrl,
+          hasLink: !!previewData,
         },
       });
 
@@ -419,11 +419,10 @@ export default function BroadcastChannel() {
     }
   };
 
-  // ─── Unsend (only remove from Firestore; Cloudinary files stay) ──
+  // ─── Unsend ─────────────────────────────────────────────────────────
 
   const unsendMessage = async (id) => {
     try {
-      // We don't delete from Cloudinary automatically (it's a free tier limitation)
       await deleteDoc(doc(db, "broadcastChannels", id));
       showToast("success", "Removed", "Message unsent for everyone.");
     } catch (err) {
@@ -797,6 +796,13 @@ export default function BroadcastChannel() {
           )}
 
           {/* ─── Link preview in composer ──────────────────────────── */}
+          {fetchingPreview && !selectedImage && !selectedFile && (
+            <div className="bc-composer-link-preview bc-composer-link-loading">
+              <div className="bc-spinner-small" />
+              <span>Loading preview…</span>
+            </div>
+          )}
+
           {linkPreview && !selectedImage && !selectedFile && (
             <div className="bc-composer-link-preview">
               {linkPreview.image && (
@@ -809,7 +815,10 @@ export default function BroadcastChannel() {
               </div>
               <button
                 className="bc-composer-link-remove"
-                onClick={() => setLinkPreview(null)}
+                onClick={() => {
+                  setLinkPreview(null);
+                  // Remove the URL from message? We'll keep it.
+                }}
               >
                 <i className="fa-solid fa-xmark"></i>
               </button>
@@ -864,7 +873,7 @@ export default function BroadcastChannel() {
           <div className="bc-send-area">
             <textarea
               rows={1}
-              placeholder="Write an announcement..."
+              placeholder="Write an announcement…"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               disabled={uploading}
