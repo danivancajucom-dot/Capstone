@@ -1,7 +1,4 @@
 import "./faculty-reservations.css";
-import FacultyPendingReservationCard from "../../Components/FacultyPendingReservationCard/FacultyPendingReservationCard";
-import FacultyApprovedReservationCard from "../../Components/FacultyApprovedReservationCard/FacultyApprovedReservationCard";
-import FacultyDeniedReservationCard from "../../Components/FacultyDeniedReservationCard/FacultyDeniedReservationCard";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import {
@@ -14,7 +11,7 @@ import {
 import { auth, db } from "../../firebase";
 
 function FacultyReservations() {
-  const [activeNav, setActiveNav] = useState("all");
+  const [activeTab, setActiveTab] = useState("all");
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +25,7 @@ function FacultyReservations() {
     const q = query(
       collection(db, "reservationRequests"),
       where("userId", "==", auth.currentUser.uid),
+      orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(
@@ -37,7 +35,6 @@ function FacultyReservations() {
           id: doc.id,
           ...doc.data(),
         }));
-
         setReservations(list);
         setLoading(false);
       },
@@ -50,90 +47,109 @@ function FacultyReservations() {
     return unsubscribe;
   }, []);
 
-const filteredReservations = reservations.filter((reservation) => {
-  if (activeNav === "all") return true;
+  // ── Filter ──────────────────────────────────────────────────────────
+  const filteredReservations = reservations.filter((res) => {
+    if (activeTab === "all") return true;
+    if (activeTab === "pending") return res.status === "Pending";
+    if (activeTab === "approved") return res.status === "Approved";
+    if (activeTab === "denied") return res.status === "Rejected";
+    return true;
+  });
 
-  if (activeNav === "pending")
-    return reservation.status === "Pending";
+  // ── Render helpers ─────────────────────────────────────────────────
+  const getStatusBadge = (status) => {
+    const map = {
+      Pending: { label: "Pending", className: "pending" },
+      Approved: { label: "Approved", className: "approved" },
+      Rejected: { label: "Denied", className: "denied" },
+    };
+    return map[status] || { label: status, className: "" };
+  };
 
-  if (activeNav === "approved")
-    return reservation.status === "Approved";
+  const getStatusIcon = (status) => {
+    if (status === "Pending") return "fa-regular fa-clock";
+    if (status === "Approved") return "fa-regular fa-circle-check";
+    if (status === "Rejected") return "fa-regular fa-circle-xmark";
+    return "fa-regular fa-circle";
+  };
 
-  if (activeNav === "denied")
-    return reservation.status === "Rejected";
+  const getStatusColor = (status) => {
+    if (status === "Pending") return "#f59e0b";
+    if (status === "Approved") return "#22c55e";
+    if (status === "Rejected") return "#ef4444";
+    return "#64748b";
+  };
 
-  return true;
-});
+  const getViewRoute = (status) => {
+    if (status === "Pending") return "/faculty/view-pending-reservation";
+    if (status === "Approved") return "/faculty/view-approved-reservation";
+    if (status === "Rejected") return "/faculty/view-denied-reservation";
+    return "/faculty/view-reservation";
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────
 
   return (
-    <>
-    <div className="container">
+    <div className="faculty-reservations-page">
+      <div className="faculty-reservations-header">
+        <h1>My Reservations</h1>
+        <p className="faculty-reservations-subtitle">
+          View and track all your room reservation requests.
+        </p>
+      </div>
 
       <div className="faculty-reservations-box">
+        {/* ── Tabs ──────────────────────────────────────────────── */}
         <div className="faculty-reservations-nav">
-          <div
-            className={`faculty-nav-item ${activeNav === "all" ? "active" : ""}`}
-            onClick={() => setActiveNav("all")}
-          >All</div>
-          <div
-            className={`faculty-nav-item ${activeNav === "pending" ? "active" : ""}`}
-            onClick={() => setActiveNav("pending")}
-          >Pending</div>
-          <div
-            className={`faculty-nav-item ${activeNav === "approved" ? "active" : ""}`}
-            onClick={() => setActiveNav("approved")}
-          >Approved</div>
-          <div
-            className={`faculty-nav-item ${activeNav === "denied" ? "active" : ""}`}
-            onClick={() => setActiveNav("denied")}
-          >Denied</div>
+          {["all", "pending", "approved", "denied"].map((tab) => (
+            <div
+              key={tab}
+              className={`faculty-nav-item ${activeTab === tab ? "active" : ""}`}
+              onClick={() => setActiveTab(tab)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setActiveTab(tab);
+              }}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </div>
+          ))}
         </div>
+
+        <hr className="faculty-reservations-divider" />
+
+        {/* ── Content ────────────────────────────────────────────── */}
         {loading ? (
-
           <div className="faculty-empty-state">
-
             <div className="faculty-empty-icon loading">
               <i className="fa-solid fa-spinner fa-spin"></i>
             </div>
-
             <h2>Loading Reservations</h2>
-
-            <p>
-              Please wait while we retrieve your reservation requests.
-            </p>
-
+            <p>Please wait while we retrieve your reservation requests.</p>
           </div>
-
         ) : filteredReservations.length === 0 ? (
-
           <div className="faculty-empty-state">
-
             <div className="faculty-empty-icon">
               <i className="fa-regular fa-calendar-xmark"></i>
             </div>
-
             <h2>
-              {activeNav === "all" && "No Reservations Yet"}
-              {activeNav === "pending" && "No Pending Reservations"}
-              {activeNav === "approved" && "No Approved Reservations"}
-              {activeNav === "denied" && "No Denied Reservations"}
+              {activeTab === "all" && "No Reservations Yet"}
+              {activeTab === "pending" && "No Pending Reservations"}
+              {activeTab === "approved" && "No Approved Reservations"}
+              {activeTab === "denied" && "No Denied Reservations"}
             </h2>
-
             <p>
-              {activeNav === "all" &&
+              {activeTab === "all" &&
                 "You haven't submitted any reservation requests yet. Click the button below to reserve a room."}
-
-              {activeNav === "pending" &&
+              {activeTab === "pending" &&
                 "There are currently no reservation requests waiting for approval."}
-
-              {activeNav === "approved" &&
+              {activeTab === "approved" &&
                 "You don't have any approved reservations yet."}
-
-              {activeNav === "denied" &&
+              {activeTab === "denied" &&
                 "You don't have any denied reservation requests."}
             </p>
-
-            {activeNav === "all" && (
+            {activeTab === "all" && (
               <button
                 className="faculty-empty-btn"
                 onClick={() => navigate("/faculty/submit-reservation")}
@@ -142,53 +158,100 @@ const filteredReservations = reservations.filter((reservation) => {
                 Create Reservation
               </button>
             )}
-
           </div>
-
         ) : (
+          <div className="faculty-reservations-list">
+            {filteredReservations.map((reservation) => {
+              const statusInfo = getStatusBadge(reservation.status);
+              const statusIcon = getStatusIcon(reservation.status);
+              const statusColor = getStatusColor(reservation.status);
+              const viewRoute = getViewRoute(reservation.status);
 
-          filteredReservations.map((reservation) => {
-            switch (reservation.status) {
-              case "Pending":
-                return (
-                  <FacultyPendingReservationCard
-                    key={reservation.id}
-                    reservation={reservation}
-                  />
-                );
+              return (
+                <div
+                  key={reservation.id}
+                  className={`faculty-reservation-card ${statusInfo.className}`}
+                  onClick={() =>
+                    navigate(viewRoute, { state: { reservation } })
+                  }
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      navigate(viewRoute, { state: { reservation } });
+                    }
+                  }}
+                >
+                  {/* ── Card Header ───────────────────────────── */}
+                  <div className="faculty-res-card-header">
+                    <div className="faculty-res-card-user">
+                      <div className="faculty-res-avatar">
+                        {reservation.facultyName?.charAt(0) || "?"}
+                      </div>
+                      <div>
+                        <span className="faculty-res-name">
+                          {reservation.facultyName || "Unknown Faculty"}
+                        </span>
+                        <span className="faculty-res-room">
+                          {reservation.roomName}
+                        </span>
+                      </div>
+                    </div>
+                    <div
+                      className="faculty-res-status-badge"
+                      style={{ backgroundColor: statusColor }}
+                    >
+                      <i className={statusIcon}></i>
+                      {statusInfo.label}
+                    </div>
+                  </div>
 
-              case "Approved":
-                return (
-                  <FacultyApprovedReservationCard
-                    key={reservation.id}
-                    reservation={reservation}
-                  />
-                );
+                  {/* ── Card Details ───────────────────────────── */}
+                  <div className="faculty-res-card-body">
+                    <div className="faculty-res-detail-row">
+                      <i className="fa-regular fa-calendar"></i>
+                      <span>{reservation.date}</span>
+                    </div>
+                    <div className="faculty-res-detail-row">
+                      <i className="fa-regular fa-clock"></i>
+                      <span>
+                        {reservation.startTime} – {reservation.endTime}
+                      </span>
+                    </div>
+                    <div className="faculty-res-detail-row">
+                      <i className="fa-solid fa-book"></i>
+                      <span>{reservation.courseTitle || "N/A"}</span>
+                    </div>
+                    {reservation.purpose && (
+                      <div className="faculty-res-detail-row">
+                        <i className="fa-solid fa-tag"></i>
+                        <span>{reservation.purpose}</span>
+                      </div>
+                    )}
+                  </div>
 
-              case "Rejected":
-                return (
-                  <FacultyDeniedReservationCard
-                    key={reservation.id}
-                    reservation={reservation}
-                  />
-                );
-
-              default:
-                return null;
-            }
-          })
-
+                  {/* ── Card Footer ────────────────────────────── */}
+                  <div className="faculty-res-card-footer">
+                    <span className="faculty-res-view-indicator">
+                      View Details
+                      <i className="fa-solid fa-chevron-right"></i>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
-
       </div>
 
-
-      <button className="faculty-add-btn" onClick={() => navigate("/faculty/submit-reservation")}>
-  <i className="fa-solid fa-plus"></i>
-</button>
+      {/* ── Floating Add Button ───────────────────────────────── */}
+      <button
+        className="faculty-add-btn"
+        onClick={() => navigate("/faculty/submit-reservation")}
+      >
+        <i className="fa-solid fa-plus"></i>
+      </button>
     </div>
-    </>
-
   );
 }
 

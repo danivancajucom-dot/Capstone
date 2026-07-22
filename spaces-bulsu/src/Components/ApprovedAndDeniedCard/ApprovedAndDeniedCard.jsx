@@ -10,13 +10,13 @@ function formatReviewedDate(timestamp) {
   });
 }
 
-function ApprovedAndDeniedCard({ reservation, onClick }) {
+function ApprovedAndDeniedCard({ reservation, onClick, compact = false }) {
   const isApproved = reservation.status === "Approved";
   const reviewedDate = formatReviewedDate(reservation.createdAt);
 
   return (
     <div
-      className={`rsv-ticket ${isApproved ? "is-approved" : "is-denied"}`}
+      className={`rc-card ${isApproved ? "is-approved" : "is-denied"} ${compact ? "rc-card--compact" : ""}`}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -24,42 +24,39 @@ function ApprovedAndDeniedCard({ reservation, onClick }) {
         if (e.key === "Enter" || e.key === " ") onClick?.();
       }}
     >
-      <div className="rsv-ticket-main">
-        <span className="rsv-room-badge">{reservation.roomName}</span>
+      <div className="rc-status-icon">
+        <i className={`fa-solid ${isApproved ? "fa-check" : "fa-xmark"}`}></i>
+      </div>
 
-        <h3 className="rsv-faculty-name">{reservation.facultyName}</h3>
+      <div className="rc-main">
+        <div className="rc-top-row">
+          <span className="rc-room-badge">{reservation.roomName}</span>
+          <span className="rc-status-pill">{isApproved ? "Approved" : "Denied"}</span>
+        </div>
 
-        <div className="rsv-meta-row">
-          <span className="rsv-meta-item">
+        <h3 className="rc-faculty-name">{reservation.facultyName}</h3>
+
+        <div className="rc-meta-row">
+          <span className="rc-meta-item">
             <i className="fa-regular fa-clock"></i>
             {reservation.startTime} – {reservation.endTime}
           </span>
-          <span className="rsv-meta-dot">•</span>
-          <span className="rsv-meta-item">
+          <span className="rc-meta-dot">•</span>
+          <span className="rc-meta-item">
             <i className="fa-regular fa-calendar"></i>
             {reservation.date}
           </span>
         </div>
 
-        <div className="rsv-course-row">
+        <div className="rc-course-row">
           <i className="fa-solid fa-users"></i>
-          <span className="rsv-course-title">{reservation.courseTitle}</span>
+          <span className="rc-course-title">{reservation.courseTitle}</span>
         </div>
       </div>
 
-      <div className="rsv-ticket-perforation">
-        <span className="rsv-notch rsv-notch-top" />
-        <span className="rsv-perforation-line" />
-        <span className="rsv-notch rsv-notch-bottom" />
-      </div>
-
-      <div className="rsv-ticket-stub">
-        <div className="rsv-stub-icon">
-          <i className={`fa-solid ${isApproved ? "fa-check" : "fa-xmark"}`}></i>
-        </div>
-        <span className="rsv-stub-label">{isApproved ? "Approved" : "Denied"}</span>
-        {reviewedDate && <span className="rsv-stub-date">{reviewedDate}</span>}
-        <i className="fa-solid fa-chevron-right rsv-stub-chevron"></i>
+      <div className="rc-side">
+        {reviewedDate && <span className="rc-reviewed-date">Reviewed {reviewedDate}</span>}
+        <i className="fa-solid fa-chevron-right rc-chevron"></i>
       </div>
     </div>
   );

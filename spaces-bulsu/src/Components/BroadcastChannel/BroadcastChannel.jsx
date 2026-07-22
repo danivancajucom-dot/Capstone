@@ -11,6 +11,7 @@ import {
   updateDoc,
   deleteDoc,
   arrayUnion,
+  arrayRemove,
   getDoc,
   getDocs,
 } from "firebase/firestore";
@@ -18,9 +19,11 @@ import { db, auth } from "../../firebase";
 import { logActivity } from "../../utils/logActivity";
 import Toast from "../../Popup/Toast/Toast";
 
+// ─── Cloudinary constants ─────────────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "dzu1qb8oz";
 const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
 
+// ─── Upload to Cloudinary (supports any file type) ────────────────────
 async function uploadToCloudinary(file, folder) {
   const formData = new FormData();
   formData.append("file", file);
@@ -34,8 +37,10 @@ async function uploadToCloudinary(file, folder) {
 
   if (!res.ok) throw new Error("Upload failed. Please try again.");
   const data = await res.json();
-  return data.secure_url;
+  return data.secure_url; // returns URL for any file type (images, PDFs, etc.)
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────
 
 const getInitials = (name = "") => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -43,6 +48,79 @@ const getInitials = (name = "") => {
   if (parts.length === 1) return parts[0][0].toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
+
+const getFileIcon = (fileName = "") => {
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  if (["pdf"].includes(ext)) return "fa-solid fa-file-pdf";
+  if (["doc", "docx"].includes(ext)) return "fa-solid fa-file-word";
+  if (["xls", "xlsx"].includes(ext)) return "fa-solid fa-file-excel";
+  if (["ppt", "pptx"].includes(ext)) return "fa-solid fa-file-powerpoint";
+  if (["zip", "rar", "7z"].includes(ext)) return "fa-solid fa-file-zipper";
+  if (["txt"].includes(ext)) return "fa-solid fa-file-lines";
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext))
+    return "fa-solid fa-file-image";
+  return "fa-solid fa-file";
+};
+
+const getFileColor = (fileName = "") => {
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  if (["pdf"].includes(ext)) return "#dc2626";
+  if (["doc", "docx"].includes(ext)) return "#2563eb";
+  if (["xls", "xlsx"].includes(ext)) return "#16a34a";
+  if ("ppt" === ext || "pptx" === ext) return "#ea580c";
+  if (["zip", "rar", "7z"].includes(ext)) return "#8b5cf6";
+  if (["txt"].includes(ext)) return "#6b7280";
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "#ec4899";
+  return "#64748b";
+};
+
+// ─── Link Preview ─────────────────────────────────────────────────────
+
+const extractUrls = (text) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const matches = text.match(urlRegex);
+  return matches || [];
+};
+
+const fetchLinkPreview = async (url) => {
+  try {
+    const response = await fetch(
+      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
+    );
+    if (!response.ok) throw new Error("Failed to fetch preview");
+    const data = await response.json();
+    const html = data.contents;
+
+    const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : url;
+
+    const descMatch = html.match(
+      /<meta\s+name=["']description["']\s+content=["'](.*?)["']/i
+    );
+    const description = descMatch ? descMatch[1].trim() : "";
+
+    const imageMatch = html.match(
+      /<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i
+    );
+    const image = imageMatch ? imageMatch[1].trim() : null;
+
+    let finalImage = image;
+    if (!finalImage) {
+      try {
+        const faviconUrl = new URL("/favicon.ico", url).href;
+        const iconCheck = await fetch(faviconUrl, { method: "HEAD" });
+        if (iconCheck.ok) finalImage = faviconUrl;
+      } catch (e) { /* ignore */ }
+    }
+
+    return { title, description, image: finalImage, url };
+  } catch (err) {
+    console.warn("Link preview failed:", err);
+    return null;
+  }
+};
+
+// ─── Main Component ──────────────────────────────────────────────────
 
 export default function BroadcastChannel() {
   const [messages, setMessages] = useState([]);
@@ -59,6 +137,8 @@ export default function BroadcastChannel() {
   const [lightboxImage, setLightboxImage] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmingId, setConfirmingId] = useState(null);
+  const [linkPreview, setLinkPreview] = useState(null);
+  const [fetchingPreview, setFetchingPreview] = useState(false);
 
   const imageRef = useRef(null);
   const fileRef = useRef(null);
@@ -74,7 +154,6 @@ export default function BroadcastChannel() {
 
   const showToast = (type, title, msg) => {
     setToast({ show: true, type, title, message: msg });
-
     if (type !== "loading") {
       setTimeout(() => {
         setToast((prev) => ({ ...prev, show: false }));
@@ -82,28 +161,27 @@ export default function BroadcastChannel() {
     }
   };
 
+  // ─── Auth & User Data ─────────────────────────────────────────────
+
   useEffect(() => {
     const fetchUserData = async () => {
       if (!auth.currentUser) return;
-
       try {
         const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
-
         if (snap.exists()) {
           const data = snap.data();
-
           setUserRole(data.role || "");
-          setSenderName(`${data.firstName || ""} ${data.lastName || ""}`.trim());
+          setSenderName(
+            `${data.firstName || ""} ${data.lastName || ""}`.trim()
+          );
         }
       } catch (err) {
         console.error(err);
       }
     };
-
     fetchUserData();
   }, []);
 
-  // Build a uid -> display name map, used for reaction tooltips
   useEffect(() => {
     const fetchAllUsers = async () => {
       try {
@@ -118,9 +196,10 @@ export default function BroadcastChannel() {
         console.error(err);
       }
     };
-
     fetchAllUsers();
   }, []);
+
+  // ─── Messages Listener ─────────────────────────────────────────────
 
   useEffect(() => {
     setLoading(true);
@@ -136,24 +215,22 @@ export default function BroadcastChannel() {
 
       const filteredMessages = allMessages.filter((msg) => {
         if (msg.recipient === "All Staffs") return true;
-
         if (msg.senderId === auth.currentUser?.uid) return true;
-
         return msg.recipient === userRole;
       });
       setMessages(filteredMessages);
+      setLoading(false);
     });
-    setLoading(false);
 
     return () => unsub();
   }, [userRole]);
 
-  // Keep the feed pinned to the latest announcement
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
 
-  // Local preview for the selected image, cleaned up on change/unmount
+  // ─── Image preview ─────────────────────────────────────────────────
+
   useEffect(() => {
     if (!selectedImage) {
       setImagePreviewUrl(null);
@@ -164,7 +241,27 @@ export default function BroadcastChannel() {
     return () => URL.revokeObjectURL(url);
   }, [selectedImage]);
 
-  // Close the message options menu on outside click
+  // ─── Link preview ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    const fetchPreview = async () => {
+      const urls = extractUrls(message);
+      if (urls.length === 0) {
+        setLinkPreview(null);
+        return;
+      }
+      setFetchingPreview(true);
+      const preview = await fetchLinkPreview(urls[0]);
+      setLinkPreview(preview);
+      setFetchingPreview(false);
+    };
+
+    const timer = setTimeout(fetchPreview, 600);
+    return () => clearTimeout(timer);
+  }, [message]);
+
+  // ─── Click outside menu ────────────────────────────────────────────
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (!openMenuId) return;
@@ -174,12 +271,10 @@ export default function BroadcastChannel() {
         setConfirmingId(null);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuId]);
 
-  // Close the lightbox / menu with Escape
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key !== "Escape") return;
@@ -187,10 +282,11 @@ export default function BroadcastChannel() {
       setOpenMenuId(null);
       setConfirmingId(null);
     };
-
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // ─── Send Message (Cloudinary) ─────────────────────────────────────
 
   const sendMessage = async () => {
     if (userRole !== "Department Head") {
@@ -206,14 +302,23 @@ export default function BroadcastChannel() {
       let imageUrl = "";
       let fileUrl = "";
       let fileName = "";
+      let fileType = "";
 
       if (selectedImage) {
         imageUrl = await uploadToCloudinary(selectedImage, "broadcast-images");
       }
 
       if (selectedFile) {
+        // Upload to Cloudinary – works for all file types
         fileUrl = await uploadToCloudinary(selectedFile, "broadcast-files");
         fileName = selectedFile.name;
+        fileType = selectedFile.type;
+      }
+
+      const urls = extractUrls(message);
+      let previewData = null;
+      if (urls.length > 0) {
+        previewData = await fetchLinkPreview(urls[0]);
       }
 
       const broadcastRef = await addDoc(collection(db, "broadcastChannels"), {
@@ -221,24 +326,23 @@ export default function BroadcastChannel() {
         imageUrl,
         fileUrl,
         fileName,
+        fileType,
         senderId: auth.currentUser.uid,
         senderName,
         senderRole: userRole,
         recipient,
         createdAt: serverTimestamp(),
-        reactions: {
-          like: [],
-          love: [],
-        },
+        reactions: { like: [], love: [] },
+        linkPreview: previewData || null,
       });
 
-      const usersSnap = await getDocs(collection(db, "users"));
+      // ─── Notifications ──────────────────────────────────────────
 
+      const usersSnap = await getDocs(collection(db, "users"));
       const notifications = [];
 
       usersSnap.forEach((userDoc) => {
         const user = userDoc.data();
-
         const shouldNotify =
           recipient === "All Staffs"
             ? true
@@ -248,26 +352,16 @@ export default function BroadcastChannel() {
           notifications.push(
             addDoc(collection(db, "notifications"), {
               userId: userDoc.id,
-
               ownerType: user.role.toLowerCase(),
-
               broadcastId: broadcastRef.id,
-
               title: "New Announcement",
-
               message: `${senderName} posted a new announcement.`,
-
               imageUrl,
-
               type: "broadcast",
-
               unread: true,
               archived: false,
-
               badge: "NEW",
-
               sender: senderName,
-
               createdAt: serverTimestamp(),
             })
           );
@@ -294,6 +388,7 @@ export default function BroadcastChannel() {
       setMessage("");
       setSelectedImage(null);
       setSelectedFile(null);
+      setLinkPreview(null);
       showToast("success", "Sent", "Announcement published successfully!");
     } catch (err) {
       console.error(err);
@@ -303,20 +398,32 @@ export default function BroadcastChannel() {
     }
   };
 
-  const reactToMessage = async (id, type) => {
+  // ─── Togglable Reactions ───────────────────────────────────────────
+
+  const toggleReaction = async (id, type) => {
     try {
       const messageRef = doc(db, "broadcastChannels", id);
+      const msg = messages.find((m) => m.id === id);
+      if (!msg) return;
+
+      const uids = msg.reactions?.[type] || [];
+      const hasReacted = uids.includes(auth.currentUser?.uid);
 
       await updateDoc(messageRef, {
-        [`reactions.${type}`]: arrayUnion(auth.currentUser.uid),
+        [`reactions.${type}`]: hasReacted
+          ? arrayRemove(auth.currentUser.uid)
+          : arrayUnion(auth.currentUser.uid),
       });
     } catch (err) {
       console.error(err);
     }
   };
 
+  // ─── Unsend (only remove from Firestore; Cloudinary files stay) ──
+
   const unsendMessage = async (id) => {
     try {
+      // We don't delete from Cloudinary automatically (it's a free tier limitation)
       await deleteDoc(doc(db, "broadcastChannels", id));
       showToast("success", "Removed", "Message unsent for everyone.");
     } catch (err) {
@@ -328,6 +435,8 @@ export default function BroadcastChannel() {
     }
   };
 
+  // ─── Helpers ─────────────────────────────────────────────────────────
+
   const getReactorNames = (uids = []) => {
     if (uids.length === 0) return "";
     return uids
@@ -337,9 +446,7 @@ export default function BroadcastChannel() {
 
   const formatDateDivider = (timestamp) => {
     if (!timestamp) return "";
-
     const date = timestamp.toDate();
-
     return date.toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
@@ -349,9 +456,7 @@ export default function BroadcastChannel() {
 
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return "";
-
     const date = timestamp.toDate();
-
     return date.toLocaleString("en-US", {
       month: "long",
       day: "numeric",
@@ -363,20 +468,17 @@ export default function BroadcastChannel() {
 
   const shouldShowDivider = (currentMsg, previousMsg) => {
     if (!currentMsg?.createdAt) return false;
-
     if (!previousMsg?.createdAt) return true;
-
     const current = currentMsg.createdAt.toDate();
     const previous = previousMsg.createdAt.toDate();
-
     const sameDay = current.toDateString() === previous.toDateString();
-
     const diffMinutes = (current - previous) / 1000 / 60;
-
     return !sameDay || diffMinutes >= 20;
   };
 
   const canSend = !uploading && (message.trim() || selectedImage || selectedFile);
+
+  // ─── Render ──────────────────────────────────────────────────────────
 
   return (
     <div className="bc-container">
@@ -386,7 +488,6 @@ export default function BroadcastChannel() {
           <div className="bc-channel-icon">
             <i className="fa-solid fa-bullhorn"></i>
           </div>
-
           <div>
             <h2>Broadcast Channel</h2>
             <span>
@@ -394,7 +495,6 @@ export default function BroadcastChannel() {
             </span>
           </div>
         </div>
-
         <div className="bc-message-counter">
           <i className="fa-regular fa-message"></i>
           {messages.length} announcement{messages.length === 1 ? "" : "s"}
@@ -428,7 +528,6 @@ export default function BroadcastChannel() {
 
             return (
               <div key={msg.id}>
-                {/* DATE DIVIDER */}
                 {shouldShowDivider(msg, previousMsg) && (
                   <div className="bc-divider">
                     <span>{formatDateDivider(msg.createdAt)}</span>
@@ -512,6 +611,7 @@ export default function BroadcastChannel() {
                       className={`bc-bubble ${isMine ? "bc-bubble-right" : "bc-bubble-left"}`}
                       title={formatTimestamp(msg.createdAt)}
                     >
+                      {/* ─── IMAGE ──────────────────────────────────── */}
                       {msg.imageUrl && (
                         <img
                           src={msg.imageUrl}
@@ -521,20 +621,72 @@ export default function BroadcastChannel() {
                         />
                       )}
 
-                      {msg.fileUrl && (
+                      {/* ─── FILE ───────────────────────────────────── */}
+                      {msg.fileUrl && !msg.imageUrl && (
+                        <div className="bc-file-attachment">
+                          <div
+                            className="bc-file-icon-wrapper"
+                            style={{ color: getFileColor(msg.fileName) }}
+                          >
+                            <i className={getFileIcon(msg.fileName)}></i>
+                          </div>
+                          <div className="bc-file-info">
+                            <span className="bc-file-name">{msg.fileName}</span>
+                            <div className="bc-file-actions">
+                              <a
+                                href={msg.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bc-file-action-btn view"
+                              >
+                                <i className="fa-solid fa-eye"></i> View
+                              </a>
+                              <a
+                                href={msg.fileUrl}
+                                download={msg.fileName}
+                                className="bc-file-action-btn download"
+                              >
+                                <i className="fa-solid fa-download"></i> Download
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ─── LINK PREVIEW ───────────────────────────── */}
+                      {msg.linkPreview && (
                         <a
-                          href={msg.fileUrl}
+                          href={msg.linkPreview.url}
                           target="_blank"
-                          rel="noreferrer"
-                          className="bc-file-link"
+                          rel="noopener noreferrer"
+                          className="bc-link-preview"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <i className="fa-solid fa-paperclip"></i>
-                          {msg.fileName}
+                          {msg.linkPreview.image && (
+                            <img
+                              src={msg.linkPreview.image}
+                              alt=""
+                              className="bc-link-image"
+                            />
+                          )}
+                          <div className="bc-link-content">
+                            <strong className="bc-link-title">
+                              {msg.linkPreview.title}
+                            </strong>
+                            {msg.linkPreview.description && (
+                              <span className="bc-link-description">
+                                {msg.linkPreview.description}
+                              </span>
+                            )}
+                            <span className="bc-link-url">{msg.linkPreview.url}</span>
+                          </div>
                         </a>
                       )}
 
+                      {/* ─── TEXT ───────────────────────────────────── */}
                       {msg.content && <div className="bc-bubble-text">{msg.content}</div>}
 
+                      {/* ─── TIMESTAMP ───────────────────────────────── */}
                       {msg.createdAt && (
                         <div className="bc-message-time">
                           {msg.createdAt.toDate().toLocaleTimeString([], {
@@ -545,32 +697,58 @@ export default function BroadcastChannel() {
                       )}
                     </div>
 
+                    {/* ─── REACTIONS ────────────────────────────────── */}
                     <div className="bc-reactions">
-                      <div className="bc-reaction-wrap">
-                        <button
-                          className={`bc-reaction-btn ${iLiked ? "is-active" : ""}`}
-                          onClick={() => reactToMessage(msg.id, "like")}
-                        >
-                          👍
-                          <span>{likeUids.length}</span>
-                        </button>
-                        {likeUids.length > 0 && (
-                          <div className="bc-reaction-tooltip">{getReactorNames(likeUids)}</div>
-                        )}
-                      </div>
-
-                      <div className="bc-reaction-wrap">
-                        <button
-                          className={`bc-reaction-btn ${iLoved ? "is-active" : ""}`}
-                          onClick={() => reactToMessage(msg.id, "love")}
-                        >
-                          ❤️
-                          <span>{loveUids.length}</span>
-                        </button>
-                        {loveUids.length > 0 && (
-                          <div className="bc-reaction-tooltip">{getReactorNames(loveUids)}</div>
-                        )}
-                      </div>
+                      {likeUids.length > 0 || loveUids.length > 0 ? (
+                        <>
+                          {likeUids.length > 0 && (
+                            <div className="bc-reaction-wrap">
+                              <button
+                                className={`bc-reaction-btn ${iLiked ? "is-active" : ""}`}
+                                onClick={() => toggleReaction(msg.id, "like")}
+                              >
+                                👍 {likeUids.length}
+                              </button>
+                              {likeUids.length > 0 && (
+                                <div className="bc-reaction-tooltip">
+                                  {getReactorNames(likeUids)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {loveUids.length > 0 && (
+                            <div className="bc-reaction-wrap">
+                              <button
+                                className={`bc-reaction-btn ${iLoved ? "is-active" : ""}`}
+                                onClick={() => toggleReaction(msg.id, "love")}
+                              >
+                                ❤️ {loveUids.length}
+                              </button>
+                              {loveUids.length > 0 && (
+                                <div className="bc-reaction-tooltip">
+                                  {getReactorNames(loveUids)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // Show empty reactions so users can still react
+                        <>
+                          <button
+                            className="bc-reaction-btn"
+                            onClick={() => toggleReaction(msg.id, "like")}
+                          >
+                            👍 0
+                          </button>
+                          <button
+                            className="bc-reaction-btn"
+                            onClick={() => toggleReaction(msg.id, "love")}
+                          >
+                            ❤️ 0
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -615,6 +793,26 @@ export default function BroadcastChannel() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ─── Link preview in composer ──────────────────────────── */}
+          {linkPreview && !selectedImage && !selectedFile && (
+            <div className="bc-composer-link-preview">
+              {linkPreview.image && (
+                <img src={linkPreview.image} alt="" className="bc-composer-link-image" />
+              )}
+              <div className="bc-composer-link-content">
+                <strong>{linkPreview.title}</strong>
+                {linkPreview.description && <span>{linkPreview.description}</span>}
+                <span className="bc-composer-link-url">{linkPreview.url}</span>
+              </div>
+              <button
+                className="bc-composer-link-remove"
+                onClick={() => setLinkPreview(null)}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
             </div>
           )}
 

@@ -65,7 +65,7 @@ import FacultyRoom from "./Faculty/FacultyRoom/FacultyRoom";
 import FacultySchedule from "./Faculty/FacultySchedule/FacultySchedule";
 import FacultyViewRoom from "./Faculty/FacultyRoom/FacultyViewRoom";
 import FacultyRoomReassignment from "./Faculty/FacultyLayout/FacultyRoomReassignment";
-
+import FacultyViewDenied from "./Faculty/FacultyReservations/FacultyViewDeniedReservation";
 
 //Login
 import Login from "./Login/Login";
@@ -156,9 +156,10 @@ function App() {
           <Route path="room-reassignment/:assignmentId" element={<FacultyRoomReassignment />} />
           <Route path="profile" element={<FacultyProfile />}/>
           <Route path="submit-reservation" element={<FacultySubmitReservation />} />
-          <Route path="view-approved-reservations" element={<FacultyViewApprovedReservation />} />
+          <Route path="view-approved-reservation" element={<FacultyViewApprovedReservation />} />
           <Route path="view-pending-reservation" element={<FacultyViewPendingReservation />}/>
           <Route path="edit-pending-reservation" element={<FacultyEditPendingReservations />}/>
+          <Route path="view-denied-reservation" element={<FacultyViewDenied/>}/>
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
         </Route>
 
