@@ -111,13 +111,18 @@
   flex: 1;
 }
 
-/* Approved/Denied tabs use compact ticket-stub cards, so they get a
-   responsive 2-3 column grid instead of a single stacked column. */
 .dept-reservations-content--grid {
   display: grid;
   grid-template-columns: 1fr;
-  align-items: start;
   gap: 16px;
+  align-items: start;
+}
+
+/* ── Ensure grid cards fill their columns ──────────────────────────── */
+.dept-reservations-content--grid .rc-card--compact {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 @media (min-width: 720px) {

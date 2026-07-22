@@ -137,14 +137,11 @@ function DepartmentHeadReservations() {
 
     if (activeTab === "Pending") {
       return visibleReservations.map((reservation) => (
-        <ReservationCard
-          key={reservation.id}
-          reservation={reservation}
-        />
+        <ReservationCard key={reservation.id} reservation={reservation} />
       ));
     }
 
-    // Approved / Denied
+    // Approved / Denied — pass `compact` to remove margins inside grid
     const viewPath =
       activeTab === "Approved"
         ? "/department-head/view-reservation-approved"
@@ -154,9 +151,8 @@ function DepartmentHeadReservations() {
       <ApprovedAndDeniedCard
         key={reservation.id}
         reservation={reservation}
-        onClick={() =>
-          navigate(viewPath, { state: { reservation } })
-        }
+        compact={true} // ✅ removes margins inside grid
+        onClick={() => navigate(viewPath, { state: { reservation } })}
       />
     ));
   };
@@ -210,7 +206,7 @@ function DepartmentHeadReservations() {
               className="dept-load-more-btn-reservations"
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
-              Load More
+              Load More ({filteredReservations.length - visibleCount} remaining)
             </button>
           </div>
         )}

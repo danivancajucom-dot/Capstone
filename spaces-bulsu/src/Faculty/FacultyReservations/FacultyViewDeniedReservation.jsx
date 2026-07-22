@@ -1,7 +1,7 @@
-import "./faculty-view-pending-reservation.css";
+import "./faculty-view-denied-reservation.css";
 import { useNavigate, useLocation } from "react-router-dom";
 
-function FacultyViewPendingReservation() {
+function FacultyViewDeniedReservation() {
   const navigate = useNavigate();
   const location = useLocation();
   const reservation = location.state?.reservation;
@@ -9,7 +9,7 @@ function FacultyViewPendingReservation() {
   // ─── Redirect if no reservation ──────────────────────────────────
   if (!reservation) {
     return (
-      <div className="faculty-pending-reservation-room">
+      <div className="faculty-denied-reservation-room">
         <h2>Reservation not found.</h2>
         <button onClick={() => navigate("/faculty/reservations")}>Back</button>
       </div>
@@ -57,23 +57,32 @@ function FacultyViewPendingReservation() {
   // ─── Render ──────────────────────────────────────────────────────
 
   return (
-    <div className="faculty-pending-reservation-room">
+    <div className="faculty-denied-reservation-room">
       <i
-        className="fa-solid fa-arrow-left faculty-pending-back-arrow"
+        className="fa-solid fa-arrow-left faculty-denied-back-arrow"
         onClick={() => navigate(-1)}
         style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
       ></i>
 
-      <div className="faculty-white-box-pending">
-        <h2 className="faculty-pending-title">Pending Reservation Details</h2>
+      <div className="faculty-white-box-denied">
+        <h2 className="faculty-denied-title">Denied Reservation Details</h2>
 
-        <div className="faculty-pending-info-grid">
+        {/* ─── Denial Reason (highlighted) ───────────────────────── */}
+        <div className="faculty-denied-reason-box">
+          <i className="fa-solid fa-circle-exclamation faculty-denied-reason-icon"></i>
+          <div>
+            <strong>Reason for Denial:</strong>
+            <p>{reservation.denialReason || "No reason provided."}</p>
+          </div>
+        </div>
+
+        <div className="faculty-denied-info-grid">
           {/* ─── Requester ────────────────────────────────────────── */}
-          <div className="faculty-pending-info-box">
-            <h3 className="faculty-pending-info-box-title">
+          <div className="faculty-denied-info-box">
+            <h3 className="faculty-denied-info-box-title">
               <i className="fa-solid fa-user"></i> Requester
             </h3>
-            <div className="faculty-pending-info-box-content">
+            <div className="faculty-denied-info-box-content">
               <p>
                 <strong>Name:</strong> {reservation.facultyName || reservation.requesterName || "Unknown"}
               </p>
@@ -86,11 +95,11 @@ function FacultyViewPendingReservation() {
           </div>
 
           {/* ─── Course & Purpose ────────────────────────────────── */}
-          <div className="faculty-pending-info-box">
-            <h3 className="faculty-pending-info-box-title">
+          <div className="faculty-denied-info-box">
+            <h3 className="faculty-denied-info-box-title">
               <i className="fa-solid fa-book"></i> Course & Purpose
             </h3>
-            <div className="faculty-pending-info-box-content">
+            <div className="faculty-denied-info-box-content">
               <p>
                 <strong>Course Title:</strong> {reservation.courseTitle || "N/A"}
               </p>
@@ -106,11 +115,11 @@ function FacultyViewPendingReservation() {
           </div>
 
           {/* ─── Room & Schedule ─────────────────────────────────── */}
-          <div className="faculty-pending-info-box">
-            <h3 className="faculty-pending-info-box-title">
+          <div className="faculty-denied-info-box">
+            <h3 className="faculty-denied-info-box-title">
               <i className="fa-solid fa-calendar-days"></i> Room & Schedule
             </h3>
-            <div className="faculty-pending-info-box-content">
+            <div className="faculty-denied-info-box-content">
               <p>
                 <strong>Room:</strong> {reservation.roomName || "N/A"}
               </p>
@@ -127,11 +136,11 @@ function FacultyViewPendingReservation() {
           </div>
 
           {/* ─── Audience ─────────────────────────────────────────── */}
-          <div className="faculty-pending-info-box">
-            <h3 className="faculty-pending-info-box-title">
+          <div className="faculty-denied-info-box">
+            <h3 className="faculty-denied-info-box-title">
               <i className="fa-solid fa-users"></i> Audience
             </h3>
-            <div className="faculty-pending-info-box-content">
+            <div className="faculty-denied-info-box-content">
               <p>
                 <strong>Type:</strong> {reservation.audienceType || "N/A"}
               </p>
@@ -168,11 +177,11 @@ function FacultyViewPendingReservation() {
           </div>
 
           {/* ─── Equipment & Capacity ────────────────────────────── */}
-          <div className="faculty-pending-info-box">
-            <h3 className="faculty-pending-info-box-title">
+          <div className="faculty-denied-info-box">
+            <h3 className="faculty-denied-info-box-title">
               <i className="fa-solid fa-toolbox"></i> Equipment & Capacity
             </h3>
-            <div className="faculty-pending-info-box-content">
+            <div className="faculty-denied-info-box-content">
               <p>
                 <strong>Required Equipment:</strong> {equipmentList}
               </p>
@@ -185,14 +194,14 @@ function FacultyViewPendingReservation() {
           </div>
 
           {/* ─── Metadata ──────────────────────────────────────────── */}
-          <div className="faculty-pending-info-box">
-            <h3 className="faculty-pending-info-box-title">
+          <div className="faculty-denied-info-box">
+            <h3 className="faculty-denied-info-box-title">
               <i className="fa-solid fa-circle-info"></i> Metadata
             </h3>
-            <div className="faculty-pending-info-box-content">
+            <div className="faculty-denied-info-box-content">
               <p>
                 <strong>Status:</strong>{" "}
-                <span className="faculty-pending-status-badge pending">Pending</span>
+                <span className="faculty-denied-status-badge denied">Denied</span>
               </p>
               <p>
                 <strong>Requested On:</strong> {createdDate.toLocaleDateString()} | {createdDate.toLocaleTimeString()}
@@ -207,26 +216,16 @@ function FacultyViewPendingReservation() {
         </div>
       </div>
 
-      <div className="faculty-pending-footer">
+      <div className="faculty-denied-footer">
         <button
-          className="faculty-pending-back-btn"
-          onClick={() => navigate(-1)}
+          className="faculty-denied-back-btn"
+          onClick={() => navigate("/faculty/reservations")}
         >
           Back
-        </button>
-        <button
-          className="faculty-pending-edit-btn"
-          onClick={() =>
-            navigate("/faculty/edit-pending-reservation", {
-              state: { reservation },
-            })
-          }
-        >
-          Edit
         </button>
       </div>
     </div>
   );
 }
 
-export default FacultyViewPendingReservation;
+export default FacultyViewDeniedReservation;

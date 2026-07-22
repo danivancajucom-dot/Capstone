@@ -8,7 +8,7 @@ body {
   background-color: #F8F7F5;
 }
 
-.faculty-pending-reservation-room {
+.faculty-denied-reservation-room {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -18,35 +18,66 @@ body {
   background-color: #F8F7F5;
 }
 
-.faculty-white-box-pending {
+.faculty-white-box-denied {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 24px 28px;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.faculty-pending-title {
+.faculty-denied-title {
   font-size: 22px;
   font-weight: 700;
   margin-bottom: 24px;
   color: #16213e;
 }
 
+/* ─── Denial Reason (highlighted) ─────────────────────────────── */
+.faculty-denied-reason-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.faculty-denied-reason-icon {
+  font-size: 24px;
+  color: #dc2626;
+  margin-top: 2px;
+}
+
+.faculty-denied-reason-box strong {
+  font-size: 14px;
+  color: #991b1b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.faculty-denied-reason-box p {
+  margin: 0;
+  font-size: 14px;
+  color: #7f1d1d;
+}
+
 /* ── Grid layout ───────────────────────────────────────────────── */
-.faculty-pending-info-grid {
+.faculty-denied-info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
 }
 
-.faculty-pending-info-box {
+.faculty-denied-info-box {
   background: #f9fafb;
   border-radius: 12px;
   padding: 16px 20px;
   border: 1px solid #e5e7eb;
 }
 
-.faculty-pending-info-box-title {
+.faculty-denied-info-box-title {
   font-size: 14px;
   font-weight: 700;
   color: #1a1a1a;
@@ -56,31 +87,31 @@ body {
   gap: 8px;
 }
 
-.faculty-pending-info-box-title i {
+.faculty-denied-info-box-title i {
   color: #f57c00;
   width: 20px;
 }
 
-.faculty-pending-info-box-content {
+.faculty-denied-info-box-content {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.faculty-pending-info-box-content p {
+.faculty-denied-info-box-content p {
   margin: 0;
   font-size: 14px;
   color: #374151;
   line-height: 1.6;
 }
 
-.faculty-pending-info-box-content strong {
+.faculty-denied-info-box-content strong {
   color: #1a1a1a;
   font-weight: 600;
 }
 
 /* ── Status badge ──────────────────────────────────────────────── */
-.faculty-pending-status-badge {
+.faculty-denied-status-badge {
   display: inline-block;
   padding: 2px 12px;
   border-radius: 20px;
@@ -88,28 +119,28 @@ body {
   font-weight: 700;
 }
 
-.faculty-pending-status-badge.pending {
-  background: #fef3c7;
-  color: #d97706;
+.faculty-denied-status-badge.denied {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 /* ── Footer ────────────────────────────────────────────────────── */
-.faculty-pending-footer {
+.faculty-denied-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   margin-top: 8px;
 }
 
-.faculty-pending-back-arrow {
+.faculty-denied-back-arrow {
   color: #5f6c80;
   transition: color 0.2s;
 }
 
-.faculty-pending-back-arrow:hover {
+.faculty-denied-back-arrow:hover {
   color: #f57c00;
 }
 
-.faculty-pending-back-btn {
+.faculty-denied-back-btn {
   padding: 10px 30px;
   color: #f57c00;
   font-size: 14px;
@@ -122,56 +153,40 @@ body {
   transition: background-color 0.2s ease;
 }
 
-.faculty-pending-back-btn:hover {
+.faculty-denied-back-btn:hover {
   background-color: #FEF0E7;
-}
-
-.faculty-pending-edit-btn {
-  padding: 10px 30px;
-  border: none;
-  background-color: #f57c00;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  width: 150px;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.faculty-pending-edit-btn:hover {
-  background: #fff3e8;
-  border: solid 1px #f57c00;
-  color: #f57c00;
 }
 
 /* ── Responsive ────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .faculty-pending-reservation-room {
+  .faculty-denied-reservation-room {
     padding: 14px;
   }
 
-  .faculty-pending-info-grid {
+  .faculty-denied-info-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .faculty-white-box-pending {
+  .faculty-white-box-denied {
     padding: 16px;
   }
 
-  .faculty-pending-title {
+  .faculty-denied-title {
     font-size: 18px;
   }
 
-  .faculty-pending-footer {
+  .faculty-denied-footer {
     flex-direction: column;
     gap: 12px;
   }
 
-  .faculty-pending-back-btn,
-  .faculty-pending-edit-btn {
+  .faculty-denied-back-btn {
     width: 100%;
+  }
+
+  .faculty-denied-reason-box {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

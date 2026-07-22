@@ -14,11 +14,13 @@ import {
 import { sendPasswordResetEmail } from "firebase/auth";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
-import { db, auth } from "../../firebase";
+import { auth, db } from "../../firebase";
+import { logActivity } from "../../utils/logActivity";
 import "./user-management.css";
 import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
 import Toast from "../../Popup/Toast/Toast";
+import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup"; // ← import the standard popup
 
 emailjs.init("bNsod6OOQzMmRo0Cs");
 
@@ -801,40 +803,6 @@ function CreateAccountStep2({ form, entryMode, excelFile, onBack, onConfirm }) {
   );
 }
 
-// ── Confirm Modal ─────────────────────────────────────────────────────────────
-
-function ConfirmModal({ onCancel, onConfirm, loading, entryMode, excelFile }) {
-  return (
-    <div className="um-modal-overlay">
-      <div className="um-modal">
-        <div className="um-modal-icon">
-          <i className="fa-solid fa-triangle-exclamation" />
-        </div>
-        <h3 className="um-modal-title">Are you sure?</h3>
-        <p className="um-modal-text">
-          {entryMode === "manual"
-            ? "This will create one new account and email the login details."
-            : `This will create an account for every row in "${excelFile?.name}".`}
-        </p>
-        <div className="um-modal-actions">
-          <button className="um-modal-cancel" onClick={onCancel} disabled={loading}>
-            Cancel
-          </button>
-          <button className="um-modal-confirm" onClick={onConfirm} disabled={loading}>
-            {loading ? (
-              <>
-                <span className="um-spinner um-spinner-light" /> Creating…
-              </>
-            ) : (
-              "Confirm"
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = { firstName: "", lastName: "", gender: "", email: "", role: "" };
@@ -846,15 +814,29 @@ export default function UserManagement() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [entryMode, setEntryMode] = useState("");
   const [excelFile, setExcelFile] = useState(null);
+  const toastTimeoutRef = useRef(null);
 
   const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
 
   const showToast = (type, title, message) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
     setToast({ show: true, type, title, message });
     if (type !== "loading") {
-      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast((prev) => ({ ...prev, show: false }));
+        toastTimeoutRef.current = null;
+      }, 4000);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   const getFullName = (u) => `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
 
@@ -906,6 +888,7 @@ export default function UserManagement() {
 
   const handleFinalConfirm = async () => {
     setCreating(true);
+    showToast("loading", "Creating", "Creating account(s)...");
 
     try {
       // ==========================
@@ -1085,10 +1068,7 @@ export default function UserManagement() {
         />
       )}
       {showModal && (
-        <ConfirmModal
-          loading={creating}
-          entryMode={entryMode}
-          excelFile={excelFile}
+        <ConfirmPopup
           onCancel={() => setShowModal(false)}
           onConfirm={handleFinalConfirm}
         />

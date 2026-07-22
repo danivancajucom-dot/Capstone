@@ -1,82 +1,218 @@
-import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./faculty-view-approved-reservation.css";
 
 function FacultyViewApprovedReservation() {
-  const purpose = "Examination"; // palitan lang to ng examination or hands-on para ma-testt yung field na nababago hehe
+  const navigate = useNavigate();
+  const { state } = useLocation();
+  const reservation = state?.reservation;
+
+  if (!reservation) {
+    return (
+      <div className="faculty-approved-reservation-room">
+        <h2>Reservation not found.</h2>
+        <button onClick={() => navigate("/faculty/reservations")}>Back</button>
+      </div>
+    );
+  }
+
+  // ─── Duration helper ──────────────────────────────────────────────
+  const getDuration = (start, end) => {
+    if (!start || !end) return "N/A";
+    const [startHour, startMin] = start.split(":").map(Number);
+    const [endHour, endMin] = end.split(":").map(Number);
+    const diffMs = new Date().setHours(endHour, endMin, 0) - new Date().setHours(startHour, startMin, 0);
+    if (diffMs <= 0) return "N/A";
+    const totalMinutes = Math.floor(diffMs / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours && minutes) return `${hours} hr ${minutes} min`;
+    if (hours) return `${hours} hr`;
+    return `${minutes} min`;
+  };
+
+  const duration = getDuration(reservation.startTime, reservation.endTime);
+
+  const createdDate =
+    reservation.createdAt?.seconds
+      ? new Date(reservation.createdAt.seconds * 1000)
+      : new Date(reservation.createdAt);
+
+  // ─── Format equipment list ────────────────────────────────────────
+  const equipmentList = reservation.requiredEquipment
+    ?.map((eq) => {
+      const labels = {
+        projector: "Projector",
+        tvDisplay: "TV Display",
+        ac: "AC",
+        computer: "Computer",
+        smartBoard: "Smart Board",
+      };
+      return labels[eq] || eq;
+    })
+    .join(", ") || "None";
+
+  // ─── Render ──────────────────────────────────────────────────────
 
   return (
-    <>
-    <div className="container">
-      <h1>Reservation Details</h1>
-      <div className="faculty-view-approved-box">
-        <div className="faculty-view-approved-sections">
-          <div className="faculty-view-approved-section">
-            <div className="faculty-view-approved-form-group">
-              <label>Course Title</label>
-              <input type="text" className="faculty-view-approved-input" value="Course Title" readOnly />
-            </div>
+    <div className="faculty-approved-reservation-room">
+      <i
+        className="fa-solid fa-arrow-left faculty-approved-back-arrow"
+        onClick={() => navigate(-1)}
+        style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
+      ></i>
 
-            <div className="faculty-view-approved-form-group">
-              <label>Date</label>
-              <div className="faculty-view-approved-icon-wrapper">
-                <i className="fa-regular fa-calendar faculty-view-approved-icon"></i>
-                <input type="date" className="faculty-view-approved-input" value="2026-05-11" readOnly />
-              </div>
-            </div>
+      <div className="faculty-white-box-approved">
+        <h2 className="faculty-approved-title">Approved Reservation Details</h2>
 
-            <div className="faculty-view-approved-time-fields">
-              <div className="faculty-view-approved-form-group">
-                <label>Start Time</label>
-                <div className="faculty-view-approved-time-wrapper">
-                  <i className="fa-regular fa-clock faculty-view-approved-time-icon"></i>
-                  <input type="time" className="faculty-view-approved-input faculty-view-approved-time-input" value="09:00" readOnly />
-                </div>
-              </div>
-
-              <div className="faculty-view-approved-form-group">
-                <label>End Time</label>
-                <div className="faculty-view-approved-time-wrapper">
-                  <i className="fa-regular fa-clock faculty-view-approved-time-icon"></i>
-                  <input type="time" className="faculty-view-approved-input faculty-view-approved-time-input" value="12:00" readOnly />
-                </div>
-              </div>
+        <div className="faculty-approved-info-grid">
+          {/* ─── Requester ────────────────────────────────────────── */}
+          <div className="faculty-approved-info-box">
+            <h3 className="faculty-approved-info-box-title">
+              <i className="fa-solid fa-user"></i> Requester
+            </h3>
+            <div className="faculty-approved-info-box-content">
+              <p>
+                <strong>Name:</strong> {reservation.facultyName || reservation.requesterName || "Unknown"}
+              </p>
+              {reservation.audienceType === "Organization" && (
+                <p>
+                  <strong>Organization:</strong> {reservation.attendees?.organization || "N/A"}
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="faculty-view-approved-section">
-            <div className="faculty-view-approved-form-group">
-              <label>Purpose of Reservation</label>
-              <input type="text" className="faculty-view-approved-input" value={purpose} readOnly />
+          {/* ─── Course & Purpose ────────────────────────────────── */}
+          <div className="faculty-approved-info-box">
+            <h3 className="faculty-approved-info-box-title">
+              <i className="fa-solid fa-book"></i> Course & Purpose
+            </h3>
+            <div className="faculty-approved-info-box-content">
+              <p>
+                <strong>Course Title:</strong> {reservation.courseTitle || "N/A"}
+              </p>
+              <p>
+                <strong>Purpose:</strong> {reservation.purpose || "N/A"}
+              </p>
+              {reservation.purpose === "Other Activity" && reservation.attendees?.customPurpose && (
+                <p>
+                  <strong>Specified Activity:</strong> {reservation.attendees.customPurpose}
+                </p>
+              )}
             </div>
+          </div>
 
-            <div className="faculty-view-approved-form-group">
-              <label>Room Name</label>
-              <input type="text" className="faculty-view-approved-input" value="Room A1" readOnly />
+          {/* ─── Room & Schedule ─────────────────────────────────── */}
+          <div className="faculty-approved-info-box">
+            <h3 className="faculty-approved-info-box-title">
+              <i className="fa-solid fa-calendar-days"></i> Room & Schedule
+            </h3>
+            <div className="faculty-approved-info-box-content">
+              <p>
+                <strong>Room:</strong> {reservation.roomName || "N/A"}
+              </p>
+              <p>
+                <strong>Date:</strong> {reservation.date || "N/A"}
+              </p>
+              <p>
+                <strong>Time:</strong> {reservation.startTime || "N/A"} – {reservation.endTime || "N/A"}
+              </p>
+              <p>
+                <strong>Duration:</strong> {duration}
+              </p>
             </div>
+          </div>
 
-            {purpose === "Hands-On" && (
-              <div className="faculty-view-approved-form-group">
-                <label>Available Units/Equipment</label>
-                <input type="text" className="faculty-view-approved-input" value="30 Units" readOnly />
-              </div>
-            )}
+          {/* ─── Audience ─────────────────────────────────────────── */}
+          <div className="faculty-approved-info-box">
+            <h3 className="faculty-approved-info-box-title">
+              <i className="fa-solid fa-users"></i> Audience
+            </h3>
+            <div className="faculty-approved-info-box-content">
+              <p>
+                <strong>Type:</strong> {reservation.audienceType || "N/A"}
+              </p>
 
-            {(purpose === "Lecture" || purpose === "Examination") && (
-              <div className="faculty-view-approved-form-group">
-                <label>Estimated Number of Students</label>
-                <input type="text" className="faculty-view-approved-input" value="30-50" readOnly />
-              </div>
-            )}
+              {reservation.audienceType === "Class" && (
+                <>
+                  <p>
+                    <strong>Course:</strong> {reservation.attendees?.course || "N/A"}
+                  </p>
+                  <p>
+                    <strong>Year/Section/Group:</strong> {reservation.attendees?.yearSectionGroup || "N/A"}
+                  </p>
+                </>
+              )}
+
+              {reservation.audienceType === "Organization" && (
+                <p>
+                  <strong>Organization Name:</strong> {reservation.attendees?.organization || "N/A"}
+                </p>
+              )}
+
+              {reservation.audienceType === "Faculty" && (
+                <p>
+                  <strong>Attendees:</strong> Faculty Members
+                </p>
+              )}
+
+              {reservation.audienceType === "Others" && (
+                <p>
+                  <strong>Attendees:</strong> {reservation.attendees?.otherAudience || "N/A"}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* ─── Equipment & Capacity ────────────────────────────── */}
+          <div className="faculty-approved-info-box">
+            <h3 className="faculty-approved-info-box-title">
+              <i className="fa-solid fa-toolbox"></i> Equipment & Capacity
+            </h3>
+            <div className="faculty-approved-info-box-content">
+              <p>
+                <strong>Required Equipment:</strong> {equipmentList}
+              </p>
+              {reservation.studentRange && (
+                <p>
+                  <strong>Estimated Attendees:</strong> {reservation.studentRange}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* ─── Metadata ──────────────────────────────────────────── */}
+          <div className="faculty-approved-info-box">
+            <h3 className="faculty-approved-info-box-title">
+              <i className="fa-solid fa-circle-info"></i> Metadata
+            </h3>
+            <div className="faculty-approved-info-box-content">
+              <p>
+                <strong>Status:</strong>{" "}
+                <span className="faculty-approved-status-badge approved">Approved</span>
+              </p>
+              <p>
+                <strong>Requested On:</strong> {createdDate.toLocaleDateString()} | {createdDate.toLocaleTimeString()}
+              </p>
+              {reservation.roomCapacity && (
+                <p>
+                  <strong>Room Capacity:</strong> {reservation.roomCapacity}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="faculty-view-approved-footer">
-        <button className="faculty-view-approved-back-btn">Back</button>
+      <div className="faculty-approved-footer">
+        <button
+          className="faculty-approved-back-btn"
+          onClick={() => navigate("/faculty/reservations")}
+        >
+          Back
+        </button>
       </div>
     </div>
-    </>
-
   );
 }
 

@@ -8,235 +8,235 @@ body {
   background-color: #F8F7F5;
 }
 
-.container {
-  height: 100%;
-  overflow: hidden;
+.faculty-edit-pending-room {
+  width: 100%;
   display: flex;
   flex-direction: column;
+  gap: 24px;
+  padding: 20px;
+  margin-top: 80px;
+  background-color: #F8F7F5;
 }
 
-h1 {
-  font-weight: 900;
-  font-size: 40px;
-  flex-shrink: 0;
-}
-
-.faculty-edit-pending-box {
+.white-box-edit-pending {
   background-color: #ffffff;
   border-radius: 10px;
+  padding: 24px 28px;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
 }
 
-.faculty-edit-pending-sections {
+.faculty-edit-pending-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #16213e;
+}
+
+.faculty-edit-pending-back-arrow {
+  color: #5f6c80;
+  transition: color 0.2s;
+}
+.faculty-edit-pending-back-arrow:hover {
+  color: #f57c00;
+}
+
+.faculty-edit-conflict-banner {
   display: flex;
-  margin: 40px 20px;
-  gap: 100px;
-  height: 100%;
+  align-items: center;
+  gap: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 0 0 20px 0;
+  color: #dc2626;
+  font-size: 14px;
+}
+.faculty-edit-conflict-banner i {
+  font-size: 18px;
 }
 
-.faculty-edit-pending-section:first-child {
-  flex: 1;
+/* ── Grid layout ──────────────────────────────────────────────────── */
+.faculty-edit-pending-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
 }
 
-.faculty-edit-pending-section:last-child {
-  flex: 1;
+.faculty-edit-pending-info-box {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
 }
 
-.faculty-edit-pending-form-group {
+.faculty-edit-pending-info-box.editable {
+  border-color: #f57c00;
+  background: #fffaf5;
+}
+
+.faculty-edit-pending-info-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.faculty-edit-pending-info-box-title i {
+  color: #f57c00;
+  width: 20px;
+}
+
+.faculty-edit-pending-info-box-content {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-top: 30px;
+  gap: 8px;
 }
-
-.faculty-edit-pending-form-group label {
-  font-size: 13px;
+.faculty-edit-pending-info-box-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+.faculty-edit-pending-info-box-content strong {
+  color: #1a1a1a;
   font-weight: 600;
 }
 
-.faculty-edit-pending-input {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #FEF0E7;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #64748B;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.faculty-edit-pending-input:focus {
-  border-color: #F2690D;
-}
-
-.faculty-edit-pending-icon-wrapper {
-  position: relative;
-  width: 100%;
+/* ── Form groups inside editable boxes ──────────────────────────── */
+.faculty-edit-pending-form-group {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
 }
-
-.faculty-edit-pending-icon-wrapper .faculty-edit-pending-input {
-  width: 100%;
-  padding-left: 35px;
-}
-
-.faculty-edit-pending-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: all;
-  cursor: pointer;
-  z-index: 1;
-  color: #64748B;
-}
-
-.faculty-edit-pending-icon-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
-  display: none;
-}
-
-.faculty-edit-pending-time-fields {
-  display: flex;
-  gap: 15px;
-  margin-top: 30px;
-  width: 100%;
-}
-
-.faculty-edit-pending-time-fields .faculty-edit-pending-form-group {
-  flex: 1;
-  margin-top: 0;
-}
-
-.faculty-edit-pending-time-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.faculty-edit-pending-time-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: all;
-  cursor: pointer;
-  z-index: 1;
-  color: #64748B;
-}
-
-.faculty-edit-pending-time-input {
-  width: 100%;
-  padding-left: 35px;
-}
-
-.faculty-edit-pending-time-input::-webkit-calendar-picker-indicator {
-  display: none;
-}
-
-.faculty-edit-pending-dropdown-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.faculty-edit-pending-dropdown {
-  width: 100%;
-  appearance: none;
-  cursor: pointer;
-}
-
-.faculty-edit-pending-dropdown-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  color: #64748B;
-  font-size: 14px;
-}
-
-.faculty-edit-pending-venue-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 30px;
-}
-
-.faculty-edit-pending-venue-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #333333;
-}
-
-.faculty-edit-pending-venue-dropdown-wrapper {
-  position: relative;
-}
-
-.faculty-edit-pending-venue-dropdown {
-  padding: 6px 30px 6px 12px;
-  border-radius: 6px;
-  border: none;
+.faculty-edit-pending-form-group label {
   font-size: 13px;
-  cursor: pointer;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+  color: #374151;
+}
+
+.faculty-edit-pending-form-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  font-size: 14px;
   outline: none;
-  appearance: none;
-  color: #64748B;
+  width: 100%;
+  color: #1a1a1a;
+  transition: border-color 0.2s;
+}
+.faculty-edit-pending-form-input:focus {
+  border-color: #f57c00;
+}
+.faculty-edit-pending-form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.faculty-edit-pending-venue-dropdown-icon {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  color: #64748B;
+.faculty-edit-pending-time-row {
+  display: flex;
+  gap: 16px;
+}
+.faculty-edit-pending-time-row .half {
+  flex: 1;
+}
+
+.faculty-edit-pending-status-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 20px;
   font-size: 12px;
+  font-weight: 700;
+}
+.faculty-edit-pending-status-badge.pending {
+  background: #fef3c7;
+  color: #d97706;
 }
 
+/* ── Footer ────────────────────────────────────────────────────── */
 .faculty-edit-pending-footer {
   display: flex;
   justify-content: space-between;
-  margin: 0 50px 20px 50px;
+  margin-top: 8px;
 }
 
 .faculty-edit-pending-back-btn {
   padding: 10px 30px;
-  border-radius: 6px;
-  border: 1.5px solid #F2690D;
-  background-color: #F8F7F5;
-  color: #F2690D;
+  color: #f57c00;
   font-size: 14px;
   font-weight: 700;
   width: 150px;
+  border: 1.5px solid #f57c00;
   cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+.faculty-edit-pending-back-btn:hover {
+  background-color: #FEF0E7;
+}
+.faculty-edit-pending-back-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .faculty-edit-pending-save-btn {
   padding: 10px 30px;
-  border-radius: 6px;
   border: none;
-  background-color: #F2690D;
+  background-color: #f57c00;
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
   width: 150px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
   cursor: pointer;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+  transition: 0.2s;
+}
+.faculty-edit-pending-save-btn:hover:not(:disabled) {
+  background: #fff3e8;
+  border: solid 1px #f57c00;
+  color: #f57c00;
+}
+.faculty-edit-pending-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.faculty-edit-pending-section:last-child .faculty-edit-pending-form-group {
-  margin-top: 156px;
-}
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .faculty-edit-pending-room {
+    padding: 14px;
+  }
 
-.faculty-edit-pending-section:last-child .faculty-edit-pending-input {
-  width: 100%;
-}
+  .faculty-edit-pending-info-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 
-.faculty-edit-pending-section:last-child .faculty-edit-pending-dropdown-wrapper {
-  width: 100%;
+  .white-box-edit-pending {
+    padding: 16px;
+  }
+
+  .faculty-edit-pending-title {
+    font-size: 18px;
+  }
+
+  .faculty-edit-pending-time-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .faculty-edit-pending-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .faculty-edit-pending-back-btn,
+  .faculty-edit-pending-save-btn {
+    width: 100%;
+  }
 }
