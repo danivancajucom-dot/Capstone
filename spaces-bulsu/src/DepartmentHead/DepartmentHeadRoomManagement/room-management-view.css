@@ -285,27 +285,42 @@
   letter-spacing: 0.04em;
 }
 
+/* ─── Status dot – make it visible ──────────────────────────────── */
 .rooms-page .room-status-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
+/* ─── Status colors ────────────────────────────────────────────────── */
 .rooms-page .room-status--active {
-  color: #f57c00;
+  color: #22c55e;
 }
-
 .rooms-page .room-status--active .room-status-dot {
-  background: #f57c00;
+  background-color: #22c55e;
 }
 
 .rooms-page .room-status--inactive {
-  color: #a8aeb8;
+  color: #9ca3af;
+}
+.rooms-page .room-status--inactive .room-status-dot {
+  background-color: #9ca3af;
 }
 
-.rooms-page .room-status--inactive .room-status-dot {
-  background: #c4c9d2;
+.rooms-page .room-status--maintenance {
+  color: #ef4444;
+}
+.rooms-page .room-status--maintenance .room-status-dot {
+  background-color: #ef4444;
+}
+
+.rooms-page .room-status--unknown {
+  color: #6b7280;
+}
+.rooms-page .room-status--unknown .room-status-dot {
+  background-color: #6b7280;
 }
 
 .rooms-page .row-actions {
@@ -442,4 +457,33 @@
   .rooms-page .dashboard-header {
     flex-direction: column;
   }
+}
+
+/* Status colors */
+.room-status--active {
+  color: #22c55e;
+}
+.room-status--active .room-status-dot {
+  background-color: #22c55e;
+}
+
+.room-status--inactive {
+  color: #9ca3af;
+}
+.room-status--inactive .room-status-dot {
+  background-color: #9ca3af;
+}
+
+.room-status--maintenance {
+  color: #ef4444;
+}
+.room-status--maintenance .room-status-dot {
+  background-color: #ef4444;
+}
+
+.room-status--unknown {
+  color: #6b7280;
+}
+.room-status--unknown .room-status-dot {
+  background-color: #6b7280;
 }

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
 import ReleaseRoomModal from "../../Components/ReleaseRoomModal/ReleaseRoomModal";
-import ScheduleDetailsModal from "../../Components/ScheduleDetailsModal/ScheduleDetailsModal"; // ← new component
+import ScheduleDetailsModal from "../../Components/ScheduleDetailsModal/ScheduleDetailsModal";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
 import {
@@ -219,7 +219,7 @@ export default function WeeklyCalendar() {
   const [releasedKeys, setReleasedKeys] = useState(new Set());
 
   const [releaseTarget, setReleaseTarget] = useState(null);
-  const [detailsTarget, setDetailsTarget] = useState(null); // ← new state
+  const [detailsTarget, setDetailsTarget] = useState(null);
   const [submittingRelease, setSubmittingRelease] = useState(false);
 
   // ─── Toast state ──────────────────────────────────────────────────────
@@ -255,7 +255,8 @@ export default function WeeklyCalendar() {
     loadFacultySchedule();
   }, []);
 
-  // ─── LOAD FUNCTION (unchanged) ──────────────────────────────────────
+  // ─── LOAD FUNCTION ──────────────────────────────────────────────────
+
   const loadFacultySchedule = async () => {
     setLoading(true);
 
@@ -405,6 +406,7 @@ export default function WeeklyCalendar() {
   };
 
   // ─── Week computation ──────────────────────────────────────────────
+
   const getStartOfWeek = (date) => {
     const d = new Date(date);
     const day = d.getDay();
@@ -474,6 +476,7 @@ export default function WeeklyCalendar() {
         rawEndTime: s.endTime,
         title: s.subject || "Class",
         location: `${s.roomName || "-"}${s.floor ? ` | ${s.floor}` : ""}`,
+        faculty: s.faculty || "Faculty", // ✅ added faculty
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
@@ -493,10 +496,15 @@ export default function WeeklyCalendar() {
         kind: "event",
         title: e.title || e.purpose || "Room Activity",
         location: `${e.roomName || "-"} | Room Activity`,
+        roomName: e.roomName || "-", // ✅ add this
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
         colorIdx: 1,
+        faculty: e.faculty || "Department Head",
+        date: e.date,
+        rawStartTime: e.startTime,
+        rawEndTime: e.endTime,
       });
     });
 
@@ -512,10 +520,15 @@ export default function WeeklyCalendar() {
         kind: "reservation",
         title: r.customPurpose || r.courseTitle || r.purpose || "Reservation",
         location: `${r.roomName || "-"} | Reservation`,
+        roomName: r.roomName || "-", // ✅ add this
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
         colorIdx: 2,
+        faculty: r.facultyName || r.requesterName || "Faculty",
+        date: r.date,
+        rawStartTime: r.startTime,
+        rawEndTime: r.endTime,
       });
     });
 
@@ -531,13 +544,18 @@ export default function WeeklyCalendar() {
         kind: "reassignment",
         title: `${r.courseTitle || "Class"} (Moved)`,
         location: `${r.newRoomName || "-"} | Reassigned Room`,
+        roomName: r.newRoomName || "-", // ✅ add this
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
         colorIdx: 3,
+        faculty: r.facultyName || "Faculty",
+        date: r.date,
+        rawStartTime: r.startTime,
+        rawEndTime: r.endTime,
+        originalRoom: r.oldRoomName,
       });
     });
-
     return items;
   }, [
     scheduleEvents,
@@ -552,19 +570,22 @@ export default function WeeklyCalendar() {
   // ─── Click handler ──────────────────────────────────────────────────
 
   const handleEventClick = (ev) => {
+    // Compute status for all event types
+    let status = "SCHEDULED";
+    if (ev.date && ev.rawStartTime && ev.rawEndTime) {
+      const result = computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime);
+      status = result.status;
+    }
+
     if (ev.kind === "schedule") {
-      const status = computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime);
-      if (status.status !== "COMPLETED") {
+      if (status !== "COMPLETED") {
         // Ongoing or Upcoming → allow release
         openReleaseModal(ev);
-      } else {
-        // Completed → show details only
-        setDetailsTarget(ev);
+        return;
       }
-    } else {
-      // Reservation or Reassignment → show details only
-      setDetailsTarget(ev);
     }
+    // For all others or completed schedules, show details modal
+    setDetailsTarget({ ...ev, status });
   };
 
   // ─── Release modal helpers ──────────────────────────────────────────

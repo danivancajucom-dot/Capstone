@@ -132,3 +132,17 @@
 .sdm-close-btn:hover {
   background: #e5e7eb;
 }
+
+/* ─── Status text colors ───────────────────────────────────────────── */
+.sdm-status-completed {
+  color: #6b7280;
+}
+.sdm-status-ongoing {
+  color: #f59e0b;
+}
+.sdm-status-upcoming {
+  color: #3b82f6;
+}
+.sdm-status-scheduled {
+  color: #22c55e;
+}

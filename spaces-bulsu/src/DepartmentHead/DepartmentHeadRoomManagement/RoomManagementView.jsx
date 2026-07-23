@@ -28,7 +28,14 @@ function getActiveRoomStyle(room) {
 function getInactiveRoomStyle(room) {
   return { ...room, status: 'inactive', inactive: true, iconVariant: 'muted' };
 }
-
+const getStatusInfo = (status) => {
+  switch (status) {
+    case "active":   return { label: "ACTIVE", className: "room-status--active" };
+    case "inactive": return { label: "INACTIVE", className: "room-status--inactive" };
+    case "maintenance": return { label: "MAINTENANCE", className: "room-status--maintenance" };
+    default:         return { label: "UNKNOWN", className: "room-status--unknown" };
+  }
+};
 function ToggleSwitch({ checked, onClick }) {
   return (
     <button
@@ -259,20 +266,11 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
 
                           const room = {
                             firestoreId: roomDoc.id,
-
                             id: roomData.roomName,
-
                             floor: roomData.floor,
-
                             capacity: roomData.capacity,
-
-                            type:
-                              roomData.roomType === "Computer Lab"
-                                ? "lab"
-                                : "lecture",
-
+                            type: roomData.roomType === "Computer Lab" ? "lab" : "lecture",
                             typeLabel: roomData.roomType,
-
                             equipment: [
                               roomData.equipment?.projector && "PROJECTOR",
                               roomData.equipment?.ac && "AC",
@@ -280,13 +278,9 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                               roomData.equipment?.smartBoard && "SMART BOARD",
                               roomData.equipment?.tvDisplay && "TV DISPLAY",
                             ].filter(Boolean),
-
                             schedules,
-
                             occupied,
-
-                            roomStatus: roomData.roomStatus ?? "active",
-
+                            roomStatus: (roomData.roomStatus || "active").toLowerCase(),
                             status: occupied ? "OCCUPIED" : "AVAILABLE",
                           };
 
@@ -712,17 +706,34 @@ function RoomManagementView({ onOpenDetails, onAddRoom, onEditRoom, onViewAffect
                         ))}
                       </div>
                     </td>
-                    <td>
-                      <span
-                        className={`room-status ${
-                          room.roomStatus === "active"
-                            ? "room-status--active"
-                            : "room-status--maintenance"
-                        }`}
-                      >
-                        <span className="room-status-dot" />
-                        {room.roomStatus.toUpperCase()}
-                      </span>
+                    <td>  
+                      {(() => {
+                        const normalized = (room.roomStatus || "active").toLowerCase();
+                        let label, className;
+                        switch (normalized) {
+                          case "active":
+                            label = "ACTIVE";
+                            className = "room-status--active";
+                            break;
+                          case "inactive":
+                            label = "INACTIVE";
+                            className = "room-status--inactive";
+                            break;
+                          case "maintenance":
+                            label = "MAINTENANCE";
+                            className = "room-status--maintenance";
+                            break;
+                          default:
+                            label = "UNKNOWN";
+                            className = "room-status--unknown";
+                        }
+                        return (
+                          <span className={`room-status ${className}`}>
+                            <span className="room-status-dot" />
+                            {label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td>
                       <div className="row-actions">
