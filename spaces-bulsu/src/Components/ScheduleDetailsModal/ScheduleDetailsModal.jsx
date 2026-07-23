@@ -1,7 +1,28 @@
 import "./schedule-details-modal.css";
 
+// ─── Helper (copy from parent) ──────────────────────────────────────
+function fmt12Hour(time) {
+  if (!time) return "";
+  const [h, m] = time.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hh = h % 12 || 12;
+  return `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+function getStatusLabel(status) {
+  const map = {
+    "COMPLETED": { label: "Completed", className: "completed" },
+    "ONGOING":   { label: "Ongoing",   className: "ongoing" },
+    "UPCOMING":  { label: "Upcoming",  className: "upcoming" },
+    "SCHEDULED": { label: "Scheduled", className: "scheduled" },
+  };
+  return map[status] || { label: "Scheduled", className: "scheduled" };
+}
+
 function ScheduleDetailsModal({ target, onClose }) {
   if (!target) return null;
+
+  const statusInfo = target.status ? getStatusLabel(target.status) : { label: "Scheduled", className: "scheduled" };
 
   return (
     <div className="sdm-overlay" onClick={onClose}>
@@ -32,6 +53,7 @@ function ScheduleDetailsModal({ target, onClose }) {
             </div>
           </div>
 
+          {/* ─── Type ────────────────────────────────────────────── */}
           <div className="sdm-detail-row">
             <i className="fa-solid fa-tag"></i>
             <div>
@@ -41,11 +63,25 @@ function ScheduleDetailsModal({ target, onClose }) {
                   ? "Academic Class"
                   : target.kind === "reservation"
                   ? "Reservation"
+                  : target.kind === "event"
+                  ? "Room Activity"
                   : "Reassigned"}
               </strong>
             </div>
           </div>
 
+          {/* ─── Faculty ──────────────────────────────────────────── */}
+          <div className="sdm-detail-row">
+            <i className="fa-solid fa-user"></i>
+            <div>
+              <span className="sdm-detail-label">FACULTY</span>
+              <strong className="sdm-detail-value">
+                {target.faculty || "-"}
+              </strong>
+            </div>
+          </div>
+
+          {/* ─── Room ─────────────────────────────────────────────── */}
           <div className="sdm-detail-row">
             <i className="fa-solid fa-door-open"></i>
             <div>
@@ -54,6 +90,7 @@ function ScheduleDetailsModal({ target, onClose }) {
             </div>
           </div>
 
+          {/* ─── Subject / Section ────────────────────────────────── */}
           <div className="sdm-detail-row">
             <i className="fa-solid fa-bookmark"></i>
             <div>
@@ -65,6 +102,7 @@ function ScheduleDetailsModal({ target, onClose }) {
             </div>
           </div>
 
+          {/* ─── Date ──────────────────────────────────────────────── */}
           <div className="sdm-detail-row">
             <i className="fa-regular fa-calendar"></i>
             <div>
@@ -73,6 +111,7 @@ function ScheduleDetailsModal({ target, onClose }) {
             </div>
           </div>
 
+          {/* ─── Time ──────────────────────────────────────────────── */}
           <div className="sdm-detail-row">
             <i className="fa-regular fa-clock"></i>
             <div>
@@ -85,22 +124,24 @@ function ScheduleDetailsModal({ target, onClose }) {
             </div>
           </div>
 
-          {target.kind === "reassignment" && (
+          {/* ─── Status ─────────────────────────────────────────────── */}
+          <div className="sdm-detail-row">
+            <i className="fa-solid fa-circle-info"></i>
+            <div>
+              <span className="sdm-detail-label">STATUS</span>
+              <strong className={`sdm-detail-value sdm-status-${statusInfo.className}`}>
+                {statusInfo.label}
+              </strong>
+            </div>
+          </div>
+
+          {/* ─── Original Room (only for reassignments) ────────────── */}
+          {target.kind === "reassignment" && target.originalRoom && (
             <div className="sdm-detail-row">
               <i className="fa-solid fa-arrows-rotate"></i>
               <div>
                 <span className="sdm-detail-label">ORIGINAL ROOM</span>
-                <strong className="sdm-detail-value">{target.originalRoom || "N/A"}</strong>
-              </div>
-            </div>
-          )}
-
-          {target.kind === "schedule" && (
-            <div className="sdm-detail-row">
-              <i className="fa-solid fa-circle-info"></i>
-              <div>
-                <span className="sdm-detail-label">STATUS</span>
-                <strong className="sdm-detail-value completed">Completed</strong>
+                <strong className="sdm-detail-value">{target.originalRoom}</strong>
               </div>
             </div>
           )}
@@ -112,15 +153,6 @@ function ScheduleDetailsModal({ target, onClose }) {
       </div>
     </div>
   );
-}
-
-// Helper (copy from parent)
-function fmt12Hour(time) {
-  if (!time) return "";
-  const [h, m] = time.split(":").map(Number);
-  const suffix = h >= 12 ? "PM" : "AM";
-  const hh = h % 12 || 12;
-  return `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
 export default ScheduleDetailsModal;
