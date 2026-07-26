@@ -138,18 +138,18 @@ export default function LocalRegistrarLayout() {
   const emptyCopy = {
     all: {
       icon: "fa-bell-slash",
-      title: "Wala pang abiso",
-      text: "Dito lalabas ang mga update tungkol sa schedules, reservations, at conflicts.",
+      title: "No notifications",
+      text: "Updates about schedules, reservations, and conflicts will appear here.",
     },
     unread: {
       icon: "fa-check-double",
-      title: "Up to date ka na!",
-      text: "Nabasa mo na lahat ng notification.",
+      title: "All caught up!",
+      text: "You've read all your notifications.",
     },
     archived: {
       icon: "fa-box-open",
-      title: "Walang naka-archive",
-      text: "Ang mga na-archive mong abiso ay makikita rito.",
+      title: "No archived notifications",
+      text: "Archived notifications will appear here.",
     },
   }[activeTab];
 
