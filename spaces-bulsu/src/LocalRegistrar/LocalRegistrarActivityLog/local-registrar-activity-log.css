@@ -122,12 +122,10 @@
   width: 100%;
   padding: 8px 30px 8px 12px;
   border-radius: 6px;
-  border: none;
+  border: 1.5px solid #e2e1de;
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
   outline: none;
-  appearance: none;
   color: #64748B;
 }
 
@@ -141,11 +139,34 @@
   font-size: 14px;
 }
 
+.reset-filters-btn {
+  width: 42px;
+  height: 40px;
+  flex: none;
+  border-radius: 6px;
+  border: 1.5px solid #e2e1de;
+  background: #ffffff;
+  color: #64748B;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+}
+
+.reset-filters-btn:hover {
+  background: #fff3e8;
+  border-color: #f57c00;
+  color: #f57c00;
+}
+
 .apply-filters-btn {
   padding: 8px 20px;
   border-radius: 6px;
   border: none;
-   background-color:#f57c00;
+  height: 38px;
+  background-color:#f57c00;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
   font-weight:700;
   transition: .2s;
