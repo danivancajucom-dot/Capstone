@@ -7,15 +7,16 @@ import {
   doc, addDoc, setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { logActivity } from "../../../utils/logActivity";
+import { Projector, Tv, AirVent, MonitorSpeaker, TvMinimal } from 'lucide-react';
 
 const ROOM_TYPES = ['Computer Lab', 'Lecture Room', 'Conference Room', 'Laboratory'];
 
 const EQUIPMENT_OPTIONS = [
-  { id: 'projector',  label: 'Projector',   icon: '📽' },
-  { id: 'tvDisplay',  label: 'TV Display',   icon: '📺' },
-  { id: 'ac',         label: 'AC',           icon: '❄️' },
-  { id: 'computer',   label: 'Computer',     icon: '💻' },
-  { id: 'smartBoard', label: 'Smart Board',  icon: '🖊' },
+  { id: 'projector',  label: 'Projector',   icon: Projector },
+  { id: 'tvDisplay',  label: 'TV Display',  icon: Tv },
+  { id: 'ac',         label: 'AC',          icon: AirVent },
+  { id: 'computer',   label: 'Computer',    icon: MonitorSpeaker },
+  { id: 'smartBoard', label: 'Smart Board', icon: TvMinimal },
 ];
 
 const FLOORS = ["1st floor", "2nd floor", "3rd floor", "4th floor"];
@@ -175,25 +176,8 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
 
       {/* PAGE HEADER */}
       <div className="add-room-page-header">
-        <button
-          type="button"
-          className="back-btn"
-          onClick={() => setCancelModalOpen(true)}
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path
-              d="M11 4L6 9L11 14"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-
-          <span>Back</span>
-        </button>
+      
         <div>
-          <p className="page-breadcrumb">Room Management</p>
           <h1 className="page-title">Add New Room</h1>
         </div>
       </div>
@@ -259,17 +243,15 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
               {errors.capacity && <span className="field-error">{errors.capacity}</span>}
             </div>
 
-            {/* Room Type */}
+           {/* Room Type */}
             <div className="field-group">
               <label className="field-label">Room Type</label>
-              <select
-                className="field-input field-select"
+              <CustomDropdown
+                placeholder="Select type..."
+                options={ROOM_TYPES}
                 value={roomType}
-                onChange={(e) => setRoomType(e.target.value)}
-              >
-                <option value="">Select type...</option>
-                {ROOM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+                onChange={(v) => setRoomType(v)}
+              />
             </div>
           </div>
 
@@ -302,19 +284,19 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
           </div>
 
           <div className="equipment-grid">
-            {EQUIPMENT_OPTIONS.map(({ id, label, icon }) => (
-              <label
-                key={id}
-                className={`equipment-chip ${equipment[id] ? 'checked' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={equipment[id]}
-                  onChange={() => toggleEquipment(id)}
-                  style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-                />
-                <span className="chip-icon">{icon}</span>
-                <span className="chip-label">{label}</span>
+            {EQUIPMENT_OPTIONS.map(({ id, label, icon: Icon }) => (
+                <label
+                  key={id}
+                  className={`equipment-chip ${equipment[id] ? 'checked' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={equipment[id]}
+                    onChange={() => toggleEquipment(id)}
+                    style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+                  />
+                  <span className="chip-icon"><Icon size={20} /></span>
+                  <span className="chip-label">{label}</span>
                 <span className="chip-check">
                   {equipment[id]
                     ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L4.5 8.5L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -325,39 +307,40 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
             ))}
           </div>
         </div>
-
-        {/* FOOTER ACTIONS */}
-        <div className="form-footer">
-          {errors.submit && <span className="field-error" style={{textAlign:'center'}}>{errors.submit}</span>}
-          <div className="footer-btns">
-            <button
-              type="button"
-              className="btn btn-outline"
-              onClick={() => setCancelModalOpen(true)}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="btn-loading">
-                  <span className="spinner" /> Creating...
-                </span>
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Review & Create
-                </>
-              )}
-            </button>
-          </div>
-        </div>
       </form>
+
+      {/* FOOTER ACTIONS — outside the box */}
+      {errors.submit && (
+        <span className="field-error add-room-submit-error">{errors.submit}</span>
+      )}
+      <div className="add-room-footer">
+        <button
+          type="button"
+          className="add-cancel-btn"
+          onClick={() => setCancelModalOpen(true)}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="add-confirm-btn"
+          onClick={handleCreateClick}
+          disabled={loading}
+        >
+          {loading ? (
+            <span className="btn-loading">
+              <span className="spinner" /> Creating...
+            </span>
+          ) : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Review & Create
+            </>
+          )}
+        </button>
+      </div>
 
       {/* ── CANCEL MODAL ── */}
       {cancelModalOpen && (
@@ -431,11 +414,11 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
                 </span>
                 <div className="preview-equipment">
                   {checkedEquipment.length > 0
-                    ? checkedEquipment.map(({ id, label, icon }) => (
-                        <span key={id} className="preview-equipment-tag">{icon} {label}</span>
-                      ))
-                    : <span className="preview-none">None selected</span>
-                  }
+                      ? checkedEquipment.map(({ id, label, icon: Icon }) => (
+                          <span key={id} className="preview-equipment-tag"><Icon size={14} /> {label}</span>
+                        ))
+                      : <span className="preview-none">None selected</span>
+                    }
                 </div>
               </div>
             </div>

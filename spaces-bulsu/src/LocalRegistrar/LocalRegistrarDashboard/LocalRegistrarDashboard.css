@@ -69,10 +69,11 @@
   color: #f57c00;
 }
 
-.dashboard-stats {
+.dashboard-stats-LR{
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 220px));
   gap: 20px;
+  justify-content: center;
 }
 
 .stat-card {
@@ -191,8 +192,9 @@ td{
 
 
 @media (max-width: 1200px) {
-  .dashboard-stats {
-    grid-template-columns: repeat(2, 1fr);
+  .dashboard-stats-LR{
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    justify-content: stretch;
   }
 }
 
@@ -204,8 +206,9 @@ td{
     align-items:flex-start;
   }
 
-  .dashboard-stats{
+  .dashboard-stats-LR{
     grid-template-columns:1fr;
+    justify-content: stretch;
   }
 
 }

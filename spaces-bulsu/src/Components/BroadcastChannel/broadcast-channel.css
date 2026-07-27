@@ -7,8 +7,10 @@
   --bc-border: #ececec;
   --bc-bg: #f8f7f5;
 
-  height: calc(100vh - 80px);
+  width: 100%;
+  margin: 0;
   margin-top: 80px;
+  height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
   background: var(--bc-bg);
@@ -26,12 +28,14 @@
   align-items: center;
   border-bottom: 1px solid var(--bc-border);
   flex-shrink: 0;
+  gap: 12px;
 }
 
 .bc-channel-info {
   display: flex;
   gap: 16px;
   align-items: center;
+  min-width: 0;
 }
 
 .bc-channel-icon {
@@ -53,6 +57,9 @@
   color: var(--bc-ink);
   margin: 0;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bc-channel-info span {
@@ -133,6 +140,7 @@
   font-size: 12.5px;
   color: var(--bc-muted);
   padding: 0 4px;
+  flex-wrap: wrap;
 }
 
 .bc-message-meta strong {
@@ -235,8 +243,9 @@
 /* ---------------- REACTIONS ---------------- */
 .bc-reactions {
   display: flex;
-  gap: 8px;
-  padding: 0 4px;
+  gap: 6px;
+  padding: 4px 0 0 4px;
+  flex-wrap: wrap;
 }
 
 .bc-reaction-wrap {
@@ -283,15 +292,16 @@
 .bc-reaction-btn {
   background: #fff;
   border: 1px solid #e4e4e4;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: 999px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
   transition: 0.15s;
+  font-family: "Lexend", sans-serif;
 }
 
 .bc-reaction-btn:hover {
@@ -350,6 +360,7 @@
   gap: 10px;
   color: var(--bc-muted);
   text-align: center;
+  padding: 0 20px;
 }
 
 .bc-empty-state i,
@@ -460,11 +471,13 @@
   align-items: center;
   margin-bottom: 12px;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .bc-toolbar-left {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .bc-toolbar button {
@@ -481,6 +494,7 @@
   color: #4b5563;
   font-family: "Lexend", sans-serif;
   transition: 0.15s;
+  white-space: nowrap;
 }
 
 .bc-toolbar button:hover:not(:disabled) {
@@ -576,7 +590,6 @@
   align-items: center;
   justify-content: center;
   transition: 0.15s;
-  box-shadow: 0 4px 12px rgba(245, 124, 0, 0.25);
 }
 
 .bc-send-btn:hover:not(:disabled) {
@@ -610,33 +623,6 @@
   margin-top: 10px;
   font-size: 12px;
   color: var(--bc-muted);
-}
-
-/* ---------------- RESPONSIVE ---------------- */
-@media (max-width: 720px) {
-  .bc-topbar {
-    padding: 16px 18px;
-  }
-
-  .bc-messages {
-    padding: 18px;
-  }
-
-  .bc-composer {
-    padding: 14px 18px 16px;
-  }
-
-  .bc-message-card {
-    max-width: 82vw;
-  }
-
-  .bc-toolbar {
-    flex-wrap: wrap;
-  }
-
-  .bc-message-counter span {
-    display: none;
-  }
 }
 
 /* ---------------- MESSAGE OPTIONS MENU ---------------- */
@@ -840,28 +826,6 @@
 
 .bc-lightbox-close:hover {
   background: rgba(255, 255, 255, 0.22);
-}
-
-@media (max-width: 720px) {
-  .bc-lightbox-overlay {
-    padding: 20px;
-  }
-
-  .bc-msg-menu-trigger {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bc-spinner {
-    animation: none;
-  }
-
-  .bc-lightbox-overlay,
-  .bc-lightbox-image,
-  .bc-msg-menu-dropdown {
-    animation: none;
-  }
 }
 
 /* ─── File attachment ──────────────────────────────────────────────── */
@@ -1078,77 +1042,260 @@
   font-size: 13px;
   font-weight: 500;
 }
-/* ─── Reactions ─────────────────────────────────────────────────────── */
-.bc-reactions {
-  display: flex;
-  gap: 6px;
-  padding: 4px 0 0 4px;
-  flex-wrap: wrap;
-}
-.bc-reaction-wrap {
-  position: relative;
-  display: inline-flex;
-}
-.bc-reaction-btn {
-  background: #fff;
-  border: 1px solid #e4e4e4;
-  padding: 4px 10px;
-  border-radius: 999px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  transition: 0.15s;
-  font-family: "Lexend", sans-serif;
-}
-.bc-reaction-btn:hover {
-  background: var(--bc-accent-soft);
-  border-color: var(--bc-accent);
-}
-.bc-reaction-btn.is-active {
-  background: var(--bc-accent-soft);
-  border-color: var(--bc-accent-border);
-  color: var(--bc-accent);
-}
-.bc-reaction-tooltip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1a1a1a;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-.bc-reaction-wrap:hover .bc-reaction-tooltip {
-  opacity: 1;
+
+/* ============================================================ */
+/* ---------------------- RESPONSIVE --------------------------- */
+/* ============================================================ */
+
+@media (max-width: 900px) {
+  .bc-messages {
+    padding: 22px;
+  }
+
+  .bc-composer {
+    padding: 14px 22px 16px;
+  }
 }
 
-/* ─── Responsive ────────────────────────────────────────────────────── */
-@media (max-width: 480px) {
-  .bc-file-attachment {
+@media (max-width: 720px) {
+  .bc-topbar {
+    flex-wrap: wrap;
+  }
+
+  .bc-channel-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 16px;
+    border-radius: 12px;
+  }
+
+  .bc-channel-info h2 {
+    font-size: 18px;
+    max-width: 55vw;
+  }
+
+  .bc-channel-info span {
+    font-size: 12px;
+  }
+
+  .bc-message-counter {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .bc-message-counter span {
+    display: none;
+  }
+
+  .bc-messages {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .bc-composer {
+    padding: 12px 16px 14px;
+  }
+
+  .bc-message-card {
+    max-width: 82vw;
+  }
+
+  .bc-bubble {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .bc-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 11px;
+    margin-bottom: 20px;
+  }
+
+  .bc-toolbar {
     flex-wrap: wrap;
     gap: 8px;
   }
+
+  .bc-toolbar button {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .bc-select-wrap {
+    padding: 8px 12px;
+  }
+
+  .bc-send-area textarea {
+    min-height: 46px;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .bc-send-btn {
+    width: 46px;
+    height: 46px;
+    font-size: 16px;
+    border-radius: 14px;
+  }
+
+  .bc-lightbox-overlay {
+    padding: 20px;
+  }
+
+  .bc-msg-menu-trigger {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .bc-container {
+    margin-top: 70px;
+    height: calc(100vh - 70px);
+  }
+
+  .bc-topbar {
+    gap: 8px;
+  }
+
+  .bc-channel-info {
+    gap: 10px;
+  }
+
+  .bc-channel-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .bc-channel-info h2 {
+    font-size: 16px;
+    max-width: 42vw;
+  }
+
+  .bc-channel-info span {
+    display: none;
+  }
+
+  .bc-message-counter {
+    padding: 7px 10px;
+  }
+
+  .bc-messages {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .bc-message-card {
+    max-width: 88vw;
+  }
+
+  .bc-bubble {
+    padding: 10px 12px;
+    font-size: 13.5px;
+    border-radius: 14px;
+  }
+
+  .bc-image {
+    max-width: 100%;
+  }
+
+  .bc-composer {
+    padding: 10px 12px 12px;
+  }
+
+  .bc-toolbar-left {
+    gap: 6px;
+  }
+
+  .bc-toolbar button span {
+    display: none; 
+  }
+
+  .bc-toolbar button {
+    padding: 8px 10px;
+  }
+
+  .bc-select-wrap select {
+    font-size: 12px;
+  }
+
+  .bc-send-area {
+    gap: 8px;
+  }
+
+  .bc-send-area textarea {
+    min-height: 42px;
+    max-height: 100px;
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  .bc-send-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  .bc-lightbox-overlay {
+    padding: 12px;
+  }
+
+  .bc-lightbox-close {
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .bc-file-attachment {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .bc-file-icon-wrapper {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
   .bc-file-actions {
     flex-wrap: wrap;
   }
+
   .bc-link-preview {
     flex-direction: column;
   }
+
   .bc-link-image {
     width: 100%;
     height: 120px;
   }
+
   .bc-composer-link-preview {
     flex-wrap: wrap;
+  }
+
+  .bc-composer-link-image {
+    width: 48px;
+    height: 48px;
+  }
+
+  .bc-msg-menu-dropdown {
+    min-width: 160px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-spinner,
+  .bc-spinner-small {
+    animation: none;
+  }
+
+  .bc-lightbox-overlay,
+  .bc-lightbox-image,
+  .bc-msg-menu-dropdown {
+    animation: none;
   }
 }

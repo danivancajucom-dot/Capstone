@@ -14,7 +14,7 @@ import {
 import { db } from "../../firebase";
 
 const TABS = ["Pending", "Approved", "Denied"];
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 9;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -45,10 +45,10 @@ function LoadingState() {
 
 function EmptyState({ label }) {
   return (
-    <div className="dept-empty-state">
+    <div className="dph-empty-state">
       <EmptyIcon />
-      <p className="dept-empty-title">No {label} reservations</p>
-      <p className="dept-empty-subtitle">
+      <p className="dph-empty-title">No {label} reservations</p>
+      <p className="dph-empty-subtitle">
         Requests will show up here as soon as they come in.
       </p>
     </div>
@@ -162,20 +162,20 @@ function DepartmentHeadReservations() {
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="dept-reservations">
-      <div className="dept-reservations-header">
+    <div className="dph-reservations">
+      <div className="dph-reservations-header">
         <h1>Reservation Requests</h1>
-        <p className="dept-reservations-subtitle">
+        <p className="dph-reservations-subtitle">
           Review, approve, and track room reservation requests from your department.
         </p>
       </div>
 
-      <div className="dept-white-box-reservations">
-        <div className="dept-reservations-nav">
+      <div className="dph-white-box-reservations">
+        <div className="dph-reservations-nav">
           {TABS.map((tab) => (
             <div
               key={tab}
-              className={`dept-reservations-nav-item ${activeTab === tab ? "active" : ""}`}
+              className={`dph-reservations-nav-item ${activeTab === tab ? "active" : ""}`}
               onClick={() => setActiveTab(tab)}
               role="button"
               tabIndex={0}
@@ -185,25 +185,25 @@ function DepartmentHeadReservations() {
             >
               {tab}
               {!loading && (
-                <span className="dept-reservations-nav-count">{counts[tab]}</span>
+                <span className="dph-reservations-nav-count">{counts[tab]}</span>
               )}
             </div>
           ))}
         </div>
-        <hr className="dept-reservations-nav-divider" />
+        <hr className="dph-reservations-nav-divider" />
 
         <div
-          className={`dept-reservations-content ${
-            isGridTab && !loading ? "dept-reservations-content--grid" : ""
-          } ${loading || isEmpty ? "dept-reservations-content--empty" : ""}`}
+          className={`dph-reservations-content ${
+            isGridTab && !loading ? "dph-reservations-content--grid" : ""
+          } ${loading || isEmpty ? "dph-reservations-content--empty" : ""}`}
         >
           {renderList()}
         </div>
 
         {!loading && hasMore && (
-          <div className="dept-load-more-reservations">
+          <div className="dph-load-more-reservations">
             <button
-              className="dept-load-more-btn-reservations"
+              className="dph-load-more-btn-reservations"
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
               Load More ({filteredReservations.length - visibleCount} remaining)

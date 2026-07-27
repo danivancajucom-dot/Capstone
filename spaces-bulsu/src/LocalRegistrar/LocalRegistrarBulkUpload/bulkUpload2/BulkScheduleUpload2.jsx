@@ -241,28 +241,29 @@ export default function BulkScheduleUpload2() {
         
         </div>
 
-          <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between" }}>
-            <button
-              className="btn-back-two"
-              onClick={() => navigate(-1)}
-            >
-              Back
-            </button>
-            <button
-              className="btn-next-two"
-              disabled={loading}
-              onClick={handleProcess}
-            >
-              {
-                loading
-                  ? "Processing..."
-                  : file?.name.endsWith(".xlsx") ||
-                    file?.name.endsWith(".xls")
-                  ? "Import Excel"
-                  : "Process with AI"
-              }
-            </button>
-          </div>
+                <div className="bulk-footer-two">
+        <button
+          className="btn-back-two"
+          onClick={() => navigate(-1)}
+        >
+          Back
+        </button>
+
+        <button
+          className="btn-next-two"
+          disabled={loading}
+          onClick={handleProcess}
+        >
+          {
+            loading
+              ? "Processing..."
+              : file?.name.endsWith(".xlsx") ||
+                file?.name.endsWith(".xls")
+              ? "Import Excel"
+              : "Process with AI"
+          }
+        </button>
+      </div>
         </div>
       </div>
     );

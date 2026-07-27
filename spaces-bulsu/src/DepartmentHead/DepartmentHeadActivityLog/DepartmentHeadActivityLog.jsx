@@ -22,7 +22,7 @@ const actionIcon = (type) => {
     case 'edit':     return <i className="fa-solid fa-pen action-icon blue"></i>;
     case 'denied':   return <i className="fa-solid fa-circle-xmark action-icon red"></i>;
     case 'failed':   return <i className="fa-solid fa-circle-xmark action-icon red"></i>;
-    default:         return <i className="fa-solid fa-circle action-icon gray"></i>;
+   default: return <i className="fa-solid fa-bolt action-icon orange"></i>;
   }
 };
 
@@ -407,7 +407,7 @@ export default function DepartmentHeadActivityLog() {
           </div>
         </div>
 
-        <button className="apply-btn">Apply Filters</button>
+        <button className="apply-btn-dph">Apply Filters</button>
       </div>
 
       {/* TABLE */}

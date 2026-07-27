@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import "./departmenthead-profile.css";
-
+import { logActivity } from "../../utils/logActivity";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { sendPasswordResetEmail, onAuthStateChanged } from "firebase/auth";
-import { logActivity } from "../../utils/logActivity";
+
 const CLOUDINARY_CLOUD_NAME    = "dzu1qb8oz";
 const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
 
@@ -34,7 +34,11 @@ export default function DepartmentHeadProfile() {
   const fileInputRef                = useRef(null);
 
   const [form, setForm] = useState({
-    firstName: "", lastName: "", email: "", role: "", photoUrl: "",
+    firstName: "",
+    lastName:  "",
+    email:     "",
+    role:      "",
+    photoUrl:  "",
   });
 
   const [originalData, setOriginalData] = useState(null);
@@ -47,10 +51,16 @@ export default function DepartmentHeadProfile() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) { showToast("error", "No logged in user found."); setLoading(false); return; }
+      if (!currentUser) {
+        showToast("error", "No logged in user found.");
+        setLoading(false);
+        return;
+      }
+
       try {
         const snap = await getDoc(doc(db, "users", currentUser.uid));
         if (!snap.exists()) throw new Error("User profile not found.");
+
         const data = snap.data();
         const profile = {
           firstName: data.firstName || "",
@@ -59,6 +69,7 @@ export default function DepartmentHeadProfile() {
           role:      data.role      || "",
           photoUrl:  data.photoUrl  || "",
         };
+
         setForm(profile);
         setOriginalData(profile);
       } catch (err) {
@@ -68,6 +79,7 @@ export default function DepartmentHeadProfile() {
         setLoading(false);
       }
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -84,25 +96,15 @@ export default function DepartmentHeadProfile() {
     const nameUnchanged =
       form.firstName === originalData.firstName &&
       form.lastName  === originalData.lastName;
-    if (nameUnchanged && !photoFile) { showToast("error", "Nothing to save."); return; }
+    const photoUnchanged = form.photoUrl === originalData.photoUrl;
+    if (nameUnchanged && photoUnchanged && !photoFile) { showToast("error", "Nothing to save."); return; }
 
     setSaving(true);
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("User session expired.");
 
-      const userSnap = await getDoc(doc(db, "users", currentUser.uid));
-
-      if (!userSnap.exists()) {
-        throw new Error("User profile not found.");
-      }
-
-      const currentUserData = userSnap.data();
-
-      const fullName =
-        `${currentUserData.firstName} ${currentUserData.lastName}`.trim();
-      
-        let photoUrl = form.photoUrl;
+      let photoUrl = form.photoUrl;
       if (photoFile) {
         setUploading(true);
         photoUrl = await uploadToCloudinary(photoFile);
@@ -116,25 +118,12 @@ export default function DepartmentHeadProfile() {
       });
 
       await logActivity({
-        userId: currentUser.uid,
-        user: fullName,
-        role: currentUserData.role,
-
-        action: "Updated Profile",
-        actionType: "success",
-
-        target: `${form.firstName.trim()} ${form.lastName.trim()}`,
-        status: "SUCCESS",
-
-        details: {
-          previousFirstName: originalData.firstName,
-          previousLastName: originalData.lastName,
-
-          newFirstName: form.firstName.trim(),
-          newLastName: form.lastName.trim(),
-
-          photoUpdated: !!photoFile,
-        },
+        user: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        role: form.role,
+        action: "Updated profile",
+        actionType: "edit",
+        target: "Department Head Profile",
+        status: "Success",
       });
 
       const updatedData = { ...form, photoUrl };
@@ -236,9 +225,17 @@ export default function DepartmentHeadProfile() {
         {editing && uploading && (
           <p className="dhp-upload-progress"><i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…</p>
         )}
-        {editing && !photoFile && !uploading && (
-          <button className="dhp-upload-btn" type="button" onClick={() => fileInputRef.current?.click()}>
-            <i className="fa-solid fa-arrow-up-from-bracket" /> Upload Picture
+        {editing && form.photoUrl && !uploading && (
+          <button
+            className="dhp-remove-photo-btn"
+            type="button"
+            onClick={() => {
+              setPhotoFile(null);
+              if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
+              setForm(prev => ({ ...prev, photoUrl: "" }));
+            }}
+          >
+            <i className="fa-solid fa-trash" /> Remove Photo
           </button>
         )}
 

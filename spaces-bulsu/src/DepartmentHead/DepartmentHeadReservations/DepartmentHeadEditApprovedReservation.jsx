@@ -1,6 +1,6 @@
 import "./department-head-edit-approved-reservation.css";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   doc,
   updateDoc,
@@ -74,6 +74,61 @@ const sendNotification = async (userId, ownerType, title, message, type, badge =
     createdAt: serverTimestamp(),
   });
 };
+
+/* ─── Custom Dropdown (Room select) ─────────────────────────────── */
+function RoomDropdown({ placeholder, rooms, value, onChange, disabled, loading }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectedRoom = rooms.find((r) => r.roomName === value);
+
+  return (
+    <div
+      className={`dh-edit-approved-custom-select ${open ? "open" : ""} ${disabled ? "disabled" : ""}`}
+      ref={ref}
+    >
+      <div
+        className="dh-edit-approved-form-input dh-edit-approved-select-trigger"
+        onClick={() => !disabled && setOpen(!open)}
+      >
+        <span className={selectedRoom ? "" : "placeholder-text"}>
+          {loading ? "Loading available rooms..." : selectedRoom ? selectedRoom.roomName : placeholder}
+        </span>
+        <svg
+          className={`dh-edit-approved-chevron ${open ? "rotated" : ""}`}
+          width="14" height="14" viewBox="0 0 14 14" fill="none"
+        >
+          <path d="M2 4.5L7 9.5L12 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+
+      {open && !disabled && (
+        <div className="dh-edit-approved-select-dropdown">
+          {rooms.length === 0 && (
+            <div className="dh-edit-approved-select-option disabled-option">No rooms available</div>
+          )}
+          {rooms.map((r) => (
+            <div
+              key={r.id}
+              className={`dh-edit-approved-select-option ${value === r.roomName ? "selected" : ""}`}
+              onClick={() => { onChange(r.roomName); setOpen(false); }}
+            >
+              {r.roomName} {r.roomStatus === "maintenance" ? "(Under Maintenance)" : ""}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DepartmentHeadEditApprovedReservation() {
   const navigate = useNavigate();
@@ -468,7 +523,7 @@ function DepartmentHeadEditApprovedReservation() {
   // ─── Redirect if no reservation ────────────────────────────────────
   if (!reservation) {
     return (
-      <div className="dh-edit-approved-room">
+      <div className="dph-edit-approved-room">
         <h2>Reservation not found.</h2>
         <button onClick={() => navigate("/department-head/reservations")}>Back</button>
       </div>
@@ -478,15 +533,9 @@ function DepartmentHeadEditApprovedReservation() {
   // ─── Render ──────────────────────────────────────────────────────────
 
   return (
-    <div className="dh-edit-approved-room">
-      <i
-        className="fa-solid fa-arrow-left dh-edit-approved-back-arrow"
-        onClick={() => navigate(-1)}
-        style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
-      ></i>
-
+    <div className="dph-edit-approved-room">
       <div className="white-box-edit-approved">
-        <h2 className="dh-edit-approved-title">Edit Approved Reservation</h2>
+        <h2 className="dph-edit-approved-title">Edit Approved Reservation</h2>
 
         {conflictError && (
           <div className="dh-edit-conflict-banner">
@@ -535,19 +584,17 @@ function DepartmentHeadEditApprovedReservation() {
             <div className="dh-edit-approved-info-box-content">
               <div className="dh-edit-approved-form-group">
                 <label>Room</label>
-                <select
-                  className="dh-edit-approved-form-input"
+                <RoomDropdown
+                  placeholder="Select a room"
+                  rooms={availableRooms}
                   value={editableFields.roomName}
-                  onChange={handleChange("roomName")}
+                  onChange={(roomName) => {
+                    setEditableFields((prev) => ({ ...prev, roomName }));
+                    setConflictError("");
+                  }}
                   disabled={loadingRooms || loadingAvailable || saving}
-                >
-                  <option value="">{loadingAvailable ? "Loading available rooms..." : "Select a room"}</option>
-                  {availableRooms.map((r) => (
-                    <option key={r.id} value={r.roomName}>
-                      {r.roomName} {r.roomStatus === "maintenance" ? "(Under Maintenance)" : ""}
-                    </option>
-                  ))}
-                </select>
+                  loading={loadingAvailable}
+                />
                 {loadingAvailable && (
                   <small style={{ color: "#6b7280", marginTop: "4px" }}>
                     <i className="fa-solid fa-spinner fa-spin"></i> Checking availability...

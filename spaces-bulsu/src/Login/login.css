@@ -56,7 +56,7 @@
 
 .feature-item i {
   font-size: 20px;
-  color: #ff8c2f;
+  color: #f57c00;
 }
 
 .login-panel {
@@ -94,7 +94,7 @@
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: #f97316;
+  accent-color: #f57c00;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -105,7 +105,7 @@
   margin: auto;
   border-radius: 20px;
   background: #fff3e7;
-  color: #f97316;
+  color: #f57c00;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -147,11 +147,12 @@
   font-size: 14px;
 }
 
+
 .role-selector {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 20px;
 }
 
 .role-btn {
@@ -172,13 +173,13 @@
 }
 
 .role-btn.active {
-  border-color: #f97316;
+  border-color: #f57c00;
   background: #fff7f0;
 }
 
 .role-btn i {
   font-size: 22px;
-  color: #f97316;
+  color: #f57c00;
 }
 
 .input-with-icon {
@@ -205,7 +206,7 @@
 
 .input-with-icon input:focus {
   outline: none;
-  border-color: #f97316;
+  border-color: #f57c00;
 }
 
 .form-actions-row {
@@ -218,7 +219,7 @@
 .link-button {
   background: transparent;
   border: none;
-  color: #f97316;
+  color: #f57c00;
   font-weight: 700;
   cursor: pointer;
 }
@@ -228,7 +229,7 @@
   border: none;
   border-radius: 14px;
   padding: 18px;
-  background: #f97316;
+  background: #f57c00;
   color: white;
   font-size: 17px;
   font-weight: 700;
@@ -241,7 +242,8 @@
 }
 
 .sign-in-btn:hover {
-  background: #ea580c;
+  background-color: #FEF0E7;
+  color: #f57c00
 }
 
 .support-text {
@@ -251,7 +253,7 @@
 }
 
 .support-text span {
-  color: #f97316;
+  color: #f57c00;
   font-weight: 700;
   cursor: pointer;
 }
@@ -354,7 +356,7 @@
   width: 60px;
   height: 60px;
   border: 5px solid rgba(255,255,255,0.2);
-  border-top: 5px solid #f97316;
+  border-top: 5px solid #f57c00;
   border-radius: 50%;
   margin: 0 auto 20px;
   animation: spin 1s linear infinite;
@@ -378,11 +380,11 @@
   font-size: 14px;
 }
 
-/* REMOVE EXTRA GAP BETWEEN INPUTS */
+
 .form-group {
-  margin-bottom: 10px; /* was 14px → tighter */
+  margin-bottom: 10px; 
 }
-/* FLOAT WRAPPER */
+
 .float-input {
   position: relative;
   width: 100%;
@@ -403,7 +405,7 @@
 
 /* FOCUS BORDER */
 .float-input input:focus {
-  border-color: #f97316;
+  border-color: #f57c00;
 }
 
 /* ICON */
@@ -423,24 +425,37 @@
   transform: translateY(-50%);
   font-size: 14px;
   color: #94a3b8;
+  margin-bottom: 10px;
   pointer-events: none;
   transition: 0.2s ease;
-  background: white;
   padding: 0 4px;
 }
 
 /* FLOAT UP ON FOCUS */
 .float-input input:focus + label {
-  top: 8px;
+  top: 20px;
   font-size: 11px;
-  color: #f97316;
+  color: #f57c00;
 }
 
 /* FLOAT UP WHEN MAY VALUE */
 .float-input input:not(:placeholder-shown) + label {
-  top: 8px;
+  top: 15px;
   font-size: 11px;
-  color: #f97316;
+  color: #f57c00;
+}
+
+.float-input input:not(:placeholder-shown) + label {
+  top: 15px;
+  font-size: 11px;
+  color: #f57c00;
+}
+
+.float-input input:-webkit-autofill + label,
+.float-input input:-webkit-autofill:focus + label {
+  top: 15px;
+  font-size: 11px;
+  color: #f57c00;
 }
 
 /* PASSWORD ICON */
@@ -461,7 +476,6 @@
   z-index: 5;
 }
 
-/* REMOVE CHROME/SAFARI DEFAULT PASSWORD ICON */
 input::-ms-reveal,
 input::-ms-clear {
   display: none;
@@ -475,13 +489,11 @@ input::-webkit-textfield-decoration-container {
   display: none !important;
 }
 
-/* REMOVE EXTRA GAP ISSUE */
 .form-group {
   margin-bottom: 10px;
 }
 
-/* ROLE SECTION TIGHTER */
 .role-selector {
-  margin-bottom: 6px;
+  margin-bottom: 20px;
   gap: 8px;
 }

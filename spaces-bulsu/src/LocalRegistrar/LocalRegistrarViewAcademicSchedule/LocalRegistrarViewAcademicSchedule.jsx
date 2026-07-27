@@ -303,11 +303,11 @@ function LocalRegistrarViewAcademicSchedule() {
           </div>
         </div>
 
-        <div className="floor-buttons">
+        <div className="floor-buttons-lr">
           {FLOORS.map((floor) => (
             <button
               key={floor}
-              className={`floor-btn ${selectedFloor === floor ? "active" : ""}`}
+              className={`floor-btn-lr ${selectedFloor === floor ? "active" : ""}`}
               onClick={() => setSelectedFloor(floor)}
             >
               {floor}
@@ -333,6 +333,7 @@ function LocalRegistrarViewAcademicSchedule() {
               <LRRoomCard
                 key={room.id}
                 roomName={room.roomName}
+                floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}
                 status={room.status}
