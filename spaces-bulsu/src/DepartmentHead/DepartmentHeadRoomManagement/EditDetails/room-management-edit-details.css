@@ -77,6 +77,87 @@
   padding-right: 40px;
 }
 
+/* ─── Custom Dropdown ──────────────────────────────────── */
+.room-details-page .custom-select {
+  position: relative;
+}
+
+.room-details-page .custom-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #F8F7F5;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.room-details-page .custom-select-trigger:hover {
+  border-color: #d1cfc9;
+}
+
+.room-details-page .custom-select.open .custom-select-trigger {
+  border-color: #f57c00;
+  background-color: #FFFFFF;
+}
+
+.room-details-page .custom-select .placeholder-text {
+  color: #9ca3af;
+}
+
+.room-details-page .chevron-icon {
+  color: #9ca3af;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.room-details-page .chevron-icon.rotated {
+  transform: rotate(180deg);
+  color: #f57c00;
+}
+
+.room-details-page .custom-select-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.room-details-page .custom-select-option {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.room-details-page .custom-select-option:hover {
+  background: #FEF0E7;
+  color: #f57c00;
+}
+
+.room-details-page .custom-select-option.selected {
+  color: #f57c00;
+  font-weight: 700;
+  background: #FEF0E7;
+}
+
 .room-details-page .capacity-stepper {
   display: flex;
   align-items: center;

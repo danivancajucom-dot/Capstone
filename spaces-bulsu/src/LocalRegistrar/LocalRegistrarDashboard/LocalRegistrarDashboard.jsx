@@ -150,7 +150,7 @@ return (
 
       </div>
 
-      <div className="dashboard-stats">
+      <div className="dashboard-stats-LR">
 
         <div className="stat-card">
           <h2>{totalSchedules}</h2>

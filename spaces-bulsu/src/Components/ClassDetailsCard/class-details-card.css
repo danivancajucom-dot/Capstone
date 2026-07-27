@@ -98,8 +98,8 @@
   border-radius: 20px;
 }
 .class-details-badge.type {
-  background: #e5e7eb;
-  color: #374151;
+  background: #FEF0E7;
+  color: #f57c00;
 }
 .class-details-badge.status.green { background: #dcfce7; color: #16a34a; }
 .class-details-badge.status.yellow { background: #fef9c3; color: #ca8a04; }

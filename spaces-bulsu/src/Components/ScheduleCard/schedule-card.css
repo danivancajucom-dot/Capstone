@@ -2,44 +2,70 @@
   position: absolute;
   left: 6px;
   right: 6px;
-
   border-radius: 10px;
   color: white;
-
   display: flex;
   flex-direction: column;
-
   padding: 8px;
-
   cursor: pointer;
-
   overflow: hidden;
-
   transition: .2s;
-
-  box-shadow: 0 2px 6px rgba(0,0,0,.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
+  margin-top: 0;
+  min-width: 0;
 }
 
-.schedule-card:hover{
-    transform:scale(1.03);
+.schedule-card:hover {
+  transform: scale(1.03);
 }
 
-.subject-code{
-    font-size:15px;
-    font-weight:700;
+.subject-code,
+.subject-name,
+.subject-time,
+.subject-faculty {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  min-width: 0;
 }
 
-.subject-name{
-    font-size:12px;
-    margin-top:4px;
+.subject-code {
+  font-size: 15px;
+  font-weight: 700;
 }
 
-.subject-time{
-    margin-top:auto;
-    font-size:11px;
+.subject-name {
+  font-size: 12px;
+  margin-top: 4px;
 }
 
-.subject-faculty{
-    font-size:11px;
-    opacity:.9;
+.subject-time {
+  margin-top: auto;
+  font-size: 11px;
+}
+
+.subject-faculty {
+  font-size: 11px;
+  opacity: .9;
+}
+
+@media (max-width: 768px) {
+  .schedule-card {
+    padding: 5px 6px;
+  }
+
+  .subject-code {
+    font-size: 12px;
+  }
+
+  .subject-name {
+    font-size: 10px;
+    margin-top: 2px;
+  }
+
+  .subject-time,
+  .subject-faculty {
+    font-size: 9px;
+  }
 }

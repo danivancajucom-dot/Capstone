@@ -11,7 +11,7 @@ function formatReviewedDate(timestamp) {
 }
 
 function ApprovedAndDeniedCard({ reservation, onClick, compact = false }) {
-  const isApproved = reservation.status === "Approved";
+  const isApproved = reservation.status?.toLowerCase().trim() === "approved";
   const reviewedDate = formatReviewedDate(reservation.createdAt);
 
   return (
@@ -31,10 +31,9 @@ function ApprovedAndDeniedCard({ reservation, onClick, compact = false }) {
       <div className="rc-main">
         <div className="rc-top-row">
           <span className="rc-room-badge">{reservation.roomName}</span>
-          <span className="rc-status-pill">{isApproved ? "Approved" : "Denied"}</span>
         </div>
 
-        <h3 className="rc-faculty-name">{reservation.facultyName}</h3>
+        <h3 className="rc-faculty-name">{reservation.facultyName || reservation.requesterName}</h3>
 
         <div className="rc-meta-row">
           <span className="rc-meta-item">
@@ -50,7 +49,7 @@ function ApprovedAndDeniedCard({ reservation, onClick, compact = false }) {
 
         <div className="rc-course-row">
           <i className="fa-solid fa-users"></i>
-          <span className="rc-course-title">{reservation.courseTitle}</span>
+          <span className="rc-course-title">{reservation.courseTitle || "N/A"}</span>
         </div>
       </div>
 
