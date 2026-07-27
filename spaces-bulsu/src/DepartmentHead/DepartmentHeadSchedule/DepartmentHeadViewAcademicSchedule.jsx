@@ -333,6 +333,7 @@ function DepartmentHeadViewAcademicSchedule() {
               <LRRoomCard
                 key={room.id}
                 roomName={room.roomName}
+                floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}
                 status={room.status}
