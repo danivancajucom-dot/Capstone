@@ -8,7 +8,7 @@ function DepartmentHeadViewReservationApproved() {
 
   if (!reservation) {
     return (
-      <div className="dh-approved-reservation-room">
+      <div className="dph-approved-reservation-room">
         <h2>Reservation not found.</h2>
         <button onClick={() => navigate("/department-head/reservations")}>
           Back
@@ -54,15 +54,10 @@ function DepartmentHeadViewReservationApproved() {
     .join(", ") || "None";
 
   return (
-    <div className="dh-approved-reservation-room">
-      <i
-        className="fa-solid fa-arrow-left dh-approved-back-arrow"
-        onClick={() => navigate(-1)}
-        style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
-      ></i>
+    <div className="dph-approved-reservation-room">
 
       <div className="dh-white-box-approved">
-        <h2 className="dh-approved-title">Approved Reservation Details</h2>
+        <h2 className="dph-approved-title">Approved Reservation Details</h2>
 
         <div className="dh-approved-info-grid">
           {/* ─── Faculty / Requester ────────────────────────────── */}

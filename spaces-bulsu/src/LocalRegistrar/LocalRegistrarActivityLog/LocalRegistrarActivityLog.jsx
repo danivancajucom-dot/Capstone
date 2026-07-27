@@ -179,13 +179,9 @@ export default function LocalRegistrarActivityLog() {
 
       <div>
 
-        <button
-          className="back-btn"
-          onClick={() => navigate("/local-registrar")}
-        >
-          <i className="fa-solid fa-arrow-left"></i>
-          Back
-        </button>
+          <i className="fa-solid fa-arrow-left lr-back-arrow-al"
+          onClick={() => navigate("/local-registrar")}></i>
+  
 
         <h1>Activity Log</h1>
 

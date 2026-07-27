@@ -84,14 +84,13 @@
 
 .nav-signin-text {
   padding: 10px 22px;
-  border-radius: 14px;
-  border: 1px solid rgba(232, 122, 26, 0.18);
-  background: rgba(232, 122, 26, 0.08);
-  color: #e87a1a;
+  border-radius: 10px;
+  background:#f57c00;
+  color: #ffffff;
   font-weight: 700;
+  border: none;
   cursor: pointer;
   font-size: 14px;
-  font-family: 'Lexend', sans-serif;
   transition: background 0.2s ease, transform 0.2s ease;
   white-space: nowrap;
 }

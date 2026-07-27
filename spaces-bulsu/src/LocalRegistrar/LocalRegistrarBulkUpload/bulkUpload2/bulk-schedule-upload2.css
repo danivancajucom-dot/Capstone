@@ -21,17 +21,26 @@
 
 .stepper-two {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   margin-top: 40px;
   margin-bottom: 32px;
   gap: 0;
+  width: 100%;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .step-wrapper-two {
   display: flex;
-  align-items: center;
-  flex-shrink: 0;
+  align-items: flex-start;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.step-wrapper-two:last-child {
+  flex: 0 0 auto;
 }
 
 .step-item-two {
@@ -39,6 +48,8 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  width: 70px;
 }
 
 .step-circle-two {
@@ -56,6 +67,7 @@
   transition: all 0.3s ease;
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
 }
 
 .step-circle-two.active {
@@ -77,6 +89,8 @@
   letter-spacing: 0.05em;
   white-space: nowrap;
   margin-left: 0;
+  text-align: center;
+  width: 100%;
 }
 
 .step-label-two.active {
@@ -85,13 +99,14 @@
 }
 
 .step-line-two {
-  flex: 1;
+  flex: 1 1 auto;
   height: 2px;
   background-color: #e5e7eb;
   margin: 0 12px;
-  min-width: 40px;
-  align-self: center;
-  margin-bottom: 24px;
+  min-width: 16px;
+  align-self: flex-start;
+  margin-top: 22px;
+  flex-shrink: 0;
 }
 
 .step-line-two.completed {
@@ -191,13 +206,14 @@
   background: #fff3e8;
   border: solid 1px #f57c00;
   color: #f57c00;
-
 }
 
 .bulk-footer-two {
   display: flex;
   justify-content: space-between;
+  align-items: stretch;
   margin-top: 20px;
+  gap: 12px;
 }
 
 .step2-footer-two {
@@ -215,6 +231,10 @@
   font-family: 'Lexend', sans-serif;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-back-two:hover {
@@ -233,6 +253,9 @@
   font-weight: 700;
   transition: .2s;
   height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-next-two:hover {
@@ -241,7 +264,6 @@
   color: #f57c00;
 }
 
-/* File info display */
 .file-info {
   display: flex;
   align-items: center;
@@ -255,15 +277,140 @@
 
 .file-name {
   font-size: 15px;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
   font-weight: 700;
-  transition: .2s;
-  height: 52px;
+  color: #1a1a1a;
 }
 
-.btn-next-two:hover {
-  background: #fff3e8;
-  border: solid 1px #f57c00;
-  color: #f57c00;
+
+@media (max-width: 768px) {
+  .bulk-upload-page-two {
+    padding: 16px;
+    margin-top: 70px;
+  }
+
+  .bulk-header-two h1 {
+    font-size: 26px;
+  }
+
+  .bulk-header-two p {
+    font-size: 13px;
+  }
+
+  .stepper-two {
+    margin-top: 28px;
+    margin-bottom: 24px;
+  }
+
+  .step-item-two {
+    width: 56px;
+  }
+
+  .step-circle-two {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+
+  .step-line-two {
+    margin: 0 6px;
+    min-width: 10px;
+    margin-top: 18px;
+  }
+
+  .step-label-two {
+    font-size: 9.5px;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .form-card-two {
+    padding: 28px 24px;
+    border-radius: 14px;
+    gap: 22px;
+  }
+
+  .drop-zone-two {
+    padding: 40px 16px;
+  }
+
+
+  .file-info {
+    flex-wrap: wrap;
+    padding: 10px 14px;
+  }
+}
+
+
+@media (max-width: 480px) {
+  .stepper-two {
+    max-width: 100%;
+  }
+
+  .step-item-two {
+    width: 48px;
+  }
+
+  .step-circle-two {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+    border-width: 1.5px;
+  }
+
+  .step-line-two {
+    margin: 0 4px;
+    min-width: 6px;
+    margin-top: 15px;
+  }
+
+  .step-label-two {
+    font-size: 8px;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .form-card-two {
+    padding: 20px 14px;
+  }
+
+  .bulk-header-two h1 {
+    font-size: 22px;
+  }
+
+  .drop-zone-two {
+    padding: 28px 12px;
+  }
+
+  .drop-icon-two {
+    width: 42px;
+    height: 42px;
+    font-size: 16px;
+  }
+
+  .drop-placeholder-two {
+    font-size: 13px;
+  }
+
+  .file-info {
+    width: 100%;
+  }
+
+  .file-name {
+    font-size: 13px;
+    word-break: break-all;
+  }
+
+ .bulk-footer-two,
+  .step2-footer-two {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .btn-back-two,
+  .btn-next-two {
+    width: 100%;
+  }
+
 }

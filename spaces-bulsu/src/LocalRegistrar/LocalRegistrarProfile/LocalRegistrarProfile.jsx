@@ -96,7 +96,8 @@ export default function LocalRegistrarProfile() {
     const nameUnchanged =
       form.firstName === originalData.firstName &&
       form.lastName  === originalData.lastName;
-    if (nameUnchanged && !photoFile) { showToast("error", "Nothing to save."); return; }
+    const photoUnchanged = form.photoUrl === originalData.photoUrl;
+    if (nameUnchanged && photoUnchanged && !photoFile) { showToast("error", "Nothing to save."); return; }
 
     setSaving(true);
     try {
@@ -224,11 +225,19 @@ export default function LocalRegistrarProfile() {
         {editing && uploading && (
           <p className="lrp-upload-progress"><i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…</p>
         )}
-        {editing && !photoFile && !uploading && (
-          <button className="lrp-upload-btn" type="button" onClick={() => fileInputRef.current?.click()}>
-            <i className="fa-solid fa-arrow-up-from-bracket" /> Upload Picture
-          </button>
-        )}
+              {editing && form.photoUrl && !uploading && (
+        <button
+          className="lrp-remove-photo-btn"
+          type="button"
+          onClick={() => {
+            setPhotoFile(null);
+            if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
+            setForm(prev => ({ ...prev, photoUrl: "" }));
+          }}
+        >
+          <i className="fa-solid fa-trash" /> Remove Photo
+        </button>
+      )}
 
         {/* Fields */}
         <div className="lrp-fields">

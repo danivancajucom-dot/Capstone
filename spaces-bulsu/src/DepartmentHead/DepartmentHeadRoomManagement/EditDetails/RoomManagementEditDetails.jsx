@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
@@ -20,6 +20,49 @@ const EQUIPMENT_OPTIONS = [
   { id: "computer", label: "Computer" },
   { id: "smartBoard", label: "Smart Board" },
 ];
+
+/* ─── Custom Dropdown ─────────────────────────────────── */
+function CustomDropdown({ placeholder, options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className={`custom-select ${open ? "open" : ""}`} ref={ref}>
+      <div className="custom-select-trigger" onClick={() => setOpen(!open)}>
+        <span className={value ? "" : "placeholder-text"}>{value || placeholder}</span>
+        <svg className={`chevron-icon ${open ? "rotated" : ""}`} width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 4.5L7 9.5L12 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+      {open && (
+        <div className="custom-select-dropdown">
+          {options.map((option) => (
+            <div
+              key={option}
+              className={`custom-select-option ${value === option ? "selected" : ""}`}
+              onClick={() => { onChange(option); setOpen(false); }}
+            >
+              {value === option && (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{marginRight: 8, flexShrink: 0}}>
+                  <path d="M2 7L5.5 10.5L12 3.5" stroke="#f57c00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+              {option}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RoomManagementEditDetails() {
   const navigate = useNavigate();
@@ -177,16 +220,12 @@ function RoomManagementEditDetails() {
           </div>
           <div>
             <label htmlFor="room-type">Room Type</label>
-            <select
-              id="room-type"
-              className="form-input form-select"
+            <CustomDropdown
+              placeholder="Select type..."
+              options={ROOM_TYPES}
               value={roomType}
-              onChange={(e) => setRoomType(e.target.value)}
-            >
-              {ROOM_TYPES.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+              onChange={(v) => setRoomType(v)}
+            />
           </div>
         </div>
 

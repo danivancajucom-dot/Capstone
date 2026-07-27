@@ -1,4 +1,4 @@
-.dept-reservations {
+.dph-reservations {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -8,13 +8,13 @@
   background-color: #F8F7F5;
 }
 
-.dept-reservations-header {
+.dph-reservations-header {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.dept-reservations h1 {
+.dph-reservations h1 {
   margin: 0;
   font-size: 32px;
   font-weight: 800;
@@ -22,13 +22,13 @@
   letter-spacing: -0.02em;
 }
 
-.dept-reservations-subtitle {
+.dph-reservations-subtitle {
   margin: 0;
   font-size: 14px;
   color: #64748B;
 }
 
-.dept-white-box-reservations {
+.dph-white-box-reservations {
   background-color: #ffffff;
   border-radius: 14px;
   padding: 20px;
@@ -41,13 +41,21 @@
 
 /* --- Tabs --- */
 
-.dept-reservations-nav {
+.dph-reservations-nav {
   display: flex;
   gap: 36px;
   padding: 6px 16px 0;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
 }
 
-.dept-reservations-nav-item {
+.dph-reservations-nav::-webkit-scrollbar {
+  display: none;
+}
+
+
+.dph-reservations-nav-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -59,23 +67,24 @@
   border-bottom: 2px solid transparent;
   transition: color 0.18s ease, border-color 0.18s ease;
   outline: none;
+  flex-shrink: 0;
 }
 
-.dept-reservations-nav-item:hover {
+.dph-reservations-nav-item:hover {
   color: #f57c00;
 }
 
-.dept-reservations-nav-item:focus-visible {
+.dph-reservations-nav-item:focus-visible {
   box-shadow: 0 0 0 2px rgba(245, 124, 0, 0.35);
   border-radius: 4px;
 }
 
-.dept-reservations-nav-item.active {
+.dph-reservations-nav-item.active {
   color: #f57c00;
   border-bottom-color: #f57c00;
 }
 
-.dept-reservations-nav-count {
+.dph-reservations-nav-count {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
@@ -90,12 +99,12 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 
-.dept-reservations-nav-item.active .dept-reservations-nav-count {
+.dph-reservations-nav-item.active .dph-reservations-nav-count {
   background: #FFE8CC;
   color: #f57c00;
 }
 
-.dept-reservations-nav-divider {
+.dph-reservations-nav-divider {
   border: none;
   border-top: 1px solid #ECEAE6;
   margin: 0 0 4px;
@@ -103,7 +112,7 @@
 
 /* --- Content area --- */
 
-.dept-reservations-content {
+.dph-reservations-content {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -111,46 +120,44 @@
   flex: 1;
 }
 
-.dept-reservations-content--grid {
+.dph-reservations-content--grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+   align-content: start;
 }
 
-/* ── Ensure grid cards fill their columns ──────────────────────────── */
-.dept-reservations-content--grid .rc-card--compact {
+
+.dph-reservations-content--grid .rc-card--compact {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
 }
 
 @media (min-width: 720px) {
-  .dept-reservations-content--grid {
-    grid-template-columns: repeat(2, 1fr);
+  .dph-reservations-content--grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1150px) {
-  .dept-reservations-content--grid {
-    grid-template-columns: repeat(3, 1fr);
+  .dph-reservations-content--grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-/* Cards keep their own 16/20px margin for the single-column list;
-   inside the grid, spacing is handled by grid gap instead. */
-.dept-reservations-content--grid .rsv-ticket {
+.dph-reservations-content--grid .rsv-ticket {
   margin: 0;
 }
 
-/* Empty state should always span full width and center, grid or not. */
-.dept-reservations-content--empty {
+.dph-reservations-content--empty {
   display: flex;
 }
 
 /* --- Empty state --- */
 
-.dept-empty-state {
+.dph-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -162,7 +169,7 @@
   width: 100%;
 }
 
-.dept-empty-title {
+.dph-empty-title {
   margin: 8px 0 0;
   font-size: 15px;
   font-weight: 700;
@@ -170,7 +177,7 @@
   text-transform: capitalize;
 }
 
-.dept-empty-subtitle {
+.dph-empty-subtitle {
   margin: 0;
   font-size: 13px;
   color: #94A3B8;
@@ -207,14 +214,14 @@
 
 /* --- Load more --- */
 
-.dept-load-more-reservations {
+.dph-load-more-reservations {
   display: flex;
   justify-content: center;
   margin-top: auto;
   padding-top: 16px;
 }
 
-.dept-load-more-btn-reservations {
+.dph-load-more-btn-reservations {
   padding: 10px 30px;
   border: 1px solid transparent;
   background-color: #f57c00;
@@ -229,13 +236,13 @@
   height: 46px;
 }
 
-.dept-load-more-btn-reservations:hover {
+.dph-load-more-btn-reservations:hover {
   background: #fff3e8;
   border: solid 1px #f57c00;
   color: #f57c00;
   box-shadow: none;
 }
 
-.dept-load-more-btn-reservations:active {
+.dph-load-more-btn-reservations:active {
   transform: translateY(1px);
 }

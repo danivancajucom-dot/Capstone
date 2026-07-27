@@ -54,15 +54,10 @@ function DepartmentHeadViewReservationDenied() {
     .join(", ") || "None";
 
   return (
-    <div className="dh-denied-reservation-room">
-      <i
-        className="fa-solid fa-arrow-left dh-denied-back-arrow"
-        onClick={() => navigate(-1)}
-        style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
-      ></i>
+    <div className="dph-denied-reservation-room">
 
       <div className="dh-denied-white-box">
-        <h2 className="dh-denied-title">Denied Reservation Details</h2>
+        <h2 className="dph-denied-title">Denied Reservation Details</h2>
 
         {/* ─── Denial Reason (highlighted) ───────────────────────── */}
         <div className="dh-denied-reason-box">

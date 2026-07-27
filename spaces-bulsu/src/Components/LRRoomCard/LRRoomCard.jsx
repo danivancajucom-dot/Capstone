@@ -1,4 +1,5 @@
 import "./lr-room-card.css";
+import defaultRoomImg from "../../assets/Classroom.jpeg";
 
 function LRRoomCard({
   roomName,
@@ -15,8 +16,9 @@ function LRRoomCard({
       style={{ cursor: "pointer" }}
     >
       <div className="lr-room-card-image">
+        <img src={defaultRoomImg} alt="Room" />
         {status && (
-          <span className={`room-status ${status.toLowerCase()}`}>
+          <span className={`room-status-lr ${status.toLowerCase()}`}>
             {status}
           </span>
         )}

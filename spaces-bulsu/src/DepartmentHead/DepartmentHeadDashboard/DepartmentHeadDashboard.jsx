@@ -447,6 +447,13 @@ export default function DepartmentHeadDashboard() {
 
   return (
     <div className="dept-db-dashboard">
+
+            <div className="dept-db-header">
+        <div>
+          <h1 className="dept-db-title">Department Head Dashboard</h1>
+          <p className="dept-db-subtitle">Monitor room status and system activity in real-time.</p>
+        </div>
+      </div>
       {/* STATS ROW */}
       <div className="dept-db-stats-row">
         {[
@@ -521,14 +528,8 @@ export default function DepartmentHeadDashboard() {
 
                   <div className="dept-db-room-card-img">
                     <img src={room.image || classroomImg} alt={room.roomName} className="dept-db-room-img" />
-                    {room.status === "occupied" && (
-                      <div className="dept-db-in-use-badge">OCCUPIED</div>
-                    )}
-                    {room.status === "maintenance" && (
-                      <div className="dept-db-in-use-badge" style={{ background: "#6b7280" }}>
-                        MAINTENANCE
-                      </div>
-                    )}
+                    {room.status === "occupied"}
+                    {room.status === "maintenance"}
                   </div>
 
                   <p style={{ marginBottom: 4, fontWeight: 700, fontSize: 13, color: "#374151" }}>
