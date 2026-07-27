@@ -5,6 +5,7 @@ import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
+import classroomImg from "../../assets/Classroom.jpeg";
 
 function ReservationCard({ reservation }) {
   const navigate = useNavigate();
@@ -59,15 +60,15 @@ function ReservationCard({ reservation }) {
       >
         <div className="reservation-card-left">
           <span className="reservation-room-badge">{reservation.roomName}</span>
-          <h3 className="reservation-name">{reservation.facultyName}</h3>
+          <h3 className="reservation-name">{reservation.facultyName || reservation.requesterName}</h3>
           <p className="reservation-time">{reservation.startTime} - {reservation.endTime} • {reservation.date}</p>
           <div className="reservation-course">
             <i className="fa-solid fa-users"></i>
-            <span className="course-title">{reservation.courseTitle}</span>
+            <span className="course-title">{reservation.courseTitle || "N/A"}</span>
           </div>
           <div className="reservation-actions">
             <button
-              className="approve-btn"
+              className="approve-btn-reservation"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowConfirm(true);
@@ -76,7 +77,7 @@ function ReservationCard({ reservation }) {
               <i className="fa-solid fa-circle-check"></i> Approve
             </button>
             <button
-              className="deny-btn"
+              className="deny-btn-reservation"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowDenial(true);
@@ -90,7 +91,8 @@ function ReservationCard({ reservation }) {
         <div className="reservation-card-right">
           <span className="reservation-time-ago">{reservation.createdAt?.toDate?.().toLocaleDateString()}</span>
           <div className="reservation-image">
-          </div>
+          <img src={classroomImg} alt="Room" />
+        </div>
         </div>
       </div>
 

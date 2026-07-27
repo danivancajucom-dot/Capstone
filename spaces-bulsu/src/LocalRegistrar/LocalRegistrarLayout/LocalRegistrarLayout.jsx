@@ -10,7 +10,6 @@ import {
   onSnapshot,
   doc,
   updateDoc,
-  getDoc,
   writeBatch,               // ← added for markAllAsRead
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -18,7 +17,7 @@ import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
 import NotificationCard from "../../Components/NotificationCard/Notification"; // ← added
 
 export default function LocalRegistrarLayout() {
-  const [openSchedule, setOpenSchedule] = useState(true);
+  const [openSchedule, setOpenSchedule] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -42,11 +41,18 @@ export default function LocalRegistrarLayout() {
   );
 
   useEffect(() => {
+    setOpenSchedule(isScheduleActive);
+  }, [isScheduleActive]);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) return;
 
-      // load profile
-      getDoc(doc(db, "users", user.uid)).then((snap) => {
+      // ── Profile listener (real-time) ────────────────────────
+      // Using onSnapshot instead of a one-time getDoc so that any
+      // update made elsewhere (e.g. Profile page photo upload)
+      // reflects here instantly without needing a page refresh.
+      const unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
           setProfile({
@@ -76,7 +82,10 @@ export default function LocalRegistrarLayout() {
         );
       });
 
-      return unsubscribeNotif;
+      return () => {
+        unsubscribeProfile();
+        unsubscribeNotif();
+      };
     });
 
     return () => unsubscribe();
@@ -210,7 +219,7 @@ export default function LocalRegistrarLayout() {
                   <i className="fa-solid fa-calendar-days"></i>
                   <span>Schedule</span>
                 </div>
-                <i className={`fa-solid fa-chevron-down arrow ${openSchedule ? "open" : ""}`} />
+                <i className={`fa-solid fa-chevron-down arrowLR ${openSchedule ? "open" : ""}`} />
               </button>
 
               <div className={`submenu-card ${openSchedule ? "open" : ""}`}>
@@ -255,18 +264,18 @@ export default function LocalRegistrarLayout() {
 
             <div className="header-actions">
               {/* ── NOTIFICATION TRIGGER ────────────────────────── */}
-              <div className="notification-container">
+              <div className="notification-container-LR">
                 <button
-                  className={`header-btn ${showNotifications ? "notif-btn-open" : ""}`}
+                  className={`header-btn lr-notif-btn-LR ${showNotifications ? "notif-btn-open-LR" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
                 >
                   <i
                     className={`fa-bell ${
-                      unreadCount > 0 ? "fa-solid bell-active" : "fa-regular"
+                      unreadCount > 0 ? "fa-solid bell-active-LR" : "fa-regular"
                     }`}
                   ></i>
                   {unreadCount > 0 && (
-                    <span className="notif-count">
+                    <span className="notif-count-LR">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
@@ -275,58 +284,58 @@ export default function LocalRegistrarLayout() {
                 {/* NOTIFICATIONS PANEL */}
                 {showNotifications && (
                   <>
-                    <div className="notif-clickaway" onClick={() => setShowNotifications(false)}></div>
-                    <div className="notif-panel">
-                      <span className="notif-panel-arrow"></span>
+                    <div className="notif-clickaway-LR" onClick={() => setShowNotifications(false)}></div>
+                    <div className="notif-panel-LR">
+                      <span className="notif-panel-arrow-LR"></span>
 
-                      <div className="notif-top">
-                        <div className="notif-top-title">
+                      <div className="notif-top-LR">
+                        <div className="notif-top-title-LR">
                           <h2>Notifications</h2>
                           {unreadCount > 0 && (
-                            <span className="notif-top-badge">{unreadCount} new</span>
+                            <span className="notif-top-badge-LR">{unreadCount} new</span>
                           )}
                         </div>
                         <button
-                          className="notif-close"
+                          className="notif-close-LR"
                           onClick={() => setShowNotifications(false)}
                         >
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
 
-                      <div className="notif-tabs">
+                      <div className="notif-tabs-LR">
                         <button
                           className={activeTab === "all" ? "active" : ""}
                           onClick={() => setActiveTab("all")}
                         >
-                          All <span className="notif-tab-count">{allCount}</span>
+                          All <span className="notif-tab-count-LR">{allCount}</span>
                         </button>
                         <button
                           className={activeTab === "unread" ? "active" : ""}
                           onClick={() => setActiveTab("unread")}
                         >
-                          Unread <span className="notif-tab-count">{unreadCount}</span>
+                          Unread <span className="notif-tab-count-LR">{unreadCount}</span>
                         </button>
                         <button
                           className={activeTab === "archived" ? "active" : ""}
                           onClick={() => setActiveTab("archived")}
                         >
-                          Archived <span className="notif-tab-count">{archivedCount}</span>
+                          Archived <span className="notif-tab-count-LR">{archivedCount}</span>
                         </button>
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
-                        <div className="notif-mark-all-row">
-                          <button className="notif-mark-all" onClick={markAllAsRead}>
+                        <div className="notif-mark-all-row-LR">
+                          <button className="notif-mark-all-LR" onClick={markAllAsRead}>
                             <i className="fa-solid fa-check-double"></i> Mark all as read
                           </button>
                         </div>
                       )}
 
-                      <div className="notif-list">
+                      <div className="notif-list-LR">
                         {filteredNotifications.length === 0 ? (
-                          <div className="notif-empty">
-                            <div className="notif-empty-icon">
+                          <div className="notif-empty-LR">
+                            <div className="notif-empty-icon-LR">
                               <i className={`fa-solid ${emptyCopy.icon}`}></i>
                             </div>
                             <h4>{emptyCopy.title}</h4>

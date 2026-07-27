@@ -65,9 +65,10 @@ function EditScheduleModal({ schedule, onSave, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Edit Schedule</h3>
+    <div className="modal-overlay-LR" onClick={onClose}>
+      <div className="modal-LR edit-modal-LR" onClick={(e) => e.stopPropagation()}>
+        <div className="edit-modal-LR-scroll">
+          <h3>Edit Schedule</h3>
         <form onSubmit={handleSubmit}>
           <div className="modal-grid">
 
@@ -169,6 +170,7 @@ function EditScheduleModal({ schedule, onSave, onClose }) {
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );
@@ -410,95 +412,105 @@ const [schedules, setSchedules] =
           </div>
         </div>
 
-        {/* Day headers */}
-        <div className="days-header">
-          <div className="time-offset" />
-          {DAYS.map((d, i) => (
-            <div className="day-cell" key={d}>
-              <span className="day-name">{d}</span>
-              <span className="day-date">{dayDates[i]}</span>
-            </div>
-          ))}
-        </div>
-        <hr className="days-divider" />
+        {/*
+          Shared horizontal-scroll wrapper: the day-name header and the
+          calendar grid now live inside the SAME scrollable element, so
+          they always move together on small screens instead of the
+          header staying fixed while the grid scrolls underneath it.
+        */}
+        <div className="calendar-scroll-x">
+          {/* Day headers */}
+          <div className="days-header">
+            <div className="time-offset" />
+            {DAYS.map((d, i) => (
+              <div className="day-cell" key={d}>
+                <span className="day-name">{d}</span>
+                <span className="day-date">{dayDates[i]}</span>
+              </div>
+            ))}
+          </div>
+          <hr className="days-divider" />
 
-        {/* Scrollable grid */}
-        <div className="scroll-area">
-          <div className="cal-grid" style={{ height: totalGridHeight }}>
-            {/* Time column */}
-            <div className="time-col">
-              {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => {
-                const h = START_HOUR + i;
-                const label = h < 12 ? `${String(h).padStart(2, "0")} AM` : h === 12 ? "12 PM" : `${String(h - 12).padStart(2, "0")} PM`;
+          {/* Scrollable grid (vertical only — horizontal scroll now
+              happens on the wrapper above so it stays synced with the
+              day header) */}
+          <div className="scroll-area">
+            <div className="cal-grid" style={{ height: totalGridHeight }}>
+              {/* Time column */}
+              <div className="time-col">
+                {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => {
+                  const h = START_HOUR + i;
+                  const label = h < 12 ? `${String(h).padStart(2, "0")} AM` : h === 12 ? "12 PM" : `${String(h - 12).padStart(2, "0")} PM`;
+                  return (
+                    <div className="time-slot" key={h}>
+                      <span>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Day columns */}
+              {DAYS.map((_, dayIdx) => {
+                const dayNumber = dayIdx + 1;
+                const daySchedules = schedules.filter(s => s.day === dayNumber);
                 return (
-                  <div className="time-slot" key={h}>
-                    <span>{label}</span>
+                  <div className="day-col" key={dayIdx} style={{ height: totalGridHeight, position: "relative" }}>
+                    {/* Hour separator lines */}
+                    {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
+                      <div className="hour-line" key={i} style={{ top: i * HOUR_HEIGHT }} />
+                    ))}
+
+                    {/* Schedule blocks */}
+                    {daySchedules.map((item) => {
+                      const top = getTopFromStart(item.startH, item.startM);
+                      const height = getBlockHeight(item.startH, item.startM, item.endH, item.endM);
+                      const color = colourPalette[item.colorIdx % colourPalette.length];
+                      return (
+                        <div
+                          key={item.id}
+                          className="calendar-event"
+                          style={{
+                            position: "absolute",
+                            top: `${top}px`,
+                            height: `${height}px`,
+                            left: "8px",
+                            right: "8px",
+                            backgroundColor: color,
+                            borderRadius: "6px",
+                            padding: "4px",
+                            color: "white",
+                            fontSize: "10px",
+                            cursor: "pointer",
+                            overflow: "hidden",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between",
+                          }}
+                          onClick={() => setEditingSchedule(item)}
+                        >
+                          <div>
+                            <strong>{item.code}</strong>
+                            {item.section && <span style={{ fontSize: "8px", marginLeft: "4px" }}>({item.section})</span>}
+                          </div>
+                          <div>
+                          <div>
+                            {formatTime12Hour(item.startH, item.startM)}
+                            {" - "}
+                            {formatTime12Hour(item.endH, item.endM)}
+                          </div>
+                          </div>
+                          {item.faculty && item.faculty !== "TBA" && (
+                            <div style={{ fontSize: "8px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {item.faculty}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
-
-            {/* Day columns */}
-            {DAYS.map((_, dayIdx) => {
-              const dayNumber = dayIdx + 1;
-              const daySchedules = schedules.filter(s => s.day === dayNumber);
-              return (
-                <div className="day-col" key={dayIdx} style={{ height: totalGridHeight, position: "relative" }}>
-                  {/* Hour separator lines */}
-                  {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
-                    <div className="hour-line" key={i} style={{ top: i * HOUR_HEIGHT }} />
-                  ))}
-
-                  {/* Schedule blocks */}
-                  {daySchedules.map((item) => {
-                    const top = getTopFromStart(item.startH, item.startM);
-                    const height = getBlockHeight(item.startH, item.startM, item.endH, item.endM);
-                    const color = colourPalette[item.colorIdx % colourPalette.length];
-                    return (
-                      <div
-                        key={item.id}
-                        className="calendar-event"
-                        style={{
-                          position: "absolute",
-                          top: `${top}px`,
-                          height: `${height}px`,
-                          left: "4px",
-                          right: "4px",
-                          backgroundColor: color,
-                          borderRadius: "6px",
-                          padding: "4px",
-                          color: "white",
-                          fontSize: "10px",
-                          cursor: "pointer",
-                          overflow: "hidden",
-                          display: "flex",
-                          flexDirection: "column",
-                          justifyContent: "space-between",
-                        }}
-                        onClick={() => setEditingSchedule(item)}
-                      >
-                        <div>
-                          <strong>{item.code}</strong>
-                          {item.section && <span style={{ fontSize: "8px", marginLeft: "4px" }}>({item.section})</span>}
-                        </div>
-                        <div>
-                        <div>
-                          {formatTime12Hour(item.startH, item.startM)}
-                          {" - "}
-                          {formatTime12Hour(item.endH, item.endM)}
-                        </div>
-                        </div>
-                        {item.faculty && item.faculty !== "TBA" && (
-                          <div style={{ fontSize: "8px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {item.faculty}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>

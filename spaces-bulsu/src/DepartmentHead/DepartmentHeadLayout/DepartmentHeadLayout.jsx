@@ -1,8 +1,6 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "./department-head-layout.css";
-import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
-import NotificationCard from "../../Components/NotificationCard/Notification"; 
 import { auth, db } from "../../firebase";
 import {
   collection,
@@ -12,20 +10,24 @@ import {
   onSnapshot,
   doc,
   updateDoc,
-  getDoc,
   writeBatch,
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
+import NotificationCard from "../../Components/NotificationCard/Notification";
 
 export default function DepartmentHeadLayout() {
+  const [openRoom, setOpenRoom] = useState(false);
   const navigate = useNavigate();
-  const [openRoom, setOpenRoom]           = useState(true);
+  const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
+
   const [showNotifications, setShowNotifications] = useState(false);
-  const [loggingOut, setLoggingOut]               = useState(false);
-  const [notifications, setNotifications]         = useState([]);
-  const [activeTab, setActiveTab]                 = useState("all");
-  const [profile, setProfile]                     = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
+  const [notifications, setNotifications] = useState([]);
+  const [activeTab, setActiveTab] = useState("all");
+
   const roomRoutes = [
     "/department-head/room-management",
     "/department-head/room-usagement",
@@ -36,11 +38,15 @@ export default function DepartmentHeadLayout() {
   );
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    setOpenRoom(isRoomActive);
+  }, [isRoomActive]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) return;
 
-      // Load profile for sidebar bottom card
-      getDoc(doc(db, "users", user.uid)).then((snap) => {
+      // Real-time profile listener (same as LR)
+      const unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
           setProfile({
@@ -61,17 +67,21 @@ export default function DepartmentHeadLayout() {
       );
 
       const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        setNotifications(data);
+        setNotifications(
+          snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+        );
       });
-      return () => unsubscribeNotif();
+
+      return () => {
+        unsubscribeProfile();
+        unsubscribeNotif();
+      };
     });
 
-    return () => unsubscribeAuth();
+    return () => unsubscribe();
   }, []);
 
   const formatTime = (timestamp) => {
@@ -100,7 +110,9 @@ export default function DepartmentHeadLayout() {
     if (unread.length === 0) return;
     try {
       const batch = writeBatch(db);
-      unread.forEach((n) => batch.update(doc(db, "notifications", n.id), { unread: false }));
+      unread.forEach((n) =>
+        batch.update(doc(db, "notifications", n.id), { unread: false })
+      );
       await batch.commit();
     } catch (err) { console.error(err); }
   };
@@ -133,6 +145,12 @@ export default function DepartmentHeadLayout() {
     },
   }[activeTab];
 
+  const typeIcon = {
+    schedule: "fa-regular fa-calendar",
+    urgent:   "fa-solid fa-exclamation",
+    approved: "fa-solid fa-check",
+  };
+
   const handleLogout = async () => {
     try {
       setShowLogoutConfirm(false);
@@ -150,17 +168,10 @@ export default function DepartmentHeadLayout() {
   const fullName = `${profile.firstName} ${profile.lastName}`.trim();
   const initials = `${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase();
 
-  const typeIcon = {
-    schedule: "fa-regular fa-calendar",
-    urgent:   "fa-solid fa-exclamation",
-    approved: "fa-solid fa-check",
-  };
-
   return (
     <>
       <div className="dept-layout">
 
-        {/* SIDEBAR */}
         <aside className="dept-sidebar">
 
           <div className="dept-logo">
@@ -193,21 +204,22 @@ export default function DepartmentHeadLayout() {
 
             <div className="nav-group">
               <button
-                className={`lr-nav-parent ${isRoomActive ? "active-parent" : ""}`}
+                className={`dept-nav-parent ${isRoomActive ? "active-parent" : ""}`}
                 onClick={() => setOpenRoom(!openRoom)}
               >
                 <div className="nav-left">
                   <i className="fa-solid fa-building"></i>
                   <span>Room</span>
                 </div>
-                <i className={`fa-solid fa-chevron-down arrow ${openRoom ? "open" : ""}`} />
+                <i className={`fa-solid fa-chevron-down arrowDH ${openRoom ? "open" : ""}`} />
               </button>
 
               <div className={`submenu-card ${openRoom ? "open" : ""}`}>
                 <NavLink to="/department-head/room-management">Room Management</NavLink>
-                <NavLink to="/department-head/room-usagement">Room Usagement</NavLink>
+                <NavLink to="/department-head/room-usagement">Room Usage Tracking</NavLink>
               </div>
             </div>
+
             <NavLink to="/department-head/room-activity">
               <i className="fa-solid fa-chart-line"></i>
               <span>Room Activity</span>
@@ -238,7 +250,6 @@ export default function DepartmentHeadLayout() {
 
         </aside>
 
-        {/* MAIN */}
         <div className="dept-main">
 
           <header className="dept-header">
@@ -248,58 +259,60 @@ export default function DepartmentHeadLayout() {
             </div>
 
             <div className="header-actions">
-              <div className="notification-container">
+              {/* NOTIFICATION TRIGGER */}
+              <div className="notification-container-DH">
                 <button
-                  className={`dept-header-btn ${showNotifications ? "notif-btn-open" : ""}`}
+                  className={`dept-header-btn dept-notif-btn ${showNotifications ? "notif-btn-open-DH" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
                 >
-                  <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active" : "fa-regular"}`}></i>
+                  <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active-DH" : "fa-regular"}`}></i>
                   {unreadCount > 0 && (
-                    <span className="notif-count">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                    <span className="notif-count-DH">{unreadCount > 9 ? "9+" : unreadCount}</span>
                   )}
                 </button>
 
-                {/* NOTIFICATIONS — floating panel anchored to the bell */}
                 {showNotifications && (
                   <>
-                    <div className="notif-clickaway" onClick={() => setShowNotifications(false)}></div>
-                    <div className="notif-panel">
-                      <span className="notif-panel-arrow"></span>
+                    <div className="notif-clickaway-DH" onClick={() => setShowNotifications(false)}></div>
+                    <div className="notif-panel-DH">
+                      <span className="notif-panel-arrow-DH"></span>
 
-                      <div className="notif-top">
-                        <div className="notif-top-title">
+                      <div className="notif-top-DH">
+                        <div className="notif-top-title-DH">
                           <h2>Notifications</h2>
-                          {unreadCount > 0 && <span className="notif-top-badge">{unreadCount} new</span>}
+                          {unreadCount > 0 && (
+                            <span className="notif-top-badge-DH">{unreadCount} new</span>
+                          )}
                         </div>
-                        <button className="notif-close" onClick={() => setShowNotifications(false)}>
+                        <button className="notif-close-DH" onClick={() => setShowNotifications(false)}>
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
 
-                      <div className="notif-tabs">
+                      <div className="notif-tabs-DH">
                         <button className={activeTab === "all"      ? "active" : ""} onClick={() => setActiveTab("all")}>
-                          All <span className="notif-tab-count">{allCount}</span>
+                          All <span className="notif-tab-count-DH">{allCount}</span>
                         </button>
                         <button className={activeTab === "unread"   ? "active" : ""} onClick={() => setActiveTab("unread")}>
-                          Unread <span className="notif-tab-count">{unreadCount}</span>
+                          Unread <span className="notif-tab-count-DH">{unreadCount}</span>
                         </button>
                         <button className={activeTab === "archived" ? "active" : ""} onClick={() => setActiveTab("archived")}>
-                          Archived <span className="notif-tab-count">{archivedCount}</span>
+                          Archived <span className="notif-tab-count-DH">{archivedCount}</span>
                         </button>
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
-                        <div className="notif-mark-all-row">
-                          <button className="notif-mark-all" onClick={markAllAsRead}>
+                        <div className="notif-mark-all-row-DH">
+                          <button className="notif-mark-all-DH" onClick={markAllAsRead}>
                             <i className="fa-solid fa-check-double"></i> Mark all as read
                           </button>
                         </div>
                       )}
 
-                      <div className="notif-list">
+                      <div className="notif-list-DH">
                         {filteredNotifications.length === 0 ? (
-                          <div className="notif-empty">
-                            <div className="notif-empty-icon">
+                          <div className="notif-empty-DH">
+                            <div className="notif-empty-icon-DH">
                               <i className={`fa-solid ${emptyCopy.icon}`}></i>
                             </div>
                             <h4>{emptyCopy.title}</h4>
@@ -328,6 +341,8 @@ export default function DepartmentHeadLayout() {
                   </>
                 )}
               </div>
+
+              {/* LOGOUT BUTTON */}
               <button className="dept-header-btn dept-logout-btn" onClick={() => setShowLogoutConfirm(true)}>
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
@@ -341,7 +356,6 @@ export default function DepartmentHeadLayout() {
         </div>
       </div>
 
-      {/* LOGOUT MODAL */}
       {showLogoutConfirm && (
         <LogoutPopup
           onCancel={() => setShowLogoutConfirm(false)}
@@ -349,7 +363,6 @@ export default function DepartmentHeadLayout() {
         />
       )}
 
-      {/* LOGOUT LOADING */}
       {loggingOut && (
         <div className="logout-loading-screen">
           <div className="loading-card">

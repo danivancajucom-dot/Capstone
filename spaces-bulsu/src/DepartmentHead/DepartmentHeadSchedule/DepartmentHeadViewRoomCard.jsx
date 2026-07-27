@@ -16,9 +16,7 @@ import { db } from "../../firebase";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
-// Gumagamit ng LOCAL na date parts (hindi toISOString/UTC) — para
-// hindi ma-shift ang petsa sa mga timezone na nasa unahan ng UTC
-// (gaya ng Philippines, UTC+8).
+// Local date string (YYYY-MM-DD) — avoids UTC shift
 const toDateStr = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -41,19 +39,13 @@ function DepartmentHeadViewRoomCard() {
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   useEffect(() => {
-    if (!room) {
-      navigate("/department-head/schedule-view-academic-schedule");
-    }
-  }, [room, navigate]);
-
-  useEffect(() => {
     loadSchedules();
   }, []);
 
   const loadSchedules = async () => {
     if (!room?.id) return;
 
-    // ─── REGULAR SCHEDULES ──────────────────────────────────────────
+    // ─── REGULAR SCHEDULES ──────────────────────────────────────
     const snapshot = await getDocs(
       collection(db, "rooms", room.id, "schedules")
     );
@@ -65,7 +57,7 @@ function DepartmentHeadViewRoomCard() {
 
     setSchedules(list.filter((item) => !item.initialized));
 
-    // ─── ROOM ACTIVITIES (EVENTS) ──────────────────────────────────
+    // ─── ROOM ACTIVITIES (EVENTS) ──────────────────────────────
     const eventSnap = await getDocs(collection(db, "events"));
 
     const eventList = eventSnap.docs
@@ -77,7 +69,7 @@ function DepartmentHeadViewRoomCard() {
 
     setEvents(eventList);
 
-    // ─── APPROVED RESERVATIONS (case‑insensitive) ─────────────────
+    // ─── APPROVED RESERVATIONS (case‑insensitive) ──────────────
     const reservationSnap = await getDocs(
       collection(db, "reservationRequests")
     );
@@ -95,7 +87,7 @@ function DepartmentHeadViewRoomCard() {
 
     setReservations(reservationList);
 
-    // ─── RELEASED SCHEDULE OCCURRENCES ────────────────────────────
+    // ─── RELEASED SCHEDULE OCCURRENCES ─────────────────────────
     const releaseSnap = await getDocs(collection(db, "roomReleases"));
 
     const keys = new Set(
@@ -104,9 +96,10 @@ function DepartmentHeadViewRoomCard() {
         .filter((r) => r.roomId === room.id)
         .map((r) => `${r.scheduleId}_${r.date}`)
     );
+
     setReleasedKeys(keys);
 
-    // ─── APPROVED ROOM REASSIGNMENTS ──────────────────────────────
+    // ─── APPROVED ROOM REASSIGNMENTS ───────────────────────────
     const reassignSnap = await getDocs(collection(db, "roomReassignments"));
 
     const roomReassignments = reassignSnap.docs
@@ -117,7 +110,7 @@ function DepartmentHeadViewRoomCard() {
           (r.oldRoomId === room.id || r.newRoomId === room.id)
       );
 
-    // Mga occurrence na inilipat palabas ng room na ito
+    // Moved out of this room
     setReassignedAwayKeys(
       new Set(
         roomReassignments
@@ -126,7 +119,7 @@ function DepartmentHeadViewRoomCard() {
       )
     );
 
-    // Mga occurrence na inilipat papunta sa room na ito
+    // Moved into this room
     setReassignedInto(
       roomReassignments.filter((r) => r.newRoomId === room.id)
     );
@@ -149,7 +142,7 @@ function DepartmentHeadViewRoomCard() {
   const getTopPosition = (startTime) => {
     const startMinutes = convertToMinutes(startTime);
     const calendarStart = 7 * 60;
-    return ((startMinutes - calendarStart) / 60) * HOUR_HEIGHT + 30;
+    return ((startMinutes - calendarStart) / 60) * HOUR_HEIGHT + 10;
   };
 
   const getCardHeight = (startTime, endTime) => {
@@ -226,15 +219,18 @@ function DepartmentHeadViewRoomCard() {
       <div className="lr-view-room">
         <i
           className="fa-solid fa-arrow-left lr-back-arrow"
-          onClick={() =>
-            navigate("/department-head/schedule-view-academic-schedule")
-          }
-          style={{ cursor: "pointer" }}
+          onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate("/local-registrar/academic-schedule");
+              }
+            }}
         ></i>
 
-        <div className="white-box-view-room">
-          <div className="box-header">
-            <div className="week-navigation">
+        <div className="lr-vr-white-box">
+          <div className="lr-vr-box-header">
+            <div className="lr-vr-week-navigation">
               <i
                 className="fa-solid fa-chevron-left"
                 style={{ cursor: "pointer" }}
@@ -255,144 +251,150 @@ function DepartmentHeadViewRoomCard() {
                 }}
               ></i>
             </div>
-            <span className="room-name">{room?.roomName}</span>
+            <span className="lr-vr-room-name">{room?.roomName}</span>
           </div>
 
-          <div className="days-container">
-            <div className="time-column" aria-hidden="true"></div>
-            {weekDates.map((date, index) => (
-              <div
-                className={`day ${isToday(date) ? "today" : ""}`}
-                key={index}
-              >
-                <span className="day-name">{DAYS[index]}</span>
-                <span className="day-date">{date.getDate()}</span>
-              </div>
-            ))}
-          </div>
-
-          <hr className="days-divider" />
-
-          <div className="schedule-container">
-            <div className="time-column">
-              <div className="time-slot">07 AM</div>
-              <div className="time-slot">08 AM</div>
-              <div className="time-slot">09 AM</div>
-              <div className="time-slot">10 AM</div>
-              <div className="time-slot">11 AM</div>
-              <div className="time-slot">12 PM</div>
-              <div className="time-slot">01 PM</div>
-              <div className="time-slot">02 PM</div>
-              <div className="time-slot">03 PM</div>
-              <div className="time-slot">04 PM</div>
-              <div className="time-slot">05 PM</div>
-              <div className="time-slot">06 PM</div>
-              <div className="time-slot">07 PM</div>
-              <div className="time-slot">08 PM</div>
+          <div className="lr-vr-scroll-x">
+            <div className="lr-vr-days-container">
+              <div className="lr-vr-time-column" aria-hidden="true"></div>
+              {weekDates.map((date, index) => (
+                <div
+                  className={`lr-vr-day ${isToday(date) ? "today" : ""}`}
+                  key={index}
+                >
+                  <span className="lr-vr-day-name">{DAYS[index]}</span>
+                  <span className="lr-vr-day-date">{date.getDate()}</span>
+                </div>
+              ))}
             </div>
 
-            <div className="calendar-grid">
-              {schedules.length === 0 &&
-              events.length === 0 &&
-              reservations.length === 0 &&
-              reassignedInto.length === 0 ? (
-                <div className="no-schedule">
-                  <i className="fa-regular fa-calendar-xmark"></i>
-                  <h3>No schedules available</h3>
-                  <p>There are no schedules or room activities.</p>
-                </div>
-              ) : (
-                DAYS.map((day, index) => {
-                  const dateEvents = getItemsForDate(weekDates[index]);
-                  const occurrenceDateStr = toDateStr(weekDates[index]);
+            <hr className="lr-vr-days-divider" />
 
-                  return (
-                    <div className="calendar-day" key={day}>
-                      {/* REGULAR SCHEDULE — itinatago ang na-release at na-reassign palabas */}
-                      {getSchedulesByDay(day)
-                        .filter((schedule) => {
-                          if (
-                            releasedKeys.has(
-                              `${schedule.id}_${occurrenceDateStr}`
-                            )
-                          ) {
-                            return false;
-                          }
-                          if (
-                            reassignedAwayKeys.has(
-                              `${schedule.id}_${occurrenceDateStr}`
-                            )
-                          ) {
-                            return false;
-                          }
+            <div className="lr-vr-schedule-container">
+              <div className="lr-vr-time-column">
+                <div className="lr-vr-time-slot">07 AM</div>
+                <div className="lr-vr-time-slot">08 AM</div>
+                <div className="lr-vr-time-slot">09 AM</div>
+                <div className="lr-vr-time-slot">10 AM</div>
+                <div className="lr-vr-time-slot">11 AM</div>
+                <div className="lr-vr-time-slot">12 PM</div>
+                <div className="lr-vr-time-slot">01 PM</div>
+                <div className="lr-vr-time-slot">02 PM</div>
+                <div className="lr-vr-time-slot">03 PM</div>
+                <div className="lr-vr-time-slot">04 PM</div>
+                <div className="lr-vr-time-slot">05 PM</div>
+                <div className="lr-vr-time-slot">06 PM</div>
+                <div className="lr-vr-time-slot">07 PM</div>
+                <div className="lr-vr-time-slot">08 PM</div>
+              </div>
 
-                          const sStart = convertToMinutes(schedule.startTime);
-                          const sEnd = convertToMinutes(schedule.endTime);
+              <div className="lr-vr-calendar-grid">
+                {schedules.length === 0 &&
+                events.length === 0 &&
+                reservations.length === 0 &&
+                reassignedInto.length === 0 ? (
+                  <div className="lr-vr-no-schedule">
+                    <i className="fa-regular fa-calendar-xmark"></i>
+                    <h3>No schedules available</h3>
+                    <p>There are no schedules or room activities.</p>
+                  </div>
+                ) : (
+                  DAYS.map((day, index) => {
+                    const dateEvents = getItemsForDate(weekDates[index]);
+                    const occurrenceDateStr = toDateStr(weekDates[index]);
 
-                          return !dateEvents.some((event) => {
-                            const eStart = convertToMinutes(event.startTime);
-                            const eEnd = convertToMinutes(event.endTime);
-                            return sStart < eEnd && sEnd > eStart;
-                          });
-                        })
-                        .map((schedule) => (
+                    return (
+                      <div className="lr-vr-calendar-day" key={day}>
+                        {/* REGULAR SCHEDULE — hide released & reassigned‑away */}
+                        {getSchedulesByDay(day)
+                          .filter((schedule) => {
+                            if (
+                              releasedKeys.has(
+                                `${schedule.id}_${occurrenceDateStr}`
+                              )
+                            ) {
+                              return false;
+                            }
+                            if (
+                              reassignedAwayKeys.has(
+                                `${schedule.id}_${occurrenceDateStr}`
+                              )
+                            ) {
+                              return false;
+                            }
+
+                            const sStart = convertToMinutes(
+                              schedule.startTime
+                            );
+                            const sEnd = convertToMinutes(schedule.endTime);
+
+                            return !dateEvents.some((event) => {
+                              const eStart = convertToMinutes(
+                                event.startTime
+                              );
+                              const eEnd = convertToMinutes(event.endTime);
+                              return sStart < eEnd && sEnd > eStart;
+                            });
+                          })
+                          .map((schedule) => (
+                            <ScheduleCard
+                              key={schedule.id}
+                              schedule={schedule}
+                              top={getTopPosition(schedule.startTime)}
+                              height={getCardHeight(
+                                schedule.startTime,
+                                schedule.endTime
+                              )}
+                              onClick={() =>
+                                setSelectedSchedule(
+                                  normalizeScheduleItem(schedule, "schedule")
+                                )
+                              }
+                            />
+                          ))}
+
+                        {/* ROOM ACTIVITIES, RESERVATIONS, REASSIGNED‑IN */}
+                        {dateEvents.map((event) => (
                           <ScheduleCard
-                            key={schedule.id}
-                            schedule={schedule}
-                            top={getTopPosition(schedule.startTime)}
+                            key={event.id}
+                            schedule={{
+                              ...event,
+                              subject:
+                                event.title ||
+                                event.purpose ||
+                                event.courseTitle ||
+                                (event._source === "reassignment"
+                                  ? `${event.courseTitle || "Class"} (Moved)`
+                                  : "Walk-in Reservation"),
+
+                              faculty:
+                                event.title
+                                  ? "ROOM ACTIVITY"
+                                  : event.requesterName ||
+                                    event.facultyName ||
+                                    "Walk-in",
+                            }}
+                            top={getTopPosition(event.startTime)}
                             height={getCardHeight(
-                              schedule.startTime,
-                              schedule.endTime
+                              event.startTime,
+                              event.endTime
                             )}
                             onClick={() =>
                               setSelectedSchedule(
-                                normalizeScheduleItem(schedule, "schedule")
+                                normalizeScheduleItem(event, event._source)
                               )
                             }
                           />
                         ))}
-
-                      {/* ROOM ACTIVITIES, RESERVATIONS, REASSIGNED-IN */}
-                      {dateEvents.map((event) => (
-                        <ScheduleCard
-                          key={event.id}
-                          schedule={{
-                            ...event,
-                            subject:
-                              event.title ||
-                              event.purpose ||
-                              event.courseTitle ||
-                              (event._source === "reassignment"
-                                ? `${event.courseTitle || "Class"} (Moved)`
-                                : "Walk-in Reservation"),
-
-                            faculty:
-                              event.title
-                                ? "ROOM ACTIVITY"
-                                : event.requesterName ||
-                                  event.facultyName ||
-                                  "Walk-in",
-                          }}
-                          top={getTopPosition(event.startTime)}
-                          height={getCardHeight(
-                            event.startTime,
-                            event.endTime
-                          )}
-                          onClick={() =>
-                            setSelectedSchedule(
-                              normalizeScheduleItem(event, event._source)
-                            )
-                          }
-                        />
-                      ))}
-                    </div>
-                  );
-                })
-              )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="class-details-container">
+          <div className="lr-vr-class-details">
             <ClassDetailsCard
               schedule={selectedSchedule}
               roomName={room?.roomName}

@@ -22,6 +22,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  gap: 16px;
 }
 
 .lr-qr-download-btn {
@@ -35,13 +36,15 @@
   align-items: center;
   gap: 8px;
   height: 52px;
-  background-color:#f57c00;
+  background-color: #f57c00;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
-  color:white;
+  color: white;
   transition: .2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.lr-qr-download-btn:hover{
+.lr-qr-download-btn:hover {
   background: #fff3e8;
   border: solid 1px #f57c00;
   color: #f57c00;
@@ -66,6 +69,8 @@
   padding: 15px 20px;
   margin-top: auto;
   border-top: 1px solid #E0E0E0;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .qr-showing {
@@ -76,6 +81,7 @@
 
 .qr-pagination-controls {
   display: flex;
+  align-items: center;
   gap: 15px;
   font-size: 14px;
   color: #64748B;
@@ -83,12 +89,92 @@
   margin-top: 10px;
 }
 
+/* Grid-based layout instead of flex + fixed margins — cards always
+   stay centered (1, 3, 9... doesn't matter) and spacing adapts to
+   screen width instead of a hardcoded 60px gutter */
 .qr-cards-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 300px));
   justify-content: center;
-  align-items: flex-start;  
   gap: 20px;
-  margin: 20px 60px;
-  flex-wrap: wrap;
+  margin: 20px 0;
+  padding: 0 20px;
   flex: 1;
+}
+
+/* ============ RESPONSIVE ============ */
+
+@media (max-width: 768px) {
+  .lr-qr-code {
+    padding: 16px;
+    margin-top: 70px;
+  }
+
+  .lr-qr-code h1 {
+    font-size: 26px;
+  }
+
+  .lr-qr-code p {
+    font-size: 13px;
+  }
+
+  .lr-qr-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .lr-qr-download-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .white-box-qr {
+    padding: 16px;
+  }
+
+  .qr-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    padding: 0 10px;
+    gap: 14px;
+  }
+
+  .qr-pagination {
+    flex-wrap: nowrap;
+  }
+
+  .qr-showing {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .qr-pagination-controls {
+    flex-shrink: 0;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .lr-qr-code h1 {
+    font-size: 22px;
+  }
+
+  .qr-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .qr-pagination {
+    padding: 12px 14px;
+  }
+
+  .qr-showing {
+    font-size: 11px;
+  }
+
+  .qr-pagination-controls {
+    font-size: 13px;
+    gap: 8px;
+  }
 }

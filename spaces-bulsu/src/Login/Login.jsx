@@ -188,7 +188,7 @@ export default function Login() {
           <div className="hero-content">
             <h1>Smarter Classrooms. Better Scheduling.</h1>
             <p className="hero-copy">
-              Optimize university resources with FIREFOX system.
+              Optimize university resources with SpaceS CICT.
             </p>
 
             <div className="hero-features">
@@ -225,7 +225,7 @@ export default function Login() {
               </div>
 
               <div>
-                <h2>University Portal</h2>
+                <h2>SpaceS CICT</h2>
                 <p className="card-subtitle">
                   Sign in to access the system.
                 </p>
@@ -273,13 +273,16 @@ export default function Login() {
               <div className="float-input">
                 <i className="fa-solid fa-lock input-icon" />
                 <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  placeholder=" "
-                  onChange={(e) => setPassword(e.target.value)}
-                   onKeyDown={handleKeyDown}
-                  required
-                />
+              type={showPassword ? "text" : "password"}
+              value={password}
+              placeholder=" "
+              onChange={(e) => {
+                setPassword(e.target.value);
+                e.target.setAttribute("data-filled", e.target.value ? "true" : "");
+              }}
+              onKeyDown={handleKeyDown}
+              required
+            />
                 <label>Password</label>
                 
                 <button
