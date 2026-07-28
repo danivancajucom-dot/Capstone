@@ -500,10 +500,6 @@ return (
 
         <h1>{room?.roomName}</h1>
 
-        <p>
-          Scan to instantly view today's room schedule
-        </p>
-
       </div>
 
       <span
@@ -561,202 +557,207 @@ return (
         </div>
 
       </div>
+      <div className="calendar-scroll-x">
 
-      <div className="days-container">
+        <div className="days-container">
 
-        {weekDates.map((date, index) => (
+          <div className="time-column" aria-hidden="true"></div>
 
-          <div
-            key={index}
-            className={`day ${
-              isToday(date) ? "today" : ""
-            }`}
-          >
+          {weekDates.map((date, index) => (
 
-            <span className="day-name">
+            <div
+              key={index}
+              className={`day ${
+                isToday(date) ? "today" : ""
+              }`}
+            >
 
-              {DAYS[index]}
+              <span className="day-name">
 
-            </span>
+                {DAYS[index]}
 
-            <span className="day-date">
+              </span>
 
-              {date.getDate()}
+              <span className="day-date">
 
-            </span>
+                {date.getDate()}
 
-          </div>
-
-        ))}
-
-      </div>
-
-      <hr className="days-divider" />
-
-      <div className="schedule-container">
-
-        <div className="time-column">
-
-          <div className="time-slot">07 AM</div>
-          <div className="time-slot">08 AM</div>
-          <div className="time-slot">09 AM</div>
-          <div className="time-slot">10 AM</div>
-          <div className="time-slot">11 AM</div>
-          <div className="time-slot">12 PM</div>
-          <div className="time-slot">01 PM</div>
-          <div className="time-slot">02 PM</div>
-          <div className="time-slot">03 PM</div>
-          <div className="time-slot">04 PM</div>
-          <div className="time-slot">05 PM</div>
-          <div className="time-slot">06 PM</div>
-          <div className="time-slot">07 PM</div>
-          <div className="time-slot">08 PM</div>
-
-        </div>
-
-        <div className="calendar-grid">
-
-          {schedules.length === 0 &&
-          events.length === 0 &&
-          reservations.length === 0 ? (
-
-            <div className="no-schedule">
-
-              <i className="fa-regular fa-calendar-xmark"></i>
-
-              <h3>No schedules available</h3>
-
-              <p>
-
-                There are no schedules for this room.
-
-              </p>
+              </span>
 
             </div>
 
-          ) : (
+          ))}
 
-            DAYS.map((day, index) => {
+        </div>
 
-              const dateItems =
-                getItemsForDate(
-                  weekDates[index]
-                );
+        <hr className="days-divider" />
 
-              return (
+        <div className="schedule-container">
 
-                <div
-                  className="calendar-day"
-                  key={day}
-                >
+          <div className="time-column">
 
-                  {getSchedulesByDay(day)
+            <div className="time-slot">07 AM</div>
+            <div className="time-slot">08 AM</div>
+            <div className="time-slot">09 AM</div>
+            <div className="time-slot">10 AM</div>
+            <div className="time-slot">11 AM</div>
+            <div className="time-slot">12 PM</div>
+            <div className="time-slot">01 PM</div>
+            <div className="time-slot">02 PM</div>
+            <div className="time-slot">03 PM</div>
+            <div className="time-slot">04 PM</div>
+            <div className="time-slot">05 PM</div>
+            <div className="time-slot">06 PM</div>
+            <div className="time-slot">07 PM</div>
+            <div className="time-slot">08 PM</div>
 
-                    .filter(schedule => {
+          </div>
 
-                      const sStart =
-                        convertToMinutes(
-                          schedule.startTime
-                        );
+          <div className="calendar-grid">
 
-                      const sEnd =
-                        convertToMinutes(
-                          schedule.endTime
-                        );
+            {schedules.length === 0 &&
+            events.length === 0 &&
+            reservations.length === 0 ? (
 
-                      return !dateItems.some(item => {
+              <div className="no-schedule">
 
-                        const eStart =
+                <i className="fa-regular fa-calendar-xmark"></i>
+
+                <h3>No schedules available</h3>
+
+                <p>
+
+                  There are no schedules for this room.
+
+                </p>
+
+              </div>
+
+            ) : (
+
+              DAYS.map((day, index) => {
+
+                const dateItems =
+                  getItemsForDate(
+                    weekDates[index]
+                  );
+
+                return (
+
+                  <div
+                    className="calendar-day"
+                    key={day}
+                  >
+
+                    {getSchedulesByDay(day)
+
+                      .filter(schedule => {
+
+                        const sStart =
                           convertToMinutes(
-                            item.startTime
+                            schedule.startTime
                           );
 
-                        const eEnd =
+                        const sEnd =
                           convertToMinutes(
-                            item.endTime
+                            schedule.endTime
                           );
 
-                        return (
-                          sStart < eEnd &&
-                          sEnd > eStart
-                        );
+                        return !dateItems.some(item => {
 
-                      });
+                          const eStart =
+                            convertToMinutes(
+                              item.startTime
+                            );
 
-                    })
+                          const eEnd =
+                            convertToMinutes(
+                              item.endTime
+                            );
 
-                    .map(schedule => (
+                          return (
+                            sStart < eEnd &&
+                            sEnd > eStart
+                          );
+
+                        });
+
+                      })
+
+                      .map(schedule => (
+
+                        <ScheduleCard
+
+                          key={schedule.id}
+
+                          schedule={schedule}
+
+                          top={getTopPosition(
+                            schedule.startTime
+                          )}
+
+                          height={getCardHeight(
+                            schedule.startTime,
+                            schedule.endTime
+                          )}
+
+                          onClick={() =>
+                            setSelectedSchedule(
+                              schedule
+                            )
+                          }
+
+                        />
+
+                      ))}
+
+                    {dateItems.map(item => (
 
                       <ScheduleCard
 
-                        key={schedule.id}
+                        key={item.id}
 
-                        schedule={schedule}
+                        schedule={{
+                          ...item,
+
+                          subject:
+                            item.title ||
+                            item.purpose ||
+                            "Reservation",
+
+                          faculty:
+                            item.title
+                              ? "ROOM ACTIVITY"
+                              : item.requesterName ||
+                                "Reservation",
+                        }}
 
                         top={getTopPosition(
-                          schedule.startTime
+                          item.startTime
                         )}
 
                         height={getCardHeight(
-                          schedule.startTime,
-                          schedule.endTime
+                          item.startTime,
+                          item.endTime
                         )}
 
                         onClick={() =>
-                          setSelectedSchedule(
-                            schedule
-                          )
+                          setSelectedSchedule(item)
                         }
 
                       />
 
                     ))}
 
-                  {dateItems.map(item => (
+                  </div>
 
-                    <ScheduleCard
+                );
 
-                      key={item.id}
+              })
 
-                      schedule={{
-                        ...item,
+            )}
 
-                        subject:
-                          item.title ||
-                          item.purpose ||
-                          "Reservation",
-
-                        faculty:
-                          item.title
-                            ? "ROOM ACTIVITY"
-                            : item.requesterName ||
-                              "Reservation",
-                      }}
-
-                      top={getTopPosition(
-                        item.startTime
-                      )}
-
-                      height={getCardHeight(
-                        item.startTime,
-                        item.endTime
-                      )}
-
-                      onClick={() =>
-                        setSelectedSchedule(item)
-                      }
-
-                    />
-
-                  ))}
-
-                </div>
-
-              );
-
-            })
-
-          )}
+          </div>
 
         </div>
 
