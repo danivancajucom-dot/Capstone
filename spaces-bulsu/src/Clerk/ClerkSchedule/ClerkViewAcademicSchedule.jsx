@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./clerk-view-academic-schedule.css";
 import LRRoomCard from "../../Components/LRRoomCard/LRRoomCard";
-
 import {
   collection,
   getDocs,
@@ -262,7 +261,7 @@ function ClerkViewAcademicSchedule() {
   };
 
   return (
-    <div className="lr-academic-schedule">
+    <div className="clerk-academic-schedule">
       <div>
         <h1>Academic Schedule</h1>
         <p>
@@ -303,11 +302,11 @@ function ClerkViewAcademicSchedule() {
           </div>
         </div>
 
-        <div className="floor-buttons">
+        <div className="floor-buttons-lr">
           {FLOORS.map((floor) => (
             <button
               key={floor}
-              className={`floor-btn ${selectedFloor === floor ? "active" : ""}`}
+              className={`floor-btn-lr ${selectedFloor === floor ? "active" : ""}`}
               onClick={() => setSelectedFloor(floor)}
             >
               {floor}
@@ -333,6 +332,7 @@ function ClerkViewAcademicSchedule() {
               <LRRoomCard
                 key={room.id}
                 roomName={room.roomName}
+                floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}
                 status={room.status}

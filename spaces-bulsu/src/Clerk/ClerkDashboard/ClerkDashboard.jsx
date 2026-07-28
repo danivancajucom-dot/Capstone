@@ -378,7 +378,7 @@ function ClerkDashboard() {
 
   return (
     <>
-      <div className="container">
+      <div className="clerk-container">
         <h1 className="clerk-dashboard-title">Clerk Dashboard</h1>
 
         <div className="clerk-dashboard-boxes">

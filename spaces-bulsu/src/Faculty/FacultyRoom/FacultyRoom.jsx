@@ -259,7 +259,7 @@ export default function FacultyRoom() {
           <p>There are no rooms available under the selected filter.</p>
         </div>
       ) : (
-        <div className="room-grid">
+        <div className="faculty-room-grid">
           {filteredRooms.map((room) => (
             <RoomCard
               key={room.id}

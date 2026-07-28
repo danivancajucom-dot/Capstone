@@ -1,4 +1,4 @@
-.dh-denied-reservation-room {
+.clerk-denied-reservation-room {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -8,7 +8,7 @@
   background-color: #F8F7F5;
 }
 
-.dh-denied-white-box {
+.clerk-denied-white-box {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 20px;
@@ -16,23 +16,23 @@
   min-height: 650px;
 }
 
-.dh-denied-title {
+.clerk-denied-title {
   font-size: 20px;
   font-weight: 700;
   margin: 10px 20px;
 }
 
-.dh-denied-sections {
+.clerk-denied-sections {
   display: flex;
   margin: 40px 20px;
   gap: 100px;
 }
 
-.dh-denied-section {
+.clerk-denied-section {
   width: 50%;
 }
 
-.dh-denied-section-label {
+.clerk-denied-section-label {
   border-left: 3px solid #F2690D;
   padding-left: 8px;
   font-size: 16px;
@@ -40,12 +40,12 @@
   margin-bottom: 15px;
 }
 
-.dh-denied-footer {
+.clerk-denied-footer {
   display: flex;
   justify-content: flex-start;
 }
 
-.dh-denied-back-btn {
+.clerk-denied-back-btn {
   padding: 10px 30px;
   color: #f57c00;
   font-size: 14px;
@@ -58,23 +58,23 @@
   transition: background-color 0.2s ease;
 }
 
-.dh-denied-back-btn:hover {
+.clerk-denied-back-btn:hover {
   background-color: #FEF0E7;
 }
 
-.dh-denied-form-group {
+.clerk-denied-form-group {
   display: flex;
   flex-direction: column;
   gap: 5px;
   margin-top: 50px;
 }
 
-.dh-denied-form-group label {
+.clerk-denied-form-group label {
   font-size: 13px;
   font-weight: 600;
 }
 
-.dh-denied-form-input {
+.clerk-denied-form-input {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1.5px solid #e5e7eb;
@@ -87,17 +87,17 @@
   transition: border-color 0.2s;
 }
 
-.dh-denied-input-icon-wrapper {
+.clerk-denied-input-icon-wrapper {
   position: relative;
   width: 100%;
 }
 
-.dh-denied-input-icon-wrapper .dh-denied-form-input {
+.clerk-denied-input-icon-wrapper .clerk-denied-form-input {
   width: 100%;
   padding-left: 45px;
 }
 
-.dh-denied-input-icon {
+.clerk-denied-input-icon {
   position: absolute;
   left: 12px;
   top: 50%;
@@ -105,58 +105,58 @@
   pointer-events: none;
 }
 
-.dh-denied-time-fields {
+.clerk-denied-time-fields {
   display: flex;
   gap: 30px;
   margin-top: 50px;
   width: 100%;
 }
 
-.dh-denied-time-fields .dh-denied-form-group {
+.clerk-denied-time-fields .clerk-denied-form-group {
   flex: 1;
   margin-top: 0;
 }
 
-.dh-denied-time-fields .dh-denied-form-input {
+.clerk-denied-time-fields .clerk-denied-form-input {
   width: 100%;
 }
 
 @media (max-width: 768px) {
-  .dh-denied-reservation-room {
+  .clerk-denied-reservation-room {
     padding: 14px;
   }
 
-  .dh-denied-sections {
+  .clerk-denied-sections {
     flex-direction: column;
     gap: 40px;
     margin: 20px 10px;
   }
 
-  .dh-denied-section {
+  .clerk-denied-section {
     width: 100%;
   }
 
-  .dh-denied-form-group {
+  .clerk-denied-form-group {
     margin-top: 30px;
   }
 
-  .dh-denied-time-fields {
+  .clerk-denied-time-fields {
     flex-direction: column;
     gap: 30px;
     margin-top: 30px;
   }
 
-  .dh-denied-time-fields .dh-denied-form-group {
+  .clerk-denied-time-fields .clerk-denied-form-group {
     margin-top: 0;
   }
 
-  .dh-denied-title {
+  .clerk-denied-title {
     margin: 10px;
   }
 }
 
 @media (max-width: 480px) {
-  .dh-denied-back-btn {
+  .clerk-denied-back-btn {
     width: 100%;
   }
 }
@@ -166,8 +166,8 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 20px;
-  margin-top: 80px;
+  padding: 20px 20px 20px 8px;
+  margin-top: 20px;
   background-color: #F8F7F5;
 }
 

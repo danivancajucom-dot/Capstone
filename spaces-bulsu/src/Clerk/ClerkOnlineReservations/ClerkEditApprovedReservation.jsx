@@ -450,7 +450,7 @@ function ClerkEditApprovedReservation() {
         style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
       ></i>
 
-      <div className="white-box-edit-approved">
+      <div className="clerk-white-box-edit-approved">
         <h2 className="clerk-edit-approved-title">Edit Approved Reservation</h2>
 
         {conflictError && (

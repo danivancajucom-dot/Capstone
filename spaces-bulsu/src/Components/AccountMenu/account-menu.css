@@ -1,0 +1,168 @@
+.account-menu-panel{
+position:absolute;
+width:280px;
+background:#fff;
+border-radius:20px;
+border:1px solid #f0ece8;
+box-shadow:0 20px 48px rgba(22,33,62,.16), 0 4px 12px rgba(22,33,62,.06);
+z-index:1000;
+padding:8px;
+animation:accountMenuIn .18s cubic-bezier(.22,1,.36,1);
+}
+
+@keyframes accountMenuIn{
+from{opacity:0; transform:scale(.94) translateY(-6px);}
+to{opacity:1; transform:scale(1) translateY(0);}
+}
+
+.account-menu-arrow{
+position:absolute;
+width:14px;
+height:14px;
+background:#fff;
+transform:rotate(45deg);
+border-radius:3px;
+}
+
+/* -- anchored below the header button (bell/logout) -- */
+.account-menu-panel.anchor-header{
+top:calc(100% + 16px);
+right:-8px;
+transform-origin:top right;
+}
+.account-menu-panel.anchor-header .account-menu-arrow{
+top:-6px;
+right:22px;
+border-left:1px solid #f0ece8;
+border-top:1px solid #f0ece8;
+border-radius:3px 0 0 0;
+}
+
+/* -- anchored above the sidebar profile card -- */
+.account-menu-panel.anchor-sidebar{
+left:8px;
+right:8px;
+width:auto;
+bottom:calc(100% + 14px);
+transform-origin:bottom left;
+}
+.account-menu-panel.anchor-sidebar .account-menu-arrow{
+bottom:-6px;
+left:28px;
+border-right:1px solid #f0ece8;
+border-bottom:1px solid #f0ece8;
+border-radius:0 0 3px 0;
+}
+
+/* -- header block: avatar + name + email -- */
+
+.account-menu-header{
+display:flex;
+align-items:center;
+gap:12px;
+padding:12px 10px;
+}
+
+.account-menu-avatar{
+width:46px;
+height:46px;
+border-radius:50%;
+background:#FEF0E7;
+color:#f57c00;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:16px;
+font-weight:700;
+overflow:hidden;
+flex-shrink:0;
+border:2px solid #f0ece8;
+}
+
+.account-menu-avatar img{
+width:100%;
+height:100%;
+object-fit:cover;
+border-radius:50%;
+}
+
+.account-menu-id{
+display:flex;
+flex-direction:column;
+gap:2px;
+min-width:0;
+}
+
+.account-menu-name{
+font-size:14.5px;
+font-weight:700;
+color:#16213e;
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis;
+}
+
+.account-menu-email{
+font-size:12px;
+color:#94a3b8;
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis;
+}
+
+.account-menu-divider{
+height:1px;
+background:#f0ece8;
+margin:6px 4px;
+}
+
+.account-menu-item{
+width:100%;
+display:flex;
+align-items:center;
+gap:12px;
+padding:11px 10px;
+border:none;
+background:transparent;
+border-radius:12px;
+font-family:'Lexend',sans-serif;
+font-size:14px;
+font-weight:500;
+color:#374151;
+cursor:pointer;
+transition:.15s;
+text-align:left;
+}
+
+.account-menu-item i{
+width:18px;
+text-align:center;
+color:#8f96a3;
+font-size:14.5px;
+}
+
+.account-menu-item:hover{
+background:#FEF0E7;
+color:#f57c00;
+}
+
+.account-menu-item:hover i{
+color:#f57c00;
+}
+
+.account-menu-item.account-menu-logout{
+color:#ef4444;
+}
+
+.account-menu-item.account-menu-logout i{
+color:#ef4444;
+}
+
+.account-menu-item.account-menu-logout:hover{
+background:#fef2f2;
+color:#dc2626;
+}
+
+.account-menu-item.account-menu-logout:hover i{
+color:#dc2626;
+}
