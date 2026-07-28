@@ -41,7 +41,6 @@ export default function FacultyLayout() {
         });
       }
 
-      // notifications – only for faculty
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
@@ -179,34 +178,53 @@ export default function FacultyLayout() {
           </div>
 
           <nav className="faculty-nav">
-            <NavLink end to="/faculty">
+            <NavLink
+              end
+              to="/faculty"
+              className={({ isActive }) => (isActive ? "faculty-active" : "")}
+            >
               <i className="fa-solid fa-house"></i>
-              Dashboard
+              <span>Dashboard</span>
             </NavLink>
 
-            <NavLink to="/faculty/schedule">
+            <NavLink
+              to="/faculty/schedule"
+              className={({ isActive }) => (isActive ? "faculty-active" : "")}
+            >
               <i className="fa-solid fa-calendar-days"></i>
-              Schedule
+              <span>Schedule</span>
             </NavLink>
 
-            <NavLink to="/faculty/rooms">
+            <NavLink
+              to="/faculty/rooms"
+              className={({ isActive }) => (isActive ? "faculty-active" : "")}
+            >
               <i className="fa-solid fa-building"></i>
-              Rooms
+              <span>Rooms</span>
             </NavLink>
 
-            <NavLink to="/faculty/reservations">
+            <NavLink
+              to="/faculty/reservations"
+              className={({ isActive }) => (isActive ? "faculty-active" : "")}
+            >
               <i className="fa-solid fa-bookmark"></i>
-              Reservations
+              <span>Reservations</span>
             </NavLink>
 
-            <NavLink to="/faculty/broadcast-channel">
+            <NavLink
+              to="/faculty/broadcast-channel"
+              className={({ isActive }) => (isActive ? "faculty-active" : "")}
+            >
               <i className="fa-solid fa-bell"></i>
-              Announcement Channel
+              <span>Announcement Channel</span>
             </NavLink>
           </nav>
 
           {/* PROFILE CARD — bottom of sidebar */}
-          <NavLink to="/faculty/profile" className="sidebar-profile">
+          <NavLink
+            to="/faculty/profile"
+            className={({ isActive }) => `sidebar-profile ${isActive ? "faculty-active" : ""}`}
+          >
             <div className="sidebar-avatar">
               {profile.photoUrl ? (
                 <img src={profile.photoUrl} alt="Profile" />

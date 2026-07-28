@@ -137,7 +137,7 @@ function DepartmentHeadReservations() {
 
     if (activeTab === "Pending") {
       return visibleReservations.map((reservation) => (
-        <ReservationCard key={reservation.id} reservation={reservation} />
+        <ReservationCard key={reservation.id} reservation={reservation} basePath="/department-head/view-reservation" />
       ));
     }
 

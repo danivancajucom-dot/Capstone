@@ -1,17 +1,20 @@
-.lr-view-room {
+.clerk-view-room {
   width: 100%;
-  margin-top: 80px;
+  display: flex;
+  margin-top: 28px;
+  flex-direction: column;
   background-color: #F8F7F5;
-  padding: 20px;
+  --time-col-width: 64px;
 }
 
-.lr-back-arrow {
+.clerk-back-arrow {
   font-size: 25px;
   cursor: pointer;
   display: block;
+  margin-bottom: 10px;
 }
 
-.white-box-view-room {
+.clerk-white-box-view-room {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 20px;
@@ -22,98 +25,110 @@
   position: relative;
 }
 
-.box-header {
+.clerk-box-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.room-name {
+.clerk-room-name {
   padding: 8px 24px;
   border-radius: 50px;
-  border: 1.5px solid  #f57c00;
+  border: 1.5px solid #f57c00;
   font-size: 14px;
   background-color: #FEF0E7;
-  color:  #f57c00;
+  color: #f57c00;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.week-navigation {
+.clerk-week-navigation {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 18px;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.days-container {
-  display: flex;
-  justify-content: space-around;
+.clerk-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.clerk-days-container {
+  display: grid;
+  grid-template-columns: var(--time-col-width) repeat(7, minmax(90px, 1fr));
+  column-gap: 6px;
   margin: 20px;
   margin-top: 30px;
-  margin-left: 80px;
+  min-width: fit-content;
 }
 
-.schedule-container {
-  display: flex;
-  margin: 20px;
+.clerk-days-container .clerk-time-column {
+  width: auto;
 }
 
-.calendar-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  position: relative;
-  height: 840px;
-}
-
-.day {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-
-.day-name {
-    font-size: 12px;
-    color: #7a7a7a;
-}
-
-.day-date {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: .2s ease;
-}
-
-.day.today .day-date {
-    background: #2D6CDF;
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-day {
-    position: relative;
-    border-left: 1px solid #ECECEC;
-    overflow: visible;
-    padding-top: 0;
-    margin-top: 0;
-}
-
-.time-column {
+.clerk-day {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  margin-right: 10px;
-  padding-right: 25px;
-  border-right: 1px solid #E0E0E0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0;
+  box-sizing: border-box;
 }
 
-.time-slot {
+.clerk-day-name {
+  font-size: 12px;
+  color: #7a7a7a;
+  font-weight: 600;
+}
+
+.clerk-day-date {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  transition: .2s ease;
+}
+
+.clerk-day.today .clerk-day-date {
+  background: #2D6CDF;
+  color: white;
+  font-weight: 600;
+}
+
+.clerk-days-divider {
+  border: none;
+  border-top: 1px solid #E0E0E0;
+  margin: 0 20px;
+}
+
+.clerk-schedule-container {
+  display: flex;
+  margin: 20px;
+  min-width: fit-content;
+}
+
+.clerk-time-column {
+  width: var(--time-col-width);
+  flex-shrink: 0;
+  padding-right: 25px;
+  border-right: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.clerk-time-slot {
   font-size: 12px;
   color: #888888;
   font-weight: 600;
@@ -123,48 +138,153 @@
   padding-top: 0;
 }
 
-.days-divider {
-  border: none;
-  border-top: 1px solid #E0E0E0;
-  margin: 0 20px;
-  margin-left: 130px;
-  margin-right: 50px;
+.clerk-calendar-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(90px, 1fr));
+  column-gap: 6px;
+  position: relative;
+  height: 840px;
 }
 
-.class-details-container {
-  position: absolute;
-  bottom: 400px;
-  left: 200px;
+.clerk-calendar-day {
+  position: relative;
+  border-left: 1px solid #ECECEC;
+  overflow: visible;
+  padding-top: 0;
+  margin-top: 0;
 }
 
-.no-schedule {
-    grid-column: 1 / -1;
-    height: 100%;
-    min-height: 840px;
-
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-
-    color: #8a8a8a;
-    text-align: center;
+.clerk-no-schedule {
+  grid-column: 1 / -1;
+  height: 100%;
+  min-height: 840px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #8a8a8a;
+  text-align: center;
 }
 
-.no-schedule i {
-    font-size: 60px;
-    color: #d0d0d0;
-    margin-bottom: 16px;
+.clerk-no-schedule i {
+  font-size: 60px;
+  color: #d0d0d0;
+  margin-bottom: 16px;
 }
 
-.no-schedule h3 {
-    margin: 0;
-    font-size: 22px;
-    color: #555;
+.clerk-no-schedule h3 {
+  margin: 0;
+  font-size: 22px;
+  color: #555;
 }
 
-.no-schedule p {
+.clerk-no-schedule p {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #888;
+}
+
+.clerk-class-details-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  max-width: 360px;
+  width: calc(100% - 48px);
+}
+
+/* ============ RESPONSIVE ============ */
+
+@media (max-width: 768px) {
+  .clerk-view-room {
     margin-top: 8px;
-    font-size: 14px;
-    color: #888;
+    padding: 12px;
+    --time-col-width: 50px;
+  }
+
+  .clerk-back-arrow {
+    margin-bottom: 6px;
+  }
+
+  .clerk-white-box-view-room {
+    margin: 8px auto;
+    padding: 16px;
+    min-height: auto;
+  }
+
+  .clerk-box-header {
+    margin: 8px;
+  }
+
+  .clerk-week-navigation {
+    font-size: 15px;
+  }
+
+  .clerk-room-name {
+    font-size: 13px;
+    padding: 8px 18px;
+  }
+
+  .clerk-days-container,
+  .clerk-schedule-container {
+    margin: 8px;
+    min-width: 700px;
+  }
+
+  .clerk-days-container {
+    margin-top: 12px;
+  }
+
+  .clerk-time-column {
+    padding-right: 10px;
+  }
+
+  .clerk-day-name {
+    font-size: 10px;
+  }
+
+  .clerk-day-date {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+
+  .clerk-time-slot {
+    font-size: 10px;
+    height: 55px;
+  }
+
+  .clerk-calendar-grid {
+    height: 770px;
+  }
+
+  .clerk-no-schedule {
+    min-height: 770px;
+  }
+
+  .clerk-class-details-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+    width: auto;
+  }
+}
+
+
+@media (max-width: 480px) {
+  .clerk-back-arrow {
+    font-size: 20px;
+  }
+
+  .clerk-box-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .clerk-room-name {
+    width: 100%;
+    text-align: center;
+  }
 }

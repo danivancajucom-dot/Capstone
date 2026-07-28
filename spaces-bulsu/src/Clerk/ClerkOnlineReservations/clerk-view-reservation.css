@@ -1,21 +1,21 @@
-.dh-view-reservation {
+.clerk-view-reservation {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 20px;
-  margin-top: 80px;
+  margin-top: 24px;
   background-color: #F8F7F5;
 }
 
-.dh-view-reservation-back {
+
+.clerk-view-reservation-back {
   font-size: 25px;
   cursor: pointer;
   display: block;
   color: #333333;
 }
 
-.white-box-view-reservation {
+.clerk-white-box-view-reservation {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 20px;
@@ -23,7 +23,7 @@
   min-height: 650px;
 }
 
-.dh-reservation-header {
+.clerk-reservation-header {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 30px 30px;
@@ -33,13 +33,13 @@
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.dh-reservation-header-left {
+.clerk-reservation-header-left {
   display: flex;
   align-items: center;
   gap: 15px;
 }
 
-.dh-reservation-profile {
+.clerk-reservation-profile {
   width: 100px;
   height: 100px;
   border-radius: 10px;
@@ -52,19 +52,19 @@
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.dh-reservation-faculty-name {
+.clerk-reservation-faculty-name {
   font-size: 16px;
   font-weight: 700;
   color: #333333;
 }
 
-.dh-reservation-header-right {
+.clerk-reservation-header-right {
   display: flex;
   gap: 10px;
   align-items: center;
 }
 
-.dh-deny-request-btn {
+.clerk-deny-request-btn {
   padding: 10px 20px;
   border-radius: 6px;
   border: none;
@@ -77,13 +77,13 @@
   transition: .2s;
 }
 
-.dh-deny-request-btn:hover {
+.clerk-deny-request-btn:hover {
   background-color: #fee2e2;
   border: solid 1px #DC2626;
   color: #DC2626;
 }
 
-.dh-approve-request-btn {
+.clerk-approve-request-btn {
   padding: 10px 20px;
   border-radius: 6px;
   border: none;
@@ -96,19 +96,19 @@
   transition: .2s;
 }
 
-.dh-approve-request-btn:hover {
+.clerk-approve-request-btn:hover {
   background: #fff3e8;
   border: solid 1px #f57c00;
   color: #f57c00;
 }
 
-.dh-reservation-info-boxes {
+.clerk-reservation-info-boxes {
   display: flex;
   margin-top: 20px;
   gap: 50px;
 }
 
-.dh-reservation-info-box {
+.clerk-reservation-info-box {
   flex: 1;
   background-color: #ffffff;
   border-radius: 10px;
@@ -117,7 +117,7 @@
   min-height: 210px;
 }
 
-.dh-info-box-title {
+.clerk-info-box-title {
   font-size: 15px;
   font-weight: 700;
   color: #f57c00;
@@ -125,7 +125,7 @@
   border-bottom: 2px solid #FBDFC2;
 }
 
-.dh-info-box-content {
+.clerk-info-box-content {
   padding: 10px 20px 20px 20px;
   display: flex;
   flex-direction: column;
@@ -134,12 +134,12 @@
   color: #333333;
 }
 
-.dh-info-box-details {
+.clerk-info-box-details {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.dh-conflict-check-box {
+.clerk-conflict-check-box {
   background-color: #FFFBEB;
 }

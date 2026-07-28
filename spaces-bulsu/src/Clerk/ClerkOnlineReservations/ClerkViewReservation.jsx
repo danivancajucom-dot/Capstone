@@ -71,7 +71,7 @@ function ClerkViewReservation() {
 
   if (!reservation) {
     return (
-      <div className="dh-view-reservation">
+      <div className="clerk-view-reservation">
         <h2>Reservation not found.</h2>
         <button onClick={() => navigate("/clerk/reservations")}>Back</button>
       </div>
@@ -365,32 +365,32 @@ function ClerkViewReservation() {
 
   return (
     <>
-      <div className="dh-view-reservation">
+      <div className="clerk-view-reservation">
         <i
-          className="fa-solid fa-arrow-left dh-view-reservation-back"
+          className="fa-solid fa-arrow-left clerk-view-reservation-back"
           onClick={() => navigate(-1)}
         ></i>
 
-        <div className="white-box-view-reservation">
-          <div className="dh-reservation-header">
-            <div className="dh-reservation-header-left">
-              <div className="dh-reservation-profile">
+        <div className="clerk-white-box-view-reservation">
+          <div className="clerk-reservation-header">
+            <div className="clerk-reservation-header-left">
+              <div className="clerk-reservation-profile">
                 <i className="fa-solid fa-user"></i>
               </div>
-              <span className="dh-reservation-faculty-name">
+              <span className="clerk-reservation-faculty-name">
                 {reservation.facultyName || reservation.requesterName || "Unknown"}
               </span>
             </div>
-            <div className="dh-reservation-header-right">
+            <div className="clerk-reservation-header-right">
               <button
-                className="dh-deny-request-btn"
+                className="clerk-deny-request-btn"
                 onClick={() => setShowDenial(true)}
                 disabled={submitting}
               >
                 Deny
               </button>
               <button
-                className="dh-approve-request-btn"
+                className="clerk-approve-request-btn"
                 onClick={() => setShowConfirm(true)}
                 disabled={submitting}
               >
@@ -399,10 +399,10 @@ function ClerkViewReservation() {
             </div>
           </div>
 
-          <div className="dh-reservation-info-boxes">
-            <div className="dh-reservation-info-box">
-              <h3 className="dh-info-box-title">Reservation Metadata</h3>
-              <div className="dh-info-box-content">
+          <div className="clerk-reservation-info-boxes">
+            <div className="clerk-reservation-info-box">
+              <h3 className="clerk-info-box-title">Reservation Metadata</h3>
+              <div className="clerk-info-box-content">
                 <p>
                   Requested On: {createdDate.toLocaleDateString()} |{" "}
                   {createdDate.toLocaleTimeString()}
@@ -411,10 +411,10 @@ function ClerkViewReservation() {
               </div>
             </div>
 
-            <div className="dh-reservation-info-box">
-              <h3 className="dh-info-box-title">Reservation Details</h3>
-              <div className="dh-info-box-content">
-                <div className="dh-info-box-details">
+            <div className="clerk-reservation-info-box">
+              <h3 className="clerk-info-box-title">Reservation Details</h3>
+              <div className="clerk-info-box-content">
+                <div className="clerk-info-box-details">
                   <p>Room Name: {reservation.roomName}</p>
                   <p>Room Capacity: {reservation.roomCapacity}</p>
                   <p>Course Title: {reservation.courseTitle}</p>
@@ -427,10 +427,10 @@ function ClerkViewReservation() {
             </div>
           </div>
 
-          <div className="dh-reservation-info-boxes">
-            <div className="dh-reservation-info-box">
-              <h3 className="dh-info-box-title">Reservation Purpose</h3>
-              <div className="dh-info-box-content">
+          <div className="clerk-reservation-info-boxes">
+            <div className="clerk-reservation-info-box">
+              <h3 className="clerk-info-box-title">Reservation Purpose</h3>
+              <div className="clerk-info-box-content">
                 <p>
                   <strong>Audience Type:</strong> {reservation.audienceType}
                 </p>
@@ -470,9 +470,9 @@ function ClerkViewReservation() {
               </div>
             </div>
 
-            <div className="dh-reservation-info-box conflict-check-box">
-              <h3 className="dh-info-box-title">Conflict Check</h3>
-              <div className="dh-info-box-content">
+            <div className="clerk-reservation-info-box conflict-check-box">
+              <h3 className="clerk-info-box-title">Conflict Check</h3>
+              <div className="clerk-info-box-content">
                 <p>No conflict detected.</p>
               </div>
             </div>
