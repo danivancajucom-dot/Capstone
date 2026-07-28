@@ -8,20 +8,36 @@ body {
   background-color: #F8F7F5;
 }
 
+.faculty-reservations-request {
+  width: 100%;
+  display: flex;
+  margin-top: 28px;
+  flex-direction: column;
+  background-color: #F8F7F5;
+}
+
 .faculty-submit-header {
-  margin-top: 8px;
-  margin-bottom: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
 }
 
-.faculty-submit-header h1 {
-  font-weight: 900;
-  font-size: 40px;
+.fa-submit-header h1 {
+  margin: 0;
+  margin-bottom: 8px;
+  font-size: 35px;
+  font-weight: 800;
+  color: #1E2430;
+  letter-spacing: -0.02em;
 }
 
-.faculty-submit-header p {
-  margin-top: -20px;
-  margin-left: 5px;
-  color: #64748B;
+.fa-submit-header p {
+  margin: 0;
+  margin-bottom: 20px;
+  font-size: 15px;
+  font-weight: 300;
+  color: #6b7280;
 }
 
 .faculty-submit-box {
@@ -35,8 +51,9 @@ body {
 
 .faculty-submit-sections {
   display: flex;
-  margin: 40px 20px;
-  gap: 100px;
+  margin: 5px 20px -5px 20px;
+  gap: 60px;
+  align-items: flex-start;
 }
 
 .faculty-submit-section:first-child {
@@ -251,8 +268,6 @@ body {
     grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
     gap:18px;
     margin-top:20px;
-    max-height:500px;
-    overflow-y:auto;
     padding:4px;
     padding-right:8px;
 }

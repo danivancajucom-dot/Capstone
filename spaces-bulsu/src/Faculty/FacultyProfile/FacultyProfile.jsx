@@ -113,9 +113,9 @@ export default function UserProfile() {
     const nameUnchanged =
       form.firstName === originalData.firstName &&
       form.lastName  === originalData.lastName;
-    const photoUnchanged = !photoFile;
+    const photoUnchanged = form.photoUrl === originalData.photoUrl;
 
-    if (nameUnchanged && photoUnchanged) {
+    if (nameUnchanged && photoUnchanged && !photoFile) {
       showToast("error", "No Changes", "Nothing to save.");
       return;
     }
@@ -268,8 +268,25 @@ export default function UserProfile() {
             </p>
           )}
 
-          {/* Upload button (shown when editing and no file chosen yet) */}
-          {editing && !photoFile && !uploading && (
+          {editing && form.photoUrl && !uploading && (
+            <button
+              className="up-remove-photo-btn"
+              type="button"
+              onClick={() => {
+                setPhotoFile(null);
+                if (previewUrl) {
+                  URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                }
+                setForm(prev => ({ ...prev, photoUrl: "" }));
+              }}
+            >
+              <i className="fa-solid fa-trash" /> Remove Photo
+            </button>
+          )}
+
+          {/* Upload button (shown when editing and no photo set yet) */}
+          {editing && !form.photoUrl && !photoFile && !uploading && (
             <button
               className="up-upload-btn"
               type="button"

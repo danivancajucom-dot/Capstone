@@ -1,4 +1,4 @@
-.dh-approved-reservation-room {
+.clerk-approved-reservation-room {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -8,7 +8,7 @@
   background-color: #F8F7F5;
 }
 
-.dh-white-box-approved {
+.clerk-white-box-approved {
   background-color: #ffffff;
   border-radius: 10px;
   padding: 20px;
@@ -16,23 +16,23 @@
   min-height: 650px;
 }
 
-.dh-approved-title {
+.clerk-approved-title {
   font-size: 20px;
   font-weight: 700;
   margin: 10px 20px;
 }
 
-.dh-approved-sections {
+.clerk-approved-sections {
   display: flex;
   margin: 40px 20px;
   gap: 100px;
 }
 
-.dh-approved-section {
+.clerk-approved-section {
   width: 50%;
 }
 
-.dh-approved-section-label {
+.clerk-approved-section-label {
   border-left: 3px solid #F2690D;
   padding-left: 8px;
   font-size: 16px;
@@ -40,12 +40,12 @@
   margin-bottom: 15px;
 }
 
-.dh-approved-footer {
+.clerk-approved-footer {
   display: flex;
   justify-content: space-between;
 }
 
-.dh-approved-back-btn {
+.clerk-approved-back-btn {
   padding: 10px 30px;
   color: #f57c00;
   font-size: 14px;
@@ -58,11 +58,11 @@
   transition: background-color 0.2s ease;
 }
 
-.dh-approved-back-btn:hover {
+.clerk-approved-back-btn:hover {
   background-color: #FEF0E7;
 }
 
-.dh-approved-edit-btn {
+.clerk-approved-edit-btn {
   padding: 10px 30px;
   border: none;
   background-color: #f57c00;
@@ -76,25 +76,25 @@
   transition: .2s;
 }
 
-.dh-approved-edit-btn:hover {
+.clerk-approved-edit-btn:hover {
   background: #fff3e8;
   border: solid 1px #f57c00;
   color: #f57c00;
 }
 
-.dh-approved-form-group {
+.clerk-approved-form-group {
   display: flex;
   flex-direction: column;
   gap: 5px;
   margin-top: 50px;
 }
 
-.dh-approved-form-group label {
+.clerk-approved-form-group label {
   font-size: 13px;
   font-weight: 600;
 }
 
-.dh-approved-form-input {
+.clerk-approved-form-input {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1.5px solid #e5e7eb;
@@ -107,17 +107,17 @@
   transition: border-color 0.2s;
 }
 
-.dh-approved-input-icon-wrapper {
+.clerk-approved-input-icon-wrapper {
   position: relative;
   width: 100%;
 }
 
-.dh-approved-input-icon-wrapper .dh-approved-form-input {
+.clerk-approved-input-icon-wrapper .clerk-approved-form-input {
   width: 100%;
   padding-left: 45px;
 }
 
-.dh-approved-input-icon {
+.clerk-approved-input-icon {
   position: absolute;
   left: 12px;
   top: 50%;
@@ -125,64 +125,64 @@
   pointer-events: none;
 }
 
-.dh-approved-time-fields {
+.clerk-approved-time-fields {
   display: flex;
   gap: 30px;
   margin-top: 50px;
   width: 100%;
 }
 
-.dh-approved-time-fields .dh-approved-form-group {
+.clerk-approved-time-fields .clerk-approved-form-group {
   flex: 1;
   margin-top: 0;
 }
 
-.dh-approved-time-fields .dh-approved-form-input {
+.clerk-approved-time-fields .clerk-approved-form-input {
   width: 100%;
 }
 
 @media (max-width: 768px) {
-  .dh-approved-reservation-room {
+  .clerk-approved-reservation-room {
     padding: 14px;
   }
 
-  .dh-approved-sections {
+  .clerk-approved-sections {
     flex-direction: column;
     gap: 40px;
     margin: 20px 10px;
   }
 
-  .dh-approved-section {
+  .clerk-approved-section {
     width: 100%;
   }
 
-  .dh-approved-form-group {
+  .clerk-approved-form-group {
     margin-top: 30px;
   }
 
-  .dh-approved-time-fields {
+  .clerk-approved-time-fields {
     flex-direction: column;
     gap: 30px;
     margin-top: 30px;
   }
 
-  .dh-approved-time-fields .dh-approved-form-group {
+  .clerk-approved-time-fields .clerk-approved-form-group {
     margin-top: 0;
   }
 
-  .dh-approved-title {
+  .clerk-approved-title {
     margin: 10px 10px;
   }
 }
 
 @media (max-width: 480px) {
-  .dh-approved-footer {
+  .clerk-approved-footer {
     flex-direction: column;
     gap: 12px;
   }
 
-  .dh-approved-back-btn,
-  .dh-approved-edit-btn {
+  .clerk-approved-back-btn,
+  .clerk-approved-edit-btn {
     width: 100%;
   }
 }
@@ -191,8 +191,8 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 20px;
-  margin-top: 80px;
+  padding: 20px 20px 20px 8px;
+  margin-top: 20px;
   background-color: #F8F7F5;
 }
 
