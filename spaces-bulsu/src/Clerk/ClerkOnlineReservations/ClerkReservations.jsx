@@ -31,12 +31,12 @@ const EmptyIcon = () => (
 // Skeleton placeholder shown while Firestore data is loading
 function SkeletonCard() {
   return (
-    <div className="dept-skeleton-card">
-      <div className="dept-skeleton-line dept-skeleton-title" />
-      <div className="dept-skeleton-line dept-skeleton-subtitle" />
-      <div className="dept-skeleton-row">
-        <div className="dept-skeleton-pill" />
-        <div className="dept-skeleton-pill" />
+    <div className="clerk-skeleton-card">
+      <div className="clerk-skeleton-line clerk-skeleton-title" />
+      <div className="clerk-skeleton-line clerk-skeleton-subtitle" />
+      <div className="clerk-skeleton-row">
+        <div className="clerk-skeleton-pill" />
+        <div className="clerk-skeleton-pill" />
       </div>
     </div>
   );
@@ -44,10 +44,10 @@ function SkeletonCard() {
 
 function EmptyState({ label }) {
   return (
-    <div className="dept-empty-state">
+    <div className="clerk-empty-state">
       <EmptyIcon />
-      <p className="dept-empty-title">No {label} reservations</p>
-      <p className="dept-empty-subtitle">
+      <p className="clerk-empty-title">No {label} reservations</p>
+      <p className="clerk-empty-subtitle">
         Requests will show up here as soon as they come in.
       </p>
     </div>
@@ -129,7 +129,7 @@ function ClerkReservations() {
 
     if (activeTab === "Pending") {
       return visibleReservations.map((reservation) => (
-        <ReservationCard key={reservation.id} reservation={reservation} />
+        <ReservationCard key={reservation.id} reservation={reservation} basePath="/clerk/view-online-reservation" />
       ));
     }
 
@@ -152,20 +152,20 @@ function ClerkReservations() {
   const isEmpty = !loading && filteredReservations.length === 0;
 
   return (
-    <div className="dept-reservations">
-      <div className="dept-reservations-header">
+    <div className="clerk-reservations">
+      <div className="clerk-reservations-header">
         <h1>Reservation Requests</h1>
-        <p className="dept-reservations-subtitle">
+        <p className="clerk-reservations-subtitle">
           Review, approve, and track room reservation requests from your department.
         </p>
       </div>
 
-      <div className="dept-white-box-reservations">
-        <div className="dept-reservations-nav">
+      <div className="clerk-white-box-reservations">
+        <div className="clerk-reservations-nav">
           {TABS.map((tab) => (
             <div
               key={tab}
-              className={`dept-reservations-nav-item ${activeTab === tab ? "active" : ""}`}
+              className={`clerk-reservations-nav-item ${activeTab === tab ? "active" : ""}`}
               onClick={() => setActiveTab(tab)}
               role="button"
               tabIndex={0}
@@ -175,25 +175,25 @@ function ClerkReservations() {
             >
               {tab}
               {!loading && (
-                <span className="dept-reservations-nav-count">{counts[tab]}</span>
+                <span className="clerk-reservations-nav-count">{counts[tab]}</span>
               )}
             </div>
           ))}
         </div>
-        <hr className="dept-reservations-nav-divider" />
+        <hr className="clerk-reservations-nav-divider" />
 
         <div
-          className={`dept-reservations-content ${
-            isGridTab ? "dept-reservations-content--grid" : ""
-          } ${isEmpty ? "dept-reservations-content--empty" : ""}`}
+          className={`clerk-reservations-content ${
+            isGridTab ? "clerk-reservations-content--grid" : ""
+          } ${isEmpty ? "clerk-reservations-content--empty" : ""}`}
         >
           {renderList()}
         </div>
 
         {!loading && hasMore && (
-          <div className="dept-load-more-reservations">
+          <div className="clerk-load-more-reservations">
             <button
-              className="dept-load-more-btn-reservations"
+              className="clerk-load-more-btn-reservations"
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
               Load More

@@ -216,16 +216,22 @@ function ClerkViewRoomCard() {
 
   return (
     <>
-      <div className="lr-view-room">
+      <div className="clerk-view-room">
         <i
-          className="fa-solid fa-arrow-left lr-back-arrow"
-          onClick={() => navigate("/clerk/schedule-view-academic-schedule")}
+          className="fa-solid fa-arrow-left clerk-back-arrow"
           style={{ cursor: "pointer" }}
+          onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate("/clerk/schedule-view-academic-schedule");
+            }
+          }}
         ></i>
 
-        <div className="white-box-view-room">
-          <div className="box-header">
-            <div className="week-navigation">
+        <div className="clerk-white-box-view-room">
+          <div className="clerk-box-header">
+            <div className="clerk-week-navigation">
               <i
                 className="fa-solid fa-chevron-left"
                 style={{ cursor: "pointer" }}
@@ -246,144 +252,150 @@ function ClerkViewRoomCard() {
                 }}
               ></i>
             </div>
-            <span className="room-name">{room?.roomName}</span>
+            <span className="clerk-room-name">{room?.roomName}</span>
           </div>
 
-          <div className="days-container">
-            <div className="time-column" aria-hidden="true"></div>
-            {weekDates.map((date, index) => (
-              <div
-                className={`day ${isToday(date) ? "today" : ""}`}
-                key={index}
-              >
-                <span className="day-name">{DAYS[index]}</span>
-                <span className="day-date">{date.getDate()}</span>
-              </div>
-            ))}
-          </div>
-
-          <hr className="days-divider" />
-
-          <div className="schedule-container">
-            <div className="time-column">
-              <div className="time-slot">07 AM</div>
-              <div className="time-slot">08 AM</div>
-              <div className="time-slot">09 AM</div>
-              <div className="time-slot">10 AM</div>
-              <div className="time-slot">11 AM</div>
-              <div className="time-slot">12 PM</div>
-              <div className="time-slot">01 PM</div>
-              <div className="time-slot">02 PM</div>
-              <div className="time-slot">03 PM</div>
-              <div className="time-slot">04 PM</div>
-              <div className="time-slot">05 PM</div>
-              <div className="time-slot">06 PM</div>
-              <div className="time-slot">07 PM</div>
-              <div className="time-slot">08 PM</div>
+          <div className="clerk-scroll-x">
+            <div className="clerk-days-container">
+              <div className="clerk-time-column" aria-hidden="true"></div>
+              {weekDates.map((date, index) => (
+                <div
+                  className={`clerk-day ${isToday(date) ? "today" : ""}`}
+                  key={index}
+                >
+                  <span className="clerk-day-name">{DAYS[index]}</span>
+                  <span className="clerk-day-date">{date.getDate()}</span>
+                </div>
+              ))}
             </div>
 
-            <div className="calendar-grid">
-              {schedules.length === 0 &&
-              events.length === 0 &&
-              reservations.length === 0 &&
-              reassignedInto.length === 0 ? (
-                <div className="no-schedule">
-                  <i className="fa-regular fa-calendar-xmark"></i>
-                  <h3>No schedules available</h3>
-                  <p>There are no schedules or room activities.</p>
-                </div>
-              ) : (
-                DAYS.map((day, index) => {
-                  const dateEvents = getItemsForDate(weekDates[index]);
-                  const occurrenceDateStr = toDateStr(weekDates[index]);
+            <hr className="clerk-days-divider" />
 
-                  return (
-                    <div className="calendar-day" key={day}>
-                      {/* REGULAR SCHEDULE — hide released & reassigned‑away */}
-                      {getSchedulesByDay(day)
-                        .filter((schedule) => {
-                          if (
-                            releasedKeys.has(
-                              `${schedule.id}_${occurrenceDateStr}`
-                            )
-                          ) {
-                            return false;
-                          }
-                          if (
-                            reassignedAwayKeys.has(
-                              `${schedule.id}_${occurrenceDateStr}`
-                            )
-                          ) {
-                            return false;
-                          }
+            <div className="clerk-schedule-container">
+              <div className="clerk-time-column">
+                <div className="clerk-time-slot">07 AM</div>
+                <div className="clerk-time-slot">08 AM</div>
+                <div className="clerk-time-slot">09 AM</div>
+                <div className="clerk-time-slot">10 AM</div>
+                <div className="clerk-time-slot">11 AM</div>
+                <div className="clerk-time-slot">12 PM</div>
+                <div className="clerk-time-slot">01 PM</div>
+                <div className="clerk-time-slot">02 PM</div>
+                <div className="clerk-time-slot">03 PM</div>
+                <div className="clerk-time-slot">04 PM</div>
+                <div className="clerk-time-slot">05 PM</div>
+                <div className="clerk-time-slot">06 PM</div>
+                <div className="clerk-time-slot">07 PM</div>
+                <div className="clerk-time-slot">08 PM</div>
+              </div>
 
-                          const sStart = convertToMinutes(schedule.startTime);
-                          const sEnd = convertToMinutes(schedule.endTime);
+              <div className="clerk-calendar-grid">
+                {schedules.length === 0 &&
+                events.length === 0 &&
+                reservations.length === 0 &&
+                reassignedInto.length === 0 ? (
+                  <div className="clerk-no-schedule">
+                    <i className="fa-regular fa-calendar-xmark"></i>
+                    <h3>No schedules available</h3>
+                    <p>There are no schedules or room activities.</p>
+                  </div>
+                ) : (
+                  DAYS.map((day, index) => {
+                    const dateEvents = getItemsForDate(weekDates[index]);
+                    const occurrenceDateStr = toDateStr(weekDates[index]);
 
-                          return !dateEvents.some((event) => {
-                            const eStart = convertToMinutes(event.startTime);
-                            const eEnd = convertToMinutes(event.endTime);
-                            return sStart < eEnd && sEnd > eStart;
-                          });
-                        })
-                        .map((schedule) => (
+                    return (
+                      <div className="clerk-calendar-day" key={day}>
+                        {/* REGULAR SCHEDULE — hide released & reassigned‑away */}
+                        {getSchedulesByDay(day)
+                          .filter((schedule) => {
+                            if (
+                              releasedKeys.has(
+                                `${schedule.id}_${occurrenceDateStr}`
+                              )
+                            ) {
+                              return false;
+                            }
+                            if (
+                              reassignedAwayKeys.has(
+                                `${schedule.id}_${occurrenceDateStr}`
+                              )
+                            ) {
+                              return false;
+                            }
+
+                            const sStart = convertToMinutes(
+                              schedule.startTime
+                            );
+                            const sEnd = convertToMinutes(schedule.endTime);
+
+                            return !dateEvents.some((event) => {
+                              const eStart = convertToMinutes(
+                                event.startTime
+                              );
+                              const eEnd = convertToMinutes(event.endTime);
+                              return sStart < eEnd && sEnd > eStart;
+                            });
+                          })
+                          .map((schedule) => (
+                            <ScheduleCard
+                              key={schedule.id}
+                              schedule={schedule}
+                              top={getTopPosition(schedule.startTime)}
+                              height={getCardHeight(
+                                schedule.startTime,
+                                schedule.endTime
+                              )}
+                              onClick={() =>
+                                setSelectedSchedule(
+                                  normalizeScheduleItem(schedule, "schedule")
+                                )
+                              }
+                            />
+                          ))}
+
+                        {/* ROOM ACTIVITIES, RESERVATIONS, REASSIGNED‑IN */}
+                        {dateEvents.map((event) => (
                           <ScheduleCard
-                            key={schedule.id}
-                            schedule={schedule}
-                            top={getTopPosition(schedule.startTime)}
+                            key={event.id}
+                            schedule={{
+                              ...event,
+                              subject:
+                                event.title ||
+                                event.purpose ||
+                                event.courseTitle ||
+                                (event._source === "reassignment"
+                                  ? `${event.courseTitle || "Class"} (Moved)`
+                                  : "Walk-in Reservation"),
+
+                              faculty:
+                                event.title
+                                  ? "ROOM ACTIVITY"
+                                  : event.requesterName ||
+                                    event.facultyName ||
+                                    "Walk-in",
+                            }}
+                            top={getTopPosition(event.startTime)}
                             height={getCardHeight(
-                              schedule.startTime,
-                              schedule.endTime
+                              event.startTime,
+                              event.endTime
                             )}
                             onClick={() =>
                               setSelectedSchedule(
-                                normalizeScheduleItem(schedule, "schedule")
+                                normalizeScheduleItem(event, event._source)
                               )
                             }
                           />
                         ))}
-
-                      {/* ROOM ACTIVITIES, RESERVATIONS, REASSIGNED‑IN */}
-                      {dateEvents.map((event) => (
-                        <ScheduleCard
-                          key={event.id}
-                          schedule={{
-                            ...event,
-                            subject:
-                              event.title ||
-                              event.purpose ||
-                              event.courseTitle ||
-                              (event._source === "reassignment"
-                                ? `${event.courseTitle || "Class"} (Moved)`
-                                : "Walk-in Reservation"),
-
-                            faculty:
-                              event.title
-                                ? "ROOM ACTIVITY"
-                                : event.requesterName ||
-                                  event.facultyName ||
-                                  "Walk-in",
-                          }}
-                          top={getTopPosition(event.startTime)}
-                          height={getCardHeight(
-                            event.startTime,
-                            event.endTime
-                          )}
-                          onClick={() =>
-                            setSelectedSchedule(
-                              normalizeScheduleItem(event, event._source)
-                            )
-                          }
-                        />
-                      ))}
-                    </div>
-                  );
-                })
-              )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="class-details-container">
+          <div className="clerk-class-details-container">
             <ClassDetailsCard
               schedule={selectedSchedule}
               roomName={room?.roomName}

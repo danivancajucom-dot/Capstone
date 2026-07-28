@@ -23,7 +23,7 @@ export default function ClerkLayout() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
 
-  // ── Notification state ────────────────────────────────────────
+  //  Notification state 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
@@ -45,7 +45,7 @@ export default function ClerkLayout() {
         }
       });
 
-      // ── Notifications listener (clerk) ──────────────────────
+      //  Notifications listener (clerk) 
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
@@ -69,7 +69,7 @@ export default function ClerkLayout() {
     return () => unsubscribeAuth();
   }, []);
 
-  // ── Notification helpers ──────────────────────────────────────
+  // Notification helpers 
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
@@ -125,18 +125,18 @@ export default function ClerkLayout() {
   const emptyCopy = {
     all: {
       icon: "fa-bell-slash",
-      title: "Wala pang abiso",
-      text: "Dito lalabas ang mga update tungkol sa schedules, reservations, at conflicts.",
+      title: "No notifications",
+      text: "Updates about schedules, reservations, and conflicts will appear here.",
     },
     unread: {
       icon: "fa-check-double",
-      title: "Up to date ka na!",
-      text: "Nabasa mo na lahat ng notification.",
+      title: "All caught up!",
+      text: "You've read all your notifications.",
     },
     archived: {
       icon: "fa-box-open",
-      title: "Walang naka-archive",
-      text: "Ang mga na-archive mong abiso ay makikita rito.",
+      title: "No archived notifications",
+      text: "Archived notifications will appear here.",
     },
   }[activeTab];
 
@@ -146,7 +146,7 @@ export default function ClerkLayout() {
     approved: "fa-solid fa-check",
   };
 
-  // ── Logout ──────────────────────────────────────────────────────
+  // Logout 
 
   const handleLogout = async () => {
     try {
@@ -181,34 +181,54 @@ export default function ClerkLayout() {
           </div>
 
           <nav className="clerk-nav">
-            <NavLink end to="/clerk">
+            <NavLink
+              end
+              to="/clerk"
+              className={({ isActive }) => (isActive ? "clerk-active" : "")}
+            >
               <i className="fa-solid fa-house"></i>
-              Dashboard
+              <span>Dashboard</span>
             </NavLink>
 
-            <NavLink to="/clerk/schedule-view-academic-schedule">
+            <NavLink
+              to="/clerk/schedule-view-academic-schedule"
+              className={({ isActive }) => (isActive ? "clerk-active" : "")}
+            >
               <i className="fa-solid fa-calendar"></i>
-              Schedule
+              <span>Schedule</span>
             </NavLink>
 
             {/* RESERVATIONS DROPDOWN */}
-            <div className="nav-group">
+            <div className="clerk-nav-group">
               <button
-                className="nav-parent"
+                className="clerk-nav-parent"
                 onClick={() => setOpenReservations(!openReservations)}
               >
                 <i className="fa-solid fa-bookmark"></i>
-                Reservations
-                <i className={`fa-solid fa-chevron-down arrow ${openReservations ? "open" : ""}`}></i>
+                <span>Reservations</span>
+                <i className={`fa-solid fa-chevron-down clerk-arrow ${openReservations ? "clerk-open" : ""}`}></i>
               </button>
 
-              <div className={`submenu ${openReservations ? "open" : ""}`}>
-                <NavLink to="/clerk/online-reservations">Online Reservations</NavLink>
-                <NavLink to="/clerk/walk-in-reservation">Walk-in Reservations</NavLink>
+              <div className={`clerk-submenu ${openReservations ? "clerk-open" : ""}`}>
+                <NavLink
+                  to="/clerk/online-reservations"
+                  className={({ isActive }) => (isActive ? "clerk-active" : "")}
+                >
+                  Online Reservations
+                </NavLink>
+                <NavLink
+                  to="/clerk/walk-in-reservation"
+                  className={({ isActive }) => (isActive ? "clerk-active" : "")}
+                >
+                  Walk-in Reservations
+                </NavLink>
               </div>
             </div>
 
-            <NavLink to="/clerk/broadcast-channel">
+            <NavLink
+              to="/clerk/broadcast-channel"
+              className={({ isActive }) => (isActive ? "clerk-active" : "")}
+            >
               <i className="fa-solid fa-bullhorn"></i>
               <span>Announcement Channel</span>
             </NavLink>
@@ -216,7 +236,10 @@ export default function ClerkLayout() {
           </nav>
 
           {/* PROFILE CARD — bottom of sidebar */}
-          <NavLink to="/clerk/profile" className="clerk-sidebar-profile">
+          <NavLink
+            to="/clerk/profile"
+            className={({ isActive }) => `clerk-sidebar-profile ${isActive ? "clerk-active" : ""}`}
+          >
             <div className="clerk-sidebar-avatar">
               {profile.photoUrl ? (
                 <img src={profile.photoUrl} alt="Profile" />
@@ -236,25 +259,25 @@ export default function ClerkLayout() {
         <div className="clerk-main">
 
           <header className="clerk-header">
-            <div className="header-search">
+            <div className="clerk-header-search">
               <i className="fa-solid fa-magnifying-glass"></i>
               <input type="text" placeholder="Search..." />
             </div>
 
-            <div className="header-actions">
-              {/* ── NOTIFICATION TRIGGER ────────────────────────── */}
-              <div className="notification-container">
+            <div className="clerk-header-actions">
+              {/* NOTIFICATION TRIGGER  */}
+              <div className="clerk-notification-container">
                 <button
-                  className={`header-btn ${showNotifications ? "notif-btn-open" : ""}`}
+                  className={`clerk-header-btn ${showNotifications ? "clerk-notif-btn-open" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
                 >
                   <i
                     className={`fa-bell ${
-                      unreadCount > 0 ? "fa-solid bell-active" : "fa-regular"
+                      unreadCount > 0 ? "fa-solid clerk-bell-active" : "fa-regular"
                     }`}
                   ></i>
                   {unreadCount > 0 && (
-                    <span className="notif-count">
+                    <span className="clerk-notif-count">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
@@ -263,58 +286,58 @@ export default function ClerkLayout() {
                 {/* NOTIFICATIONS PANEL */}
                 {showNotifications && (
                   <>
-                    <div className="notif-clickaway" onClick={() => setShowNotifications(false)}></div>
-                    <div className="notif-panel">
-                      <span className="notif-panel-arrow"></span>
+                    <div className="clerk-notif-clickaway" onClick={() => setShowNotifications(false)}></div>
+                    <div className="clerk-notif-panel">
+                      <span className="clerk-notif-panel-arrow"></span>
 
-                      <div className="notif-top">
-                        <div className="notif-top-title">
+                      <div className="clerk-notif-top">
+                        <div className="clerk-notif-top-title">
                           <h2>Notifications</h2>
                           {unreadCount > 0 && (
-                            <span className="notif-top-badge">{unreadCount} new</span>
+                            <span className="clerk-notif-top-badge">{unreadCount} new</span>
                           )}
                         </div>
                         <button
-                          className="notif-close"
+                          className="clerk-notif-close"
                           onClick={() => setShowNotifications(false)}
                         >
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
 
-                      <div className="notif-tabs">
+                      <div className="clerk-notif-tabs">
                         <button
-                          className={activeTab === "all" ? "active" : ""}
+                          className={activeTab === "all" ? "clerk-active" : ""}
                           onClick={() => setActiveTab("all")}
                         >
-                          All <span className="notif-tab-count">{allCount}</span>
+                          All <span className="clerk-notif-tab-count">{allCount}</span>
                         </button>
                         <button
-                          className={activeTab === "unread" ? "active" : ""}
+                          className={activeTab === "unread" ? "clerk-active" : ""}
                           onClick={() => setActiveTab("unread")}
                         >
-                          Unread <span className="notif-tab-count">{unreadCount}</span>
+                          Unread <span className="clerk-notif-tab-count">{unreadCount}</span>
                         </button>
                         <button
-                          className={activeTab === "archived" ? "active" : ""}
+                          className={activeTab === "archived" ? "clerk-active" : ""}
                           onClick={() => setActiveTab("archived")}
                         >
-                          Archived <span className="notif-tab-count">{archivedCount}</span>
+                          Archived <span className="clerk-notif-tab-count">{archivedCount}</span>
                         </button>
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
-                        <div className="notif-mark-all-row">
-                          <button className="notif-mark-all" onClick={markAllAsRead}>
+                        <div className="clerk-notif-mark-all-row">
+                          <button className="clerk-notif-mark-all" onClick={markAllAsRead}>
                             <i className="fa-solid fa-check-double"></i> Mark all as read
                           </button>
                         </div>
                       )}
 
-                      <div className="notif-list">
+                      <div className="clerk-notif-list">
                         {filteredNotifications.length === 0 ? (
-                          <div className="notif-empty">
-                            <div className="notif-empty-icon">
+                          <div className="clerk-notif-empty">
+                            <div className="clerk-notif-empty-icon">
                               <i className={`fa-solid ${emptyCopy.icon}`}></i>
                             </div>
                             <h4>{emptyCopy.title}</h4>
@@ -345,7 +368,7 @@ export default function ClerkLayout() {
               </div>
 
               {/* LOGOUT BUTTON */}
-              <button className="header-btn logout" onClick={() => setShowLogout(true)}>
+              <button className="clerk-header-btn clerk-logout" onClick={() => setShowLogout(true)}>
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
             </div>
@@ -359,17 +382,17 @@ export default function ClerkLayout() {
 
       {/* LOGOUT MODAL */}
       {showLogout && (
-        <div className="modal-overlay">
-          <div className="logout-modal">
-            <div className="modal-icon">
+        <div className="clerk-modal-overlay">
+          <div className="clerk-logout-modal">
+            <div className="clerk-modal-icon">
               <i className="fa-solid fa-triangle-exclamation"></i>
             </div>
             <h2>Are you sure you want to logout?</h2>
-            <div className="modal-actions">
-              <button className="modal-btn cancel" onClick={() => setShowLogout(false)}>
+            <div className="clerk-modal-actions">
+              <button className="clerk-modal-btn clerk-cancel" onClick={() => setShowLogout(false)}>
                 Cancel
               </button>
-              <button className="modal-btn confirm" onClick={handleLogout}>
+              <button className="clerk-modal-btn clerk-confirm" onClick={handleLogout}>
                 Confirm
               </button>
             </div>
@@ -379,9 +402,9 @@ export default function ClerkLayout() {
 
       {/* LOGOUT LOADING */}
       {loggingOut && (
-        <div className="logout-loading-screen">
-          <div className="logout-loading-card">
-            <div className="logout-spinner" />
+        <div className="clerk-logout-loading-screen">
+          <div className="clerk-logout-loading-card">
+            <div className="clerk-logout-spinner" />
             <h2>Signing you out...</h2>
             <p>Please wait while we securely end your session</p>
           </div>

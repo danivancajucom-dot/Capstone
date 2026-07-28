@@ -7,8 +7,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import classroomImg from "../../assets/Classroom.jpeg";
 
-function ReservationCard({ reservation }) {
-  const navigate = useNavigate();
+function ReservationCard({ reservation, basePath = "/clerk/view-online-reservation" }) {  const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [showDenial, setShowDenial] = useState(false);
 
@@ -50,7 +49,7 @@ function ReservationCard({ reservation }) {
       <div
         className="reservation-card"
         onClick={() =>
-          navigate("/department-head/view-reservation", {
+          navigate(basePath, {
             state: {
               reservation,
             },

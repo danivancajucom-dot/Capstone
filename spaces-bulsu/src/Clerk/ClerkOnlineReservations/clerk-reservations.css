@@ -1,34 +1,34 @@
-.dept-reservations {
+.clerk-reservations {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 20px;
-  margin-top: 80px;
   background-color: #F8F7F5;
 }
 
-.dept-reservations-header {
+.clerk-reservations-header {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 24px;
+  margin-bottom: 20px;
 }
 
-.dept-reservations h1 {
+.clerk-reservations h1 {
   margin: 0;
-  font-size: 32px;
+  font-size: 35px;
   font-weight: 800;
   color: #1E2430;
   letter-spacing: -0.02em;
 }
 
-.dept-reservations-subtitle {
+.clerk-reservations-subtitle {
   margin: 0;
-  font-size: 14px;
-  color: #64748B;
+  font-size: 15px;
+  font-weight: 300;
+  color: #6b7280;
 }
 
-.dept-white-box-reservations {
+.clerk-white-box-reservations {
   background-color: #ffffff;
   border-radius: 14px;
   padding: 20px;
@@ -41,13 +41,13 @@
 
 /* --- Tabs --- */
 
-.dept-reservations-nav {
+.clerk-reservations-nav {
   display: flex;
   gap: 36px;
   padding: 6px 16px 0;
 }
 
-.dept-reservations-nav-item {
+.clerk-reservations-nav-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -61,21 +61,21 @@
   outline: none;
 }
 
-.dept-reservations-nav-item:hover {
+.clerk-reservations-nav-item:hover {
   color: #f57c00;
 }
 
-.dept-reservations-nav-item:focus-visible {
+.clerk-reservations-nav-item:focus-visible {
   box-shadow: 0 0 0 2px rgba(245, 124, 0, 0.35);
   border-radius: 4px;
 }
 
-.dept-reservations-nav-item.active {
+.clerk-reservations-nav-item.active {
   color: #f57c00;
   border-bottom-color: #f57c00;
 }
 
-.dept-reservations-nav-count {
+.clerk-reservations-nav-count {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
@@ -90,12 +90,12 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 
-.dept-reservations-nav-item.active .dept-reservations-nav-count {
+.clerk-reservations-nav-item.active .clerk-reservations-nav-count {
   background: #FFE8CC;
   color: #f57c00;
 }
 
-.dept-reservations-nav-divider {
+.clerk-reservations-nav-divider {
   border: none;
   border-top: 1px solid #ECEAE6;
   margin: 0 0 4px;
@@ -103,7 +103,7 @@
 
 /* --- Content area --- */
 
-.dept-reservations-content {
+.clerk-reservations-content {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -113,7 +113,7 @@
 
 /* Approved/Denied tabs use compact ticket-stub cards, so they get a
    responsive 2-3 column grid instead of a single stacked column. */
-.dept-reservations-content--grid {
+.clerk-reservations-content--grid {
   display: grid;
   grid-template-columns: 1fr;
   align-items: start;
@@ -121,31 +121,31 @@
 }
 
 @media (min-width: 720px) {
-  .dept-reservations-content--grid {
+  .clerk-reservations-content--grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (min-width: 1150px) {
-  .dept-reservations-content--grid {
+  .clerk-reservations-content--grid {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 /* Cards keep their own 16/20px margin for the single-column list;
    inside the grid, spacing is handled by grid gap instead. */
-.dept-reservations-content--grid .rsv-ticket {
+.clerk-reservations-content--grid .rsv-ticket {
   margin: 0;
 }
 
 /* Empty state should always span full width and center, grid or not. */
-.dept-reservations-content--empty {
+.clerk-reservations-content--empty {
   display: flex;
 }
 
 /* --- Empty state --- */
 
-.dept-empty-state {
+.clerk-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -157,7 +157,7 @@
   width: 100%;
 }
 
-.dept-empty-title {
+.clerk-empty-title {
   margin: 8px 0 0;
   font-size: 15px;
   font-weight: 700;
@@ -165,7 +165,7 @@
   text-transform: capitalize;
 }
 
-.dept-empty-subtitle {
+.clerk-empty-subtitle {
   margin: 0;
   font-size: 13px;
   color: #94A3B8;
@@ -174,7 +174,7 @@
 
 /* --- Skeleton loading state --- */
 
-.dept-skeleton-card {
+.clerk-skeleton-card {
   border: 1px solid #ECEAE6;
   border-radius: 10px;
   padding: 18px;
@@ -183,60 +183,60 @@
   gap: 10px;
 }
 
-.dept-skeleton-line {
+.clerk-skeleton-line {
   height: 12px;
   border-radius: 6px;
   background: linear-gradient(90deg, #F1F0EE 25%, #E7E5E1 37%, #F1F0EE 63%);
   background-size: 400% 100%;
-  animation: dept-skeleton-shimmer 1.4s ease infinite;
+  animation: clerk-skeleton-shimmer 1.4s ease infinite;
 }
 
-.dept-skeleton-title {
+.clerk-skeleton-title {
   width: 45%;
   height: 14px;
 }
 
-.dept-skeleton-subtitle {
+.clerk-skeleton-subtitle {
   width: 65%;
 }
 
-.dept-skeleton-row {
+.clerk-skeleton-row {
   display: flex;
   gap: 8px;
   margin-top: 4px;
 }
 
-.dept-skeleton-pill {
+.clerk-skeleton-pill {
   width: 80px;
   height: 22px;
   border-radius: 999px;
   background: linear-gradient(90deg, #F1F0EE 25%, #E7E5E1 37%, #F1F0EE 63%);
   background-size: 400% 100%;
-  animation: dept-skeleton-shimmer 1.4s ease infinite;
+  animation: clerk-skeleton-shimmer 1.4s ease infinite;
 }
 
-@keyframes dept-skeleton-shimmer {
+@keyframes clerk-skeleton-shimmer {
   0% { background-position: 100% 50%; }
   100% { background-position: 0 50%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dept-skeleton-line,
-  .dept-skeleton-pill {
+  .clerk-skeleton-line,
+  .clerk-skeleton-pill {
     animation: none;
   }
 }
 
 /* --- Load more --- */
 
-.dept-load-more-reservations {
+.clerk-load-more-reservations {
   display: flex;
   justify-content: center;
   margin-top: auto;
   padding-top: 16px;
 }
 
-.dept-load-more-btn-reservations {
+.clerk-load-more-btn-reservations {
   padding: 10px 30px;
   border: 1px solid transparent;
   background-color: #f57c00;
@@ -251,13 +251,13 @@
   height: 46px;
 }
 
-.dept-load-more-btn-reservations:hover {
+.clerk-load-more-btn-reservations:hover {
   background: #fff3e8;
   border: solid 1px #f57c00;
   color: #f57c00;
   box-shadow: none;
 }
 
-.dept-load-more-btn-reservations:active {
+.clerk-load-more-btn-reservations:active {
   transform: translateY(1px);
 }

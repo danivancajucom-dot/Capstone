@@ -515,8 +515,8 @@ function FacultySubmitReservation() {
 
   return (
     <>
-      <div className="container">
-        <div className="faculty-submit-header">
+      <div className="faculty-reservations-request">
+        <div className="fa-submit-header">
           <h1>Reservation Request</h1>
           <p>Submit a reservation request for approval.</p>
         </div>

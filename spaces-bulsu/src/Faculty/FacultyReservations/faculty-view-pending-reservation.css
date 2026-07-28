@@ -13,10 +13,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 20px;
-  margin-top: 80px;
+  padding: -20px;
+  margin-top: 35px;
   background-color: #F8F7F5;
 }
+
 
 .faculty-white-box-pending {
   background-color: #ffffff;

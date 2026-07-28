@@ -108,9 +108,9 @@ export default function ClerkProfile() {
     const nameUnchanged =
       form.firstName === originalData.firstName &&
       form.lastName  === originalData.lastName;
-    const photoUnchanged = !photoFile;
+    const photoUnchanged = form.photoUrl === originalData.photoUrl;
 
-    if (nameUnchanged && photoUnchanged) {
+    if (nameUnchanged && photoUnchanged && !photoFile) {
       showToast("error", "Nothing to save.");
       return;
     }
@@ -251,7 +251,23 @@ export default function ClerkProfile() {
             <i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…
           </p>
         )}
-        {editing && !photoFile && !uploading && (
+        {editing && form.photoUrl && !uploading && (
+          <button
+            className="cp-remove-photo-btn"
+            type="button"
+            onClick={() => {
+              setPhotoFile(null);
+              if (previewUrl) {
+                URL.revokeObjectURL(previewUrl);
+                setPreviewUrl(null);
+              }
+              setForm(prev => ({ ...prev, photoUrl: "" }));
+            }}
+          >
+            <i className="fa-solid fa-trash" /> Remove Photo
+          </button>
+        )}
+        {editing && !form.photoUrl && !photoFile && !uploading && (
           <button
             className="cp-upload-btn"
             type="button"
