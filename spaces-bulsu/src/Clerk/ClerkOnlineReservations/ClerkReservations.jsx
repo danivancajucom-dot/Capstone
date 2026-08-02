@@ -3,21 +3,17 @@ import { useNavigate } from "react-router-dom";
 import "./clerk-reservations.css";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
 import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
-
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore";
-
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
 
-const TABS = ["Pending", "Approved", "Denied"];
+const TABS = ["Pending", "Approved", "Denied", "Cancelled"];
 const PAGE_SIZE = 8;
 
-// Simple inline icon set (no extra dependency needed)
+// ─── Helpers ───────────────────────────────────────────────────────────
+const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
+const normalizeRoom = (name) => name?.toLowerCase().trim().replace(/\s+/g, '') || "";
+
+// ─── Empty icon (SVG) ──────────────────────────────────────────────────
 const EmptyIcon = () => (
   <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect x="3" y="5" width="18" height="16" rx="2" stroke="#CBD5E1" strokeWidth="1.5" />
@@ -28,7 +24,7 @@ const EmptyIcon = () => (
   </svg>
 );
 
-// Skeleton placeholder shown while Firestore data is loading
+// ─── Skeleton card placeholder ────────────────────────────────────────
 function SkeletonCard() {
   return (
     <div className="clerk-skeleton-card">
@@ -42,6 +38,7 @@ function SkeletonCard() {
   );
 }
 
+// ─── Empty state ──────────────────────────────────────────────────────
 function EmptyState({ label }) {
   return (
     <div className="clerk-empty-state">
@@ -54,6 +51,7 @@ function EmptyState({ label }) {
   );
 }
 
+// ─── Main component ──────────────────────────────────────────────────
 function ClerkReservations() {
   const [activeTab, setActiveTab] = useState("Pending");
   const navigate = useNavigate();
@@ -61,20 +59,19 @@ function ClerkReservations() {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  useEffect(() => {
-    const q = query(
-      collection(db, "reservationRequests"),
-      orderBy("createdAt", "desc")
-    );
+  // ─── Filter/sort state ─────────────────────────────────────────────
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterRoom, setFilterRoom] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+  const [sortOrder, setSortOrder] = useState("desc");
 
+  useEffect(() => {
+    const q = query(collection(db, "reservationRequests"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const list = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
+        const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setReservations(list);
         setLoading(false);
       },
@@ -83,76 +80,150 @@ function ClerkReservations() {
         setLoading(false);
       }
     );
-
     return unsubscribe;
   }, []);
 
-  // Reset pagination whenever the tab changes
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [activeTab]);
 
-  const statusForTab = {
-    Pending: "Pending",
-    Approved: "Approved",
-    Denied: "Rejected",
+  // ─── Status mapping ──────────────────────────────────────────────────
+  const statusMap = {
+    Pending: "pending",
+    Approved: "approved",
+    Denied: "rejected",
+    Cancelled: "cancelled",
   };
 
-  // Approved/Denied cards are compact ticket-stubs, so they lay out
-  // in a responsive 2-3 column grid. Pending stays a single column
-  // since ReservationCard is a wider, denser layout.
-  const isGridTab = activeTab !== "Pending";
-
-  const filteredReservations = reservations.filter(
-    (reservation) => reservation.status === statusForTab[activeTab]
+  // ─── Step 1: Filter by tab (status) ─────────────────────────────────
+  const tabFiltered = reservations.filter(
+    (r) => normalizeStatus(r.status) === statusMap[activeTab]
   );
 
-  const visibleReservations = filteredReservations.slice(0, visibleCount);
-  const hasMore = visibleCount < filteredReservations.length;
+  // ─── Step 2: Apply search, room, date filters ──────────────────────
+  const trimmedSearch = searchTerm.trim().toLowerCase();
 
+  const filtered = tabFiltered.filter((r) => {
+    // Search by faculty/requester name
+    const name = (r.facultyName || r.requesterName || "").toLowerCase();
+    if (trimmedSearch && !name.includes(trimmedSearch)) return false;
+
+    // Room filter – normalize both sides
+    const roomNameNormalized = normalizeRoom(r.roomName);
+    const filterRoomNormalized = normalizeRoom(filterRoom);
+    if (filterRoom && roomNameNormalized !== filterRoomNormalized) return false;
+
+    // Date filter
+    if (filterDate && r.date !== filterDate) return false;
+
+    return true;
+  });
+
+  // ─── Step 3: Sort ──────────────────────────────────────────────────
+  const sorted = [...filtered].sort((a, b) => {
+    let aVal, bVal;
+    switch (sortBy) {
+      case "date":
+        aVal = a.date || "";
+        bVal = b.date || "";
+        break;
+      case "room":
+        aVal = normalizeRoom(a.roomName);
+        bVal = normalizeRoom(b.roomName);
+        break;
+      case "faculty":
+        aVal = (a.facultyName || a.requesterName || "").toLowerCase();
+        bVal = (b.facultyName || b.requesterName || "").toLowerCase();
+        break;
+      default:
+        return 0;
+    }
+    if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  // ─── Step 4: Paginate ──────────────────────────────────────────────
+  const visibleReservations = sorted.slice(0, visibleCount);
+  const hasMore = visibleCount < sorted.length;
+
+  // ─── Counts for tabs (unfiltered) ──────────────────────────────────
   const counts = {
-    Pending: reservations.filter((r) => r.status === "Pending").length,
-    Approved: reservations.filter((r) => r.status === "Approved").length,
-    Denied: reservations.filter((r) => r.status === "Rejected").length,
+    Pending: reservations.filter((r) => normalizeStatus(r.status) === "pending").length,
+    Approved: reservations.filter((r) => normalizeStatus(r.status) === "approved").length,
+    Denied: reservations.filter((r) => normalizeStatus(r.status) === "rejected").length,
+    Cancelled: reservations.filter((r) => normalizeStatus(r.status) === "cancelled").length,
   };
 
+  // ─── Unique room names for filter dropdown (normalized, display original) ──
+  const roomMap = new Map();
+  reservations.forEach((r) => {
+    const original = (r.roomName || "").trim();
+    if (!original) return;
+    const normalized = normalizeRoom(original);
+    if (!roomMap.has(normalized)) {
+      roomMap.set(normalized, original);
+    }
+  });
+  // Convert to array of { original, normalized } for the dropdown
+  const roomOptions = Array.from(roomMap.entries()).map(([normalized, original]) => ({
+    normalized,
+    original,
+  }));
+
+  // ─── Clear all filters ──────────────────────────────────────────────
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterRoom("");
+    setFilterDate("");
+    setSortBy("date");
+    setSortOrder("desc");
+  };
+
+  // ─── Render list ────────────────────────────────────────────────────
   const renderList = () => {
     if (loading) {
-      return Array.from({ length: isGridTab ? 6 : 4 }).map((_, i) => (
-        <SkeletonCard key={i} />
-      ));
+      return Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />);
     }
 
-    if (filteredReservations.length === 0) {
+    if (sorted.length === 0) {
       return <EmptyState label={activeTab.toLowerCase()} />;
     }
 
     if (activeTab === "Pending") {
       return visibleReservations.map((reservation) => (
-        <ReservationCard key={reservation.id} reservation={reservation} basePath="/clerk/view-online-reservation" />
+        <ReservationCard
+          key={reservation.id}
+          reservation={reservation}
+          basePath="/clerk/view-online-reservation"
+        />
       ));
+    }
+
+    let viewPath;
+    if (activeTab === "Approved") {
+      viewPath = "/clerk/view-reservation-approved";
+    } else if (activeTab === "Denied") {
+      viewPath = "/clerk/view-reservation-denied";
+    } else {
+      viewPath = "/clerk/view-reservation-cancelled";
     }
 
     return visibleReservations.map((reservation) => (
       <ApprovedAndDeniedCard
         key={reservation.id}
         reservation={reservation}
-        onClick={() =>
-          navigate(
-            activeTab === "Approved"
-              ? "/clerk/view-reservation-approved"
-              : "/clerk/view-reservation-denied",
-            { state: { reservation } }
-          )
-        }
+        onClick={() => navigate(viewPath, { state: { reservation } })}
       />
     ));
   };
 
-  const isEmpty = !loading && filteredReservations.length === 0;
+  const isGridTab = activeTab !== "Pending";
+  const isEmpty = !loading && sorted.length === 0;
 
   return (
     <div className="clerk-reservations">
+      {/* ─── Header ────────────────────────────────────────────── */}
       <div className="clerk-reservations-header">
         <h1>Reservation Requests</h1>
         <p className="clerk-reservations-subtitle">
@@ -160,6 +231,90 @@ function ClerkReservations() {
         </p>
       </div>
 
+      {/* ─── Filter Bar (outside white box) ──────────────────── */}
+      <div className="clerk-filter-bar-outer">
+        <div className="clerk-filter-row">
+          <div className="clerk-filter-group">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              placeholder="Search by faculty..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="clerk-filter-input"
+            />
+          </div>
+
+          <div className="clerk-filter-group">
+            <i className="fa-solid fa-building"></i>
+            <select
+              value={filterRoom}
+              onChange={(e) => setFilterRoom(e.target.value)}
+              className="clerk-filter-select"
+            >
+              <option value="">All Rooms</option>
+              {roomOptions.map(({ normalized, original }) => (
+                <option key={normalized} value={normalized}>
+                  {original}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="clerk-filter-group">
+            <i className="fa-regular fa-calendar"></i>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="clerk-filter-input"
+            />
+          </div>
+
+          <div className="clerk-filter-group clerk-sort-group">
+            <i className="fa-solid fa-arrow-up-wide-short"></i>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="clerk-filter-select"
+            >
+              <option value="date">Sort by Date</option>
+              <option value="room">Sort by Room</option>
+              <option value="faculty">Sort by Faculty</option>
+            </select>
+            <button
+              className="clerk-sort-order-btn"
+              onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+              title={sortOrder === "asc" ? "Ascending" : "Descending"}
+            >
+              <i className={`fa-solid fa-arrow-${sortOrder === "asc" ? "up" : "down"}`}></i>
+            </button>
+          </div>
+
+          <button className="clerk-clear-filters-btn" onClick={clearFilters}>
+            <i className="fa-solid fa-rotate-left"></i> Clear
+          </button>
+        </div>
+
+        {/* Active filters summary */}
+        {(searchTerm || filterRoom || filterDate) && (
+          <div className="clerk-filter-summary">
+            <span>Active filters:</span>
+            {searchTerm && <span className="clerk-filter-tag">Faculty: {searchTerm}</span>}
+            {filterRoom && (
+              <span className="clerk-filter-tag">
+                Room: {roomOptions.find(o => o.normalized === filterRoom)?.original || filterRoom}
+              </span>
+            )}
+            {filterDate && <span className="clerk-filter-tag">Date: {filterDate}</span>}
+            <span className="clerk-filter-result-count">
+              {sorted.length} result{sorted.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ─── White box with tabs + content ────────────────────── */}
       <div className="clerk-white-box-reservations">
         <div className="clerk-reservations-nav">
           {TABS.map((tab) => (
@@ -174,9 +329,7 @@ function ClerkReservations() {
               }}
             >
               {tab}
-              {!loading && (
-                <span className="clerk-reservations-nav-count">{counts[tab]}</span>
-              )}
+              {!loading && <span className="clerk-reservations-nav-count">{counts[tab]}</span>}
             </div>
           ))}
         </div>
@@ -196,7 +349,7 @@ function ClerkReservations() {
               className="clerk-load-more-btn-reservations"
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
-              Load More
+              Load More ({sorted.length - visibleCount} remaining)
             </button>
           </div>
         )}

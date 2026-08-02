@@ -226,6 +226,14 @@ export default function ClerkLayout() {
             </div>
 
             <NavLink
+              to="/clerk/room-usage"
+              className={({ isActive }) => (isActive ? "clerk-active" : "")}
+            >
+              <i className="fa-solid fa-chart-simple"></i>
+              <span>Room Usage</span>
+            </NavLink>
+
+            <NavLink
               to="/clerk/broadcast-channel"
               className={({ isActive }) => (isActive ? "clerk-active" : "")}
             >

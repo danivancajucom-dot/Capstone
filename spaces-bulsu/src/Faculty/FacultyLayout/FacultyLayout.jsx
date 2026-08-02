@@ -11,7 +11,7 @@ import {
   doc,
   updateDoc,
   getDoc,
-  writeBatch,   
+  writeBatch,
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import NotificationCard from "../../Components/NotificationCard/Notification";
@@ -41,11 +41,11 @@ export default function FacultyLayout() {
         });
       }
 
+      // ✅ FIX: Remove `where("archived", "==", false)` – fetch ALL notifications
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
         where("ownerType", "==", "faculty"),
-        where("archived", "==", false),
         orderBy("createdAt", "desc")
       );
 
@@ -107,6 +107,7 @@ export default function FacultyLayout() {
     }
   };
 
+  // ✅ Now these counts include archived items because the state holds everything
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
   const archivedCount = notifications.filter((n) => n.archived).length;
   const allCount = notifications.filter((n) => !n.archived).length;
@@ -114,7 +115,7 @@ export default function FacultyLayout() {
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
     if (activeTab === "archived") return item.archived;
-    return !item.archived;
+    return !item.archived; // "all" – only non‑archived
   });
 
   const emptyCopy = {

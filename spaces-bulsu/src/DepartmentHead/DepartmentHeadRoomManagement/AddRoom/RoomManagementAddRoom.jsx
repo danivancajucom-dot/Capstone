@@ -7,16 +7,15 @@ import {
   doc, addDoc, setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { logActivity } from "../../../utils/logActivity";
-import { Projector, Tv, AirVent, MonitorSpeaker, TvMinimal } from 'lucide-react';
 
 const ROOM_TYPES = ['Computer Lab', 'Lecture Room', 'Conference Room', 'Laboratory'];
 
 const EQUIPMENT_OPTIONS = [
-  { id: 'projector',  label: 'Projector',   icon: Projector },
-  { id: 'tvDisplay',  label: 'TV Display',  icon: Tv },
-  { id: 'ac',         label: 'AC',          icon: AirVent },
-  { id: 'computer',   label: 'Computer',    icon: MonitorSpeaker },
-  { id: 'smartBoard', label: 'Smart Board', icon: TvMinimal },
+  { id: 'projector',  label: 'Projector',   icon: 'fa-solid fa-projector' },
+  { id: 'tvDisplay',  label: 'TV Display',  icon: 'fa-solid fa-tv' },
+  { id: 'ac',         label: 'AC',          icon: 'fa-solid fa-snowflake' },
+  { id: 'computer',   label: 'Computer',    icon: 'fa-solid fa-desktop' },
+  { id: 'smartBoard', label: 'Smart Board', icon: 'fa-solid fa-chalkboard' },
 ];
 
 const FLOORS = ["1st floor", "2nd floor", "3rd floor", "4th floor"];
@@ -176,7 +175,6 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
 
       {/* PAGE HEADER */}
       <div className="add-room-page-header">
-      
         <div>
           <h1 className="page-title">Add New Room</h1>
         </div>
@@ -284,7 +282,7 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
           </div>
 
           <div className="equipment-grid">
-            {EQUIPMENT_OPTIONS.map(({ id, label, icon: Icon }) => (
+            {EQUIPMENT_OPTIONS.map(({ id, label, icon }) => (
                 <label
                   key={id}
                   className={`equipment-chip ${equipment[id] ? 'checked' : ''}`}
@@ -295,7 +293,7 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
                     onChange={() => toggleEquipment(id)}
                     style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
                   />
-                  <span className="chip-icon"><Icon size={20} /></span>
+                  <span className="chip-icon"><i className={icon} style={{fontSize: 18}}></i></span>
                   <span className="chip-label">{label}</span>
                 <span className="chip-check">
                   {equipment[id]
@@ -414,8 +412,8 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
                 </span>
                 <div className="preview-equipment">
                   {checkedEquipment.length > 0
-                      ? checkedEquipment.map(({ id, label, icon: Icon }) => (
-                          <span key={id} className="preview-equipment-tag"><Icon size={14} /> {label}</span>
+                      ? checkedEquipment.map(({ id, label, icon }) => (
+                          <span key={id} className="preview-equipment-tag"><i className={icon} style={{fontSize: 14, marginRight: 4}}></i> {label}</span>
                         ))
                       : <span className="preview-none">None selected</span>
                     }

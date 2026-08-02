@@ -13,6 +13,8 @@ import {
   serverTimestamp,
   doc,
   getDoc,
+  query,
+  where,
 } from "firebase/firestore";
 
 function FacultySubmitReservation() {
@@ -36,6 +38,7 @@ function FacultySubmitReservation() {
   const [organization, setOrganization] = useState("");
   const [customPurposeText, setCustomPurposeText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -69,6 +72,49 @@ function FacultySubmitReservation() {
     setSelectedEquipment((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+  };
+
+  // ─── Helper to check if user already has a reservation at the same time ───
+  const checkUserConflict = async () => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return null;
+
+    const start = convertToMinutes(startTime);
+    const end = convertToMinutes(endTime);
+
+    const q = query(
+      collection(db, "reservationRequests"),
+      where("userId", "==", firebaseUser.uid),
+      where("date", "==", date)
+    );
+
+    const snapshot = await getDocs(q);
+    const userReservations = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    for (const res of userReservations) {
+      if (res.status === "Rejected") continue;
+
+      const resStart = convertToMinutes(res.startTime);
+      const resEnd = convertToMinutes(res.endTime);
+
+      if (start < resEnd && end > resStart) {
+        if (res.roomId === selectedRoom?.id) continue;
+
+        return {
+          conflict: true,
+          existingRoom: res.roomName,
+          existingDate: res.date,
+          existingStart: res.startTime,
+          existingEnd: res.endTime,
+          status: res.status,
+        };
+      }
+    }
+
+    return { conflict: false };
   };
 
   useEffect(() => {
@@ -133,6 +179,9 @@ function FacultySubmitReservation() {
     }
 
     setLoading(true);
+
+    const firebaseUser = auth.currentUser;
+    const currentUserId = firebaseUser?.uid;
 
     try {
       const roomSnapshot = await getDocs(collection(db, "rooms"));
@@ -201,19 +250,21 @@ function FacultySubmitReservation() {
             ...room,
             available: false,
             maintenance: true,
+            reservedByUser: false,
           });
           continue;
         }
 
         let occupied = false;
+        let reservedByUser = false;
 
-        // Class schedules (skip released)
+        // ─── Class schedules (skip released) ──────────────────────
         const scheduleSnapshot = await getDocs(
           collection(db, "rooms", room.id, "schedules")
         );
         const releasesForRoom = releaseMap.get(room.id) || new Set();
 
-        occupied = scheduleSnapshot.docs.some((doc) => {
+        const hasScheduleConflict = scheduleSnapshot.docs.some((doc) => {
           const sched = doc.data();
           if (sched.initialized) return false;
           if (sched.day !== getDay(date)) return false;
@@ -229,9 +280,13 @@ function FacultySubmitReservation() {
           );
         });
 
-        // Room activities
+        if (hasScheduleConflict) {
+          occupied = true;
+        }
+
+        // ─── Room activities ──────────────────────────────────────
         if (!occupied) {
-          occupied = activitySnapshot.docs.some((doc) => {
+          const hasEventConflict = activitySnapshot.docs.some((doc) => {
             const event = doc.data();
             if (event.roomId !== room.id) return false;
             if (event.date !== date) return false;
@@ -243,28 +298,43 @@ function FacultySubmitReservation() {
               event.endTime
             );
           });
+          if (hasEventConflict) occupied = true;
         }
 
-        // Pending reservations (exclude Rejected)
+        // ─── RESERVATIONS ──────────────────────────────────────────
         if (!occupied) {
-          occupied = requestSnapshot.docs.some((doc) => {
+          // Find all conflicting reservations for this room & date (excluding Rejected)
+          const conflictingReservations = [];
+          requestSnapshot.docs.forEach((doc) => {
             const req = doc.data();
-            if (req.roomId !== room.id) return false;
-            if (req.date !== date) return false;
-            if (req.status === "Rejected") return false;
-            return isOverlapping(
-              startTime,
-              endTime,
-              req.startTime,
-              req.endTime
-            );
+            if (req.roomId !== room.id) return;
+            if (req.date !== date) return;
+            if (req.status === "Rejected") return;
+            if (isOverlapping(startTime, endTime, req.startTime, req.endTime)) {
+              conflictingReservations.push(req);
+            }
           });
+
+          // Check each conflict
+          for (const req of conflictingReservations) {
+            if (req.userId === currentUserId) {
+              // User's own reservation (pending or approved)
+              reservedByUser = true;
+              break;
+            } else if (req.status === "Approved") {
+              // Other user's approved reservation → occupied
+              occupied = true;
+              break;
+            }
+            // else: other user's pending reservation → ignore (room remains available)
+          }
         }
 
         roomList.push({
           ...room,
-          available: !occupied,
+          available: !occupied && !reservedByUser,
           maintenance: false,
+          reservedByUser: reservedByUser,
         });
       }
 
@@ -362,7 +432,7 @@ function FacultySubmitReservation() {
       notifications.push(
         addDoc(collection(db, "notifications"), {
           userId: userDoc.id,
-          ownerType, // ← MUST be "clerk" or "department-head"
+          ownerType,
           reservationId,
           title,
           message,
@@ -381,11 +451,25 @@ function FacultySubmitReservation() {
   // ─── MAIN SUBMIT ────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
+    // ─── First, check for user conflict (double-booking) ──────────────
+    const conflictCheck = await checkUserConflict();
+    if (conflictCheck?.conflict) {
+      showToast(
+        "error",
+        "Time Conflict Detected",
+        `You already have a ${conflictCheck.status.toLowerCase()} reservation for "${conflictCheck.existingRoom}" on ${conflictCheck.existingDate} from ${conflictCheck.existingStart} to ${conflictCheck.existingEnd}. Please choose a different time.`
+      );
+      return;
+    }
+
     const error = validate();
     if (error) {
       showToast("error", "Validation Error", error);
       return;
     }
+
+    setSubmitting(true);
+    showToast("loading", "Submitting", "Please wait...");
 
     const userRef = doc(db, "users", auth.currentUser.uid);
     const userSnap = await getDoc(userRef);
@@ -403,8 +487,6 @@ function FacultySubmitReservation() {
     }
 
     try {
-      showToast("loading", "Submitting", "Please wait...");
-
       // 1. Create reservation request
       const reservationRef = await addDoc(
         collection(db, "reservationRequests"),
@@ -440,7 +522,7 @@ function FacultySubmitReservation() {
         }
       );
 
-      // 2. Notify clerks & department heads (ownerType normalized)
+      // 2. Notify clerks & department heads
       await notifyClerkAndDepartmentHead(
         "New Reservation Request",
         `${facultyName} submitted a reservation request for "${courseTitle}" in ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
@@ -461,7 +543,7 @@ function FacultySubmitReservation() {
         createdAt: serverTimestamp(),
       });
 
-      // 4. ACTIVITY LOG – direct write with exact fields dashboard expects
+      // 4. ACTIVITY LOG
       await addDoc(collection(db, "activityLogs"), {
         timestamp: serverTimestamp(),
         action: "Submitted Reservation Request",
@@ -508,7 +590,38 @@ function FacultySubmitReservation() {
     } catch (err) {
       console.error(err);
       showToast("error", "Firestore Error", err.message);
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  // ─── Check if form is complete ─────────────────────────────────────
+
+  const isFormComplete = () => {
+    if (!courseTitle) return false;
+    if (!date) return false;
+    if (!audienceType) return false;
+
+    if (audienceType === "Class") {
+      if (!course) return false;
+      if (!yearSectionGroup) return false;
+      if (!["Lecture", "Hands-on", "Examination"].includes(purpose)) return false;
+      if (purpose === "Hands-on" && selectedEquipment.length === 0) return false;
+      if ((purpose === "Lecture" || purpose === "Examination") && !studentRange) return false;
+    }
+
+    if (audienceType === "Organization") {
+      if (!organization) return false;
+      if (!["Workshop", "Training", "Meeting", "Other Activity"].includes(purpose)) return false;
+      if (purpose === "Other Activity" && !customPurposeText.trim()) return false;
+      if (!studentRange) return false;
+    }
+
+    if (!startTime) return false;
+    if (!endTime) return false;
+    if (!selectedRoom) return false;
+
+    return true;
   };
 
   // ─── Render ──────────────────────────────────────────────────────────
@@ -545,7 +658,7 @@ function FacultySubmitReservation() {
                     value={audienceType}
                     onChange={(e) => {
                       setAudienceType(e.target.value);
-                      setPurpose(""); // reset purpose when audience changes
+                      setPurpose("");
                       setSelectedEquipment([]);
                       setStudentRange("");
                       setCourse("");
@@ -815,48 +928,57 @@ function FacultySubmitReservation() {
                 </div>
               ) : (
                 <div className="room-grid">
-                  {rooms.map((room) => (
-                    <div
-                      key={room.id}
-                      className={`
-                        room-card
-                        ${room.maintenance ? "maintenance" : room.available ? "available" : "occupied"}
-                        ${selectedRoom?.id === room.id ? "selected" : ""}
-                      `}
-                      onClick={() => {
-                        if (!room.available || room.maintenance) return;
-                        setSelectedRoom(room);
-                      }}
-                    >
-                      <div className="room-name">
-                        <i className="fa-solid fa-door-open"></i> {room.roomName}
-                      </div>
-                      <div className="room-floor">
-                        <i className="fa-solid fa-building"></i> {room.floor} Floor
-                      </div>
-                      {room.capacity && (
-                        <div className="room-floor">
-                          <i className="fa-solid fa-users"></i> {room.capacity} Seats
-                        </div>
-                      )}
-                      <div className="room-status">
-                        <i
-                          className={`fa-solid ${
+                  {rooms.map((room) => {
+                    // Determine status label
+                    let statusLabel = "Available";
+                    let statusIcon = "fa-circle-check";
+                    if (room.maintenance) {
+                      statusLabel = "Under Maintenance";
+                      statusIcon = "fa-triangle-exclamation";
+                    } else if (room.reservedByUser) {
+                      statusLabel = "Reserved";
+                      statusIcon = "fa-clock";
+                    } else if (!room.available) {
+                      statusLabel = "Occupied";
+                      statusIcon = "fa-circle-xmark";
+                    }
+
+                    return (
+                      <div
+                        key={room.id}
+                        className={`
+                          room-card
+                          ${
                             room.maintenance
-                              ? "fa-triangle-exclamation"
+                              ? "maintenance"
                               : room.available
-                              ? "fa-circle-check"
-                              : "fa-circle-xmark"
-                          }`}
-                        ></i>{" "}
-                        {room.maintenance
-                          ? "Under Maintenance"
-                          : room.available
-                          ? "Available"
-                          : "Occupied"}
+                              ? "available"
+                              : "occupied"
+                          }
+                          ${selectedRoom?.id === room.id ? "selected" : ""}
+                        `}
+                        onClick={() => {
+                          if (!room.available || room.maintenance || room.reservedByUser) return;
+                          setSelectedRoom(room);
+                        }}
+                      >
+                        <div className="room-name">
+                          <i className="fa-solid fa-door-open"></i> {room.roomName}
+                        </div>
+                        <div className="room-floor">
+                          <i className="fa-solid fa-building"></i> {room.floor} Floor
+                        </div>
+                        {room.capacity && (
+                          <div className="room-floor">
+                            <i className="fa-solid fa-users"></i> {room.capacity} Seats
+                          </div>
+                        )}
+                        <div className="room-status">
+                          <i className={`fa-solid ${statusIcon}`}></i> {statusLabel}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -868,17 +990,14 @@ function FacultySubmitReservation() {
             Back
           </button>
           <button
-            className="faculty-submit-confirm-btn"
+            className={`faculty-submit-confirm-btn ${!isFormComplete() || submitting ? "disabled" : ""}`}
             onClick={() => {
-              const err = validate();
-              if (err) {
-                showToast("error", "Validation Error", err);
-                return;
-              }
+              if (submitting) return;
               setShowConfirm(true);
             }}
+            disabled={!isFormComplete() || submitting}
           >
-            Submit Request
+            {submitting ? "Submitting..." : "Submit Request"}
           </button>
         </div>
 
@@ -898,8 +1017,12 @@ function FacultySubmitReservation() {
                 <button className="ra-modal-cancel" onClick={() => setShowConfirm(false)}>
                   Cancel
                 </button>
-                <button className="ra-modal-confirm" onClick={handleSubmit}>
-                  Confirm
+                <button
+                  className={`ra-modal-confirm ${submitting ? "disabled" : ""}`}
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? "Submitting..." : "Confirm"}
                 </button>
               </div>
             </div>

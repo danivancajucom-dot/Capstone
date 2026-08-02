@@ -34,8 +34,10 @@ const getDayAbbrev = (dateStr) => {
 };
 
 const overlap = (aStart, aEnd, bStart, bEnd) => {
-  return convertToMinutes(aStart) < convertToMinutes(bEnd) &&
-         convertToMinutes(aEnd) > convertToMinutes(bStart);
+  return (
+    convertToMinutes(aStart) < convertToMinutes(bEnd) &&
+    convertToMinutes(aEnd) > convertToMinutes(bStart)
+  );
 };
 
 // ─── Find user by name ──────────────────────────────────────────────
@@ -45,14 +47,23 @@ const findUserByName = async (name) => {
   const normalized = name.trim().toLowerCase();
   for (const doc of usersSnap.docs) {
     const data = doc.data();
-    const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim().toLowerCase();
+    const fullName = `${data.firstName || ""} ${data.lastName || ""}`
+      .trim()
+      .toLowerCase();
     if (fullName === normalized) return { id: doc.id, ...data };
   }
   return null;
 };
 
 // ─── Send notification ──────────────────────────────────────────────
-const sendNotification = async (userId, ownerType, title, message, type, badge = "INFO") => {
+const sendNotification = async (
+  userId,
+  ownerType,
+  title,
+  message,
+  type,
+  badge = "INFO",
+) => {
   if (!userId) return;
   await addDoc(collection(db, "notifications"), {
     userId,
@@ -108,8 +119,13 @@ function FacultyEditPendingReservation() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // ─── NEW: state for cancel confirmation modal ──────────────────
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   // ─── Read‑only fields ─────────────────────────────────────────────
-  const facultyName = reservation?.facultyName || reservation?.requesterName || "";
+  const facultyName =
+    reservation?.facultyName || reservation?.requesterName || "";
   const audienceType = reservation?.audienceType || "";
   const courseTitle = reservation?.courseTitle || "";
   const course = reservation?.attendees?.course || "";
@@ -143,7 +159,12 @@ function FacultyEditPendingReservation() {
       const snap = await getDocs(collection(db, "rooms"));
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setAllRooms(data);
-      fetchAvailableRooms(data, editableFields.date, editableFields.startTime, editableFields.endTime);
+      fetchAvailableRooms(
+        data,
+        editableFields.date,
+        editableFields.startTime,
+        editableFields.endTime,
+      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -152,7 +173,12 @@ function FacultyEditPendingReservation() {
   };
 
   // ─── Fetch available rooms based on purpose, date, time ───────────
-  const fetchAvailableRooms = async (roomsList = allRooms, date, startTime, endTime) => {
+  const fetchAvailableRooms = async (
+    roomsList = allRooms,
+    date,
+    startTime,
+    endTime,
+  ) => {
     if (!date || !startTime || !endTime || roomsList.length === 0) {
       setAvailableRooms([]);
       return;
@@ -166,18 +192,19 @@ function FacultyEditPendingReservation() {
       const requiredEquipment = editableFields.requiredEquipment;
 
       // Fetch releases, reassignments for the date
-      const [releaseSnap, reassignSnap, eventSnap, reservationSnap] = await Promise.all([
-        getDocs(collection(db, "roomReleases")),
-        getDocs(collection(db, "roomReassignments")),
-        getDocs(query(collection(db, "events"), where("date", "==", date))),
-        getDocs(
-          query(
-            collection(db, "reservationRequests"),
-            where("date", "==", date),
-            where("status", "==", "approved")
-          )
-        ),
-      ]);
+      const [releaseSnap, reassignSnap, eventSnap, reservationSnap] =
+        await Promise.all([
+          getDocs(collection(db, "roomReleases")),
+          getDocs(collection(db, "roomReassignments")),
+          getDocs(query(collection(db, "events"), where("date", "==", date))),
+          getDocs(
+            query(
+              collection(db, "reservationRequests"),
+              where("date", "==", date),
+              where("status", "==", "approved"),
+            ),
+          ),
+        ]);
 
       const releases = releaseSnap.docs.map((d) => d.data());
       const reassignments = reassignSnap.docs
@@ -192,13 +219,13 @@ function FacultyEditPendingReservation() {
       const releaseKeys = new Set(
         releases
           .filter((r) => r.date === date)
-          .map((r) => `${r.scheduleId}_${r.date}`)
+          .map((r) => `${r.scheduleId}_${r.date}`),
       );
 
       const reassignAwayKeys = new Set(
         reassignments
           .filter((r) => r.date === date && r.oldRoomId)
-          .map((r) => `${r.scheduleId}_${r.date}`)
+          .map((r) => `${r.scheduleId}_${r.date}`),
       );
 
       // Group reassignments by new room
@@ -219,7 +246,7 @@ function FacultyEditPendingReservation() {
 
         // Fetch schedules for this room
         const scheduleSnap = await getDocs(
-          collection(db, "rooms", room.id, "schedules")
+          collection(db, "rooms", room.id, "schedules"),
         );
         const schedules = scheduleSnap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
@@ -236,20 +263,24 @@ function FacultyEditPendingReservation() {
 
         // Check events
         const hasEventConflict = events.some(
-          (e) => e.roomId === room.id && overlap(startTime, endTime, e.startTime, e.endTime)
+          (e) =>
+            e.roomId === room.id &&
+            overlap(startTime, endTime, e.startTime, e.endTime),
         );
         if (hasEventConflict) continue;
 
         // Check other approved reservations
         const hasReservationConflict = reservations.some(
-          (r) => r.roomId === room.id && overlap(startTime, endTime, r.startTime, r.endTime)
+          (r) =>
+            r.roomId === room.id &&
+            overlap(startTime, endTime, r.startTime, r.endTime),
         );
         if (hasReservationConflict) continue;
 
         // Check reassigned‑in (they also occupy)
         const reassignInto = reassignIntoMap[room.id] || [];
         const hasReassignConflict = reassignInto.some((r) =>
-          overlap(startTime, endTime, r.startTime, r.endTime)
+          overlap(startTime, endTime, r.startTime, r.endTime),
         );
         if (hasReassignConflict) continue;
 
@@ -261,19 +292,23 @@ function FacultyEditPendingReservation() {
             .map(([key]) => key.toLowerCase());
 
           const hasAllEquipment = requiredEquipment.every((eq) =>
-            roomEquipment.includes(eq.toLowerCase())
+            roomEquipment.includes(eq.toLowerCase()),
           );
           if (!hasAllEquipment) continue;
         }
 
         // Capacity (for Lecture / Examination)
-        if ((purpose === "Lecture" || purpose === "Examination") && studentRange) {
-          const minCapacity = {
-            "30-50": 30,
-            "50-60": 50,
-            "60-80": 60,
-            "80-100": 80,
-          }[studentRange] || 0;
+        if (
+          (purpose === "Lecture" || purpose === "Examination") &&
+          studentRange
+        ) {
+          const minCapacity =
+            {
+              "30-50": 30,
+              "50-60": 50,
+              "60-80": 60,
+              "80-100": 80,
+            }[studentRange] || 0;
           if (Number(room.capacity || 0) < minCapacity) continue;
         }
 
@@ -283,9 +318,14 @@ function FacultyEditPendingReservation() {
       setAvailableRooms(available);
 
       // If the current selected room is not in available, clear selection
-      if (editableFields.roomName && !available.some((r) => r.roomName === editableFields.roomName)) {
+      if (
+        editableFields.roomName &&
+        !available.some((r) => r.roomName === editableFields.roomName)
+      ) {
         setEditableFields((prev) => ({ ...prev, roomName: "" }));
-        setConflictError("The previously selected room is no longer available for the chosen date/time.");
+        setConflictError(
+          "The previously selected room is no longer available for the chosen date/time.",
+        );
       }
     } catch (err) {
       console.error(err);
@@ -296,10 +336,27 @@ function FacultyEditPendingReservation() {
 
   // ─── Re‑fetch available rooms when date/time/purpose changes ──────
   useEffect(() => {
-    if (allRooms.length > 0 && editableFields.date && editableFields.startTime && editableFields.endTime) {
-      fetchAvailableRooms(allRooms, editableFields.date, editableFields.startTime, editableFields.endTime);
+    if (
+      allRooms.length > 0 &&
+      editableFields.date &&
+      editableFields.startTime &&
+      editableFields.endTime
+    ) {
+      fetchAvailableRooms(
+        allRooms,
+        editableFields.date,
+        editableFields.startTime,
+        editableFields.endTime,
+      );
     }
-  }, [editableFields.date, editableFields.startTime, editableFields.endTime, editableFields.purpose, editableFields.studentRange, editableFields.requiredEquipment]);
+  }, [
+    editableFields.date,
+    editableFields.startTime,
+    editableFields.endTime,
+    editableFields.purpose,
+    editableFields.studentRange,
+    editableFields.requiredEquipment,
+  ]);
 
   // ─── Handle form changes ──────────────────────────────────────────
   const handleChange = (field) => (e) => {
@@ -309,7 +366,10 @@ function FacultyEditPendingReservation() {
   };
 
   const handleEquipmentChange = (e) => {
-    const value = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+    const value = e.target.value
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     setEditableFields((prev) => ({ ...prev, requiredEquipment: value }));
     setConflictError("");
   };
@@ -317,7 +377,8 @@ function FacultyEditPendingReservation() {
   // ─── Check conflicts (for the selected room) ──────────────────────
   const checkConflicts = async () => {
     const { roomName, date, startTime, endTime } = editableFields;
-    if (!roomName || !date || !startTime || !endTime) return "Please select a room, date, and time.";
+    if (!roomName || !date || !startTime || !endTime)
+      return "Please select a room, date, and time.";
 
     const room = allRooms.find((r) => r.roomName === roomName);
     if (!room) return "Selected room not found.";
@@ -355,7 +416,9 @@ function FacultyEditPendingReservation() {
         const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
         if (userSnap.exists()) {
           currentUser = userSnap.data();
-          facultyNameFull = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() || "Faculty";
+          facultyNameFull =
+            `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() ||
+            "Faculty";
         }
       }
 
@@ -414,7 +477,7 @@ function FacultyEditPendingReservation() {
           "Reservation Updated",
           `Your reservation for ${editableFields.roomName} on ${editableFields.date} (${editableFields.startTime} - ${editableFields.endTime}) has been updated.`,
           "reservation-updated",
-          "INFO"
+          "INFO",
         );
       }
 
@@ -431,8 +494,8 @@ function FacultyEditPendingReservation() {
               "Reservation Updated",
               `${facultyNameFull} updated their reservation for ${editableFields.roomName}.`,
               "reservation-updated",
-              "INFO"
-            )
+              "INFO",
+            ),
           );
         }
       });
@@ -446,9 +509,112 @@ function FacultyEditPendingReservation() {
       }, 1500);
     } catch (err) {
       console.error(err);
-      showToast("error", "Error", err.message || "Failed to update reservation.");
+      showToast(
+        "error",
+        "Error",
+        err.message || "Failed to update reservation.",
+      );
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ─── NEW: Cancel Reservation ──────────────────────────────────────
+  const handleCancelReservation = async () => {
+    setCancelling(true);
+    showToast("loading", "Cancelling", "Cancelling reservation...");
+
+    try {
+      const firebaseUser = auth.currentUser;
+      let currentUser = {};
+      let facultyNameFull = "Faculty";
+      if (firebaseUser) {
+        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userSnap.exists()) {
+          currentUser = userSnap.data();
+          facultyNameFull =
+            `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() ||
+            "Faculty";
+        }
+      }
+
+      // Update reservation status to cancelled
+      await updateDoc(doc(db, "reservationRequests", reservation.id), {
+        status: "cancelled",
+        cancelledAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // ─── Activity log ─────────────────────────────────────────────
+      await logActivity({
+        userId: firebaseUser?.uid || "",
+        user: facultyNameFull,
+        role: "Faculty",
+        action: "Cancelled Pending Reservation",
+        actionType: "cancel",
+        target: `${reservation.roomName} - ${courseTitle}`,
+        status: "SUCCESS",
+        details: {
+          reservationId: reservation.id,
+          reservationData: {
+            room: reservation.roomName,
+            date: reservation.date,
+            startTime: reservation.startTime,
+            endTime: reservation.endTime,
+            purpose: reservation.purpose,
+          },
+        },
+      });
+
+      // ─── Notifications ────────────────────────────────────────────
+
+      // 1. Faculty (self)
+      if (firebaseUser?.uid) {
+        await sendNotification(
+          firebaseUser.uid,
+          "faculty",
+          "Reservation Cancelled",
+          `You have cancelled your reservation for ${reservation.roomName} on ${reservation.date}.`,
+          "reservation-cancelled",
+          "WARNING",
+        );
+      }
+
+      // 2. All clerks and department heads
+      const usersSnap = await getDocs(collection(db, "users"));
+      const adminNotifications = [];
+      usersSnap.forEach((doc) => {
+        const role = normalize(doc.data().role);
+        if (role === "clerk" || role === "department-head") {
+          adminNotifications.push(
+            sendNotification(
+              doc.id,
+              role === "clerk" ? "clerk" : "department-head",
+              "Reservation Cancelled",
+              `${facultyNameFull} cancelled their reservation for ${reservation.roomName} on ${reservation.date}.`,
+              "reservation-cancelled",
+              "WARNING",
+            ),
+          );
+        }
+      });
+      await Promise.all(adminNotifications);
+
+      setShowCancelModal(false);
+      showToast("success", "Cancelled", "Reservation cancelled successfully!");
+
+      setTimeout(() => {
+        navigate("/faculty/reservations");
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+      showToast(
+        "error",
+        "Error",
+        err.message || "Failed to cancel reservation.",
+      );
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -490,9 +656,13 @@ function FacultyEditPendingReservation() {
               <i className="fa-solid fa-user"></i> Requester
             </h3>
             <div className="faculty-edit-pending-info-box-content">
-              <p><strong>Name:</strong> {facultyName || "Unknown"}</p>
+              <p>
+                <strong>Name:</strong> {facultyName || "Unknown"}
+              </p>
               {audienceType === "Organization" && (
-                <p><strong>Organization:</strong> {organization || "N/A"}</p>
+                <p>
+                  <strong>Organization:</strong> {organization || "N/A"}
+                </p>
               )}
             </div>
           </div>
@@ -502,12 +672,20 @@ function FacultyEditPendingReservation() {
               <i className="fa-solid fa-book"></i> Course & Audience
             </h3>
             <div className="faculty-edit-pending-info-box-content">
-              <p><strong>Course Title:</strong> {courseTitle || "N/A"}</p>
-              <p><strong>Audience Type:</strong> {audienceType || "N/A"}</p>
+              <p>
+                <strong>Course Title:</strong> {courseTitle || "N/A"}
+              </p>
+              <p>
+                <strong>Audience Type:</strong> {audienceType || "N/A"}
+              </p>
               {audienceType === "Class" && (
                 <>
-                  <p><strong>Course:</strong> {course || "N/A"}</p>
-                  <p><strong>Year/Section:</strong> {yearSectionGroup || "N/A"}</p>
+                  <p>
+                    <strong>Course:</strong> {course || "N/A"}
+                  </p>
+                  <p>
+                    <strong>Year/Section:</strong> {yearSectionGroup || "N/A"}
+                  </p>
                 </>
               )}
             </div>
@@ -526,25 +704,40 @@ function FacultyEditPendingReservation() {
                   className="faculty-edit-pending-form-input"
                   value={editableFields.roomName}
                   onChange={handleChange("roomName")}
-                  disabled={loadingRooms || loadingAvailable || saving}
+                  disabled={
+                    loadingRooms || loadingAvailable || saving || cancelling
+                  }
                 >
-                  <option value="">{loadingAvailable ? "Loading available rooms..." : "Select a room"}</option>
+                  <option value="">
+                    {loadingAvailable
+                      ? "Loading available rooms..."
+                      : "Select a room"}
+                  </option>
                   {availableRooms.map((r) => (
                     <option key={r.id} value={r.roomName}>
-                      {r.roomName} {r.roomStatus === "maintenance" ? "(Under Maintenance)" : ""}
+                      {r.roomName}{" "}
+                      {r.roomStatus === "maintenance"
+                        ? "(Under Maintenance)"
+                        : ""}
                     </option>
                   ))}
                 </select>
                 {loadingAvailable && (
                   <small style={{ color: "#6b7280", marginTop: "4px" }}>
-                    <i className="fa-solid fa-spinner fa-spin"></i> Checking availability...
+                    <i className="fa-solid fa-spinner fa-spin"></i> Checking
+                    availability...
                   </small>
                 )}
-                {availableRooms.length === 0 && !loadingAvailable && editableFields.date && editableFields.startTime && editableFields.endTime && (
-                  <small style={{ color: "#dc2626", marginTop: "4px" }}>
-                    No rooms available for the selected date, time, and purpose.
-                  </small>
-                )}
+                {availableRooms.length === 0 &&
+                  !loadingAvailable &&
+                  editableFields.date &&
+                  editableFields.startTime &&
+                  editableFields.endTime && (
+                    <small style={{ color: "#dc2626", marginTop: "4px" }}>
+                      No rooms available for the selected date, time, and
+                      purpose.
+                    </small>
+                  )}
               </div>
 
               <div className="faculty-edit-pending-form-group">
@@ -554,7 +747,7 @@ function FacultyEditPendingReservation() {
                   className="faculty-edit-pending-form-input"
                   value={editableFields.date}
                   onChange={handleChange("date")}
-                  disabled={saving}
+                  disabled={saving || cancelling}
                 />
               </div>
 
@@ -566,7 +759,7 @@ function FacultyEditPendingReservation() {
                     className="faculty-edit-pending-form-input"
                     value={editableFields.startTime}
                     onChange={handleChange("startTime")}
-                    disabled={saving}
+                    disabled={saving || cancelling}
                   />
                 </div>
                 <div className="faculty-edit-pending-form-group half">
@@ -576,7 +769,7 @@ function FacultyEditPendingReservation() {
                     className="faculty-edit-pending-form-input"
                     value={editableFields.endTime}
                     onChange={handleChange("endTime")}
-                    disabled={saving}
+                    disabled={saving || cancelling}
                   />
                 </div>
               </div>
@@ -595,7 +788,7 @@ function FacultyEditPendingReservation() {
                   className="faculty-edit-pending-form-input"
                   value={editableFields.purpose}
                   onChange={handleChange("purpose")}
-                  disabled={saving}
+                  disabled={saving || cancelling}
                 >
                   <option value="">Select Purpose</option>
                   <option value="Lecture">Lecture</option>
@@ -613,19 +806,20 @@ function FacultyEditPendingReservation() {
                     placeholder="e.g. Projector, Computer"
                     value={editableFields.requiredEquipment.join(", ")}
                     onChange={handleEquipmentChange}
-                    disabled={saving}
+                    disabled={saving || cancelling}
                   />
                 </div>
               )}
 
-              {(editableFields.purpose === "Lecture" || editableFields.purpose === "Examination") && (
+              {(editableFields.purpose === "Lecture" ||
+                editableFields.purpose === "Examination") && (
                 <div className="faculty-edit-pending-form-group">
                   <label>Estimated Number of Students</label>
                   <select
                     className="faculty-edit-pending-form-input"
                     value={editableFields.studentRange}
                     onChange={handleChange("studentRange")}
-                    disabled={saving}
+                    disabled={saving || cancelling}
                   >
                     <option value="">Select Range</option>
                     <option value="30-50">30 - 50</option>
@@ -644,8 +838,18 @@ function FacultyEditPendingReservation() {
               <i className="fa-solid fa-circle-info"></i> Metadata
             </h3>
             <div className="faculty-edit-pending-info-box-content">
-              <p><strong>Status:</strong> <span className="faculty-edit-pending-status-badge pending">Pending</span></p>
-              <p><strong>Requested On:</strong> {new Date(reservation.createdAt?.seconds * 1000 || Date.now()).toLocaleDateString()}</p>
+              <p>
+                <strong>Status:</strong>{" "}
+                <span className="faculty-edit-pending-status-badge pending">
+                  Pending
+                </span>
+              </p>
+              <p>
+                <strong>Requested On:</strong>{" "}
+                {new Date(
+                  reservation.createdAt?.seconds * 1000 || Date.now(),
+                ).toLocaleDateString()}
+              </p>
             </div>
           </div>
         </div>
@@ -655,10 +859,20 @@ function FacultyEditPendingReservation() {
         <button
           className="faculty-edit-pending-back-btn"
           onClick={() => navigate(-1)}
-          disabled={saving}
+          disabled={saving || cancelling}
         >
           Back
         </button>
+
+        {/* ─── NEW: Cancel Reservation button ────────────────────── */}
+        <button
+          className="faculty-edit-pending-cancel-btn"
+          onClick={() => setShowCancelModal(true)}
+          disabled={saving || cancelling}
+        >
+          Cancel Reservation
+        </button>
+
         <button
           className="faculty-edit-pending-save-btn"
           onClick={() => {
@@ -667,24 +881,60 @@ function FacultyEditPendingReservation() {
               showToast("error", "Error", "Please select a room.");
               return;
             }
-            if (!availableRooms.some((r) => r.roomName === editableFields.roomName)) {
-              setConflictError("The selected room is not available for the chosen date/time and purpose.");
+            if (
+              !availableRooms.some(
+                (r) => r.roomName === editableFields.roomName,
+              )
+            ) {
+              setConflictError(
+                "The selected room is not available for the chosen date/time and purpose.",
+              );
               showToast("error", "Error", "Selected room is not available.");
               return;
             }
             setShowSaveModal(true);
           }}
-          disabled={saving || loadingAvailable}
+          disabled={saving || loadingAvailable || cancelling}
         >
           {saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
 
+      {/* ─── Save confirmation modal ──────────────────────────────── */}
       {showSaveModal && (
         <SavePopup
           onCancel={() => setShowSaveModal(false)}
           onConfirm={handleSave}
         />
+      )}
+
+      {/* ─── NEW: Cancel confirmation modal ───────────────────────── */}
+      {showCancelModal && (
+        <div className="faculty-edit-pending-modal-overlay">
+          <div className="faculty-edit-pending-modal">
+            <h3>Cancel Reservation</h3>
+            <p>
+              Are you sure you want to cancel this reservation? This action
+              cannot be undone.
+            </p>
+            <div className="faculty-edit-pending-modal-actions">
+              <button
+                className="faculty-edit-pending-modal-btn secondary"
+                onClick={() => setShowCancelModal(false)}
+                disabled={cancelling}
+              >
+                No, Go Back
+              </button>
+              <button
+                className="faculty-edit-pending-modal-btn danger"
+                onClick={handleCancelReservation}
+                disabled={cancelling}
+              >
+                {cancelling ? "Cancelling..." : "Yes, Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <Toast

@@ -10,13 +10,30 @@ function formatReviewedDate(timestamp) {
   });
 }
 
-function ApprovedAndDeniedCard({ reservation, onClick, compact = false }) {
-  const isApproved = reservation.status?.toLowerCase().trim() === "approved";
+function ApprovedAndDeniedCard({ reservation, onClick, compact = false, readOnly = false }) {
+  const status = reservation.status?.toLowerCase().trim() || "";
+  const isApproved = status === "approved";
+  const isDenied = status === "rejected";
+  const isCancelled = status === "cancelled";
+
+  let iconClass = "fa-check";
+  let cardClass = "is-approved";
+  let statusLabel = "Approved";
+  if (isDenied) {
+    iconClass = "fa-xmark";
+    cardClass = "is-denied";
+    statusLabel = "Denied";
+  } else if (isCancelled) {
+    iconClass = "fa-ban";
+    cardClass = "is-cancelled";
+    statusLabel = "Cancelled";
+  }
+
   const reviewedDate = formatReviewedDate(reservation.createdAt);
 
   return (
     <div
-      className={`rc-card ${isApproved ? "is-approved" : "is-denied"} ${compact ? "rc-card--compact" : ""}`}
+      className={`rc-card ${cardClass} ${compact ? "rc-card--compact" : ""}`}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -24,13 +41,16 @@ function ApprovedAndDeniedCard({ reservation, onClick, compact = false }) {
         if (e.key === "Enter" || e.key === " ") onClick?.();
       }}
     >
+      {/* Left: icon */}
       <div className="rc-status-icon">
-        <i className={`fa-solid ${isApproved ? "fa-check" : "fa-xmark"}`}></i>
+        <i className={`fa-solid ${iconClass}`}></i>
       </div>
 
+      {/* Middle: main info */}
       <div className="rc-main">
         <div className="rc-top-row">
           <span className="rc-room-badge">{reservation.roomName}</span>
+          {/* Removed status label from here */}
         </div>
 
         <h3 className="rc-faculty-name">{reservation.facultyName || reservation.requesterName}</h3>
@@ -53,9 +73,15 @@ function ApprovedAndDeniedCard({ reservation, onClick, compact = false }) {
         </div>
       </div>
 
+      {/* Right side: status label on top, date+chevron below */}
       <div className="rc-side">
-        {reviewedDate && <span className="rc-reviewed-date">Reviewed {reviewedDate}</span>}
-        <i className="fa-solid fa-chevron-right rc-chevron"></i>
+        <div className="rc-side-top">
+          <span className={`rc-status-label ${cardClass}`}>{statusLabel}</span>
+        </div>
+        <div className="rc-side-bottom">
+          {reviewedDate && <span className="rc-reviewed-date">Reviewed {reviewedDate}</span>}
+          <i className="fa-solid fa-chevron-right rc-chevron"></i>
+        </div>
       </div>
     </div>
   );
