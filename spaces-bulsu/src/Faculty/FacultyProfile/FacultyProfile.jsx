@@ -211,6 +211,11 @@ export default function UserProfile() {
       <div className="up-page">
         <div className="up-card">
 
+          <div className="up-header">
+            <h2>Faculty Profile</h2>
+            <p>Update your profile information and picture here.</p>
+          </div>
+
           {!editing && (
             <button className="up-edit-btn" onClick={() => setEditing(true)}>
               <i className="fa-solid fa-pen" />

@@ -1,12 +1,24 @@
 import "./department-head-conflicts.css";
 import ConflictCard from "../../Components/ConflictCard/ConflictCard";
 import { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-} from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
+
+// ─── Helpers (matching WeeklyCalendar) ──────────────────────────────
+const semesterRank = (sem = "") => {
+  const s = sem.toLowerCase();
+  if (s.includes("2nd")) return 2;
+  if (s.includes("1st")) return 1;
+  return 0;
+};
+
+const schoolYearStart = (sy = "") => {
+  const match = sy.match(/\d{4}/);
+  return match ? parseInt(match[0], 10) : 0;
+};
+
+// ───────────────────────────────────────────────────────────────────────
 
 function DepartmentHeadConflicts() {
   const [conflicts, setConflicts] = useState([]);
@@ -15,7 +27,12 @@ function DepartmentHeadConflicts() {
   const [unresolved, setUnresolved] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
 
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
@@ -44,11 +61,11 @@ function DepartmentHeadConflicts() {
   const getOverlapTime = (schedStart, schedEnd, eventStart, eventEnd) => {
     const start = Math.max(
       convertToMinutes(schedStart),
-      convertToMinutes(eventStart)
+      convertToMinutes(eventStart),
     );
     const end = Math.min(
       convertToMinutes(schedEnd),
-      convertToMinutes(eventEnd)
+      convertToMinutes(eventEnd),
     );
     const toTime = (mins) => {
       const h = String(Math.floor(mins / 60)).padStart(2, "0");
@@ -69,7 +86,7 @@ function DepartmentHeadConflicts() {
         reassignSnap.docs
           .map((d) => d.data())
           .filter((r) => String(r.status || "").toLowerCase() === "pending")
-          .map((r) => `${r.scheduleId}_${r.eventId}`)
+          .map((r) => `${r.scheduleId}_${r.eventId}`),
       );
 
       const activeFound = [];
@@ -77,35 +94,69 @@ function DepartmentHeadConflicts() {
       const resolvedFound = [];
       const now = new Date();
 
+      // ─── For each room ──────────────────────────────────────────────
       for (const roomDoc of rooms.docs) {
         const room = roomDoc.data();
 
         const scheduleSnap = await getDocs(
-          collection(db, "rooms", roomDoc.id, "schedules")
+          collection(db, "rooms", roomDoc.id, "schedules"),
         );
 
-        const schedules = scheduleSnap.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(s => !s.initialized);
+        const allSchedules = scheduleSnap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter(
+            (s) =>
+              !s.initialized && s.faculty && s.day && s.startTime && s.endTime,
+          );
 
+        if (allSchedules.length === 0) continue;
+
+        // ─── Find the LATEST semester/schoolYear for this room ────────
+        const latest = allSchedules.reduce((best, cur) => {
+          const by = schoolYearStart(best.schoolYear);
+          const bs = semesterRank(best.semester);
+          const cy = schoolYearStart(cur.schoolYear);
+          const cs = semesterRank(cur.semester);
+          if (cy > by || (cy === by && cs > bs)) return cur;
+          return best;
+        }, allSchedules[0]);
+
+        // ─── Filter schedules to only the latest semester/year ────────
+        const schedules = allSchedules.filter(
+          (s) =>
+            (s.schoolYear || "") === (latest.schoolYear || "") &&
+            (s.semester || "") === (latest.semester || ""),
+        );
+
+        // ─── Room events ──────────────────────────────────────────────
         const roomEvents = events.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(e => e.roomId === roomDoc.id && e.status !== "Cancelled");
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((e) => e.roomId === roomDoc.id && e.status !== "Cancelled");
 
-        roomEvents.forEach(event => {
-          const eventDay =
-            ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][
-              new Date(event.date).getDay()
-            ];
+        // ─── Detect conflicts ──────────────────────────────────────────
+        roomEvents.forEach((event) => {
+          const eventDay = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][
+            new Date(event.date).getDay()
+          ];
 
-          schedules.forEach(schedule => {
+          schedules.forEach((schedule) => {
             if (schedule.day !== eventDay) return;
-            if (!overlap(schedule.startTime, schedule.endTime, event.startTime, event.endTime)) return;
+            if (
+              !overlap(
+                schedule.startTime,
+                schedule.endTime,
+                event.startTime,
+                event.endTime,
+              )
+            )
+              return;
 
             const eventEnd = new Date(`${event.date}T${event.endTime}`);
             const overlapTime = getOverlapTime(
-              schedule.startTime, schedule.endTime,
-              event.startTime, event.endTime
+              schedule.startTime,
+              schedule.endTime,
+              event.startTime,
+              event.endTime,
             );
 
             const conflict = {
@@ -149,7 +200,11 @@ function DepartmentHeadConflicts() {
       setResolved(resolvedFound);
     } catch (err) {
       console.error(err);
-      showToast("error", "Load Failed", "Could not retrieve conflicts. Please try again.");
+      showToast(
+        "error",
+        "Load Failed",
+        "Could not retrieve conflicts. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -159,44 +214,66 @@ function DepartmentHeadConflicts() {
     activeTab === "all"
       ? conflicts
       : activeTab === "unresolved"
-      ? unresolved
-      : resolved;
+        ? unresolved
+        : resolved;
 
   const emptyMessage =
     activeTab === "all"
       ? "No active conflicts."
       : activeTab === "unresolved"
-      ? "No unresolved conflicts."
-      : "No resolved conflicts.";
+        ? "No unresolved conflicts."
+        : "No resolved conflicts.";
 
   const emptyHint =
     activeTab === "all"
       ? "New booking collisions will show up here as they happen."
       : activeTab === "unresolved"
-      ? "Great — nothing has slipped through unaddressed."
-      : "Resolved conflicts will be logged here for your records.";
+        ? "Great — nothing has slipped through unaddressed."
+        : "Resolved conflicts will be logged here for your records.";
 
   const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
   const handleExport = () => {
     if (displayConflicts.length === 0) {
-      showToast("error", "Nothing to Export", "There are no conflicts in this view.");
+      showToast(
+        "error",
+        "Nothing to Export",
+        "There are no conflicts in this view.",
+      );
       return;
     }
 
     const headers = [
-      "Room", "Floor", "Course", "Faculty", "Section",
-      "Day", "Date", "Class Time", "Activity", "Overlap Time", "Status",
+      "Room",
+      "Floor",
+      "Course",
+      "Faculty",
+      "Section",
+      "Day",
+      "Date",
+      "Class Time",
+      "Activity",
+      "Overlap Time",
+      "Status",
     ];
 
     const rows = displayConflicts.map((c) => [
-      c.roomName, c.floor, c.courseTitle, c.faculty, c.section,
-      c.day, c.date, `${c.startTime}-${c.endTime}`,
-      c.activityTitle, `${c.conflictStartTime}-${c.conflictEndTime}`,
+      c.roomName,
+      c.floor,
+      c.courseTitle,
+      c.faculty,
+      c.section,
+      c.day,
+      c.date,
+      `${c.startTime}-${c.endTime}`,
+      c.activityTitle,
+      `${c.conflictStartTime}-${c.conflictEndTime}`,
       c.status,
     ]);
 
-    const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+    const csv = [headers, ...rows]
+      .map((row) => row.map(csvEscape).join(","))
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -207,7 +284,11 @@ function DepartmentHeadConflicts() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    showToast("success", "Exported", `${displayConflicts.length} conflict${displayConflicts.length === 1 ? "" : "s"} downloaded.`);
+    showToast(
+      "success",
+      "Exported",
+      `${displayConflicts.length} conflict${displayConflicts.length === 1 ? "" : "s"} downloaded.`,
+    );
   };
 
   return (
@@ -216,9 +297,16 @@ function DepartmentHeadConflicts() {
         <div className="dept-page-header">
           <div>
             <h1>Conflict Monitoring</h1>
-            <p>Resolve booking collisions and schedule overlaps within the CICT department.</p>
+            <p>
+              Resolve booking collisions and schedule overlaps within the CICT
+              department.
+            </p>
           </div>
-          <button className="dept-conflict-export-btn" disabled={loading} onClick={handleExport}>
+          <button
+            className="dept-conflict-export-btn"
+            disabled={loading}
+            onClick={handleExport}
+          >
             <i className="fa-solid fa-download"></i> Export Report
           </button>
         </div>
@@ -230,7 +318,9 @@ function DepartmentHeadConflicts() {
               <i className="fa-solid fa-triangle-exclamation"></i>
             </div>
             <div>
-              <div className="dept-stat-value">{loading ? "—" : conflicts.length}</div>
+              <div className="dept-stat-value">
+                {loading ? "—" : conflicts.length}
+              </div>
               <div className="dept-stat-label">Active Conflicts</div>
             </div>
           </div>
@@ -240,7 +330,9 @@ function DepartmentHeadConflicts() {
               <i className="fa-solid fa-clock-rotate-left"></i>
             </div>
             <div>
-              <div className="dept-stat-value">{loading ? "—" : unresolved.length}</div>
+              <div className="dept-stat-value">
+                {loading ? "—" : unresolved.length}
+              </div>
               <div className="dept-stat-label">Unresolved</div>
             </div>
           </div>
@@ -250,7 +342,9 @@ function DepartmentHeadConflicts() {
               <i className="fa-solid fa-circle-check"></i>
             </div>
             <div>
-              <div className="dept-stat-value">{loading ? "—" : resolved.length}</div>
+              <div className="dept-stat-value">
+                {loading ? "—" : resolved.length}
+              </div>
               <div className="dept-stat-label">Resolved</div>
             </div>
           </div>
@@ -299,7 +393,9 @@ function DepartmentHeadConflicts() {
                 <ConflictCard
                   key={`${conflict.schedule.id}-${conflict.event.id}-${index}`}
                   conflict={conflict}
-                  showReassign={activeTab === "all" && !conflict.reassignPending}
+                  showReassign={
+                    activeTab === "all" && !conflict.reassignPending
+                  }
                 />
               ))
             )}

@@ -1,5 +1,6 @@
+/* ── Base card ────────────────────────────────────────────────────── */
 .rc-card {
-  position: relative;
+  position: relative; /* needed for absolute positioning of status label */
   display: flex;
   align-items: center;
   gap: 14px;
@@ -11,15 +12,15 @@
   cursor: pointer;
   outline: none;
   transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
-  box-sizing: border-box;  /* ✅ essential for grid fitting */
+  box-sizing: border-box;
   max-width: 100%;
-  min-width: 0;            /* ✅ prevents overflow */
+  min-width: 0;
 }
 
 /* ── Compact variant (used inside grid) ────────────────────────────── */
 .rc-card--compact {
   margin: 0;
-  padding: 12px 14px;      /* ✅ tighter padding for grid */
+  padding: 12px 14px;
   gap: 12px;
 }
 
@@ -35,6 +36,42 @@
 
 .rc-card:active {
   transform: translateY(0);
+}
+
+/* ── Status label – positioned at upper right ────────────────────── */
+.rc-status-label {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 20px;
+  display: inline-block;
+  white-space: nowrap;
+  line-height: 1.4;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Approved */
+.rc-status-label.is-approved {
+  background-color: #D9F7E2;
+  color: #15803D;
+}
+
+/* Denied */
+.rc-status-label.is-denied {
+  background-color: #FBDADA;
+  color: #B91C1C;
+}
+
+/* Cancelled */
+.rc-status-label.is-cancelled {
+  background-color: #f1f3f4;
+  color: #5f6368;
 }
 
 /* ── Status icon ────────────────────────────────────────────────────── */
@@ -57,6 +94,16 @@
 .is-denied .rc-status-icon {
   background-color: #FBDADA;
   color: #B91C1C;
+}
+
+.is-cancelled .rc-status-icon {
+  background-color: #f1f3f4;
+  color: #5f6368;
+}
+
+/* ── Cancelled card extra styling ────────────────────────────────── */
+.rc-card.is-cancelled {
+  border-left: 4px solid #9aa0a6;
 }
 
 /* ── Main info ────────────────────────────────────────────────────── */
@@ -85,24 +132,7 @@
   padding: 3px 10px;
   border-radius: 20px;
   width: fit-content;
-}
-
-.rc-status-pill {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  padding: 3px 10px;
-  border-radius: 20px;
-}
-
-.is-approved .rc-status-pill {
-  background-color: #D9F7E2;
-  color: #15803D;
-}
-
-.is-denied .rc-status-pill {
-  background-color: #FBDADA;
-  color: #B91C1C;
+  flex-shrink: 0;
 }
 
 .rc-faculty-name {
@@ -186,7 +216,7 @@
   color: #94A3B8;
 }
 
-/* ── Responsive ────────────────────────────────────────────────────── */
+/* ── Responsive adjustments ───────────────────────────────────────── */
 @media (max-width: 640px) {
   .rc-card {
     flex-wrap: wrap;
@@ -207,6 +237,14 @@
   .rc-faculty-name {
     font-size: 14px;
   }
+
+  /* On small screens, move status label to top-right but adjust top */
+  .rc-status-label {
+    top: 8px;
+    right: 8px;
+    font-size: 9px;
+    padding: 3px 10px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -215,5 +253,3 @@
     transition: none;
   }
 }
-
-

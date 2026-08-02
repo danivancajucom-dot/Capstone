@@ -1,45 +1,17 @@
 import "./department-head-view-reservation.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
-import {
-  doc,
-  updateDoc,
-  collection,
-  addDoc,
-  serverTimestamp,
-  getDoc,
-  getDocs,
-} from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { auth } from "../../firebase";
-import { logActivity } from "../../utils/logActivity";
-import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
-import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import Toast from "../../Popup/Toast/Toast";
-
-// ─── Helper: find user by name ─────────────────────────────────────────
-const findUserByName = async (name) => {
-  if (!name) return null;
-  const usersSnap = await getDocs(collection(db, "users"));
-  const normalized = name.trim().toLowerCase();
-  for (const doc of usersSnap.docs) {
-    const data = doc.data();
-    const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim().toLowerCase();
-    if (fullName === normalized) return { id: doc.id, ...data };
-  }
-  return null;
-};
 
 function DepartmentHeadViewReservation() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const reservation = state?.reservation;
 
-  const [showDenial, setShowDenial] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const toastTimeoutRef = useRef(null);
-
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -67,6 +39,7 @@ function DepartmentHeadViewReservation() {
     };
   }, []);
 
+  // ─── Redirect if no reservation ──────────────────────────────────────
   if (!reservation) {
     return (
       <div className="dh-view-reservation">
@@ -76,267 +49,7 @@ function DepartmentHeadViewReservation() {
     );
   }
 
-  // ─── Notification helpers ──────────────────────────────────────────────
-
-  const notifyReservationDecision = async (
-    receiverId,
-    ownerType,
-    title,
-    message,
-    reservationId,
-    type,
-    badge = "INFO"
-  ) => {
-    if (!receiverId) {
-      console.warn("Skipping notification: no receiverId");
-      return;
-    }
-    await addDoc(collection(db, "notifications"), {
-      userId: receiverId,
-      ownerType,
-      reservationId,
-      title,
-      message,
-      type,
-      unread: true,
-      archived: false,
-      badge,
-      createdAt: serverTimestamp(),
-    });
-    console.log(`Notification sent to ${ownerType} (${receiverId})`);
-  };
-
-  const notifyAllClerks = async (title, message, reservationId) => {
-    const usersSnap = await getDocs(collection(db, "users"));
-    const notifications = [];
-    usersSnap.forEach((doc) => {
-      const role = (doc.data().role || "").toLowerCase().trim();
-      if (role === "clerk") {
-        notifications.push(
-          addDoc(collection(db, "notifications"), {
-            userId: doc.id,
-            ownerType: "clerk",
-            reservationId,
-            title,
-            message,
-            type: "reservation-decision",
-            unread: true,
-            archived: false,
-            badge: "INFO",
-            createdAt: serverTimestamp(),
-          })
-        );
-      }
-    });
-    if (notifications.length > 0) {
-      await Promise.all(notifications);
-      console.log(`Notified ${notifications.length} clerk(s)`);
-    } else {
-      console.warn("No clerks found to notify.");
-    }
-  };
-
-  // ─── Approve ────────────────────────────────────────────────────────────
-
-  const approveReservation = async () => {
-    setSubmitting(true);
-    showToast("loading", "Processing", "Approving reservation...");
-
-    try {
-      // 1. Update reservation
-      await updateDoc(doc(db, "reservationRequests", reservation.id), {
-        status: "Approved",
-      });
-
-      // 2. Create event
-      await addDoc(collection(db, "events"), {
-        roomId: reservation.roomId,
-        roomName: reservation.roomName,
-        facultyName: reservation.facultyName,
-        courseTitle: reservation.courseTitle,
-        purpose: reservation.purpose,
-        date: reservation.date,
-        startTime: reservation.startTime,
-        endTime: reservation.endTime,
-        createdAt: serverTimestamp(),
-        source: "Reservation",
-      });
-
-      const firebaseUser = auth.currentUser;
-      let currentUser = {};
-      let deptHeadName = "Department Head";
-      if (firebaseUser) {
-        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userSnap.exists()) {
-          currentUser = userSnap.data();
-          deptHeadName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() || "Department Head";
-        }
-      }
-
-      // 3. Activity log
-      await logActivity({
-        userId: firebaseUser?.uid || "",
-        user: deptHeadName,
-        role: "Department Head",
-        action: "Approved Reservation",
-        actionType: "success",
-        target: `${reservation.roomName} - ${reservation.courseTitle}`,
-        status: "SUCCESS",
-        details: {
-          reservationId: reservation.id,
-          faculty: reservation.facultyName,
-          course: reservation.courseTitle,
-          date: reservation.date,
-          time: `${reservation.startTime} - ${reservation.endTime}`,
-        },
-      });
-
-      // ─── 4. Notifications ───────────────────────────────────────────
-
-      // a) Faculty (try reservation.userId, else fallback to name lookup)
-      let facultyUserId = reservation.userId;
-      if (!facultyUserId && reservation.facultyName) {
-        const user = await findUserByName(reservation.facultyName);
-        if (user) facultyUserId = user.id;
-        else console.warn("Faculty user not found by name:", reservation.facultyName);
-      }
-
-      if (facultyUserId) {
-        await notifyReservationDecision(
-          facultyUserId,
-          "faculty",
-          "Reservation Approved",
-          `Your reservation request for ${reservation.roomName} on ${reservation.date} (${reservation.startTime} - ${reservation.endTime}) has been approved.`,
-          reservation.id,
-          "reservation-approved",
-          "SUCCESS"
-        );
-      } else {
-        console.warn("No faculty userId found, skipping faculty notification.");
-      }
-
-      // b) Department head (self)
-      if (firebaseUser?.uid) {
-        await notifyReservationDecision(
-          firebaseUser.uid,
-          "department-head",
-          "Reservation Approved",
-          `You approved ${reservation.facultyName}'s reservation request for ${reservation.roomName}.`,
-          reservation.id,
-          "reservation-approved",
-          "INFO"
-        );
-      }
-
-      // c) All clerks
-      await notifyAllClerks(
-        "Reservation Approved",
-        `${reservation.facultyName}'s reservation for ${reservation.roomName} was approved by Department Head.`,
-        reservation.id
-      );
-
-      setShowConfirm(false);
-      showToast("success", "Success", "Reservation approved successfully!");
-
-      setTimeout(() => navigate("/department-head/reservations"), 1500);
-    } catch (err) {
-      console.error("Approve error:", err);
-      showToast("error", "Error", err.message || "Failed to approve reservation.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // ─── Deny ──────────────────────────────────────────────────────────────
-
-  const denyReservation = async (reason) => {
-    setSubmitting(true);
-    showToast("loading", "Processing", "Denying reservation...");
-
-    try {
-      await updateDoc(doc(db, "reservationRequests", reservation.id), {
-        status: "Rejected",
-        denialReason: reason,
-      });
-
-      const firebaseUser = auth.currentUser;
-      let currentUser = {};
-      let deptHeadName = "Department Head";
-      if (firebaseUser) {
-        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userSnap.exists()) {
-          currentUser = userSnap.data();
-          deptHeadName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() || "Department Head";
-        }
-      }
-
-      // Activity log
-      await logActivity({
-        userId: firebaseUser?.uid || "",
-        user: deptHeadName,
-        role: "Department Head",
-        action: "Rejected Reservation",
-        actionType: "failed",
-        target: `${reservation.roomName} - ${reservation.courseTitle}`,
-        status: "FAILED",
-        details: {
-          reservationId: reservation.id,
-          faculty: reservation.facultyName,
-          reason,
-        },
-      });
-
-      // Notifications (same fallback logic)
-      let facultyUserId = reservation.userId;
-      if (!facultyUserId && reservation.facultyName) {
-        const user = await findUserByName(reservation.facultyName);
-        if (user) facultyUserId = user.id;
-      }
-
-      if (facultyUserId) {
-        await notifyReservationDecision(
-          facultyUserId,
-          "faculty",
-          "Reservation Rejected",
-          `Your reservation request for ${reservation.roomName} was rejected.\nReason: ${reason}`,
-          reservation.id,
-          "reservation-rejected",
-          "WARNING"
-        );
-      }
-
-      if (firebaseUser?.uid) {
-        await notifyReservationDecision(
-          firebaseUser.uid,
-          "department-head",
-          "Reservation Rejected",
-          `You rejected ${reservation.facultyName}'s reservation request.`,
-          reservation.id,
-          "reservation-rejected",
-          "INFO"
-        );
-      }
-
-      await notifyAllClerks(
-        "Reservation Rejected",
-        `${reservation.facultyName}'s reservation for ${reservation.roomName} was rejected by Department Head.`,
-        reservation.id
-      );
-
-      setShowDenial(false);
-      showToast("success", "Success", "Reservation denied successfully.");
-
-      setTimeout(() => navigate("/department-head/reservations"), 1500);
-    } catch (err) {
-      console.error("Deny error:", err);
-      showToast("error", "Error", err.message || "Failed to deny reservation.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // ─── Duration helper ────────────────────────────────────────────────────
-
+  // ─── Duration helper ──────────────────────────────────────────────────
   const getDuration = (start, end) => {
     if (!start || !end) return "N/A";
     const [startHour, startMin] = start.split(":").map(Number);
@@ -358,7 +71,12 @@ function DepartmentHeadViewReservation() {
 
   const duration = getDuration(reservation.startTime, reservation.endTime);
 
-  // ─── Render ──────────────────────────────────────────────────────────────
+  // ─── Status badge helper ─────────────────────────────────────────────
+  const status = reservation.status?.toLowerCase().trim() || "pending";
+  const isApproved = status === "approved";
+  const isDenied = status === "rejected";
+
+  // ─── Render ────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -378,23 +96,17 @@ function DepartmentHeadViewReservation() {
                 {reservation.facultyName || reservation.requesterName || "Unknown"}
               </span>
             </div>
+
+            {/* ── Status badge (always shown, no actions) ── */}
             <div className="dh-reservation-header-right">
-              <button
-                className="dh-deny-request-btn"
-                onClick={() => setShowDenial(true)}
-                disabled={submitting}
-              >
-                Deny
-              </button>
-              <button
-                className="dh-approve-request-btn"
-                onClick={() => setShowConfirm(true)}
-                disabled={submitting}
-              >
-                Approve Request
-              </button>
+              <div className={`dh-reservation-status-badge ${isApproved ? "approved" : isDenied ? "denied" : "pending"}`}>
+                <i className={`fa-solid ${isApproved ? "fa-check" : isDenied ? "fa-xmark" : "fa-clock"}`}></i>
+                {reservation.status || "Pending"}
+              </div>
             </div>
           </div>
+
+          {/* ─── Info boxes (unchanged) ──────────────────────────────── */}
 
           <div className="dh-reservation-info-boxes">
             <div className="dh-reservation-info-box">
@@ -476,20 +188,6 @@ function DepartmentHeadViewReservation() {
           </div>
         </div>
       </div>
-
-      {showDenial && (
-        <DenialPopup
-          onCancel={() => setShowDenial(false)}
-          onConfirm={denyReservation}
-        />
-      )}
-
-      {showConfirm && (
-        <ConfirmPopup
-          onCancel={() => setShowConfirm(false)}
-          onConfirm={approveReservation}
-        />
-      )}
 
       <Toast
         show={toast.show}

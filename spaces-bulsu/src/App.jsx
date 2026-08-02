@@ -37,6 +37,8 @@ import DepartmentHeadProfile from "./DepartmentHead/DepartmentHeadProfile/Depart
 import DepartmentHeadViewAcademicSchedule from "./DepartmentHead/DepartmentHeadSchedule/DepartmentHeadViewAcademicSchedule";
 import DepartmentHeadViewRoomCard from "./DepartmentHead/DepartmentHeadSchedule/DepartmentHeadViewRoomCard";
 import DepartmentHeadRoomUsage from "./DepartmentHead/DepartmentHeadRoomUsageTracking/RoomUsageTracking";
+import DepartmentHeadViewReservationCancelled from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservationCancelled";
+
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
 import ClerkDashboard from "./Clerk/ClerkDashboard/ClerkDashboard";
@@ -48,10 +50,11 @@ import ClerkViewReservationDenied from "./Clerk/ClerkOnlineReservations/ClerkVie
 import WalkInReservation from "./Clerk/ClerkWalkInReservation/WalkInReservation";
 import ReleasedRooms from "./Clerk/ClerkReleasedRooms/ReleasedRooms";
 import RoomDetails from "./Clerk/ClerkRoomDetails/RoomDetails";
- import ClerkProfile from "./Clerk/ClerkProfile/ClerkProfile";
+import ClerkProfile from "./Clerk/ClerkProfile/ClerkProfile";
 import ClerkViewAcademicSchedule from "./Clerk/ClerkSchedule/ClerkViewAcademicSchedule";
 import ClerkViewRoomCard from "./Clerk/ClerkSchedule/ClerkViewRoomCard";
-
+import ClerkViewReservationCancelled from "./Clerk/ClerkOnlineReservations/ClerkViewReservationCancelled";
+import ClerkRoomUsage from "./Clerk/ClerkRoomUsageTracking/RoomUsageTracking";
 //Faculty
 import FacultyLayout from "./Faculty/FacultyLayout/FacultyLayout";
 import FacultyDashboard from "./Faculty/FacultyDashboard/FacultyDashboard";
@@ -89,6 +92,7 @@ function App() {
         <Route path="view-reservation-approved" element={<DepartmentHeadViewReservationApproved />}/>
         <Route path="edit-approved-reservation" element={<DepartmentHeadEditApprovedReservation />}/>
         <Route path="view-reservation-denied" element={<DepartmentHeadViewReservationDenied />}/>
+        <Route path="view-reservation-cancelled" element={<DepartmentHeadViewReservationCancelled />}/>
         <Route path="schedule-view-academic-schedule" element={<DepartmentHeadViewAcademicSchedule />}/>
         <Route path="schedule-room-card" element={<DepartmentHeadViewRoomCard />}/>
         <Route path="room-management" element={<DepartmentHeadRoomManagement />} />
@@ -139,11 +143,13 @@ function App() {
           <Route path="view-online-reservation" element={<ClerkViewReservation />} />
           <Route path="view-reservation-approved" element={<ClerkViewReservationApproved />} />
           <Route path="view-reservation-denied" element={<ClerkViewReservationDenied />} />
+          <Route path="view-reservation-cancelled" element={<ClerkViewReservationCancelled />} />
           <Route path="edit-approved-reservation" element={<ClerkEditApprovedReservation />} />
           <Route path="walk-in-reservation" element={<WalkInReservation />} />
           <Route path="released-rooms" element={<ReleasedRooms />} />
           <Route path="room-details" element={<RoomDetails />} />
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
+          <Route path="room-usage" element={<ClerkRoomUsage />} />
         </Route>
 
         {/* Faculty */}

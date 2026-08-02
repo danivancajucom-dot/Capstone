@@ -1,0 +1,148 @@
+.clerk-cancelled-reservation-room {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px 20px 20px 8px;
+  margin-top: 20px;
+  background-color: #F8F7F5;
+}
+
+.clerk-white-box-cancelled {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 24px 28px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.clerk-cancelled-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #16213e;
+}
+
+/* ── Grid layout ───────────────────────────────────────────────── */
+.clerk-cancelled-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.clerk-cancelled-info-box {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.clerk-cancelled-info-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clerk-cancelled-info-box-title i {
+  color: #f57c00;
+  width: 20px;
+}
+
+.clerk-cancelled-info-box-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clerk-cancelled-info-box-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.clerk-cancelled-info-box-content strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* ── Status badge ──────────────────────────────────────────────── */
+.clerk-cancelled-status-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clerk-cancelled-status-badge.cancelled {
+  background: #f1f3f4;
+  color: #5f6368;
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+.clerk-cancelled-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.clerk-cancelled-back-arrow {
+  color: #5f6c80;
+  transition: color 0.2s;
+}
+
+.clerk-cancelled-back-arrow:hover {
+  color: #f57c00;
+}
+
+.clerk-cancelled-back-btn {
+  padding: 10px 30px;
+  color: #f57c00;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  border: 1.5px solid #f57c00;
+  cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.clerk-cancelled-back-btn:hover {
+  background-color: #FEF0E7;
+}
+
+/* ── No edit button for cancelled ────────────────────────────── */
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .clerk-cancelled-reservation-room {
+    padding: 14px;
+  }
+
+  .clerk-cancelled-info-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .clerk-white-box-cancelled {
+    padding: 16px;
+  }
+
+  .clerk-cancelled-title {
+    font-size: 18px;
+  }
+
+  .clerk-cancelled-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .clerk-cancelled-back-btn {
+    width: 100%;
+  }
+}

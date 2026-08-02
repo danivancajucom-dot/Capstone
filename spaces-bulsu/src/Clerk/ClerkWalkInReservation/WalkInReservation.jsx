@@ -19,8 +19,8 @@ import { useNavigate } from "react-router-dom";
 
 // ─── Constants ───────────────────────────────────────────────────────
 const TODAY = new Date().toISOString().split("T")[0];
-const MIN_HOUR = 7;   // 7:00 AM
-const MAX_HOUR = 20;  // 8:00 PM
+const MIN_HOUR = 7; // 7:00 AM
+const MAX_HOUR = 20; // 8:00 PM
 
 // ─── Helpers ────────────────────────────────────────────────────────
 const convertToMinutes = (time) => {
@@ -44,8 +44,10 @@ const formatTime12 = (time) => {
 };
 
 const overlap = (aStart, aEnd, bStart, bEnd) => {
-  return convertToMinutes(aStart) < convertToMinutes(bEnd) &&
-         convertToMinutes(aEnd) > convertToMinutes(bStart);
+  return (
+    convertToMinutes(aStart) < convertToMinutes(bEnd) &&
+    convertToMinutes(aEnd) > convertToMinutes(bStart)
+  );
 };
 
 const getTodayLocal = () => {
@@ -129,8 +131,11 @@ export default function WalkInReservation() {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const currentTime = useMemo(() => {
-    return String(now.getHours()).padStart(2, "0") + ":" +
-           String(now.getMinutes()).padStart(2, "0");
+    return (
+      String(now.getHours()).padStart(2, "0") +
+      ":" +
+      String(now.getMinutes()).padStart(2, "0")
+    );
   }, []);
 
   // ─── Listeners ──────────────────────────────────────────────────
@@ -149,18 +154,15 @@ export default function WalkInReservation() {
   useEffect(() => {
     if (rooms.length === 0) return;
     const unsubs = rooms.map((room) =>
-      onSnapshot(
-        collection(db, "rooms", room.id, "schedules"),
-        (snap) => {
-          const list = snap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((s) => !s.initialized);
-          setRoomSchedules((prev) => ({
-            ...prev,
-            [room.id]: list,
-          }));
-        }
-      )
+      onSnapshot(collection(db, "rooms", room.id, "schedules"), (snap) => {
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((s) => !s.initialized);
+        setRoomSchedules((prev) => ({
+          ...prev,
+          [room.id]: list,
+        }));
+      }),
     );
     return () => unsubs.forEach((u) => u());
   }, [rooms.map((r) => r.id).join(",")]);
@@ -179,7 +181,7 @@ export default function WalkInReservation() {
   useEffect(() => {
     const q = query(
       collection(db, "reservationRequests"),
-      where("date", "==", today)
+      where("date", "==", today),
     );
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs
@@ -218,12 +220,12 @@ export default function WalkInReservation() {
     const releaseKeys = new Set(
       releases
         .filter((r) => r.roomId === roomId && r.date === date)
-        .map((r) => `${r.scheduleId}_${r.date}`)
+        .map((r) => `${r.scheduleId}_${r.date}`),
     );
     const reassignAwayKeys = new Set(
       reassignments
         .filter((r) => r.oldRoomId === roomId && r.date === date)
-        .map((r) => `${r.scheduleId}_${r.date}`)
+        .map((r) => `${r.scheduleId}_${r.date}`),
     );
 
     schedules
@@ -274,7 +276,9 @@ export default function WalkInReservation() {
         });
       });
 
-    return items.sort((a, b) => convertToMinutes(a.startTime) - convertToMinutes(b.startTime));
+    return items.sort(
+      (a, b) => convertToMinutes(a.startTime) - convertToMinutes(b.startTime),
+    );
   };
 
   // ─── Available Rooms ──────────────────────────────────────────────
@@ -298,18 +302,18 @@ export default function WalkInReservation() {
         const occupied = busy.find(
           (item) =>
             start >= convertToMinutes(item.startTime) &&
-            start < convertToMinutes(item.endTime)
+            start < convertToMinutes(item.endTime),
         );
         if (occupied) return null;
 
         const nextBusy = busy.find(
-          (item) => convertToMinutes(item.startTime) > start
+          (item) => convertToMinutes(item.startTime) > start,
         );
         const availableUntil = nextBusy ? nextBusy.startTime : "23:59";
 
         const maxAllowedEnd = Math.min(
           convertToMinutes(availableUntil),
-          MAX_HOUR * 60
+          MAX_HOUR * 60,
         );
         const maxMinutes = maxAllowedEnd - start;
         if (maxMinutes < 30) return null;
@@ -321,7 +325,17 @@ export default function WalkInReservation() {
         };
       })
       .filter(Boolean);
-  }, [rooms, roomSchedules, events, reservations, releases, reassignments, today, currentMinutes, currentTime]);
+  }, [
+    rooms,
+    roomSchedules,
+    events,
+    reservations,
+    releases,
+    reassignments,
+    today,
+    currentMinutes,
+    currentTime,
+  ]);
 
   // ─── Live Availability (for right panel) ─────────────────────────
 
@@ -337,12 +351,14 @@ export default function WalkInReservation() {
       const current = busy.find(
         (item) =>
           currentMinutes >= convertToMinutes(item.startTime) &&
-          currentMinutes < convertToMinutes(item.endTime)
+          currentMinutes < convertToMinutes(item.endTime),
       );
 
       if (current) {
         const nextReservation = busy.find(
-          (item) => convertToMinutes(item.startTime) > convertToMinutes(current.endTime)
+          (item) =>
+            convertToMinutes(item.startTime) >
+            convertToMinutes(current.endTime),
         );
         return {
           ...room,
@@ -354,7 +370,7 @@ export default function WalkInReservation() {
       }
 
       const upcoming = busy.find(
-        (item) => convertToMinutes(item.startTime) > currentMinutes
+        (item) => convertToMinutes(item.startTime) > currentMinutes,
       );
       return {
         ...room,
@@ -364,7 +380,17 @@ export default function WalkInReservation() {
         availableUntil: upcoming ? upcoming.startTime : "23:59",
       };
     });
-  }, [rooms, roomSchedules, events, reservations, releases, reassignments, today, currentMinutes, currentTime]);
+  }, [
+    rooms,
+    roomSchedules,
+    events,
+    reservations,
+    releases,
+    reassignments,
+    today,
+    currentMinutes,
+    currentTime,
+  ]);
 
   // ─── Available duration slots (no 4-hour cap) ─────────────────────
 
@@ -402,15 +428,25 @@ export default function WalkInReservation() {
     for (let mins = 30; mins <= maxDuration; mins += 30) {
       slots.push({
         value: mins,
-        label: mins < 60
-          ? `${mins} mins`
-          : mins % 60 === 0
-          ? `${mins / 60} Hour${mins > 60 ? 's' : ''}`
-          : `${Math.floor(mins / 60)} hr ${mins % 60} mins`,
+        label:
+          mins < 60
+            ? `${mins} mins`
+            : mins % 60 === 0
+              ? `${mins / 60} Hour${mins > 60 ? "s" : ""}`
+              : `${Math.floor(mins / 60)} hr ${mins % 60} mins`,
       });
     }
     setAvailableSlots(slots);
-  }, [selectedRoom, form.startTime, today, roomSchedules, events, reservations, releases, reassignments]);
+  }, [
+    selectedRoom,
+    form.startTime,
+    today,
+    roomSchedules,
+    events,
+    reservations,
+    releases,
+    reassignments,
+  ]);
 
   // ─── Select Room ──────────────────────────────────────────────────
 
@@ -473,7 +509,9 @@ export default function WalkInReservation() {
 
   const validate = () => {
     if (!selectedRoom) return "Please select a room.";
-    if (isRoomUnderMaintenance(selectedRoom, today, form.startTime, form.endTime)) {
+    if (
+      isRoomUnderMaintenance(selectedRoom, today, form.startTime, form.endTime)
+    ) {
       return "This room is under maintenance and cannot be reserved.";
     }
     if (!form.requesterId.trim()) return "Requester ID is required.";
@@ -481,28 +519,27 @@ export default function WalkInReservation() {
     if (!form.startTime) return "Select a start time.";
     if (!form.duration) return "Select a duration.";
     if (!form.purpose.trim()) return "Purpose is required.";
-    if ((form.requesterType === "organization" || form.purpose === "Meeting") && !form.studentRange) {
+    if (
+      (form.requesterType === "organization" || form.purpose === "Meeting") &&
+      !form.studentRange
+    ) {
       return "Please select the estimated number of attendees.";
     }
 
     const start = convertToMinutes(form.startTime);
     const end = convertToMinutes(form.endTime);
 
-    if (start < MIN_HOUR * 60) return "Reservations can only start from 7:00 AM.";
+    if (start < MIN_HOUR * 60)
+      return "Reservations can only start from 7:00 AM.";
     if (end > MAX_HOUR * 60) return "Reservations must end before 8:00 PM.";
     if (start >= end) return "End time must be after start time.";
-    if (start < currentMinutes && today === TODAY) return "You cannot reserve a past time today.";
+    if (start < currentMinutes && today === TODAY)
+      return "You cannot reserve a past time today.";
 
     const dayAbbrev = getDayAbbrev();
     const busy = getBusyItemsForRoom(selectedRoom.id, today, dayAbbrev);
-    const conflict = busy.find(
-      (item) =>
-        overlap(
-          form.startTime,
-          form.endTime,
-          item.startTime,
-          item.endTime
-        )
+    const conflict = busy.find((item) =>
+      overlap(form.startTime, form.endTime, item.startTime, item.endTime),
     );
     if (conflict) return "Room is no longer available at that time.";
 
@@ -511,7 +548,11 @@ export default function WalkInReservation() {
 
   // ─── Notifications ──────────────────────────────────────────────────
 
-  const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
+  const notifyClerkAndDepartmentHead = async (
+    title,
+    message,
+    reservationId,
+  ) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
     usersSnap.forEach((userDoc) => {
@@ -530,7 +571,7 @@ export default function WalkInReservation() {
             archived: false,
             badge: "NEW",
             createdAt: serverTimestamp(),
-          })
+          }),
         );
       }
     });
@@ -556,37 +597,41 @@ export default function WalkInReservation() {
         const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
         if (userSnap.exists()) {
           const data = userSnap.data();
-          clerkName = `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Clerk";
+          clerkName =
+            `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Clerk";
         }
       }
 
-      const reservationRef = await addDoc(collection(db, "reservationRequests"), {
-        reservationType: "walk-in",
-        requesterId: form.requesterId,
-        requesterName: form.requesterName,
-        organizationName: form.organizationName,
-        course: form.course,
-        yearSectionGroup: form.yearSectionGroup,
-        estimatedAttendees: form.studentRange,
-        roomId: selectedRoom.id,
-        roomName: selectedRoom.roomName,
-        floor: selectedRoom.floor,
-        date: today,
-        startTime: form.startTime,
-        endTime: form.endTime,
-        duration: Number(form.duration),
-        purpose: form.customPurpose || form.purpose,
-        status: "approved",
-        approvedBy: firebaseUser?.uid || "",
-        createdBy: firebaseUser?.uid || "",
-        createdAt: serverTimestamp(),
-      });
+      const reservationRef = await addDoc(
+        collection(db, "reservationRequests"),
+        {
+          reservationType: "walk-in",
+          requesterId: form.requesterId,
+          requesterName: form.requesterName,
+          organizationName: form.organizationName,
+          course: form.course,
+          yearSectionGroup: form.yearSectionGroup,
+          estimatedAttendees: form.studentRange,
+          roomId: selectedRoom.id,
+          roomName: selectedRoom.roomName,
+          floor: selectedRoom.floor,
+          date: today,
+          startTime: form.startTime,
+          endTime: form.endTime,
+          duration: Number(form.duration),
+          purpose: form.customPurpose || form.purpose,
+          status: "approved",
+          approvedBy: firebaseUser?.uid || "",
+          createdBy: firebaseUser?.uid || "",
+          createdAt: serverTimestamp(),
+        },
+      );
 
       // Notify all clerks and department heads
       await notifyClerkAndDepartmentHead(
         "Walk-In Reservation Created",
         `${form.requesterName} created a walk-in reservation for ${selectedRoom.roomName} today from ${form.startTime} to ${form.endTime}.`,
-        reservationRef.id
+        reservationRef.id,
       );
 
       // Notify the clerk who created it (self)
@@ -609,7 +654,9 @@ export default function WalkInReservation() {
       const start = convertToMinutes(form.startTime);
       const end = convertToMinutes(form.endTime);
       if (currentMinutes >= start && currentMinutes < end) {
-        await updateDoc(doc(db, "rooms", selectedRoom.id), { status: "Occupied" });
+        await updateDoc(doc(db, "rooms", selectedRoom.id), {
+          status: "Occupied",
+        });
       }
 
       // Activity log (department heads will see this)
@@ -631,7 +678,11 @@ export default function WalkInReservation() {
         },
       });
 
-      showToast("success", "Success", "Walk-in reservation created successfully!");
+      showToast(
+        "success",
+        "Success",
+        "Walk-in reservation created successfully!",
+      );
       setShowModal(false);
       setSelectedRoom(null);
       setAvailableSlots([]);
@@ -806,7 +857,7 @@ export default function WalkInReservation() {
             )}
 
             {(form.requesterType === "faculty" && form.purpose === "Meeting") ||
-              form.requesterType === "organization" && (
+              (form.requesterType === "organization" && (
                 <div className="wir-field">
                   <label>Estimated Number of Attendees</label>
                   <select
@@ -822,7 +873,7 @@ export default function WalkInReservation() {
                     <option value="101+">101+ Persons</option>
                   </select>
                 </div>
-              )}
+              ))}
 
             {form.purpose === "Other Activity" && (
               <div className="wir-field">
@@ -853,7 +904,9 @@ export default function WalkInReservation() {
               {loadingRooms ? (
                 <div className="wir-inline-loading">Loading rooms...</div>
               ) : availableRooms.length === 0 ? (
-                <div className="wir-inline-loading">No rooms available now.</div>
+                <div className="wir-inline-loading">
+                  No rooms available now.
+                </div>
               ) : (
                 availableRooms.map((room) => (
                   <button
@@ -898,7 +951,12 @@ export default function WalkInReservation() {
                 <label>Date</label>
                 <div className="wir-icon-input">
                   <i className="fa-regular fa-calendar" />
-                  <input type="date" className="wir-plain-input" value={today} readOnly />
+                  <input
+                    type="date"
+                    className="wir-plain-input"
+                    value={today}
+                    readOnly
+                  />
                 </div>
               </div>
 
@@ -906,7 +964,9 @@ export default function WalkInReservation() {
                 <div className="wir-max-duration">
                   <i className="fa-solid fa-clock" />
                   Maximum Booking
-                  <strong>{availableSlots[availableSlots.length - 1].label}</strong>
+                  <strong>
+                    {availableSlots[availableSlots.length - 1].label}
+                  </strong>
                 </div>
               )}
 
@@ -941,9 +1001,7 @@ export default function WalkInReservation() {
                   </div>
                   <div className="wir-preview-box">
                     <small>END</small>
-                    <h3>
-                      {form.endTime ? formatTime12(form.endTime) : "--"}
-                    </h3>
+                    <h3>{form.endTime ? formatTime12(form.endTime) : "--"}</h3>
                   </div>
                   <div className="wir-preview-box full">
                     <small>DURATION</small>
@@ -978,8 +1036,8 @@ export default function WalkInReservation() {
               <div>
                 <div className="wir-note-title">Quick Note</div>
                 <div className="wir-note-text">
-                  Reservations must be within 7:00 AM – 8:00 PM.
-                  Duration is limited by the next booking or closing time.
+                  Reservations must be within 7:00 AM – 8:00 PM. Duration is
+                  limited by the next booking or closing time.
                 </div>
               </div>
             </div>
@@ -993,16 +1051,22 @@ export default function WalkInReservation() {
               {selectedRoom && (
                 <div className="wir-room-timeline">
                   <h4>Today's Schedule</h4>
-                  {getBusyItemsForRoom(selectedRoom.id, today, getDayAbbrev()).map(
-                    (item) => (
-                      <div key={item.source + item.startTime} className="timeline-item">
-                        <div className="timeline-time">
-                          {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
-                        </div>
-                        <div className="timeline-label">{item.label}</div>
+                  {getBusyItemsForRoom(
+                    selectedRoom.id,
+                    today,
+                    getDayAbbrev(),
+                  ).map((item) => (
+                    <div
+                      key={item.source + item.startTime}
+                      className="timeline-item"
+                    >
+                      <div className="timeline-time">
+                        {formatTime12(item.startTime)} -{" "}
+                        {formatTime12(item.endTime)}
                       </div>
-                    )
-                  )}
+                      <div className="timeline-label">{item.label}</div>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -1025,23 +1089,27 @@ export default function WalkInReservation() {
                   >
                     <div className="wir-live-top">
                       <div>
-                        <div className="wir-live-room-name">{room.roomName}</div>
-                        <div className="wir-live-room-type">{room.roomType}</div>
+                        <div className="wir-live-room-name">
+                          {room.roomName}
+                        </div>
+                        <div className="wir-live-room-type">
+                          {room.roomType}
+                        </div>
                       </div>
                       <span
                         className={`wir-live-badge ${
                           room.maintenance
                             ? "gray"
                             : room.available
-                            ? "green"
-                            : "red"
+                              ? "green"
+                              : "red"
                         }`}
                       >
                         {room.maintenance
                           ? "MAINTENANCE"
                           : room.available
-                          ? "AVAILABLE"
-                          : "OCCUPIED"}
+                            ? "AVAILABLE"
+                            : "OCCUPIED"}
                       </span>
                     </div>
                     <div className="wir-live-bottom">
@@ -1059,7 +1127,9 @@ export default function WalkInReservation() {
                         <>
                           <div className="live-info-row">
                             <span>Occupied</span>
-                            <strong>Until {formatTime12(room.nextAvailable)}</strong>
+                            <strong>
+                              Until {formatTime12(room.nextAvailable)}
+                            </strong>
                           </div>
                           <div className="live-info-row">
                             <span>Available Again</span>
@@ -1067,7 +1137,7 @@ export default function WalkInReservation() {
                               {room.nextBusyStart === "23:59"
                                 ? `${formatTime12(room.nextAvailable)} onwards`
                                 : `${formatTime12(room.nextAvailable)} - ${formatTime12(
-                                    room.nextBusyStart
+                                    room.nextBusyStart,
                                   )}`}
                             </strong>
                           </div>
@@ -1080,7 +1150,9 @@ export default function WalkInReservation() {
 
               <button
                 className="wir-view-btn"
-                onClick={() => navigate("/clerk/schedule-view-academic-schedule")}
+                onClick={() =>
+                  navigate("/clerk/schedule-view-academic-schedule")
+                }
               >
                 View Full Schedule
               </button>
@@ -1096,9 +1168,14 @@ export default function WalkInReservation() {
               </div>
               <h3 className="wir-modal-title">Are you sure?</h3>
               <p className="wir-modal-text">
-                Do you want to proceed<br />with this operation?
+                Do you want to proceed
+                <br />
+                with this operation?
               </p>
-              <button className="wir-modal-cancel" onClick={() => setShowModal(false)}>
+              <button
+                className="wir-modal-cancel"
+                onClick={() => setShowModal(false)}
+              >
                 Cancel
               </button>
               <button

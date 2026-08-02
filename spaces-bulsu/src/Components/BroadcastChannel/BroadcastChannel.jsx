@@ -22,20 +22,43 @@ import Toast from "../../Popup/Toast/Toast";
 // ─── Cloudinary constants ─────────────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "dzu1qb8oz";
 const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB (Cloudinary free tier limit)
 
 // ─── Upload to Cloudinary (supports any file type) ────────────────────
 async function uploadToCloudinary(file, folder) {
+  // Check file size before uploading
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(
+      `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 10MB limit. Please compress or use a smaller file.`
+    );
+  }
+
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
   formData.append("folder", `spaces/${folder}`);
 
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
-    { method: "POST", body: formData }
-  );
+  const isImage = file.type?.startsWith("image/");
+  const resourceType = isImage ? "image" : "raw";
 
-  if (!res.ok) throw new Error("Upload failed. Please try again.");
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+
+  const res = await fetch(endpoint, { method: "POST", body: formData });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    let errorMessage = `Upload failed: ${res.status}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.error?.message) {
+        errorMessage = errorJson.error.message;
+      }
+    } catch (e) {
+      // ignore
+    }
+    throw new Error(errorMessage);
+  }
+
   const data = await res.json();
   return data.secure_url;
 }
@@ -67,7 +90,7 @@ const getFileColor = (fileName = "") => {
   if (["pdf"].includes(ext)) return "#dc2626";
   if (["doc", "docx"].includes(ext)) return "#2563eb";
   if (["xls", "xlsx"].includes(ext)) return "#16a34a";
-  if ("ppt" === ext || "pptx" === ext) return "#ea580c";
+  if (["ppt", "pptx"].includes(ext)) return "#ea580c";
   if (["zip", "rar", "7z"].includes(ext)) return "#8b5cf6";
   if (["txt"].includes(ext)) return "#6b7280";
   if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "#ec4899";
@@ -82,23 +105,15 @@ const extractUrls = (text) => {
   return matches || [];
 };
 
-// ✅ REPLACE this function with the Microlink version
 const fetchLinkPreview = async (url) => {
   try {
-    // Microlink API – free, 50 requests/day, no auth required
     const response = await fetch(
       `https://api.microlink.io?url=${encodeURIComponent(url)}`
     );
-
     if (!response.ok) throw new Error(`Microlink API error: ${response.status}`);
-
     const data = await response.json();
-
-    // Check if the API returned valid data
     if (!data.data) throw new Error("No preview data returned");
-
     const { title, description, image } = data.data;
-
     return {
       title: title || url,
       description: description || "",
@@ -232,36 +247,32 @@ export default function BroadcastChannel() {
     return () => URL.revokeObjectURL(url);
   }, [selectedImage]);
 
-  // ─── Link preview effect (unchanged) ──────────────────────────────────
+  // ─── Link preview ──────────────────────────────────────────────────
 
-useEffect(() => {
-  const fetchPreview = async () => {
-    const urls = extractUrls(message);
-    console.log("🔗 Extracted URLs:", urls);
+  useEffect(() => {
+    const fetchPreview = async () => {
+      const urls = extractUrls(message);
+      if (urls.length === 0) {
+        setLinkPreview(null);
+        setFetchingPreview(false);
+        return;
+      }
 
-    if (urls.length === 0) {
-      setLinkPreview(null);
-      setFetchingPreview(false);
-      return;
-    }
+      setFetchingPreview(true);
+      try {
+        const preview = await fetchLinkPreview(urls[0]);
+        setLinkPreview(preview);
+      } catch (err) {
+        console.error("❌ Preview fetch error:", err);
+        setLinkPreview(null);
+      } finally {
+        setFetchingPreview(false);
+      }
+    };
 
-    setFetchingPreview(true);
-    try {
-      const preview = await fetchLinkPreview(urls[0]);
-      console.log("📄 Preview data:", preview);
-      setLinkPreview(preview);
-    } catch (err) {
-      console.error("❌ Preview fetch error:", err);
-      setLinkPreview(null);
-      // Don't show toast for preview failures – it's non‑critical
-    } finally {
-      setFetchingPreview(false);
-    }
-  };
-
-  const timer = setTimeout(fetchPreview, 700);
-  return () => clearTimeout(timer);
-}, [message]);
+    const timer = setTimeout(fetchPreview, 700);
+    return () => clearTimeout(timer);
+  }, [message]);
 
   // ─── Click outside menu ────────────────────────────────────────────
 
@@ -308,17 +319,28 @@ useEffect(() => {
       let fileType = "";
 
       if (selectedImage) {
-        imageUrl = await uploadToCloudinary(selectedImage, "broadcast-images");
+        try {
+          imageUrl = await uploadToCloudinary(selectedImage, "broadcast-images");
+        } catch (err) {
+          showToast("error", "Image Upload Failed", err.message);
+          setUploading(false);
+          return;
+        }
       }
 
       if (selectedFile) {
-        fileUrl = await uploadToCloudinary(selectedFile, "broadcast-files");
-        fileName = selectedFile.name;
-        fileType = selectedFile.type;
+        try {
+          fileUrl = await uploadToCloudinary(selectedFile, "broadcast-files");
+          fileName = selectedFile.name;
+          fileType = selectedFile.type;
+        } catch (err) {
+          showToast("error", "File Upload Failed", err.message);
+          setUploading(false);
+          return;
+        }
       }
 
-      // ✅ FIX: Use the existing linkPreview state (already fetched in composer)
-      const previewData = linkPreview; // ← use state, don't re‑fetch
+      const previewData = linkPreview;
 
       const broadcastRef = await addDoc(collection(db, "broadcastChannels"), {
         content: message,
@@ -392,7 +414,7 @@ useEffect(() => {
       showToast("success", "Sent", "Announcement published successfully!");
     } catch (err) {
       console.error(err);
-      showToast("error", "Send Failed", err.message);
+      showToast("error", "Send Failed", err.message || "Something went wrong.");
     } finally {
       setUploading(false);
     }
@@ -476,6 +498,46 @@ useEffect(() => {
   };
 
   const canSend = !uploading && (message.trim() || selectedImage || selectedFile);
+
+  // ─── File display component ─────────────────────────────────────────
+
+  const FileAttachment = ({ fileUrl, fileName }) => {
+    if (!fileUrl) return null;
+
+    const icon = getFileIcon(fileName);
+    const color = getFileColor(fileName);
+
+    // Add fl_attachment=0 to force inline display (not download)
+  const viewUrl = fileUrl.includes('?') ? `${fileUrl}&fl_attachment=0` : `${fileUrl}?fl_attachment=0`;
+
+    return (
+      <div className="bc-file-attachment">
+        <div className="bc-file-icon-wrapper" style={{ color }}>
+          <i className={icon}></i>
+        </div>
+        <div className="bc-file-info">
+          <span className="bc-file-name">{fileName || "File"}</span>
+          <div className="bc-file-actions">
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bc-file-action-btn view"
+            >
+              <i className="fa-solid fa-eye"></i> View
+            </a>
+            <a
+              href={fileUrl}
+              download={fileName || "file"}
+              className="bc-file-action-btn download"
+            >
+              <i className="fa-solid fa-download"></i> Download
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ─── Render ──────────────────────────────────────────────────────────
 
@@ -622,34 +684,7 @@ useEffect(() => {
 
                       {/* ─── FILE ───────────────────────────────────── */}
                       {msg.fileUrl && !msg.imageUrl && (
-                        <div className="bc-file-attachment">
-                          <div
-                            className="bc-file-icon-wrapper"
-                            style={{ color: getFileColor(msg.fileName) }}
-                          >
-                            <i className={getFileIcon(msg.fileName)}></i>
-                          </div>
-                          <div className="bc-file-info">
-                            <span className="bc-file-name">{msg.fileName}</span>
-                            <div className="bc-file-actions">
-                              <a
-                                href={msg.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bc-file-action-btn view"
-                              >
-                                <i className="fa-solid fa-eye"></i> View
-                              </a>
-                              <a
-                                href={msg.fileUrl}
-                                download={msg.fileName}
-                                className="bc-file-action-btn download"
-                              >
-                                <i className="fa-solid fa-download"></i> Download
-                              </a>
-                            </div>
-                          </div>
-                        </div>
+                        <FileAttachment fileUrl={msg.fileUrl} fileName={msg.fileName} />
                       )}
 
                       {/* ─── LINK PREVIEW ───────────────────────────── */}
@@ -732,7 +767,6 @@ useEffect(() => {
                           )}
                         </>
                       ) : (
-                        // Show empty reactions so users can still react
                         <>
                           <button
                             className="bc-reaction-btn"
@@ -815,10 +849,7 @@ useEffect(() => {
               </div>
               <button
                 className="bc-composer-link-remove"
-                onClick={() => {
-                  setLinkPreview(null);
-                  // Remove the URL from message? We'll keep it.
-                }}
+                onClick={() => setLinkPreview(null)}
               >
                 <i className="fa-solid fa-xmark"></i>
               </button>

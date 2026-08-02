@@ -261,3 +261,158 @@
 .clerk-load-more-btn-reservations:active {
   transform: translateY(1px);
 }
+
+/* ─── Filter Bar (outer) ────────────────────────────────────────────── */
+.clerk-filter-bar-outer {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  border: 1px solid #ECEAE6;
+  box-shadow: 0px 2px 8px rgba(20, 20, 20, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.clerk-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.clerk-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0 12px;
+  flex: 1 1 180px;
+  min-width: 140px;
+  height: 40px;
+}
+
+.clerk-filter-group i {
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.clerk-filter-input {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 14px;
+  background: transparent;
+  height: 100%;
+  min-width: 60px;
+}
+
+.clerk-filter-select {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 14px;
+  background: transparent;
+  height: 100%;
+  cursor: pointer;
+  appearance: none;
+  padding-right: 4px;
+}
+
+.clerk-sort-group {
+  flex: 1 1 200px;
+}
+
+.clerk-sort-order-btn {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  transition: color 0.2s;
+}
+
+.clerk-sort-order-btn:hover {
+  color: #f57c00;
+}
+
+.clerk-clear-filters-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 40px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: 0.2s;
+  white-space: nowrap;
+}
+
+.clerk-clear-filters-btn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #1a1a1a;
+}
+
+/* ─── Filter summary ────────────────────────────────────────────────── */
+.clerk-filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.clerk-filter-tag {
+  background: #e5e7eb;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.clerk-filter-result-count {
+  margin-left: auto;
+  font-weight: 600;
+  color: #f57c00;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .clerk-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .clerk-filter-group {
+    flex: 1 1 100%;
+  }
+
+  .clerk-clear-filters-btn {
+    justify-content: center;
+  }
+
+  .clerk-filter-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .clerk-filter-result-count {
+    margin-left: 0;
+  }
+}
+

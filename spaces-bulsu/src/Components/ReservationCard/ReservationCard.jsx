@@ -7,21 +7,21 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import classroomImg from "../../assets/Classroom.jpeg";
 
-function ReservationCard({ reservation, basePath = "/clerk/view-online-reservation" }) {  const navigate = useNavigate();
+function ReservationCard({
+  reservation,
+  basePath = "/clerk/view-online-reservation",
+  readOnly = false,
+}) {
+  const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [showDenial, setShowDenial] = useState(false);
 
   const approveReservation = async () => {
     try {
-      await updateDoc(
-        doc(db, "reservationRequests", reservation.id),
-        {
-          status: "Approved",
-        }
-      );
-
+      await updateDoc(doc(db, "reservationRequests", reservation.id), {
+        status: "Approved",
+      });
       setShowConfirm(false);
-
     } catch (err) {
       console.error(err);
     }
@@ -29,83 +29,99 @@ function ReservationCard({ reservation, basePath = "/clerk/view-online-reservati
 
   const denyReservation = async (reason) => {
     try {
-
-      await updateDoc(
-        doc(db, "reservationRequests", reservation.id),
-        {
-          status: "Rejected",
-          denialReason: reason,
-        }
-      );
-
+      await updateDoc(doc(db, "reservationRequests", reservation.id), {
+        status: "Rejected",
+        denialReason: reason,
+      });
       setShowDenial(false);
-
     } catch (err) {
       console.error(err);
     }
   };
+
   return (
     <>
       <div
         className="reservation-card"
         onClick={() =>
           navigate(basePath, {
-            state: {
-              reservation,
-            },
+            state: { reservation },
           })
         }
         style={{ cursor: "pointer" }}
       >
         <div className="reservation-card-left">
-          <span className="reservation-room-badge">{reservation.roomName}</span>
-          <h3 className="reservation-name">{reservation.facultyName || reservation.requesterName}</h3>
-          <p className="reservation-time">{reservation.startTime} - {reservation.endTime} • {reservation.date}</p>
+          <div className="reservation-top-row">
+            <span className="reservation-room-badge">
+              {reservation.roomName}
+            </span>
+            {/* ── Show pending badge when readOnly ── */}
+            {readOnly && (
+              <span className="reservation-status-badge pending">
+                <i className="fa-solid fa-clock"></i> Pending
+              </span>
+            )}
+          </div>
+
+          <h3 className="reservation-name">
+            {reservation.facultyName || reservation.requesterName}
+          </h3>
+          <p className="reservation-time">
+            {reservation.startTime} - {reservation.endTime} • {reservation.date}
+          </p>
           <div className="reservation-course">
             <i className="fa-solid fa-users"></i>
-            <span className="course-title">{reservation.courseTitle || "N/A"}</span>
+            <span className="course-title">
+              {reservation.courseTitle || "N/A"}
+            </span>
           </div>
-          <div className="reservation-actions">
-            <button
-              className="approve-btn-reservation"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowConfirm(true);
-              }}
-            >
-              <i className="fa-solid fa-circle-check"></i> Approve
-            </button>
-            <button
-              className="deny-btn-reservation"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowDenial(true);
-              }}
-            >
-              <i className="fa-solid fa-circle-xmark"></i> Deny
-            </button>
-          </div>
+
+          {/* ─── Only show buttons if NOT readOnly ─── */}
+          {!readOnly && (
+            <div className="reservation-actions">
+              <button
+                className="approve-btn-reservation"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowConfirm(true);
+                }}
+              >
+                <i className="fa-solid fa-circle-check"></i> Approve
+              </button>
+              <button
+                className="deny-btn-reservation"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDenial(true);
+                }}
+              >
+                <i className="fa-solid fa-circle-xmark"></i> Deny
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="reservation-card-right">
-          <span className="reservation-time-ago">{reservation.createdAt?.toDate?.().toLocaleDateString()}</span>
+          <span className="reservation-time-ago">
+            {reservation.createdAt?.toDate?.().toLocaleDateString()}
+          </span>
           <div className="reservation-image">
-          <img src={classroomImg} alt="Room" />
-        </div>
+            <img src={classroomImg} alt="Room" />
+          </div>
         </div>
       </div>
 
       {showConfirm && (
         <ConfirmPopup
-            onCancel={() => setShowConfirm(false)}
-            onConfirm={approveReservation}
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={approveReservation}
         />
       )}
 
       {showDenial && (
         <DenialPopup
-            onCancel={() => setShowDenial(false)}
-            onConfirm={denyReservation}
+          onCancel={() => setShowDenial(false)}
+          onConfirm={denyReservation}
         />
       )}
     </>
