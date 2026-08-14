@@ -1,6 +1,17 @@
 import "./approved-and-denied-card.css";
 
-function formatReviewedDate(timestamp) {
+// ─── Helper: convert 24h time → 12h format ──────────────────────────
+const format12Hour = (time) => {
+  if (!time) return "";
+  const [hour, minute] = time.split(":").map(Number);
+  if (isNaN(hour) || isNaN(minute)) return time;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+// ─── Helper: format Firebase timestamp to short date ────────────────
+const formatReviewedDate = (timestamp) => {
   const date = timestamp?.toDate?.();
   if (!date) return null;
   return date.toLocaleDateString(undefined, {
@@ -8,7 +19,7 @@ function formatReviewedDate(timestamp) {
     day: "numeric",
     year: "numeric",
   });
-}
+};
 
 function ApprovedAndDeniedCard({ reservation, onClick, compact = false, readOnly = false }) {
   const status = reservation.status?.toLowerCase().trim() || "";
@@ -41,16 +52,15 @@ function ApprovedAndDeniedCard({ reservation, onClick, compact = false, readOnly
         if (e.key === "Enter" || e.key === " ") onClick?.();
       }}
     >
-      {/* Left: icon */}
+      {/* ─── Left: icon ───────────────────────────────────────────── */}
       <div className="rc-status-icon">
         <i className={`fa-solid ${iconClass}`}></i>
       </div>
 
-      {/* Middle: main info */}
+      {/* ─── Middle: main info ────────────────────────────────────── */}
       <div className="rc-main">
         <div className="rc-top-row">
           <span className="rc-room-badge">{reservation.roomName}</span>
-          {/* Removed status label from here */}
         </div>
 
         <h3 className="rc-faculty-name">{reservation.facultyName || reservation.requesterName}</h3>
@@ -58,7 +68,8 @@ function ApprovedAndDeniedCard({ reservation, onClick, compact = false, readOnly
         <div className="rc-meta-row">
           <span className="rc-meta-item">
             <i className="fa-regular fa-clock"></i>
-            {reservation.startTime} – {reservation.endTime}
+            {/* ✅ 12‑hour format */}
+            {format12Hour(reservation.startTime)} – {format12Hour(reservation.endTime)}
           </span>
           <span className="rc-meta-dot">•</span>
           <span className="rc-meta-item">
@@ -73,7 +84,7 @@ function ApprovedAndDeniedCard({ reservation, onClick, compact = false, readOnly
         </div>
       </div>
 
-      {/* Right side: status label on top, date+chevron below */}
+      {/* ─── Right side: status label on top, date+chevron below ── */}
       <div className="rc-side">
         <div className="rc-side-top">
           <span className={`rc-status-label ${cardClass}`}>{statusLabel}</span>

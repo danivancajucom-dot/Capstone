@@ -72,6 +72,7 @@ const normalizeSchedule = (s) => ({
   semester: s.semester || "",
   schoolYear: s.schoolYear || "",
   organization: null,
+  scheduleId: s.id,
 });
 
 const normalizeEvent = (e) => ({
@@ -107,6 +108,27 @@ const normalizeReservation = (r) => ({
   organization: r.organizationName || r.attendees?.organization || null,
 });
 
+const normalizeRelease = (r) => ({
+  id: r.id,
+  scheduleId: r.scheduleId,
+  roomId: r.roomId,
+  date: r.date,
+});
+
+const normalizeReassignment = (r) => ({
+  id: r.id,
+  scheduleId: r.scheduleId,
+  oldRoomId: r.oldRoomId,
+  newRoomId: r.newRoomId,
+  date: r.date,
+  startTime: r.startTime,
+  endTime: r.endTime,
+  facultyName: r.facultyName || "-",
+  subject: r.courseTitle || "Class (Moved)",
+  sourceLabel: "Reassigned",
+  roomName: r.newRoomName,
+});
+
 const HISTORY_PAGE_SIZE = 10;
 
 export default function RoomUsageTracking() {
@@ -117,6 +139,8 @@ export default function RoomUsageTracking() {
   const [allSchedules, setAllSchedules] = useState([]);
   const [allEvents, setAllEvents] = useState([]);
   const [allReservations, setAllReservations] = useState([]);
+  const [allReleases, setAllReleases] = useState([]);
+  const [allReassignments, setAllReassignments] = useState([]);
   const [currentSchedule, setCurrentSchedule] = useState(null);
   const [nextSchedule, setNextSchedule] = useState(null);
   const [history, setHistory] = useState([]);
@@ -145,7 +169,7 @@ export default function RoomUsageTracking() {
     trackRoom();
     buildHistory();
     buildAnalytics();
-  }, [room, date, allSchedules, allEvents, allReservations]);
+  }, [room, date, allSchedules, allEvents, allReservations, allReleases, allReassignments]);
 
   useEffect(() => { setHistoryPage(1); }, [room]);
 
@@ -182,10 +206,25 @@ export default function RoomUsageTracking() {
         .filter((r) => String(r.status || "").toLowerCase() === "approved")
         .map((r) => normalizeReservation(r));
 
+      // ─── Releases ──────────────────────────────────────────────
+      const releaseSnap = await getDocs(collection(db, "roomReleases"));
+      const releaseList = releaseSnap.docs
+        .map((d) => normalizeRelease({ id: d.id, ...d.data() }));
+
+      // ─── Reassignments ──────────────────────────────────────────
+      const reassignSnap = await getDocs(collection(db, "roomReassignments"));
+      const reassignList = reassignSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((r) => String(r.status || "").toLowerCase() === "approved")
+        .map((r) => normalizeReassignment(r));
+
       setRooms(roomList);
       setAllSchedules(scheduleList);
       setAllEvents(eventList);
       setAllReservations(reservationList);
+      setAllReleases(releaseList);
+      setAllReassignments(reassignList);
+
       setRoom(prev => {
         if (prev) return prev;
         return roomList.length ? roomList[0].roomName || roomList[0].name : "";
@@ -198,12 +237,50 @@ export default function RoomUsageTracking() {
 
   const getOccurrencesForDate = (targetDate) => {
     const dayAbbrev = getDayAbbrev(targetDate);
-    const scheduleOccurrences = allSchedules
+
+    // ─── Build release keys: scheduleId_date ─────────────────────
+    const releaseKeys = new Set(
+      allReleases
+        .filter((r) => r.date === targetDate)
+        .map((r) => `${r.scheduleId}_${r.date}`)
+    );
+
+    // ─── Build reassign‑away keys: scheduleId_date ───────────────
+    const reassignAwayKeys = new Set(
+      allReassignments
+        .filter((r) => r.date === targetDate && r.oldRoomId)
+        .map((r) => `${r.scheduleId}_${r.date}`)
+    );
+
+    // ─── Schedule occurrences ─────────────────────────────────────
+    let scheduleOccurrences = allSchedules
       .filter((s) => s.roomName === room && s.day === dayAbbrev)
+      .filter((s) => {
+        const key = `${s.scheduleId}_${targetDate}`;
+        return !releaseKeys.has(key) && !reassignAwayKeys.has(key);
+      })
       .map((s) => ({ ...s, date: targetDate }));
+
+    // ─── Events ──────────────────────────────────────────────────
     const eventOccurrences = allEvents.filter((e) => e.roomName === room && e.date === targetDate);
+
+    // ─── Reservations ────────────────────────────────────────────
     const reservationOccurrences = allReservations.filter((r) => r.roomName === room && r.date === targetDate);
-    return [...scheduleOccurrences, ...eventOccurrences, ...reservationOccurrences]
+
+    // ─── Reassignments INTO this room ────────────────────────────
+    const reassignInto = allReassignments
+      .filter((r) => r.date === targetDate && r.roomName === room)
+      .map((r) => ({
+        ...r,
+        kind: "reassignment",
+        sourceLabel: "Reassigned Class",
+        facultyName: r.facultyName,
+        subject: r.subject,
+        roomName: r.roomName,
+      }));
+
+    // ─── Combine and sort ────────────────────────────────────────
+    return [...scheduleOccurrences, ...eventOccurrences, ...reservationOccurrences, ...reassignInto]
       .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   };
 
@@ -256,24 +333,37 @@ export default function RoomUsageTracking() {
 
   const buildHistory = () => {
     const currentDate = date || todayString();
-    const scheduleHistory = getOccurrencesForDate(currentDate).filter((item) => item.kind === "schedule");
+    const allOccurrences = getOccurrencesForDate(currentDate);
+    // Filter only schedules for history (or we could include events/reservations as well)
+    // But we already have events/reservations separately. Let's use allOccurrences.
+    const historyData = allOccurrences
+      .filter(item => item.kind === "schedule" || item.kind === "reassignment")
+      .sort((a, b) => {
+        const aEnd = new Date(`${a.date}T${a.endTime}`);
+        const bEnd = new Date(`${b.date}T${b.endTime}`);
+        return bEnd - aEnd;
+      });
+
+    // Also include events and reservations that are not already in the list
     const otherHistory = [
-      ...allEvents.filter((e) => e.roomName === room),
-      ...allReservations.filter((r) => r.roomName === room),
+      ...allEvents.filter((e) => e.roomName === room && e.date === currentDate),
+      ...allReservations.filter((r) => r.roomName === room && r.date === currentDate),
     ];
-    const historyData = [...scheduleHistory, ...otherHistory].sort((a, b) => {
-      const aEnd = new Date(`${a.date}T${a.endTime}`);
-      const bEnd = new Date(`${b.date}T${b.endTime}`);
-      return bEnd - aEnd;
-    });
 
-    setHistory(historyData);
+    const fullHistory = [...historyData, ...otherHistory]
+      .sort((a, b) => {
+        const aEnd = new Date(`${a.date}T${a.endTime}`);
+        const bEnd = new Date(`${b.date}T${b.endTime}`);
+        return bEnd - aEnd;
+      });
 
-    const ongoing = historyData.find(item => getStatus(item.date, item.startTime, item.endTime) === "ONGOING");
+    setHistory(fullHistory);
+
+    const ongoing = fullHistory.find(item => getStatus(item.date, item.startTime, item.endTime) === "ONGOING");
     if (ongoing) {
       setLastUser(ongoing);
     } else {
-      const completed = historyData
+      const completed = fullHistory
         .filter(item => getStatus(item.date, item.startTime, item.endTime) === "COMPLETED")
         .sort((a, b) => parseDateTime(b.date, b.endTime) - parseDateTime(a.date, a.endTime));
       setLastUser(completed[0] || null);

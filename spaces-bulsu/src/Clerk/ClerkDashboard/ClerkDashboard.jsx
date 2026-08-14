@@ -5,7 +5,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import "./clerk-dashboard.css";
-import DashboardReleasedRoomCard from "../../Components/ReleasedRoomCard/ReleasedRoomCard";
+import DashboardReleasedRoomCard from "../../Components/DashboardReleasedRoomCard/DashboardReleasedRoomCard";
 import UpcomingSchedCard from "../../Components/UpcomingSchedCard/UpcomingSchedCard";
 import AvailableRoomCard from "../../Components/AvailableRoomCard/AvailableRoomCard";
 import OccupiedRoomCard from "../../Components/OccupiedRoomCard/OccupiedRoomCard";

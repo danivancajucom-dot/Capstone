@@ -1,0 +1,108 @@
+.faculty-cancelled-reservation-room {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px 20px 20px 8px;
+  margin-top: 20px;
+  background-color: #F8F7F5;
+}
+
+.faculty-white-box-cancelled {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 24px 28px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.faculty-cancelled-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #16213e;
+}
+
+.faculty-cancelled-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.faculty-cancelled-info-box {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.faculty-cancelled-info-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.faculty-cancelled-info-box-title i {
+  color: #f57c00;
+  width: 20px;
+}
+
+.faculty-cancelled-info-box-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.faculty-cancelled-info-box-content strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.faculty-cancelled-status-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.faculty-cancelled-status-badge.cancelled {
+  background: #f1f3f4;
+  color: #5f6368;
+}
+
+.faculty-cancelled-footer {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.faculty-cancelled-back-btn {
+  padding: 10px 30px;
+  color: #f57c00;
+  font-size: 14px;
+  font-weight: 700;
+  width: 150px;
+  border: 1.5px solid #f57c00;
+  cursor: pointer;
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.faculty-cancelled-back-btn:hover {
+  background-color: #FEF0E7;
+}
+
+@media (max-width: 768px) {
+  .faculty-cancelled-reservation-room { padding: 14px; }
+  .faculty-cancelled-info-grid { grid-template-columns: 1fr; gap: 16px; }
+  .faculty-white-box-cancelled { padding: 16px; }
+  .faculty-cancelled-title { font-size: 18px; }
+  .faculty-cancelled-footer { flex-direction: column; gap: 12px; }
+  .faculty-cancelled-back-btn { width: 100%; }
+}

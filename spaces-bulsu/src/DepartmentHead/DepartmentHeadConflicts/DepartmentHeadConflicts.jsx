@@ -94,7 +94,6 @@ function DepartmentHeadConflicts() {
       const resolvedFound = [];
       const now = new Date();
 
-      // ─── For each room ──────────────────────────────────────────────
       for (const roomDoc of rooms.docs) {
         const room = roomDoc.data();
 
@@ -111,7 +110,6 @@ function DepartmentHeadConflicts() {
 
         if (allSchedules.length === 0) continue;
 
-        // ─── Find the LATEST semester/schoolYear for this room ────────
         const latest = allSchedules.reduce((best, cur) => {
           const by = schoolYearStart(best.schoolYear);
           const bs = semesterRank(best.semester);
@@ -121,19 +119,16 @@ function DepartmentHeadConflicts() {
           return best;
         }, allSchedules[0]);
 
-        // ─── Filter schedules to only the latest semester/year ────────
         const schedules = allSchedules.filter(
           (s) =>
             (s.schoolYear || "") === (latest.schoolYear || "") &&
             (s.semester || "") === (latest.semester || ""),
         );
 
-        // ─── Room events ──────────────────────────────────────────────
         const roomEvents = events.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter((e) => e.roomId === roomDoc.id && e.status !== "Cancelled");
 
-        // ─── Detect conflicts ──────────────────────────────────────────
         roomEvents.forEach((event) => {
           const eventDay = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][
             new Date(event.date).getDay()
@@ -179,10 +174,15 @@ function DepartmentHeadConflicts() {
               conflictEndTime: overlapTime.end,
               reassignPending: pendingKeys.has(`${schedule.id}_${event.id}`),
               status: "",
+              // Capture resolution info if available
+              resolution: event.resolution || null,
+              resolutionReason: event.resolutionReason || null,
             };
 
             if (event.conflictResolved) {
               conflict.status = "resolved";
+              conflict.resolution = event.resolution || "resolved";
+              conflict.resolutionReason = event.resolutionReason || "";
               resolvedFound.push(conflict);
             } else if (eventEnd < now) {
               conflict.status = "unresolved";

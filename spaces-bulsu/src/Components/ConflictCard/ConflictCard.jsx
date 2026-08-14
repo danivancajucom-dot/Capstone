@@ -18,11 +18,9 @@ const formatDuration = (startTime, endTime) => {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
   if (start == null || end == null || end <= start) return "";
-
   const mins = end - start;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-
   if (h && m) return `${h}h ${m}m`;
   if (h) return `${h}h`;
   return `${m}m`;
@@ -35,30 +33,26 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 };
 
-function ConflictCard({
-  conflict,
-  showReassign = true,
-}) {
+function ConflictCard({ conflict, showReassign = true }) {
   const navigate = useNavigate();
 
   const formatTime = (time) => {
-  if (!time) return "";
-
-  const [hour, minute] = time.split(":");
-
-  return new Date(0,0,0,hour,minute).toLocaleTimeString(
-    "en-US",
-    {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }
-  );
-};
+    if (!time) return "";
+    const [hour, minute] = time.split(":");
+    return new Date(0, 0, 0, hour, minute).toLocaleTimeString(
+      "en-US",
+      { hour: "numeric", minute: "2-digit", hour12: true }
+    );
+  };
 
   const status = STATUS_META[conflict.status] || STATUS_META.active;
   const overlapDuration = formatDuration(conflict.conflictStartTime, conflict.conflictEndTime);
   const dateLabel = formatDate(conflict.date);
+
+  // ─── Resolution info ────────────────────────────────────────────────
+  const isResolved = conflict.status === "resolved";
+  const isApproved = conflict.resolution === "approved";
+  const isDenied = conflict.resolution === "rejected";
 
   return (
     <div className={`conflict-card ${status.className}`}>
@@ -136,6 +130,19 @@ function ConflictCard({
         </div>
       )}
 
+      {/* ─── Resolution info ──────────────────────────────────────────── */}
+      {isResolved && conflict.resolutionReason && (
+        <div className="conflict-resolution-box">
+          <span className={`resolution-badge ${isApproved ? "approved" : "denied"}`}>
+            {isApproved ? "✅ Accepted" : "❌ Denied"}
+          </span>
+          <div className="resolution-reason">
+            <span className="resolution-label">Reason:</span> {conflict.resolutionReason}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Footer ────────────────────────────────────────────────────── */}
       {conflict.status === "active" ? (
         conflict.reassignPending ? (
           <div className="reassign-pending-badge">

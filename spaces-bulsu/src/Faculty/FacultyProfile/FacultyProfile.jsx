@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import "./faculty-profile.css";
-import { logActivity } from "../../utils/logActivity";
 import { auth, db } from "../../firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { sendPasswordResetEmail, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, updateDoc, collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { logActivity } from "../../utils/logActivity";
 import Toast from "../../Popup/Toast/Toast";
 
 // ── Cloudinary config ─────────────────────────────────────────────────────────
-// Replace these two values with your own from the Cloudinary dashboard
-const CLOUDINARY_CLOUD_NAME    = "dqn1s5ujs";   
-const CLOUDINARY_UPLOAD_PRESET = "SpaceSCICT"; 
+const CLOUDINARY_CLOUD_NAME    = "dqn1s5ujs";
+const CLOUDINARY_UPLOAD_PRESET = "SpaceSCICT";
 
 async function uploadToCloudinary(file) {
   const formData = new FormData();
@@ -27,7 +26,32 @@ async function uploadToCloudinary(file) {
   return data.secure_url;
 }
 
-export default function UserProfile() {
+// Icon + accent color per actionType — adjust to match whatever values your
+// logActivity() calls actually use (e.g. "edit", "create", "delete", "login").
+const ACTIVITY_ICON = {
+  edit:    "fa-solid fa-pen",
+  create:  "fa-solid fa-plus",
+  delete:  "fa-solid fa-trash",
+  login:   "fa-solid fa-right-to-bracket",
+  logout:  "fa-solid fa-right-from-bracket",
+  reserve: "fa-solid fa-bookmark",
+  default: "fa-solid fa-circle-info",
+};
+
+function formatLogTime(ts) {
+  if (!ts) return "";
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  const now  = new Date();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60)    return `${diff}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return date.toLocaleDateString();
+}
+
+export default function FacultyProfile() {
+  const [activeTab, setActiveTab]   = useState("details"); // "details" | "activity"
   const [editing, setEditing]       = useState(false);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -45,6 +69,9 @@ export default function UserProfile() {
   });
 
   const [originalData, setOriginalData] = useState(null);
+
+  const [activityLogs, setActivityLogs]     = useState([]);
+  const [activityLoading, setActivityLoading] = useState(true);
 
   const [toast, setToast] = useState({
     show: false, type: "success", title: "", message: "",
@@ -89,6 +116,39 @@ export default function UserProfile() {
 
     return () => unsubscribe();
   }, []);
+
+  // ── Load activity log ───────────────────────────────────────────────────────
+  // ⚠️ Adjust the collection name / field ("user") / order field ("timestamp")
+  // below to match your actual logActivity() implementation.
+  useEffect(() => {
+    if (!form.firstName && !form.lastName) return;
+
+    const fullName = `${form.firstName} ${form.lastName}`.trim();
+    if (!fullName) return;
+
+    setActivityLoading(true);
+
+    const q = query(
+      collection(db, "activityLogs"),
+      where("user", "==", fullName),
+      orderBy("timestamp", "desc"),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setActivityLogs(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setActivityLoading(false);
+      },
+      (err) => {
+        console.error("Activity log query failed:", err);
+        setActivityLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [form.firstName, form.lastName]);
 
   // ── Photo selection ─────────────────────────────────────────────────────────
   const handlePhotoChange = (e) => {
@@ -178,17 +238,6 @@ export default function UserProfile() {
     setEditing(false);
   };
 
-  // ── Password reset ──────────────────────────────────────────────────────────
-  const handleResetPassword = async () => {
-    try {
-      await sendPasswordResetEmail(auth, form.email);
-      showToast("success", "Reset Email Sent", "Check your inbox for password reset instructions.");
-    } catch (err) {
-      console.error(err);
-      showToast("error", "Reset Failed", err.message);
-    }
-  };
-
   const handleChange = (field) => (e) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
@@ -209,149 +258,206 @@ export default function UserProfile() {
   return (
     <>
       <div className="up-page">
-        <div className="up-card">
 
-          <div className="up-header">
-            <h2>Faculty Profile</h2>
-            <p>Update your profile information and picture here.</p>
-          </div>
+        {/* TABS */}
+        <div className="up-tabs">
+          <button
+            className={activeTab === "details" ? "active" : ""}
+            onClick={() => setActiveTab("details")}
+          >
+            <i className="fa-regular fa-id-card"></i> Details
+          </button>
+          <button
+            className={activeTab === "activity" ? "active" : ""}
+            onClick={() => setActiveTab("activity")}
+          >
+            <i className="fa-solid fa-clock-rotate-left"></i> Activity Log
+          </button>
+        </div>
 
-          {!editing && (
-            <button className="up-edit-btn" onClick={() => setEditing(true)}>
-              <i className="fa-solid fa-pen" />
-            </button>
-          )}
+        {activeTab === "details" && (
+          <div className="up-card">
 
-          {/* ── Avatar ── */}
-          <div className="up-avatar-wrap">
-            <div className="up-avatar">
-              {displayPhoto ? (
-                <img src={displayPhoto} alt="Profile" className="up-avatar-img" />
-              ) : (
-                initials
-                  ? <span className="up-avatar-initials">{initials}</span>
-                  : <i className="fa-solid fa-user" />
+            <div className="up-header">
+              <h2>Faculty Profile</h2>
+              <p>Update your profile information and picture here.</p>
+            </div>
+
+            {!editing && (
+              <button className="up-edit-btn" onClick={() => setEditing(true)}>
+                <i className="fa-solid fa-pen" />
+              </button>
+            )}
+
+            {/* ── Avatar ── */}
+            <div className="up-avatar-wrap">
+              <div className="up-avatar">
+                {displayPhoto ? (
+                  <img src={displayPhoto} alt="Profile" className="up-avatar-img" />
+                ) : (
+                  initials
+                    ? <span className="up-avatar-initials">{initials}</span>
+                    : <i className="fa-solid fa-user" />
+                )}
+              </div>
+
+              {editing && (
+                <button
+                  className="up-avatar-camera"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  title="Change photo"
+                >
+                  {uploading
+                    ? <i className="fa-solid fa-circle-notch fa-spin" />
+                    : <i className="fa-solid fa-camera" />
+                  }
+                </button>
               )}
             </div>
 
-            {/* Camera overlay button when editing */}
-            {editing && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handlePhotoChange}
+            />
+
+            {editing && photoFile && !uploading && (
+              <p className="up-photo-name">
+                <i className="fa-solid fa-circle-check" /> {photoFile.name}
+              </p>
+            )}
+
+            {editing && uploading && (
+              <p className="up-upload-progress">
+                <i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…
+              </p>
+            )}
+
+            {editing && form.photoUrl && !uploading && (
               <button
-                className="up-avatar-camera"
+                className="up-remove-photo-btn"
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                title="Change photo"
+                onClick={() => {
+                  setPhotoFile(null);
+                  if (previewUrl) {
+                    URL.revokeObjectURL(previewUrl);
+                    setPreviewUrl(null);
+                  }
+                  setForm(prev => ({ ...prev, photoUrl: "" }));
+                }}
               >
-                {uploading
-                  ? <i className="fa-solid fa-circle-notch fa-spin" />
-                  : <i className="fa-solid fa-camera" />
-                }
+                <i className="fa-solid fa-trash" /> Remove Photo
               </button>
             )}
-          </div>
 
-          {/* File input (hidden) */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={handlePhotoChange}
-          />
-
-          {/* Selected file feedback */}
-          {editing && photoFile && !uploading && (
-            <p className="up-photo-name">
-              <i className="fa-solid fa-circle-check" /> {photoFile.name}
-            </p>
-          )}
-
-          {editing && uploading && (
-            <p className="up-upload-progress">
-              <i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…
-            </p>
-          )}
-
-          {editing && form.photoUrl && !uploading && (
-            <button
-              className="up-remove-photo-btn"
-              type="button"
-              onClick={() => {
-                setPhotoFile(null);
-                if (previewUrl) {
-                  URL.revokeObjectURL(previewUrl);
-                  setPreviewUrl(null);
-                }
-                setForm(prev => ({ ...prev, photoUrl: "" }));
-              }}
-            >
-              <i className="fa-solid fa-trash" /> Remove Photo
-            </button>
-          )}
-
-          {/* Upload button (shown when editing and no photo set yet) */}
-          {editing && !form.photoUrl && !photoFile && !uploading && (
-            <button
-              className="up-upload-btn"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <i className="fa-solid fa-arrow-up-from-bracket" /> Upload Picture
-            </button>
-          )}
-
-          {/* ── Fields ── */}
-          <div className="up-fields">
-            <div className="up-field">
-              <label>First Name</label>
-              <input
-                className="up-input"
-                value={form.firstName}
-                onChange={handleChange("firstName")}
-                readOnly={!editing}
-              />
-            </div>
-
-            <div className="up-field">
-              <label>Last Name</label>
-              <input
-                className="up-input"
-                value={form.lastName}
-                onChange={handleChange("lastName")}
-                readOnly={!editing}
-              />
-            </div>
-
-            <div className="up-field">
-              <label>Email</label>
-              <input className="up-input" value={form.email} readOnly />
-            </div>
-
-            <div className="up-field">
-              <label>Password</label>
-              <button className="up-reset-password-btn" onClick={handleResetPassword}>
-                Send Password Reset Email
+            {editing && !form.photoUrl && !photoFile && !uploading && (
+              <button
+                className="up-upload-btn"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <i className="fa-solid fa-arrow-up-from-bracket" /> Upload Picture
               </button>
+            )}
+
+            {/* ── Fields (no password here — see Settings) ── */}
+            <div className="up-fields">
+              <div className="up-field">
+                <label>First Name</label>
+                <input
+                  className="up-input"
+                  value={form.firstName}
+                  onChange={handleChange("firstName")}
+                  readOnly={!editing}
+                />
+              </div>
+
+              <div className="up-field">
+                <label>Last Name</label>
+                <input
+                  className="up-input"
+                  value={form.lastName}
+                  onChange={handleChange("lastName")}
+                  readOnly={!editing}
+                />
+              </div>
+
+              <div className="up-field">
+                <label>Email</label>
+                <input className="up-input" value={form.email} readOnly />
+              </div>
+
+              <div className="up-field">
+                <label>Role</label>
+                <input className="up-input" value={form.role} readOnly />
+              </div>
             </div>
-          </div>
 
-        </div>
-
-        {editing && (
-          <div className="up-footer">
-            <button className="up-cancel-btn" onClick={handleCancel}>
-              Cancel
-            </button>
-            <button
-              className="up-save-btn"
-              onClick={handleSave}
-              disabled={saving || uploading}
-            >
-              {uploading ? "Uploading…" : saving ? "Saving…" : "Save"}
-            </button>
+            {editing && (
+              <div className="up-footer">
+                <button className="up-cancel-btn" onClick={handleCancel}>
+                  Cancel
+                </button>
+                <button
+                  className="up-save-btn"
+                  onClick={handleSave}
+                  disabled={saving || uploading}
+                >
+                  {uploading ? "Uploading…" : saving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            )}
           </div>
         )}
+
+        {activeTab === "activity" && (
+          <div className="up-card up-card-activity">
+
+            <div className="up-header">
+              <h2>Activity Log</h2>
+              <p>Everything you've done in SpaceS, most recent first.</p>
+            </div>
+
+            {activityLoading ? (
+              <p className="up-activity-loading">Loading activity…</p>
+            ) : activityLogs.length === 0 ? (
+              <div className="up-activity-empty">
+                <div className="up-activity-empty-icon">
+                  <i className="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <h4>No activity yet</h4>
+                <p>Actions you take will show up here.</p>
+              </div>
+            ) : (
+              <div className="up-activity-list">
+                {activityLogs.map((log) => (
+                  <div key={log.id} className="up-activity-item">
+                    <div className={`up-activity-icon ${log.status === "Failed" ? "is-failed" : ""}`}>
+                      <i className={ACTIVITY_ICON[log.actionType] || ACTIVITY_ICON.default}></i>
+                    </div>
+                    <div className="up-activity-body">
+                      <div className="up-activity-top">
+                        <span className="up-activity-action">{log.action}</span>
+                        {log.status && (
+                          <span className={`up-activity-status ${log.status === "Failed" ? "is-failed" : "is-success"}`}>
+                            {log.status}
+                          </span>
+                        )}
+                      </div>
+                      {log.target && <p className="up-activity-target">{log.target}</p>}
+                      <span className="up-activity-time">{formatLogTime(log.timestamp)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       <Toast

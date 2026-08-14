@@ -1,200 +1,358 @@
-.faculty-room-page{
-    min-height:100vh;
-    background:#f5f7fb;
-    padding:40px;
+.faculty-room-page {
+  min-height: 100vh;
+  background: #f5f7fb;
+  padding: 40px;
+  font-family: 'Lexend', sans-serif;
 }
 
-.faculty-room-card{
-    max-width:900px;
-    margin:auto;
-    background:#fff;
-    border-radius:18px;
-    padding:35px;
-    box-shadow:0 10px 30px rgba(0,0,0,.08);
+.faculty-room-card {
+  max-width: 900px;
+  margin: auto;
+  background: #fff;
+  border-radius: 18px;
+  padding: 35px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
 }
 
-.faculty-room-header h1{
-    margin:0;
-    color:#1f2937;
+.faculty-room-header h1 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 28px;
 }
 
-.faculty-room-header p{
-    margin-top:10px;
-    color:#6b7280;
+.faculty-room-header p {
+  margin-top: 10px;
+  color: #6b7280;
 }
 
-.faculty-room-section{
-    margin-top:35px;
+.faculty-room-section {
+  margin-top: 35px;
 }
 
-.faculty-room-section h3{
-    margin-bottom:18px;
-    color:#374151;
+.faculty-room-section h3 {
+  margin-bottom: 18px;
+  color: #374151;
+  border-left: 4px solid #f57c00;
+  padding-left: 12px;
 }
 
-.faculty-room-grid{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:18px;
+.faculty-room-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
 }
 
-.info-box{
-    background:#f8fafc;
-    border:1px solid #e5e7eb;
-    border-radius:12px;
-    padding:16px;
+.info-box {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
 }
 
-.info-box label{
-    display:block;
-    font-size:13px;
-    color:#6b7280;
-    margin-bottom:6px;
+.info-box label {
+  display: block;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
 }
 
-.info-box span{
-    font-size:16px;
-    font-weight:600;
-    color:#111827;
+.info-box span {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
 }
 
-.room-change{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:25px;
-    margin-top:15px;
+.room-change {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 25px;
+  margin-top: 15px;
 }
 
-.room-box{
-    flex:1;
-    background:#eef5ff;
-    border-radius:15px;
-    padding:25px;
-    text-align:center;
+.room-box {
+  flex: 1;
+  background: #eef5ff;
+  border-radius: 15px;
+  padding: 25px;
+  text-align: center;
 }
 
-.room-box.new{
-    background:#ecfdf5;
+.room-box.new {
+  background: #ecfdf5;
 }
 
-.room-box label{
-    color:#6b7280;
-    font-size:13px;
+.room-box label {
+  color: #6b7280;
+  font-size: 13px;
 }
 
-.room-box h2{
-    margin-top:10px;
-    color:#2563eb;
+.room-box h2 {
+  margin-top: 10px;
+  color: #2563eb;
 }
 
-.room-box.new h2{
-    color:#059669;
+.room-box.new h2 {
+  color: #059669;
 }
 
-.arrow{
-    font-size:26px;
-    color:#2563eb;
+.arrow {
+  font-size: 26px;
+  color: #2563eb;
 }
 
-.faculty-room-note{
-    margin-top:35px;
-    display:flex;
-    gap:12px;
-    background:#fff8e6;
-    border:1px solid #fde68a;
-    padding:18px;
-    border-radius:12px;
-    color:#92400e;
+.faculty-room-note {
+  margin-top: 35px;
+  display: flex;
+  gap: 12px;
+  background: #fff8e6;
+  border: 1px solid #fde68a;
+  padding: 18px;
+  border-radius: 12px;
+  color: #92400e;
 }
 
-.faculty-room-actions{
-    display:flex;
-    justify-content:flex-end;
-    gap:15px;
-    margin-top:35px;
+.faculty-room-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  margin-top: 35px;
 }
 
 .reject-btn,
-.approve-btn{
-    padding: 8px 20px;
-    border-radius: 6px;
-    border: none;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 6px;
-    width: 120px;
-    box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
-    transition: .2s;
+.approve-btn {
+  padding: 10px 28px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  width: 150px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  transition: .2s;
+  font-family: 'Lexend', sans-serif;
 }
 
-.reject-btn{
-    background-color: #dc2626;
-    color: #ffffff;
+.reject-btn {
+  background-color: #dc2626;
+  color: #ffffff;
 }
 
-.reject-btn:hover{
-    background-color: #fee2e2;
-    border: solid 1px #dc2626;
-    color: #dc2626;
+.reject-btn:hover {
+  background-color: #fee2e2;
+  border: solid 1px #dc2626;
+  color: #dc2626;
 }
 
-.approve-btn{
-    background-color: #16a34a;
-    color: #ffffff;
+.approve-btn {
+  background-color: #16a34a;
+  color: #ffffff;
 }
 
-.approve-btn:hover{
-    background-color: #f0fdf4;
-    border: solid 1px #16a34a;
-    color: #16a34a;
+.approve-btn:hover {
+  background-color: #f0fdf4;
+  border: solid 1px #16a34a;
+  color: #16a34a;
 }
 
-.faculty-room-loading{
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
+.faculty-room-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Lexend', sans-serif;
 }
 
-.spinner{
-    width:45px;
-    height:45px;
-    border:5px solid #e5e7eb;
-    border-top:5px solid #2563eb;
-    border-radius:50%;
-    animation:spin .8s linear infinite;
-    margin-bottom:20px;
+.spinner {
+  width: 45px;
+  height: 45px;
+  border: 5px solid #e5e7eb;
+  border-top: 5px solid #f57c00;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin-bottom: 20px;
 }
 
-@keyframes spin{
-    to{
-        transform:rotate(360deg);
-    }
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-@media(max-width:768px){
+/* ─── Modal ──────────────────────────────────────────────────────────── */
+.faculty-room-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
 
-    .faculty-room-grid{
-        grid-template-columns:1fr;
-    }
+.faculty-room-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  overflow: hidden;
+}
 
-    .room-change{
-        flex-direction:column;
-    }
+.faculty-room-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
 
-    .faculty-room-actions{
-        flex-direction:column;
-    }
+.faculty-room-modal-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
 
-    .reject-btn,
-    .approve-btn{
-        width:100%;
-    }
+.faculty-room-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+}
 
+.faculty-room-modal-body {
+  padding: 24px;
+}
+
+.faculty-room-modal-body p {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  color: #6b7280;
+}
+
+.faculty-room-modal-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.faculty-room-modal-textarea:focus {
+  border-color: #f57c00;
+}
+
+.faculty-room-modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px 24px;
+  justify-content: flex-end;
+  border-top: 1px solid #f3f4f6;
+}
+
+.faculty-room-modal-cancel,
+.faculty-room-modal-confirm {
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  font-family: 'Lexend', sans-serif;
+}
+
+.faculty-room-modal-cancel {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.faculty-room-modal-cancel:hover {
+  background: #e5e7eb;
+}
+
+.faculty-room-modal-confirm {
+  background: #dc2626;
+  color: #fff;
+}
+
+.faculty-room-modal-confirm:hover {
+  background: #b91c1c;
+}
+
+@media (max-width: 768px) {
+  .faculty-room-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .room-change {
+    flex-direction: column;
+  }
+
+  .faculty-room-actions {
+    flex-direction: column;
+  }
+
+  .reject-btn,
+  .approve-btn {
+    width: 100%;
+  }
+}
+
+/* ─── Modal reason presets ──────────────────────────────────────────── */
+.faculty-room-reason-group {
+  margin-bottom: 16px;
+}
+
+.faculty-room-reason-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.faculty-room-reason-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.2s;
+  appearance: none;
+  cursor: pointer;
+}
+
+.faculty-room-reason-select:focus {
+  border-color: #f57c00;
+}
+
+.faculty-room-reason-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fef9e7;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #6b7280;
+  margin-top: 12px;
+}
+
+.faculty-room-reason-note i {
+  color: #f57c00;
+  margin-top: 2px;
 }

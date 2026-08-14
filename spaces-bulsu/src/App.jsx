@@ -63,13 +63,14 @@ import FacultyReservations from "./Faculty/FacultyReservations/FacultyReservatio
 import FacultyEditPendingReservations from "./Faculty/FacultyReservations/FacultyEditPendingReservation";
 import FacultySubmitReservation from "./Faculty/FacultyReservations/FacultySubmitReservation";
 import FacultyViewApprovedReservation from "./Faculty/FacultyReservations/FacultyViewApprovedReservation";
+import FacultyViewCancelledReservation from "./Faculty/FacultyReservations/FacultyViewCancelledReservation";
 import FacultyViewPendingReservation from "./Faculty/FacultyReservations/FacultyViewPendingReservation";
 import FacultyRoom from "./Faculty/FacultyRoom/FacultyRoom";
 import FacultySchedule from "./Faculty/FacultySchedule/FacultySchedule";
 import FacultyViewRoom from "./Faculty/FacultyRoom/FacultyViewRoom";
 import FacultyRoomReassignment from "./Faculty/FacultyLayout/FacultyRoomReassignment";
 import FacultyViewDenied from "./Faculty/FacultyReservations/FacultyViewDeniedReservation";
-
+import FacultySettings from "./Faculty/FacultySettings/FacultySettings";
 //Login
 import Login from "./Login/Login";
 import BroadcastChannel from "./Components/BroadcastChannel/BroadcastChannel";
@@ -166,6 +167,8 @@ function App() {
           <Route path="view-pending-reservation" element={<FacultyViewPendingReservation />}/>
           <Route path="edit-pending-reservation" element={<FacultyEditPendingReservations />}/>
           <Route path="view-denied-reservation" element={<FacultyViewDenied/>}/>
+          <Route path="view-cancelled-reservation" element={<FacultyViewCancelledReservation />} />
+          <Route path="settings" element={<FacultySettings />} />
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
         </Route>
 

@@ -22,14 +22,12 @@ import Toast from "../../Popup/Toast/Toast";
 // ─── Cloudinary constants ─────────────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "dzu1qb8oz";
 const CLOUDINARY_UPLOAD_PRESET = "SpacesCICT";
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB (Cloudinary free tier limit)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-// ─── Upload to Cloudinary (supports any file type) ────────────────────
 async function uploadToCloudinary(file, folder) {
-  // Check file size before uploading
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(
-      `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 10MB limit. Please compress or use a smaller file.`
+      `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 10MB limit.`
     );
   }
 
@@ -40,25 +38,18 @@ async function uploadToCloudinary(file, folder) {
 
   const isImage = file.type?.startsWith("image/");
   const resourceType = isImage ? "image" : "raw";
-
   const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
 
   const res = await fetch(endpoint, { method: "POST", body: formData });
-
   if (!res.ok) {
     const errorText = await res.text();
     let errorMessage = `Upload failed: ${res.status}`;
     try {
       const errorJson = JSON.parse(errorText);
-      if (errorJson.error?.message) {
-        errorMessage = errorJson.error.message;
-      }
-    } catch (e) {
-      // ignore
-    }
+      if (errorJson.error?.message) errorMessage = errorJson.error.message;
+    } catch (e) {}
     throw new Error(errorMessage);
   }
-
   const data = await res.json();
   return data.secure_url;
 }
@@ -80,8 +71,7 @@ const getFileIcon = (fileName = "") => {
   if (["ppt", "pptx"].includes(ext)) return "fa-solid fa-file-powerpoint";
   if (["zip", "rar", "7z"].includes(ext)) return "fa-solid fa-file-zipper";
   if (["txt"].includes(ext)) return "fa-solid fa-file-lines";
-  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext))
-    return "fa-solid fa-file-image";
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "fa-solid fa-file-image";
   return "fa-solid fa-file";
 };
 
@@ -134,9 +124,8 @@ export default function BroadcastChannel() {
   const [recipient, setRecipient] = useState("All Staffs");
   const [userRole, setUserRole] = useState("");
   const [senderName, setSenderName] = useState("");
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [usersMap, setUsersMap] = useState({});
@@ -161,9 +150,7 @@ export default function BroadcastChannel() {
   const showToast = (type, title, msg) => {
     setToast({ show: true, type, title, message: msg });
     if (type !== "loading") {
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, show: false }));
-      }, 4000);
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
     }
   };
 
@@ -177,9 +164,7 @@ export default function BroadcastChannel() {
         if (snap.exists()) {
           const data = snap.data();
           setUserRole(data.role || "");
-          setSenderName(
-            `${data.firstName || ""} ${data.lastName || ""}`.trim()
-          );
+          setSenderName(`${data.firstName || ""} ${data.lastName || ""}`.trim());
         }
       } catch (err) {
         console.error(err);
@@ -235,18 +220,6 @@ export default function BroadcastChannel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
 
-  // ─── Image preview ─────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!selectedImage) {
-      setImagePreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(selectedImage);
-    setImagePreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [selectedImage]);
-
   // ─── Link preview ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -257,7 +230,6 @@ export default function BroadcastChannel() {
         setFetchingPreview(false);
         return;
       }
-
       setFetchingPreview(true);
       try {
         const preview = await fetchLinkPreview(urls[0]);
@@ -269,7 +241,6 @@ export default function BroadcastChannel() {
         setFetchingPreview(false);
       }
     };
-
     const timer = setTimeout(fetchPreview, 700);
     return () => clearTimeout(timer);
   }, [message]);
@@ -300,6 +271,28 @@ export default function BroadcastChannel() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // ─── Attachment handlers ────────────────────────────────────────────
+
+  const handleImageSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedImages((prev) => [...prev, ...files]);
+    e.target.value = "";
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles((prev) => [...prev, ...files]);
+    e.target.value = "";
+  };
+
+  const removeImage = (index) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeFile = (index) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   // ─── Send Message ─────────────────────────────────────────────────────
 
   const sendMessage = async () => {
@@ -308,19 +301,17 @@ export default function BroadcastChannel() {
       return;
     }
 
-    if (!message.trim() && !selectedImage && !selectedFile) return;
+    if (!message.trim() && selectedImages.length === 0 && selectedFiles.length === 0) return;
 
     setUploading(true);
 
     try {
-      let imageUrl = "";
-      let fileUrl = "";
-      let fileName = "";
-      let fileType = "";
-
-      if (selectedImage) {
+      // Upload images
+      const imageUrls = [];
+      for (const img of selectedImages) {
         try {
-          imageUrl = await uploadToCloudinary(selectedImage, "broadcast-images");
+          const url = await uploadToCloudinary(img, "broadcast-images");
+          imageUrls.push(url);
         } catch (err) {
           showToast("error", "Image Upload Failed", err.message);
           setUploading(false);
@@ -328,11 +319,12 @@ export default function BroadcastChannel() {
         }
       }
 
-      if (selectedFile) {
+      // Upload files
+      const filesData = [];
+      for (const file of selectedFiles) {
         try {
-          fileUrl = await uploadToCloudinary(selectedFile, "broadcast-files");
-          fileName = selectedFile.name;
-          fileType = selectedFile.type;
+          const url = await uploadToCloudinary(file, "broadcast-files");
+          filesData.push({ url, name: file.name, type: file.type });
         } catch (err) {
           showToast("error", "File Upload Failed", err.message);
           setUploading(false);
@@ -342,12 +334,9 @@ export default function BroadcastChannel() {
 
       const previewData = linkPreview;
 
-      const broadcastRef = await addDoc(collection(db, "broadcastChannels"), {
+      // Build data object – keep both single and multi for backward compatibility
+      const data = {
         content: message,
-        imageUrl,
-        fileUrl,
-        fileName,
-        fileType,
         senderId: auth.currentUser.uid,
         senderName,
         senderRole: userRole,
@@ -355,7 +344,35 @@ export default function BroadcastChannel() {
         createdAt: serverTimestamp(),
         reactions: { like: [], love: [] },
         linkPreview: previewData || null,
-      });
+      };
+
+      // Single image (for old display)
+      if (imageUrls.length === 1) {
+        data.imageUrl = imageUrls[0];
+      } else if (imageUrls.length > 1) {
+        data.imageUrl = imageUrls[0]; // fallback
+      }
+
+      if (imageUrls.length > 0) {
+        data.imageUrls = imageUrls;
+      }
+
+      // Single file (for old display)
+      if (filesData.length === 1) {
+        data.fileUrl = filesData[0].url;
+        data.fileName = filesData[0].name;
+        data.fileType = filesData[0].type;
+      } else if (filesData.length > 1) {
+        data.fileUrl = filesData[0].url;
+        data.fileName = filesData[0].name;
+        data.fileType = filesData[0].type;
+      }
+
+      if (filesData.length > 0) {
+        data.files = filesData;
+      }
+
+      const broadcastRef = await addDoc(collection(db, "broadcastChannels"), data);
 
       // ─── Notifications ──────────────────────────────────────────
 
@@ -377,7 +394,7 @@ export default function BroadcastChannel() {
               broadcastId: broadcastRef.id,
               title: "New Announcement",
               message: `${senderName} posted a new announcement.`,
-              imageUrl,
+              imageUrl: imageUrls.length ? imageUrls[0] : null,
               type: "broadcast",
               unread: true,
               archived: false,
@@ -400,16 +417,16 @@ export default function BroadcastChannel() {
         target: recipient,
         status: "SUCCESS",
         details: {
-          message: message.trim() || (selectedImage ? "Image Attachment" : selectedFile ? fileName : "Announcement"),
-          hasImage: !!imageUrl,
-          hasFile: !!fileUrl,
+          message: message.trim() || (imageUrls.length ? "Image Attachments" : filesData.length ? "File Attachments" : "Announcement"),
+          imageCount: imageUrls.length,
+          fileCount: filesData.length,
           hasLink: !!previewData,
         },
       });
 
       setMessage("");
-      setSelectedImage(null);
-      setSelectedFile(null);
+      setSelectedImages([]);
+      setSelectedFiles([]);
       setLinkPreview(null);
       showToast("success", "Sent", "Announcement published successfully!");
     } catch (err) {
@@ -420,7 +437,7 @@ export default function BroadcastChannel() {
     }
   };
 
-  // ─── Togglable Reactions ───────────────────────────────────────────
+  // ─── Reactions & Unsend ────────────────────────────────────────────
 
   const toggleReaction = async (id, type) => {
     try {
@@ -432,16 +449,12 @@ export default function BroadcastChannel() {
       const hasReacted = uids.includes(auth.currentUser?.uid);
 
       await updateDoc(messageRef, {
-        [`reactions.${type}`]: hasReacted
-          ? arrayRemove(auth.currentUser.uid)
-          : arrayUnion(auth.currentUser.uid),
+        [`reactions.${type}`]: hasReacted ? arrayRemove(auth.currentUser.uid) : arrayUnion(auth.currentUser.uid),
       });
     } catch (err) {
       console.error(err);
     }
   };
-
-  // ─── Unsend ─────────────────────────────────────────────────────────
 
   const unsendMessage = async (id) => {
     try {
@@ -497,7 +510,8 @@ export default function BroadcastChannel() {
     return !sameDay || diffMinutes >= 20;
   };
 
-  const canSend = !uploading && (message.trim() || selectedImage || selectedFile);
+  const canSend =
+    !uploading && (message.trim() || selectedImages.length > 0 || selectedFiles.length > 0);
 
   // ─── File display component ─────────────────────────────────────────
 
@@ -506,9 +520,9 @@ export default function BroadcastChannel() {
 
     const icon = getFileIcon(fileName);
     const color = getFileColor(fileName);
-
-    // Add fl_attachment=0 to force inline display (not download)
-  const viewUrl = fileUrl.includes('?') ? `${fileUrl}&fl_attachment=0` : `${fileUrl}?fl_attachment=0`;
+    const viewUrl = fileUrl.includes("?")
+      ? `${fileUrl}&fl_attachment=0`
+      : `${fileUrl}?fl_attachment=0`;
 
     return (
       <div className="bc-file-attachment">
@@ -519,7 +533,7 @@ export default function BroadcastChannel() {
           <span className="bc-file-name">{fileName || "File"}</span>
           <div className="bc-file-actions">
             <a
-              href={fileUrl}
+              href={viewUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="bc-file-action-btn view"
@@ -586,6 +600,11 @@ export default function BroadcastChannel() {
             const loveUids = msg.reactions?.love ?? [];
             const iLiked = likeUids.includes(auth.currentUser?.uid);
             const iLoved = loveUids.includes(auth.currentUser?.uid);
+
+            // Determine which images to show (array first, fallback to single)
+            const imageUrls = msg.imageUrls || (msg.imageUrl ? [msg.imageUrl] : []);
+            // Determine which files to show (array first, fallback to single)
+            const files = msg.files || (msg.fileUrl ? [{ url: msg.fileUrl, name: msg.fileName || "File", type: msg.fileType || "" }] : []);
 
             return (
               <div key={msg.id}>
@@ -672,19 +691,28 @@ export default function BroadcastChannel() {
                       className={`bc-bubble ${isMine ? "bc-bubble-right" : "bc-bubble-left"}`}
                       title={formatTimestamp(msg.createdAt)}
                     >
-                      {/* ─── IMAGE ──────────────────────────────────── */}
-                      {msg.imageUrl && (
-                        <img
-                          src={msg.imageUrl}
-                          alt="attachment"
-                          className="bc-image"
-                          onClick={() => setLightboxImage(msg.imageUrl)}
-                        />
+                      {/* ─── IMAGES ──────────────────────────────────── */}
+                      {imageUrls.length > 0 && (
+                        <div className="bc-images-grid">
+                          {imageUrls.map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt={`attachment ${i}`}
+                              className="bc-image"
+                              onClick={() => setLightboxImage(url)}
+                            />
+                          ))}
+                        </div>
                       )}
 
-                      {/* ─── FILE ───────────────────────────────────── */}
-                      {msg.fileUrl && !msg.imageUrl && (
-                        <FileAttachment fileUrl={msg.fileUrl} fileName={msg.fileName} />
+                      {/* ─── FILES ───────────────────────────────────── */}
+                      {files.length > 0 && (
+                        <div className="bc-files-list">
+                          {files.map((file, i) => (
+                            <FileAttachment key={i} fileUrl={file.url} fileName={file.name} />
+                          ))}
+                        </div>
                       )}
 
                       {/* ─── LINK PREVIEW ───────────────────────────── */}
@@ -697,20 +725,12 @@ export default function BroadcastChannel() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           {msg.linkPreview.image && (
-                            <img
-                              src={msg.linkPreview.image}
-                              alt=""
-                              className="bc-link-image"
-                            />
+                            <img src={msg.linkPreview.image} alt="" className="bc-link-image" />
                           )}
                           <div className="bc-link-content">
-                            <strong className="bc-link-title">
-                              {msg.linkPreview.title}
-                            </strong>
+                            <strong className="bc-link-title">{msg.linkPreview.title}</strong>
                             {msg.linkPreview.description && (
-                              <span className="bc-link-description">
-                                {msg.linkPreview.description}
-                              </span>
+                              <span className="bc-link-description">{msg.linkPreview.description}</span>
                             )}
                             <span className="bc-link-url">{msg.linkPreview.url}</span>
                           </div>
@@ -744,9 +764,7 @@ export default function BroadcastChannel() {
                                 👍 {likeUids.length}
                               </button>
                               {likeUids.length > 0 && (
-                                <div className="bc-reaction-tooltip">
-                                  {getReactorNames(likeUids)}
-                                </div>
+                                <div className="bc-reaction-tooltip">{getReactorNames(likeUids)}</div>
                               )}
                             </div>
                           )}
@@ -759,25 +777,17 @@ export default function BroadcastChannel() {
                                 ❤️ {loveUids.length}
                               </button>
                               {loveUids.length > 0 && (
-                                <div className="bc-reaction-tooltip">
-                                  {getReactorNames(loveUids)}
-                                </div>
+                                <div className="bc-reaction-tooltip">{getReactorNames(loveUids)}</div>
                               )}
                             </div>
                           )}
                         </>
                       ) : (
                         <>
-                          <button
-                            className="bc-reaction-btn"
-                            onClick={() => toggleReaction(msg.id, "like")}
-                          >
+                          <button className="bc-reaction-btn" onClick={() => toggleReaction(msg.id, "like")}>
                             👍 0
                           </button>
-                          <button
-                            className="bc-reaction-btn"
-                            onClick={() => toggleReaction(msg.id, "love")}
-                          >
+                          <button className="bc-reaction-btn" onClick={() => toggleReaction(msg.id, "love")}>
                             ❤️ 0
                           </button>
                         </>
@@ -795,49 +805,39 @@ export default function BroadcastChannel() {
       {/* COMPOSER */}
       {userRole === "Department Head" && (
         <div className="bc-composer">
-          {(selectedImage || selectedFile) && (
+          {/* ─── Attachments preview ────────────────────────────────── */}
+          {(selectedImages.length > 0 || selectedFiles.length > 0) && (
             <div className="bc-attachments-preview">
-              {selectedImage && (
-                <div className="bc-attachment-chip">
-                  {imagePreviewUrl && (
-                    <img src={imagePreviewUrl} alt="" className="bc-attachment-thumb" />
-                  )}
-                  <span>{selectedImage.name}</span>
-                  <button
-                    className="bc-remove-attachment"
-                    onClick={() => setSelectedImage(null)}
-                    aria-label="Remove image"
-                  >
+              {selectedImages.map((img, idx) => (
+                <div key={`img-${idx}`} className="bc-attachment-chip">
+                  <img src={URL.createObjectURL(img)} alt="" className="bc-attachment-thumb" />
+                  <span>{img.name}</span>
+                  <button className="bc-remove-attachment" onClick={() => removeImage(idx)}>
                     <i className="fa-solid fa-xmark"></i>
                   </button>
                 </div>
-              )}
-
-              {selectedFile && (
-                <div className="bc-attachment-chip">
+              ))}
+              {selectedFiles.map((file, idx) => (
+                <div key={`file-${idx}`} className="bc-attachment-chip">
                   <i className="fa-solid fa-file"></i>
-                  <span>{selectedFile.name}</span>
-                  <button
-                    className="bc-remove-attachment"
-                    onClick={() => setSelectedFile(null)}
-                    aria-label="Remove file"
-                  >
+                  <span>{file.name}</span>
+                  <button className="bc-remove-attachment" onClick={() => removeFile(idx)}>
                     <i className="fa-solid fa-xmark"></i>
                   </button>
                 </div>
-              )}
+              ))}
             </div>
           )}
 
           {/* ─── Link preview in composer ──────────────────────────── */}
-          {fetchingPreview && !selectedImage && !selectedFile && (
+          {fetchingPreview && selectedImages.length === 0 && selectedFiles.length === 0 && (
             <div className="bc-composer-link-preview bc-composer-link-loading">
               <div className="bc-spinner-small" />
               <span>Loading preview…</span>
             </div>
           )}
 
-          {linkPreview && !selectedImage && !selectedFile && (
+          {linkPreview && selectedImages.length === 0 && selectedFiles.length === 0 && (
             <div className="bc-composer-link-preview">
               {linkPreview.image && (
                 <img src={linkPreview.image} alt="" className="bc-composer-link-image" />
@@ -847,10 +847,7 @@ export default function BroadcastChannel() {
                 {linkPreview.description && <span>{linkPreview.description}</span>}
                 <span className="bc-composer-link-url">{linkPreview.url}</span>
               </div>
-              <button
-                className="bc-composer-link-remove"
-                onClick={() => setLinkPreview(null)}
-              >
+              <button className="bc-composer-link-remove" onClick={() => setLinkPreview(null)}>
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
@@ -859,28 +856,26 @@ export default function BroadcastChannel() {
           <div className="bc-toolbar">
             <div className="bc-toolbar-left">
               <button onClick={() => fileRef.current.click()} disabled={uploading} type="button">
-                <i className="fa-solid fa-paperclip"></i>
-                Attach
+                <i className="fa-solid fa-paperclip"></i> Attach
               </button>
-
               <input
                 ref={fileRef}
                 type="file"
+                multiple
                 hidden
-                onChange={(e) => setSelectedFile(e.target.files[0])}
+                onChange={handleFileSelect}
               />
 
               <button onClick={() => imageRef.current.click()} disabled={uploading} type="button">
-                <i className="fa-regular fa-image"></i>
-                Image
+                <i className="fa-regular fa-image"></i> Image
               </button>
-
               <input
                 ref={imageRef}
                 type="file"
                 accept="image/*"
+                multiple
                 hidden
-                onChange={(e) => setSelectedImage(e.target.files[0])}
+                onChange={handleImageSelect}
               />
             </div>
 
@@ -922,16 +917,14 @@ export default function BroadcastChannel() {
               disabled={!canSend}
               aria-label="Send announcement"
             >
-              {uploading ? (
-                <span className="bc-spinner" />
-              ) : (
-                <i className="fa-solid fa-paper-plane"></i>
-              )}
+              {uploading ? <span className="bc-spinner" /> : <i className="fa-solid fa-paper-plane"></i>}
             </button>
           </div>
 
           <div className="bc-note">
-            {uploading ? "Uploading…" : "Only Department Heads can publish announcements. Enter to send, Shift+Enter for a new line."}
+            {uploading
+              ? "Uploading…"
+              : "Only Department Heads can publish announcements. Enter to send, Shift+Enter for a new line."}
           </div>
         </div>
       )}
