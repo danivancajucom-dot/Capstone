@@ -442,7 +442,7 @@ export default function FacultyDashboard({ onLogout }) {
                 <i className="fa-solid fa-calendar-day"></i>
                 <div>
                   <strong>{todaysItems.length}</strong>
-                  <span>class{todaysItems.length === 1 ? "" : "es"} today</span>
+                  <span>Class{todaysItems.length === 1 ? "" : "es"} Today</span>
                 </div>
               </div>
 
@@ -450,7 +450,7 @@ export default function FacultyDashboard({ onLogout }) {
                 <i className="fa-solid fa-layer-group"></i>
                 <div>
                   <strong>{latestSchedules.length}</strong>
-                  <span>meetings / week</span>
+                  <span>Meetings / Week</span>
                 </div>
               </div>
 
@@ -458,7 +458,7 @@ export default function FacultyDashboard({ onLogout }) {
                 <i className="fa-solid fa-door-open"></i>
                 <div>
                   <strong>{roomsThisWeek}</strong>
-                  <span>room{roomsThisWeek === 1 ? "" : "s"} used</span>
+                  <span>Room{roomsThisWeek === 1 ? "" : "s"} Used</span>
                 </div>
               </div>
 
@@ -467,7 +467,7 @@ export default function FacultyDashboard({ onLogout }) {
                   <i className="fa-solid fa-hourglass-half"></i>
                   <div>
                     <strong>{formatCountdown(nextClass.occurrence, now)}</strong>
-                    <span>next: {nextClass.subject}</span>
+                    <span>Next: {nextClass.subject}</span>
                   </div>
                 </div>
               )}

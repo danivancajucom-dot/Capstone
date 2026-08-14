@@ -1299,3 +1299,31 @@
     animation: none;
   }
 }
+/* ─── Image grid ──────────────────────────────────── */
+.bc-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.bc-images-grid .bc-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: zoom-in;
+  transition: filter 0.15s;
+}
+
+.bc-images-grid .bc-image:hover {
+  filter: brightness(0.94);
+}
+
+/* ─── Files list ──────────────────────────────────── */
+.bc-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}

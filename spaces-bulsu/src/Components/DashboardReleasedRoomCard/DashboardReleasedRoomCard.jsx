@@ -1,11 +1,20 @@
 import "./dashboard-released-room-card.css";
 
-function DashboardReleasedRoomCard() {
+function DashboardReleasedRoomCard({
+  room,
+  name,
+  time,
+  subject,
+  ago,
+  image,
+  onClick,
+}) {
   return (
-    <div className="dashboard-released-room-card">
+    <div className="dashboard-released-room-card" onClick={onClick}>
       <div className="released-room-info">
-        <span className="released-room-name">Room Name - Course Title</span>
-        <span className="released-room-time">Finished m early</span>
+        <span className="released-room-name">{room} - {subject}</span>
+        <span className="released-room-time">{time} • {ago}</span>
+        <span className="released-room-faculty">{name}</span>
       </div>
       <i className="fa-solid fa-chevron-right released-room-arrow"></i>
     </div>

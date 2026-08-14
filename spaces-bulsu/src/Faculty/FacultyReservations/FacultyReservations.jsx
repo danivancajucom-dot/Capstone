@@ -10,6 +10,9 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 
+// ─── Helper: normalize status case-insensitively ──────────────────────
+const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
+
 function FacultyReservations() {
   const [activeTab, setActiveTab] = useState("all");
   const navigate = useNavigate();
@@ -49,10 +52,12 @@ function FacultyReservations() {
 
   // ── Filter ──────────────────────────────────────────────────────────
   const filteredReservations = reservations.filter((res) => {
+    const status = normalizeStatus(res.status);
     if (activeTab === "all") return true;
-    if (activeTab === "pending") return res.status === "Pending";
-    if (activeTab === "approved") return res.status === "Approved";
-    if (activeTab === "denied") return res.status === "Rejected";
+    if (activeTab === "pending") return status === "pending";
+    if (activeTab === "approved") return status === "approved";
+    if (activeTab === "denied") return status === "rejected";
+    if (activeTab === "cancelled") return status === "cancelled";
     return true;
   });
 
@@ -62,6 +67,7 @@ function FacultyReservations() {
       Pending: { label: "Pending", className: "pending" },
       Approved: { label: "Approved", className: "approved" },
       Rejected: { label: "Denied", className: "denied" },
+      Cancelled: { label: "Cancelled", className: "cancelled" },
     };
     return map[status] || { label: status, className: "" };
   };
@@ -70,6 +76,7 @@ function FacultyReservations() {
     if (status === "Pending") return "fa-regular fa-clock";
     if (status === "Approved") return "fa-regular fa-circle-check";
     if (status === "Rejected") return "fa-regular fa-circle-xmark";
+    if (status === "Cancelled") return "fa-solid fa-ban";
     return "fa-regular fa-circle";
   };
 
@@ -77,15 +84,18 @@ function FacultyReservations() {
     if (status === "Pending") return "#f59e0b";
     if (status === "Approved") return "#22c55e";
     if (status === "Rejected") return "#ef4444";
+    if (status === "Cancelled") return "#6b7280";
     return "#64748b";
   };
 
   const getViewRoute = (status) => {
-    if (status === "Pending") return "/faculty/view-pending-reservation";
-    if (status === "Approved") return "/faculty/view-approved-reservation";
-    if (status === "Rejected") return "/faculty/view-denied-reservation";
-    return "/faculty/view-reservation";
-  };
+  const normalized = normalizeStatus(status);
+  if (normalized === "pending") return "/faculty/view-pending-reservation";
+  if (normalized === "approved") return "/faculty/view-approved-reservation";
+  if (normalized === "rejected") return "/faculty/view-denied-reservation";
+  if (normalized === "cancelled") return "/faculty/view-cancelled-reservation";
+  return "/faculty/view-reservation";
+};
 
   // ── Render ──────────────────────────────────────────────────────────
 
@@ -101,7 +111,7 @@ function FacultyReservations() {
       <div className="faculty-reservations-box">
         {/* ── Tabs ──────────────────────────────────────────────── */}
         <div className="faculty-reservations-nav">
-          {["all", "pending", "approved", "denied"].map((tab) => (
+          {["all", "pending", "approved", "denied", "cancelled"].map((tab) => (
             <div
               key={tab}
               className={`faculty-nav-item ${activeTab === tab ? "active" : ""}`}
@@ -138,6 +148,7 @@ function FacultyReservations() {
               {activeTab === "pending" && "No Pending Reservations"}
               {activeTab === "approved" && "No Approved Reservations"}
               {activeTab === "denied" && "No Denied Reservations"}
+              {activeTab === "cancelled" && "No Cancelled Reservations"}
             </h2>
             <p>
               {activeTab === "all" &&
@@ -148,6 +159,8 @@ function FacultyReservations() {
                 "You don't have any approved reservations yet."}
               {activeTab === "denied" &&
                 "You don't have any denied reservation requests."}
+              {activeTab === "cancelled" &&
+                "You don't have any cancelled reservations."}
             </p>
             {activeTab === "all" && (
               <button

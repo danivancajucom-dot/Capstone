@@ -24,7 +24,7 @@ transform:rotate(45deg);
 border-radius:3px;
 }
 
-/* -- anchored below the header button (bell/logout) -- */
+/* -- anchored below the header button -- */
 .account-menu-panel.anchor-header{
 top:calc(100% + 16px);
 right:-8px;
@@ -67,8 +67,8 @@ padding:12px 10px;
 width:46px;
 height:46px;
 border-radius:50%;
-background:#FEF0E7;
-color:#f57c00;
+background:var(--fs-accent-soft, #FEF0E7);
+color:var(--fs-accent, #f57c00);
 display:flex;
 align-items:center;
 justify-content:center;
@@ -142,12 +142,12 @@ font-size:14.5px;
 }
 
 .account-menu-item:hover{
-background:#FEF0E7;
-color:#f57c00;
+background:var(--fs-accent-soft, #FEF0E7);
+color:var(--fs-accent, #f57c00);
 }
 
 .account-menu-item:hover i{
-color:#f57c00;
+color:var(--fs-accent, #f57c00);
 }
 
 .account-menu-item.account-menu-logout{

@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap');
+
+.fs-page {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 24px;
+  font-family: 'Lexend', sans-serif;
+}
+
+.fs-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 30px 40px 36px 40px;
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fs-header h2 {
+  font-size: 19px;
+  color: #16213e;
+  margin-bottom: 4px;
+}
+
+.fs-header p {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ── Fields ───────────────────────────────────────────────────────────────── */
+
+.fs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fs-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.fs-input {
+  padding: 14px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  color: #374151;
+  background: #fafaf9;
+  outline: none;
+  width: 100%;
+}
+
+.fs-field-hint {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.fs-reset-password-btn {
+  padding: 13px 16px;
+  border: none;
+  border-radius: 10px;
+  background-color: var(--fs-accent, #f57c00);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: .2s;
+}
+
+.fs-reset-password-btn:hover:not(:disabled) {
+  background: var(--fs-accent-soft, #fff3e8);
+  border: solid 1px var(--fs-accent, #f57c00);
+  color: var(--fs-accent, #f57c00);
+}
+
+.fs-reset-password-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ── Theme picker ─────────────────────────────────────────────────────────── */
+
+.fs-theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.fs-theme-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'Lexend', sans-serif;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+
+.fs-theme-card:hover {
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+}
+
+.fs-theme-card.active {
+  border-color: var(--fs-accent, #f57c00);
+  background: var(--fs-accent-soft, #FEF0E7);
+}
+
+.fs-theme-swatches {
+  display: flex;
+  gap: -4px;
+}
+
+.fs-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #e5e7eb;
+  margin-left: -8px;
+}
+
+.fs-swatch:first-child {
+  margin-left: 0;
+}
+
+.fs-swatch-white {
+  background: #ffffff;
+}
+
+.fs-theme-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fs-theme-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #16213e;
+}
+
+.fs-theme-desc {
+  font-size: 11.5px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.fs-theme-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--fs-accent, #f57c00);
+  font-size: 16px;
+}
+
+@media (max-width: 560px) {
+  .fs-theme-grid { grid-template-columns: 1fr; }
+  .fs-card { padding: 24px 22px 30px 22px; }
+}

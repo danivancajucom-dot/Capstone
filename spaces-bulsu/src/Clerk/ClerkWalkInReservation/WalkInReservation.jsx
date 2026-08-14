@@ -18,7 +18,6 @@ import Toast from "../../Popup/Toast/Toast";
 import { useNavigate } from "react-router-dom";
 
 // ─── Constants ───────────────────────────────────────────────────────
-const TODAY = new Date().toISOString().split("T")[0];
 const MIN_HOUR = 7; // 7:00 AM
 const MAX_HOUR = 20; // 8:00 PM
 
@@ -111,6 +110,9 @@ export default function WalkInReservation() {
   const [showModal, setShowModal] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
 
+  // ─── NEW: selected date (default to today) ──────────────────────
+  const [selectedDate, setSelectedDate] = useState(getTodayLocal());
+
   const [form, setForm] = useState({
     requesterType: "",
     requesterId: "",
@@ -120,14 +122,13 @@ export default function WalkInReservation() {
     customPurpose: "",
     course: "",
     yearSectionGroup: "",
-    studentRange: "", // Added for attendees count
-    date: TODAY,
+    studentRange: "",
+    date: getTodayLocal(),
     duration: "",
     endTime: "",
     startTime: "",
   });
 
-  const today = getTodayLocal();
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const currentTime = useMemo(() => {
@@ -138,9 +139,9 @@ export default function WalkInReservation() {
     );
   }, []);
 
-  // ─── Listeners ──────────────────────────────────────────────────
+  // ─── Listeners (depend on selectedDate) ───────────────────────────
 
-  // 1. Rooms
+  // 1. Rooms (always)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "rooms"), (snap) => {
       const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -167,51 +168,57 @@ export default function WalkInReservation() {
     return () => unsubs.forEach((u) => u());
   }, [rooms.map((r) => r.id).join(",")]);
 
-  // 3. Events (room activities)
+  // ─── 3–6: Listeners for the selected date ─────────────────────────
   useEffect(() => {
-    const q = query(collection(db, "events"), where("date", "==", today));
-    const unsub = onSnapshot(q, (snap) => {
+    if (!selectedDate) return;
+    setLoadingSchedule(true);
+
+    // Events
+    const qEvents = query(collection(db, "events"), where("date", "==", selectedDate));
+    const unsubEvents = onSnapshot(qEvents, (snap) => {
       setEvents(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       setLoadingSchedule(false);
     });
-    return unsub;
-  }, [today]);
 
-  // 4. Approved reservations (case‑insensitive)
-  useEffect(() => {
-    const q = query(
+    // Reservations (approved)
+    const qRes = query(
       collection(db, "reservationRequests"),
-      where("date", "==", today),
+      where("date", "==", selectedDate)
     );
-    const unsub = onSnapshot(q, (snap) => {
+    const unsubRes = onSnapshot(qRes, (snap) => {
       const data = snap.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((r) => normalize(r.status) === "approved");
       setReservations(data);
     });
-    return unsub;
-  }, [today]);
 
-  // 5. Room releases
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "roomReleases"), (snap) => {
+    // Releases
+    const unsubReleases = onSnapshot(collection(db, "roomReleases"), (snap) => {
       setReleases(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
-    return unsub;
-  }, []);
 
-  // 6. Room reassignments (approved only)
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "roomReassignments"), (snap) => {
+    // Reassignments (approved)
+    const unsubReassign = onSnapshot(collection(db, "roomReassignments"), (snap) => {
       const data = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((r) => normalize(r.status) === "approved");
       setReassignments(data);
     });
-    return unsub;
-  }, []);
 
-  // ─── Build busy items for a room on a given date ────────────────
+    return () => {
+      unsubEvents();
+      unsubRes();
+      unsubReleases();
+      unsubReassign();
+    };
+  }, [selectedDate]);
+
+  // ─── Build busy items for a room on the selected date ─────────────
+
+  const getDayAbbrev = (dateStr) => {
+    const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    return days[new Date(dateStr).getDay()];
+  };
 
   const getBusyItemsForRoom = (roomId, date, dayAbbrev) => {
     const items = [];
@@ -281,24 +288,25 @@ export default function WalkInReservation() {
     );
   };
 
-  // ─── Available Rooms ──────────────────────────────────────────────
-
-  const getDayAbbrev = () => {
-    const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-    return days[new Date(today).getDay()];
-  };
+  // ─── Available Rooms (based on selectedDate) ──────────────────────
 
   const availableRooms = useMemo(() => {
-    const dayAbbrev = getDayAbbrev();
-    const start = currentMinutes;
+    const dayAbbrev = getDayAbbrev(selectedDate);
+    const isToday = selectedDate === getTodayLocal();
+
+    // For future dates, start from 7:00 AM; for today, start from current time (if after 7, else 7)
+    let start = MIN_HOUR * 60;
+    if (isToday) {
+      start = Math.max(currentMinutes, MIN_HOUR * 60);
+    }
 
     return rooms
       .map((room) => {
-        if (isRoomUnderMaintenance(room, today, currentTime, currentTime)) {
+        if (isRoomUnderMaintenance(room, selectedDate, "07:00", "20:00")) {
           return null;
         }
 
-        const busy = getBusyItemsForRoom(room.id, today, dayAbbrev);
+        const busy = getBusyItemsForRoom(room.id, selectedDate, dayAbbrev);
         const occupied = busy.find(
           (item) =>
             start >= convertToMinutes(item.startTime) &&
@@ -309,7 +317,7 @@ export default function WalkInReservation() {
         const nextBusy = busy.find(
           (item) => convertToMinutes(item.startTime) > start,
         );
-        const availableUntil = nextBusy ? nextBusy.startTime : "23:59";
+        const availableUntil = nextBusy ? nextBusy.startTime : "20:00";
 
         const maxAllowedEnd = Math.min(
           convertToMinutes(availableUntil),
@@ -332,27 +340,36 @@ export default function WalkInReservation() {
     reservations,
     releases,
     reassignments,
-    today,
+    selectedDate,
     currentMinutes,
-    currentTime,
   ]);
 
-  // ─── Live Availability (for right panel) ─────────────────────────
+  // ─── Live Availability (based on selectedDate, full day 7am‑8pm) ──
 
   const liveAvailability = useMemo(() => {
-    const dayAbbrev = getDayAbbrev();
+    const dayAbbrev = getDayAbbrev(selectedDate);
+    const fullDayStart = MIN_HOUR * 60;
+    const fullDayEnd = MAX_HOUR * 60;
+
     return rooms.map((room) => {
-      if (isRoomUnderMaintenance(room, today, currentTime, currentTime)) {
+      if (isRoomUnderMaintenance(room, selectedDate, "07:00", "20:00")) {
         return { ...room, maintenance: true, available: false };
       }
 
-      const busy = getBusyItemsForRoom(room.id, today, dayAbbrev);
+      const busy = getBusyItemsForRoom(room.id, selectedDate, dayAbbrev);
 
-      const current = busy.find(
-        (item) =>
-          currentMinutes >= convertToMinutes(item.startTime) &&
-          currentMinutes < convertToMinutes(item.endTime),
-      );
+      // For the live display, we consider the whole day (7am‑8pm)
+      // Check if currently occupied at any point? For the "live" feel, we check at the current time only if today.
+      // But for future dates, we just show the schedule.
+      const isToday = selectedDate === getTodayLocal();
+      let current = null;
+      if (isToday) {
+        current = busy.find(
+          (item) =>
+            currentMinutes >= convertToMinutes(item.startTime) &&
+            currentMinutes < convertToMinutes(item.endTime),
+        );
+      }
 
       if (current) {
         const nextReservation = busy.find(
@@ -365,19 +382,22 @@ export default function WalkInReservation() {
           maintenance: false,
           available: false,
           nextAvailable: current.endTime,
-          nextBusyStart: nextReservation ? nextReservation.startTime : "23:59",
+          nextBusyStart: nextReservation ? nextReservation.startTime : "20:00",
         };
       }
 
+      // Not currently occupied (or future date)
       const upcoming = busy.find(
-        (item) => convertToMinutes(item.startTime) > currentMinutes,
+        (item) =>
+          convertToMinutes(item.startTime) >
+          (isToday ? currentMinutes : fullDayStart),
       );
       return {
         ...room,
         maintenance: false,
         available: true,
-        availableFrom: currentTime,
-        availableUntil: upcoming ? upcoming.startTime : "23:59",
+        availableFrom: isToday ? convertToTime(currentMinutes) : "07:00",
+        availableUntil: upcoming ? upcoming.startTime : "20:00",
       };
     });
   }, [
@@ -387,12 +407,11 @@ export default function WalkInReservation() {
     reservations,
     releases,
     reassignments,
-    today,
+    selectedDate,
     currentMinutes,
-    currentTime,
   ]);
 
-  // ─── Available duration slots (no 4-hour cap) ─────────────────────
+  // ─── Available duration slots ─────────────────────────────────────
 
   useEffect(() => {
     if (!selectedRoom) {
@@ -406,8 +425,8 @@ export default function WalkInReservation() {
       return;
     }
 
-    const dayAbbrev = getDayAbbrev();
-    const busy = getBusyItemsForRoom(selectedRoom.id, today, dayAbbrev);
+    const dayAbbrev = getDayAbbrev(selectedDate);
+    const busy = getBusyItemsForRoom(selectedRoom.id, selectedDate, dayAbbrev);
 
     let nextBusy = MAX_HOUR * 60;
     busy.forEach((item) => {
@@ -440,7 +459,7 @@ export default function WalkInReservation() {
   }, [
     selectedRoom,
     form.startTime,
-    today,
+    selectedDate,
     roomSchedules,
     events,
     reservations,
@@ -453,12 +472,12 @@ export default function WalkInReservation() {
   const selectRoom = (room) => {
     setSelectedRoom(room);
 
-    const nowMinutes = currentMinutes;
-    const startMins = Math.max(nowMinutes, MIN_HOUR * 60);
+    const isToday = selectedDate === getTodayLocal();
+    let startMins = isToday ? Math.max(currentMinutes, MIN_HOUR * 60) : MIN_HOUR * 60;
     const startTime = convertToTime(startMins);
 
-    const dayAbbrev = getDayAbbrev();
-    const busy = getBusyItemsForRoom(room.id, today, dayAbbrev);
+    const dayAbbrev = getDayAbbrev(selectedDate);
+    const busy = getBusyItemsForRoom(room.id, selectedDate, dayAbbrev);
     let nextBusy = MAX_HOUR * 60;
     busy.forEach((item) => {
       const busyStart = convertToMinutes(item.startTime);
@@ -510,7 +529,7 @@ export default function WalkInReservation() {
   const validate = () => {
     if (!selectedRoom) return "Please select a room.";
     if (
-      isRoomUnderMaintenance(selectedRoom, today, form.startTime, form.endTime)
+      isRoomUnderMaintenance(selectedRoom, selectedDate, form.startTime, form.endTime)
     ) {
       return "This room is under maintenance and cannot be reserved.";
     }
@@ -533,11 +552,13 @@ export default function WalkInReservation() {
       return "Reservations can only start from 7:00 AM.";
     if (end > MAX_HOUR * 60) return "Reservations must end before 8:00 PM.";
     if (start >= end) return "End time must be after start time.";
-    if (start < currentMinutes && today === TODAY)
+
+    const isToday = selectedDate === getTodayLocal();
+    if (isToday && start < currentMinutes)
       return "You cannot reserve a past time today.";
 
-    const dayAbbrev = getDayAbbrev();
-    const busy = getBusyItemsForRoom(selectedRoom.id, today, dayAbbrev);
+    const dayAbbrev = getDayAbbrev(selectedDate);
+    const busy = getBusyItemsForRoom(selectedRoom.id, selectedDate, dayAbbrev);
     const conflict = busy.find((item) =>
       overlap(form.startTime, form.endTime, item.startTime, item.endTime),
     );
@@ -615,7 +636,7 @@ export default function WalkInReservation() {
           roomId: selectedRoom.id,
           roomName: selectedRoom.roomName,
           floor: selectedRoom.floor,
-          date: today,
+          date: selectedDate, // ← use selectedDate
           startTime: form.startTime,
           endTime: form.endTime,
           duration: Number(form.duration),
@@ -630,7 +651,7 @@ export default function WalkInReservation() {
       // Notify all clerks and department heads
       await notifyClerkAndDepartmentHead(
         "Walk-In Reservation Created",
-        `${form.requesterName} created a walk-in reservation for ${selectedRoom.roomName} today from ${form.startTime} to ${form.endTime}.`,
+        `${form.requesterName} created a walk-in reservation for ${selectedRoom.roomName} on ${selectedDate} from ${form.startTime} to ${form.endTime}.`,
         reservationRef.id,
       );
 
@@ -641,7 +662,7 @@ export default function WalkInReservation() {
           ownerType: "clerk",
           reservationId: reservationRef.id,
           title: "Walk-In Reservation Created",
-          message: `You successfully created a walk-in reservation for ${selectedRoom.roomName} (${form.startTime} - ${form.endTime}).`,
+          message: `You successfully created a walk-in reservation for ${selectedRoom.roomName} (${form.startTime} - ${form.endTime}) on ${selectedDate}.`,
           type: "walk-in-created",
           unread: true,
           archived: false,
@@ -650,16 +671,18 @@ export default function WalkInReservation() {
         });
       }
 
-      // Update room status if currently within reservation
-      const start = convertToMinutes(form.startTime);
-      const end = convertToMinutes(form.endTime);
-      if (currentMinutes >= start && currentMinutes < end) {
-        await updateDoc(doc(db, "rooms", selectedRoom.id), {
-          status: "Occupied",
-        });
+      // Update room status if currently within reservation (only if today)
+      if (selectedDate === getTodayLocal()) {
+        const start = convertToMinutes(form.startTime);
+        const end = convertToMinutes(form.endTime);
+        if (currentMinutes >= start && currentMinutes < end) {
+          await updateDoc(doc(db, "rooms", selectedRoom.id), {
+            status: "Occupied",
+          });
+        }
       }
 
-      // Activity log (department heads will see this)
+      // Activity log
       await logActivity({
         userId: firebaseUser?.uid || "",
         user: clerkName,
@@ -671,7 +694,7 @@ export default function WalkInReservation() {
         details: {
           reservationId: reservationRef.id,
           requester: form.requesterName,
-          date: today,
+          date: selectedDate,
           startTime: form.startTime,
           endTime: form.endTime,
           purpose: form.customPurpose || form.purpose,
@@ -696,16 +719,11 @@ export default function WalkInReservation() {
         customPurpose: "",
         requesterType: "",
         purpose: "",
-        date: TODAY,
+        date: selectedDate,
         duration: "",
         endTime: "",
         startTime: "",
       });
-
-      // Navigate or stay
-      setTimeout(() => {
-        // Optionally navigate to reservations list
-      }, 1500);
     } catch (err) {
       console.error(err);
       showToast("error", "Error", err.message || "Failed to save reservation.");
@@ -892,6 +910,21 @@ export default function WalkInReservation() {
               Room And Schedule
             </div>
 
+            {/* ─── Date picker (editable) ────────────────────────────── */}
+            <div className="wir-field">
+              <label>Select Date</label>
+              <div className="wir-icon-input">
+                <i className="fa-regular fa-calendar" />
+                <input
+                  type="date"
+                  className="wir-plain-input"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  min={getTodayLocal()}
+                />
+              </div>
+            </div>
+
             <div className="wir-slots-header">
               <span className="wir-slots-label">Available Room Slots</span>
               <div className="wir-floor-pill">
@@ -905,7 +938,7 @@ export default function WalkInReservation() {
                 <div className="wir-inline-loading">Loading rooms...</div>
               ) : availableRooms.length === 0 ? (
                 <div className="wir-inline-loading">
-                  No rooms available now.
+                  No rooms available on {selectedDate}.
                 </div>
               ) : (
                 availableRooms.map((room) => (
@@ -926,7 +959,11 @@ export default function WalkInReservation() {
                     <div className="wir-room-card-info">
                       <div>
                         <span>Start</span>
-                        <strong>{formatTime12(currentTime)}</strong>
+                        <strong>
+                          {selectedDate === getTodayLocal()
+                            ? formatTime12(currentTime)
+                            : "07:00 AM"}
+                        </strong>
                       </div>
                       <div>
                         <span>Until</span>
@@ -947,18 +984,7 @@ export default function WalkInReservation() {
             </div>
 
             <div className="wir-row" style={{ marginTop: 20 }}>
-              <div className="wir-field">
-                <label>Date</label>
-                <div className="wir-icon-input">
-                  <i className="fa-regular fa-calendar" />
-                  <input
-                    type="date"
-                    className="wir-plain-input"
-                    value={today}
-                    readOnly
-                  />
-                </div>
-              </div>
+              {/* Date removed from here (moved above) */}
 
               {selectedRoom && availableSlots.length > 0 && (
                 <div className="wir-max-duration">
@@ -1042,9 +1068,12 @@ export default function WalkInReservation() {
               </div>
             </div>
 
+            {/* ─── Live Availability Panel (now shows selected date) ── */}
             <div className="wir-availability-card">
               <div className="wir-avail-header">
-                <span className="wir-avail-title">Live Availability</span>
+                <span className="wir-avail-title">
+                  Availability for {selectedDate}
+                </span>
                 <span className="wir-live-dot" />
               </div>
 
@@ -1053,8 +1082,8 @@ export default function WalkInReservation() {
                   <h4>Today's Schedule</h4>
                   {getBusyItemsForRoom(
                     selectedRoom.id,
-                    today,
-                    getDayAbbrev(),
+                    selectedDate,
+                    getDayAbbrev(selectedDate),
                   ).map((item) => (
                     <div
                       key={item.source + item.startTime}
@@ -1071,7 +1100,7 @@ export default function WalkInReservation() {
               )}
 
               <div className="wir-avail-date">
-                {new Date().toLocaleDateString("en-US", {
+                {new Date(selectedDate).toLocaleDateString("en-US", {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
@@ -1134,7 +1163,7 @@ export default function WalkInReservation() {
                           <div className="live-info-row">
                             <span>Available Again</span>
                             <strong>
-                              {room.nextBusyStart === "23:59"
+                              {room.nextBusyStart === "20:00"
                                 ? `${formatTime12(room.nextAvailable)} onwards`
                                 : `${formatTime12(room.nextAvailable)} - ${formatTime12(
                                     room.nextBusyStart,

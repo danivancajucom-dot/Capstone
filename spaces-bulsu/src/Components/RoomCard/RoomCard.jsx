@@ -1,5 +1,20 @@
 import "./room-card.css";
 
+// Helper: convert 24-hour time string (e.g., "14:30") to 12-hour format with AM/PM
+function formatTo12Hour(timeStr) {
+  if (!timeStr) return "";
+
+  // Try parsing as "HH:MM" or "HH:MM:SS"
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return timeStr; // fallback: return as-is
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2];
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minute} ${ampm}`;
+}
+
 function RoomCard({ room, onViewSchedule, onReserve }) {
   return (
     <div className="room-card">
@@ -60,7 +75,7 @@ function RoomCard({ room, onViewSchedule, onReserve }) {
             ) : (
               <>
                 <i className="fa-solid fa-clock"></i>
-                Occupied until {room.occupiedUntil}
+                Occupied until {formatTo12Hour(room.occupiedUntil)}
               </>
             )}
 

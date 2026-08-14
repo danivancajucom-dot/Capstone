@@ -7,18 +7,23 @@
   background-color: #E9FAEF;
   cursor: pointer;
   margin-top: 15px;
+  transition: background 0.2s;
+}
+
+.dashboard-released-room-card:hover {
+  background-color: #d4f0dc;
 }
 
 .released-room-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .released-room-name {
   font-size: 14px;
   font-weight: 700;
-  color: #333333;
+  color: #1a1a1a;
 }
 
 .released-room-time {
@@ -26,7 +31,14 @@
   color: #64748B;
 }
 
+.released-room-faculty {
+  font-size: 12px;
+  color: #4a5568;
+  font-weight: 500;
+}
+
 .released-room-arrow {
   color: #16A34A;
   font-size: 14px;
+  flex-shrink: 0;
 }

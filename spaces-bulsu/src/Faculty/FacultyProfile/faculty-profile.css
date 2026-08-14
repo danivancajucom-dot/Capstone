@@ -7,23 +7,63 @@
   font-family: 'Lexend', sans-serif;
 }
 
-/* ── Header and Description ──────────────────────────────────────────────── */
-
 html, body {
   width: 100%;
   height: 100%;
-  overflow: hidden;
 }
 
 .up-page {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 55px 24px 0 24px;
+  padding: 40px 24px 40px 24px;
 }
+
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+
+.up-tabs {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  max-width: 580px;
+  background: #fff;
+  padding: 6px;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  margin-bottom: 16px;
+}
+
+.up-tabs button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 12px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  font-family: 'Lexend', sans-serif;
+  transition: .18s;
+}
+
+.up-tabs button:hover {
+  background: #f5f6fa;
+}
+
+.up-tabs button.active {
+  background: var(--fs-accent, #F97316);
+  color: #fff;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────────── */
 
 .up-card {
   background: #ffffff;
@@ -37,7 +77,31 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 24px;
-  margin-top: -20px;
+}
+
+.up-card-activity {
+  align-items: stretch;
+  padding: 30px 32px 36px 32px;
+}
+
+.up-header {
+  width: 100%;
+  text-align: left;
+}
+
+.up-card:not(.up-card-activity) .up-header {
+  text-align: center;
+}
+
+.up-header h2 {
+  font-size: 20px;
+  color: #16213e;
+  margin-bottom: 4px;
+}
+
+.up-header p {
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .up-edit-btn {
@@ -57,7 +121,7 @@ html, body {
   justify-content: center;
   transition: all 0.15s;
 }
-.up-edit-btn:hover { border-color: #F97316; color: #F97316; }
+.up-edit-btn:hover { border-color: var(--fs-accent, #F97316); color: var(--fs-accent, #F97316); }
 
 /* ── Avatar ──────────────────────────────────────────────────────────────── */
 
@@ -91,10 +155,9 @@ html, body {
 .up-avatar-initials {
   font-size: 2.2rem;
   font-weight: 800;
-  color: #F97316;
+  color: var(--fs-accent, #F97316);
 }
 
-/* Camera overlay button */
 .up-avatar-camera {
   position: absolute;
   bottom: 2px;
@@ -102,7 +165,7 @@ html, body {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #F97316;
+  background: var(--fs-accent, #F97316);
   color: #fff;
   border: 2px solid #fff;
   display: flex;
@@ -113,13 +176,13 @@ html, body {
   transition: background 0.2s;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
-.up-avatar-camera:hover:not(:disabled) { background: #ea6c0a; }
+.up-avatar-camera:hover:not(:disabled) { background: var(--fs-accent-hover, #ea6c0a); }
 .up-avatar-camera:disabled { opacity: 0.7; cursor: not-allowed; }
 
 /* ── Upload button & feedback ─────────────────────────────────────────────── */
 
 .up-upload-btn {
-  background: #F97316;
+  background: var(--fs-accent, #F97316);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -135,7 +198,7 @@ html, body {
   justify-content: center;
   gap: 8px;
 }
-.up-upload-btn:hover { background: #ea6c0a; }
+.up-upload-btn:hover { background: var(--fs-accent-hover, #ea6c0a); }
 
 .up-remove-photo-btn {
   background: transparent;
@@ -166,7 +229,7 @@ html, body {
 
 .up-upload-progress {
   font-size: 13px;
-  color: #F97316;
+  color: var(--fs-accent, #F97316);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -209,42 +272,21 @@ html, body {
   width: 100%;
 }
 .up-input:read-only { background: #fff; cursor: default; }
-.up-input:not(:read-only):focus { border-color: #F97316; }
+.up-input:not(:read-only):focus { border-color: var(--fs-accent, #F97316); }
 
-.up-reset-password-btn {
-  padding: 12px 16px;
-  border: none;
-  border-radius: 10px;
-  background-color: #f57c00;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: 'Lexend', sans-serif;
-  cursor: pointer;
-  box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.2);
-  transition: .2s;
-  height: 52px;
-}
-.up-reset-password-btn:hover {
-  background: #fff3e8;
-  border: solid 1px #f57c00;
-  color: #f57c00;
-}
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 
 .up-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 16px;
   width: 100%;
-  max-width: 580px;
 }
 
 .up-cancel-btn {
   background: transparent;
-  color: #F97316;
-  border: 1.5px solid #F97316;
+  color: var(--fs-accent, #F97316);
+  border: 1.5px solid var(--fs-accent, #F97316);
   padding: 12px 28px;
   border-radius: 10px;
   font-size: 14px;
@@ -253,10 +295,10 @@ html, body {
   cursor: pointer;
   transition: background 0.2s;
 }
-.up-cancel-btn:hover { background: #FEF0E7; }
+.up-cancel-btn:hover { background: var(--fs-accent-soft, #FEF0E7); }
 
 .up-save-btn {
-  background: #F97316;
+  background: var(--fs-accent, #F97316);
   color: #fff;
   border: none;
   padding: 12px 28px;
@@ -267,5 +309,182 @@ html, body {
   cursor: pointer;
   transition: background 0.2s;
 }
-.up-save-btn:hover:not(:disabled) { background: #ea6c0a; }
+.up-save-btn:hover:not(:disabled) { background: var(--fs-accent-hover, #ea6c0a); }
 .up-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Activity Log ─────────────────────────────────────────────────────────── */
+
+.up-activity-loading {
+  font-size: 13px;
+  color: #9ca3af;
+  padding: 20px 0;
+}
+
+.up-activity-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 50px 20px;
+  gap: 6px;
+}
+
+.up-activity-empty-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--fs-accent-soft, #FEF0E7);
+  border: 1.5px dashed var(--fs-accent-border, #f6c396);
+  color: var(--fs-accent, #F97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+.up-activity-empty h4 {
+  font-size: 15px;
+  color: #16213e;
+}
+
+.up-activity-empty p {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.up-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.up-activity-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #f0ece8;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.up-activity-item:hover {
+  background: #fafafa;
+  border-color: #e5e0da;
+}
+
+.up-activity-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--fs-accent-soft, #FEF0E7);
+  color: var(--fs-accent, #F97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.up-activity-icon.is-failed {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.up-activity-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.up-activity-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.up-activity-action {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #16213e;
+}
+
+.up-activity-status {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.up-activity-status.is-success {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.up-activity-status.is-failed {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.up-activity-target {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 3px 0;
+}
+
+.up-activity-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* ── User management temp password styles (kept — used elsewhere) ───────── */
+
+.um-pw-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.um-pw-value {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #374151;
+  letter-spacing: 0.05em;
+}
+
+.um-pw-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.um-pw-toggle:hover { color: #374151; background: #f3f4f6; }
+
+.um-pw-reset-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.um-pw-na {
+  color: #d1d5db;
+  font-size: 1rem;
+}
+
+@media (max-width: 500px) {
+  .up-card { padding: 2rem 1.5rem; }
+  .up-tabs button span { display: none; }
+}
