@@ -56,11 +56,6 @@ function DepartmentHeadViewReservationCancelled() {
 
   return (
     <div className="dh-cancelled-reservation-room">
-      <i
-        className="fa-solid fa-arrow-left dh-cancelled-back-arrow"
-        onClick={() => navigate(-1)}
-        style={{ cursor: "pointer", fontSize: "20px", marginBottom: "12px" }}
-      ></i>
 
       <div className="dh-white-box-cancelled">
         <h2 className="dh-cancelled-title">Cancelled Reservation Details</h2>

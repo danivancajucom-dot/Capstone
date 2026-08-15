@@ -16,16 +16,15 @@
 
 .dph-reservations h1 {
   margin: 0;
-  font-size: 32px;
+  font-size: 35px;
   font-weight: 800;
-  color: #1E2430;
-  letter-spacing: -0.02em;
 }
 
 .dph-reservations-subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: #64748B;
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 300;
 }
 
 .dph-white-box-reservations {
@@ -252,7 +251,6 @@
   background: #ffffff;
   border-radius: 14px;
   padding: 16px 20px;
-  margin-bottom: 16px;
   border: 1px solid #ECEAE6;
   box-shadow: 0px 2px 8px rgba(20, 20, 20, 0.04);
   display: flex;

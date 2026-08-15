@@ -350,11 +350,6 @@ export default function RoomUsageTracking() {
                 />
               </div>
             </div>
-
-            <button className="rut-track-btn" onClick={loadRooms}>
-              <i className="fa-solid fa-arrows-rotate" />
-              Refresh
-            </button>
           </div>
 
           <div className="rut-analytics">

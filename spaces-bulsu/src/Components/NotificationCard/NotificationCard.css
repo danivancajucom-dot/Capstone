@@ -78,6 +78,32 @@
   min-width: 0;
 }
 
+.notification-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-card-view {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: #f57c00;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Lexend', sans-serif;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: .2s;
+}
+
+.notification-card-view:hover {
+  background: #FEF0E7;
+}
+
 .notification-card-header h3 {
   margin: 0;
   font-size: 15px;

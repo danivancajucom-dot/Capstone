@@ -1,4 +1,5 @@
 import "./NotificationCard.css";
+import { useNavigate } from "react-router-dom";
 
 export default function NotificationCard({
   icon,
@@ -11,7 +12,10 @@ export default function NotificationCard({
   archived = false,
   onClick,
   onArchive,
+  assignmentId,
 }) {
+  const navigate = useNavigate();
+
   return (
     <div
       className={`notification-card ${type} ${unread ? "is-unread" : ""}`}
@@ -38,19 +42,35 @@ export default function NotificationCard({
         <div className="notification-card-footer">
           <span className="notification-card-time">{time}</span>
 
-          {!archived && onArchive && (
-            <button
-              type="button"
-              className="notification-card-archive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onArchive();
-              }}
-            >
-              <i className="fa-solid fa-box-archive"></i>
-              <span>Archive</span>
-            </button>
-          )}
+          <div className="notification-card-actions">
+            {type === "room-reassignment" && assignmentId && (
+              <button
+                type="button"
+                className="notification-card-view"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/faculty/room-reassignment/${assignmentId}`);
+                }}
+              >
+                <i className="fa-solid fa-eye"></i>
+                <span>View</span>
+              </button>
+            )}
+
+            {!archived && onArchive && (
+              <button
+                type="button"
+                className="notification-card-archive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArchive();
+                }}
+              >
+                <i className="fa-solid fa-box-archive"></i>
+                <span>Archive</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
