@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./bulk-schedule-upload4.css";
 import ConfirmPopup from "../../../Popup/ConfirmPopup/ConfirmPopup";
@@ -11,7 +11,6 @@ import {
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-
 import { auth, db } from "../../../firebase";
 
 const steps = [
@@ -75,16 +74,10 @@ const sendNotification = async (userId, ownerType, title, message, type, badge =
 export default function BulkScheduleUpload4() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  const { semester, schoolYear, room } = location.state || {};
-  const rawSchedules = useMemo(() => location.state?.schedules || [], [location.state]);
+  const { semester, schoolYear, allRoomsData } = location.state || {};
 
   const [showModal, setShowModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-
-  // ─── Toast state ──────────────────────────────────────────────────
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -95,13 +88,10 @@ export default function BulkScheduleUpload4() {
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
     if (type !== "loading") {
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, show: false }));
-      }, 4000);
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
     }
   };
 
-  // ─── Activity log ─────────────────────────────────────────────────
   const logActivity = async ({ userId, user, role, action, actionType, target, status }) => {
     try {
       await addDoc(collection(db, "activityLogs"), {
@@ -119,28 +109,12 @@ export default function BulkScheduleUpload4() {
     }
   };
 
-  // ─── Confirm upload ──────────────────────────────────────────────
   const handleConfirm = async () => {
     if (isSaving) return;
-
     setIsSaving(true);
-    setErrorMessage("");
     showToast("loading", "Uploading", "Saving schedules...");
 
     try {
-      // Find room document
-      const roomQuery = query(
-        collection(db, "rooms"),
-        where("roomName", "==", room)
-      );
-      const roomSnapshot = await getDocs(roomQuery);
-      if (roomSnapshot.empty) {
-        showToast("error", "Error", "Room not found.");
-        return;
-      }
-      const roomDoc = roomSnapshot.docs[0];
-      const roomId = roomDoc.id;
-
       // Get current user
       const currentUser = auth.currentUser;
       let currentUserData = {
@@ -148,12 +122,8 @@ export default function BulkScheduleUpload4() {
         user: "Unknown User",
         role: "",
       };
-
       if (currentUser) {
-        const userQuery = query(
-          collection(db, "users"),
-          where("email", "==", currentUser.email)
-        );
+        const userQuery = query(collection(db, "users"), where("email", "==", currentUser.email));
         const userSnapshot = await getDocs(userQuery);
         if (!userSnapshot.empty) {
           const userDoc = userSnapshot.docs[0].data();
@@ -165,12 +135,18 @@ export default function BulkScheduleUpload4() {
         }
       }
 
-      // Save schedules
-      const savedSchedules = [];
-      for (const schedule of rawSchedules) {
-        const docRef = await addDoc(
-          collection(db, "rooms", roomId, "schedules"),
-          {
+      // For each room, save schedules
+      const allSaved = [];
+      for (const roomData of allRoomsData) {
+        const { room, schedules } = roomData;
+        const roomQuery = query(collection(db, "rooms"), where("roomName", "==", room));
+        const roomSnapshot = await getDocs(roomQuery);
+        if (roomSnapshot.empty) continue;
+        const roomDoc = roomSnapshot.docs[0];
+        const roomId = roomDoc.id;
+
+        for (const schedule of schedules) {
+          const docRef = await addDoc(collection(db, "rooms", roomId, "schedules"), {
             subject: schedule.subject || "",
             section: schedule.section || "",
             faculty: schedule.faculty || "TBA",
@@ -180,58 +156,51 @@ export default function BulkScheduleUpload4() {
             semester,
             schoolYear,
             createdAt: serverTimestamp(),
-          }
-        );
-        savedSchedules.push({ ...schedule, docId: docRef.id });
+          });
+          allSaved.push({ room, ...schedule, docId: docRef.id });
+        }
       }
 
-      // ─── Activity log ──────────────────────────────────────────
+      // Activity log
       await logActivity({
         userId: currentUserData.userId,
         user: currentUserData.user,
         role: currentUserData.role,
-        action: "Uploaded Schedule",
+        action: "Uploaded Bulk Schedules",
         actionType: "CREATE",
-        target: `${rawSchedules.length} schedules for ${room} (${semester}, ${schoolYear})`,
+        target: `${allSaved.length} schedules across ${allRoomsData.length} rooms (${semester}, ${schoolYear})`,
         status: "SUCCESS",
       });
 
-      // ─── Notifications ─────────────────────────────────────────
-
-      // 1. Notify each faculty
-      const facultyNotified = [];
-      for (const schedule of savedSchedules) {
-        const facultyName = schedule.faculty;
-        if (!facultyName || facultyName === "TBA") continue;
-
+      // Notify faculty (deduplicated)
+      const facultySet = new Set();
+      for (const s of allSaved) {
+        if (s.faculty && s.faculty !== "TBA") facultySet.add(s.faculty);
+      }
+      for (const facultyName of facultySet) {
         const facultyUser = await findUserByName(facultyName);
         if (facultyUser && facultyUser.id) {
           await sendNotification(
             facultyUser.id,
             "faculty",
             "New Schedule Uploaded",
-            `A schedule for "${schedule.subject}" (${schedule.day} ${formatTime12Hour(schedule.startTime)}-${formatTime12Hour(schedule.endTime)}) has been uploaded for ${room}.`,
+            `A schedule has been uploaded for ${facultyName}.`,
             "schedule-upload",
             "NEW"
           );
-          facultyNotified.push(facultyName);
-        } else {
-          console.warn(`Faculty not found: ${facultyName}`);
         }
       }
 
-      // 2. Notify all department heads
-      const deptHeadsSnap = await getDocs(
-        query(collection(db, "users"), where("role", "==", "department-head"))
-      );
+      // Notify department heads
+      const deptHeadsSnap = await getDocs(query(collection(db, "users"), where("role", "==", "department-head")));
       const deptHeadNotifications = [];
       deptHeadsSnap.forEach((doc) => {
         deptHeadNotifications.push(
           sendNotification(
             doc.id,
             "department-head",
-            "New Schedule Upload",
-            `${currentUserData.user} uploaded ${rawSchedules.length} schedules for ${room} (${semester}, ${schoolYear}).`,
+            "New Bulk Schedule Upload",
+            `${currentUserData.user} uploaded ${allSaved.length} schedules for ${allRoomsData.length} rooms (${semester}, ${schoolYear}).`,
             "schedule-upload",
             "INFO"
           )
@@ -239,50 +208,39 @@ export default function BulkScheduleUpload4() {
       });
       await Promise.all(deptHeadNotifications);
 
-      // 3. Notify local registrar (self)
+      // Notify self
       if (currentUserData.userId) {
         await sendNotification(
           currentUserData.userId,
           "local-registrar",
-          "Schedule Upload Complete",
-          `You successfully uploaded ${rawSchedules.length} schedules for ${room} (${semester}, ${schoolYear}).`,
+          "Bulk Upload Complete",
+          `You successfully uploaded ${allSaved.length} schedules for ${allRoomsData.length} rooms.`,
           "schedule-upload",
           "SUCCESS"
         );
       }
 
-      // ─── Success ──────────────────────────────────────────────
-      showToast(
-        "success",
-        "Upload Complete",
-        `${rawSchedules.length} schedules uploaded successfully.`
-      );
-
-      setTimeout(() => {
-        navigate("/local-registrar");
-      }, 1500);
+      showToast("success", "Upload Complete", `${allSaved.length} schedules uploaded across ${allRoomsData.length} rooms.`);
+      setTimeout(() => navigate("/local-registrar"), 1500);
     } catch (error) {
-      console.error("Upload error:", error);
+      console.error(error);
       showToast("error", "Upload Failed", error.message || "Something went wrong.");
-      setErrorMessage(error.message || "Something went wrong.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ─── Early return if no data ──────────────────────────────────────
-  if (!location.state) {
+  if (!location.state || !allRoomsData) {
     return (
       <div className="bulk-upload-page-four">
         <h2>No data to confirm.</h2>
-        <button onClick={() => navigate("/local-registrar/bulk-upload-2")}>
-          Start Over
-        </button>
+        <button onClick={() => navigate("/local-registrar/bulk-upload-2")}>Start Over</button>
       </div>
     );
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────
+  const totalSchedules = allRoomsData.reduce((acc, r) => acc + r.schedules.length, 0);
+  const roomNames = allRoomsData.map((r) => r.room).join(", ");
 
   return (
     <div className="bulk-upload-page-four">
@@ -291,7 +249,6 @@ export default function BulkScheduleUpload4() {
         <p>Confirm extracted schedules before saving.</p>
       </div>
 
-      {/* Stepper */}
       <div className="stepper-four">
         {steps.map((step, index) => (
           <div className="step-wrapper-four" key={step.number}>
@@ -299,24 +256,17 @@ export default function BulkScheduleUpload4() {
               <div className={`step-circle-four ${step.number < 4 ? "completed" : ""} ${step.number === 4 ? "active" : ""}`}>
                 {step.number < 4 ? <i className="fas fa-check" /> : step.number}
               </div>
-              <span className={`step-label-four ${step.number === 4 ? "active" : ""}`}>
-                {step.label}
-              </span>
+              <span className={`step-label-four ${step.number === 4 ? "active" : ""}`}>{step.label}</span>
             </div>
             {index < steps.length - 1 && <div className="step-line-four completed" />}
           </div>
         ))}
       </div>
 
-      {/* Info Card */}
       <div className="form-card-four">
         <div className="info-card">
-          <span className="info-title">Schedule Information</span>
+          <span className="info-title">Upload Summary</span>
           <div className="info-row">
-            <div className="info-group">
-              <span className="info-label">Room</span>
-              <span className="info-value">{room}</span>
-            </div>
             <div className="info-group">
               <span className="info-label">Semester</span>
               <span className="info-value">{semester}</span>
@@ -325,66 +275,56 @@ export default function BulkScheduleUpload4() {
               <span className="info-label">School Year</span>
               <span className="info-value">{schoolYear}</span>
             </div>
+            <div className="info-group">
+              <span className="info-label">Rooms</span>
+              <span className="info-value">{allRoomsData.length}</span>
+            </div>
+            <div className="info-group">
+              <span className="info-label">Total Schedules</span>
+              <span className="info-value">{totalSchedules}</span>
+            </div>
+          </div>
+          <div className="info-group" style={{ marginTop: "8px" }}>
+            <span className="info-label">Room List</span>
+            <span className="info-value">{roomNames}</span>
           </div>
         </div>
 
-        {/* Preview */}
         <div className="bulk4-preview">
           <div className="bulk4-preview-header">
-            <h3>Extracted Schedules</h3>
-            <span className="bulk4-count">{rawSchedules.length} schedules</span>
+            <h3>Schedule Preview</h3>
+            <span className="bulk4-count">{totalSchedules} schedules</span>
           </div>
 
-          <div className="bulk4-grid">
-            {rawSchedules.map((schedule, index) => (
-              <div key={index} className="bulk4-card">
-                <div className="bulk4-card-header">
-                  <h4>{schedule.subject}</h4>
-                  {schedule.section && (
-                    <span className="bulk4-section">{schedule.section}</span>
-                  )}
-                </div>
-                <div className="bulk4-card-body">
-                  <div className="bulk4-item">
-                    <i className="fa-regular fa-calendar"></i>
-                    <span>{schedule.day}</span>
+          {allRoomsData.map((roomData, idx) => (
+            <div key={idx} style={{ marginBottom: "1.5rem" }}>
+              <h4 style={{ marginBottom: "0.5rem" }}>Room: {roomData.room}</h4>
+              <div className="bulk4-grid">
+                {roomData.schedules.map((schedule, sIdx) => (
+                  <div key={sIdx} className="bulk4-card">
+                    <div className="bulk4-card-header">
+                      <h4>{schedule.subject}</h4>
+                      {schedule.section && <span className="bulk4-section">{schedule.section}</span>}
+                    </div>
+                    <div className="bulk4-card-body">
+                      <div className="bulk4-item"><i className="fa-regular fa-calendar" /><span>{schedule.day}</span></div>
+                      <div className="bulk4-item"><i className="fa-regular fa-clock" /><span>{formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)}</span></div>
+                      <div className="bulk4-item"><i className="fa-regular fa-user" /><span>{schedule.faculty || "TBA"}</span></div>
+                    </div>
                   </div>
-                  <div className="bulk4-item">
-                    <i className="fa-regular fa-clock"></i>
-                    <span>
-                      {formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)}
-                    </span>
-                  </div>
-                  <div className="bulk4-item">
-                    <i className="fa-regular fa-user"></i>
-                    <span>{schedule.faculty || "TBA"}</span>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Footer */}
       <div className="bulk-footer-four">
-        <button className="btn-back-four" onClick={() => navigate(-1)}>
-          Back
-        </button>
-        <button className="btn-confirm-four" onClick={() => setShowModal(true)}>
-          Confirm Upload
-        </button>
+        <button className="btn-back-four" onClick={() => navigate(-1)}>Back</button>
+        <button className="btn-confirm-four" onClick={() => setShowModal(true)}>Confirm Upload</button>
       </div>
 
-      {/* Confirm Modal */}
-      {showModal && (
-        <ConfirmPopup
-          onCancel={() => setShowModal(false)}
-          onConfirm={handleConfirm}
-        />
-      )}
-
-      {/* Toast */}
+      {showModal && <ConfirmPopup onCancel={() => setShowModal(false)} onConfirm={handleConfirm} />}
       <Toast
         show={toast.show}
         type={toast.type}

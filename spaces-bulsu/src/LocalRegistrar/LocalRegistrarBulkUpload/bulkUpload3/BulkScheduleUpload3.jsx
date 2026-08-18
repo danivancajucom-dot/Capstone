@@ -1,7 +1,6 @@
 import { useState } from "react";
-import "./bulk-schedule-upload3.css";
 import { useNavigate, useLocation } from "react-router-dom";
-
+import "./bulk-schedule-upload3.css";
 
 const steps = [
   { number: 1, label: "SETUP" },
@@ -34,12 +33,10 @@ const colourPalette = [
   "#6f42c1", "#fd7e14", "#20c997", "#d63384", "#6610f2"
 ];
 
-// ---------- Edit Modal with Section ----------
+// ---------- Edit Schedule Modal (unchanged) ----------
 function EditScheduleModal({ schedule, onSave, onClose }) {
-  const [code, setCode] =
-  useState(schedule.code || "");
-  const [name, setName] =
-  useState(schedule.name || "");
+  const [code, setCode] = useState(schedule.code || "");
+  const [name, setName] = useState(schedule.name || "");
   const [day, setDay] = useState(schedule.day);
   const [startH, setStartH] = useState(schedule.startH);
   const [startM, setStartM] = useState(schedule.startM);
@@ -69,107 +66,52 @@ function EditScheduleModal({ schedule, onSave, onClose }) {
       <div className="modal-LR edit-modal-LR" onClick={(e) => e.stopPropagation()}>
         <div className="edit-modal-LR-scroll">
           <h3>Edit Schedule</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="modal-grid">
-
-            <div className="field-group">
-              <label>Course Code</label>
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="field-group">
-              <label>Day</label>
-              <select
-                value={day}
-                onChange={(e) => setDay(e.target.value)}
-              >
-                {DAYS.map((d, idx) => (
-                  <option key={idx} value={idx + 1}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="time-row">
-              {/* START */}
-              <div className="time-box">
-                <label>Start Time</label>
-
-                <div className="time-inputs">
-                  <input
-                    type="number"
-                    value={startH}
-                    onChange={(e) => setStartH(e.target.value)}
-                  />
-
-                  <span className="time-separator">:</span>
-
-                  <input
-                    type="number"
-                    value={startM}
-                    onChange={(e) => setStartM(e.target.value)}
-                  />
+          <form onSubmit={handleSubmit}>
+            <div className="modal-grid">
+              <div className="field-group">
+                <label>Course Code</label>
+                <input value={code} onChange={(e) => setCode(e.target.value)} required />
+              </div>
+              <div className="field-group">
+                <label>Day</label>
+                <select value={day} onChange={(e) => setDay(e.target.value)}>
+                  {DAYS.map((d, idx) => (
+                    <option key={idx} value={idx + 1}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="time-row">
+                <div className="time-box">
+                  <label>Start Time</label>
+                  <div className="time-inputs">
+                    <input type="number" value={startH} onChange={(e) => setStartH(e.target.value)} />
+                    <span className="time-separator">:</span>
+                    <input type="number" value={startM} onChange={(e) => setStartM(e.target.value)} />
+                  </div>
+                </div>
+                <div className="time-box">
+                  <label>End Time</label>
+                  <div className="time-inputs">
+                    <input type="number" value={endH} onChange={(e) => setEndH(e.target.value)} />
+                    <span className="time-separator">:</span>
+                    <input type="number" value={endM} onChange={(e) => setEndM(e.target.value)} />
+                  </div>
                 </div>
               </div>
-
-              {/* END */}
-              <div className="time-box">
-                <label>End Time</label>
-
-                <div className="time-inputs">
-                  <input
-                    type="number"
-                    value={endH}
-                    onChange={(e) => setEndH(e.target.value)}
-                  />
-
-                  <span className="time-separator">:</span>
-
-                  <input
-                    type="number"
-                    value={endM}
-                    onChange={(e) => setEndM(e.target.value)}
-                  />
-                </div>
+              <div className="field-group">
+                <label>Faculty</label>
+                <input value={faculty} onChange={(e) => setFaculty(e.target.value)} />
+              </div>
+              <div className="field-group">
+                <label>Section</label>
+                <input value={section} onChange={(e) => setSection(e.target.value)} />
               </div>
             </div>
-
-            <div className="field-group">
-              <label>Faculty</label>
-              <input
-                value={faculty}
-                onChange={(e) => setFaculty(e.target.value)}
-              />
+            <div className="modal-actions">
+              <button type="button" onClick={onClose}>Cancel</button>
+              <button type="submit">Save Changes</button>
             </div>
-
-            <div className="field-group">
-              <label>Section</label>
-              <input
-                value={section}
-                onChange={(e) => setSection(e.target.value)}
-              />
-            </div>
-
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button type="submit">
-              Save Changes
-            </button>
-          </div>
-        </form>
+          </form>
         </div>
       </div>
     </div>
@@ -181,10 +123,10 @@ export default function BulkScheduleUpload3() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  if (!location.state) {
+  if (!location.state || !location.state.roomData) {
     return (
       <div className="bulk-upload-page-three">
-        <h2>No session data found.</h2>
+        <h2>No data found.</h2>
         <button className="btn-next-three" onClick={() => navigate("/local-registrar/bulk-upload-2")}>
           Start Again
         </button>
@@ -192,197 +134,116 @@ export default function BulkScheduleUpload3() {
     );
   }
 
-  const {
-  semester,
-  schoolYear,
-  room,
-  schedules: rawSchedules = []
-} = location.state;
+  const { semester, schoolYear, roomData } = location.state;
 
+  // Conversion helpers (unchanged)
   const convertDayToNumber = (day) => {
-      switch (day?.toUpperCase()) {
-        case "MON":
-          return 1;
-        case "TUE":
-          return 2;
-        case "WED":
-          return 3;
-        case "THU":
-          return 4;
-        case "FRI":
-          return 5;
-        case "SAT":
-          return 6;
-        case "SUN":
-          return 7;
-        default:
-          return 1;
-      }
-    };
+    switch (day?.toUpperCase()) {
+      case "MON": return 1;
+      case "TUE": return 2;
+      case "WED": return 3;
+      case "THU": return 4;
+      case "FRI": return 5;
+      case "SAT": return 6;
+      case "SUN": return 7;
+      default: return 1;
+    }
+  };
 
-    const parseTime = (timeStr) => {
+  const parseTime = (timeStr) => {
     if (!timeStr) return [7, 0];
-
-    const cleaned = timeStr
-      .trim()
-      .replace(/\s+/g, " ");
-
-    const match = cleaned.match(
-      /(\d{1,2}):(\d{2})\s*(AM|PM)/i
-    );
-
+    const cleaned = timeStr.trim().replace(/\s+/g, " ");
+    const match = cleaned.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
     if (!match) return [7, 0];
-
     let hour = parseInt(match[1]);
     let minute = parseInt(match[2]);
     const meridian = match[3].toUpperCase();
-
-    if (meridian === "PM" && hour !== 12)
-      hour += 12;
-
-    if (meridian === "AM" && hour === 12)
-      hour = 0;
-
+    if (meridian === "PM" && hour !== 12) hour += 12;
+    if (meridian === "AM" && hour === 12) hour = 0;
     return [hour, minute];
   };
+
   const formatTime12Hour = (hour, minute) => {
     const suffix = hour >= 12 ? "PM" : "AM";
-
     let displayHour = hour % 12;
-
-    if (displayHour === 0)
-      displayHour = 12;
-
+    if (displayHour === 0) displayHour = 12;
     return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
   };
 
   const convertSchedules = (data = []) => {
     return data.map((item, index) => {
-
-      let startH = 7;
-      let startM = 0;
-      let endH = 8;
-      let endM = 0;
-
-      // Excel format
+      let startH = 7, startM = 0, endH = 8, endM = 0;
       if (item.time) {
-
-        const parts =
-        item.time
-          .replace(/\s*-\s*/, "-")
-          .split("-");
-
+        const parts = item.time.replace(/\s*-\s*/, "-").split("-");
         if (parts.length === 2) {
-
-          [startH, startM] =
-            parseTime(parts[0]);
-
-          [endH, endM] =
-            parseTime(parts[1]);
+          [startH, startM] = parseTime(parts[0]);
+          [endH, endM] = parseTime(parts[1]);
         }
-
+      } else if (item.startTime && item.endTime) {
+        [startH, startM] = item.startTime.split(":").map(Number);
+        [endH, endM] = item.endTime.split(":").map(Number);
       }
-
-      // AI format
-      else if (
-        item.startTime &&
-        item.endTime
-      ) {
-
-        [startH, startM] =
-          item.startTime.split(":")
-          .map(Number);
-
-        [endH, endM] =
-          item.endTime.split(":")
-          .map(Number);
-      }
-
       return {
         id: item.id || index + 1,
-
-        code:
-          item.code ||
-          item.subject ||
-          "",
-
-        name:
-          item.name ||
-          item.subject ||
-          "",
-
-        section:
-          item.section ||
-          "",
-
-        faculty:
-          item.faculty ||
-          "TBA",
-
-        day:
-          typeof item.day === "number"
-            ? item.day
-            : convertDayToNumber(item.day),
-
-        startH,
-        startM,
-        endH,
-        endM,
-
-        room:
-          item.room ||
-          room,
-
-        colorIdx:
-          item.colorIdx ??
-          (index % 10)
+        code: item.code || item.subject || "",
+        name: item.name || item.subject || "",
+        section: item.section || "",
+        faculty: item.faculty || "TBA",
+        day: typeof item.day === "number" ? item.day : convertDayToNumber(item.day),
+        startH, startM, endH, endM,
+        room: item.room || "",
+        colorIdx: item.colorIdx ?? (index % 10),
       };
     });
   };
 
-const [schedules, setSchedules] =
-  useState(() =>
-    convertSchedules(rawSchedules)
-  );
+  // Build roomsWithSchedules (only rooms with schedules)
+  const roomsWithSchedules = roomData
+    .filter((data) => data.schedules && data.schedules.length > 0)
+    .map((data) => ({
+      room: data.room,
+      schedules: convertSchedules(data.schedules),
+    }));
+
+  const [currentRoomIndex, setCurrentRoomIndex] = useState(0);
   const [editingSchedule, setEditingSchedule] = useState(null);
-  const [weekOffset, setWeekOffset] = useState(0);
 
-  // Real‑time week dates (Monday to Sunday)
-  const today = new Date();
-  const currentMonday = new Date(today);
-  const dayOfWeek = today.getDay();
-  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  currentMonday.setDate(today.getDate() + daysToMonday);
-  const displayMonday = new Date(currentMonday);
-  displayMonday.setDate(currentMonday.getDate() + weekOffset * 7);
+  if (roomsWithSchedules.length === 0) {
+    return (
+      <div className="bulk-upload-page-three">
+        <h2>No schedules found for any room.</h2>
+        <button className="btn-next-three" onClick={() => navigate("/local-registrar/bulk-upload-2")}>
+          Go Back
+        </button>
+      </div>
+    );
+  }
 
-  const weekEnd = new Date(displayMonday);
-  weekEnd.setDate(displayMonday.getDate() + 6);
-
-  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const weekLabel = `${monthNames[displayMonday.getMonth()]} ${displayMonday.getDate()} - ${weekEnd.getDate()}, ${displayMonday.getFullYear()}`;
-
-  const dayDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(displayMonday);
-    d.setDate(displayMonday.getDate() + i);
-    return d.getDate();
-  });
+  const currentRoomData = roomsWithSchedules[currentRoomIndex];
+  const { room, schedules } = currentRoomData;
 
   const handleUpdateSchedule = (updated) => {
-    setSchedules(prev => prev.map(s => s.id === updated.id ? updated : s));
+    const updatedSchedules = schedules.map((s) => (s.id === updated.id ? updated : s));
+    roomsWithSchedules[currentRoomIndex].schedules = updatedSchedules;
     setEditingSchedule(null);
   };
 
   const totalGridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
 
+  const goPrevRoom = () => {
+    setCurrentRoomIndex((prev) => (prev > 0 ? prev - 1 : roomsWithSchedules.length - 1));
+  };
+  const goNextRoom = () => {
+    setCurrentRoomIndex((prev) => (prev < roomsWithSchedules.length - 1 ? prev + 1 : 0));
+  };
+
   return (
     <div className="bulk-upload-page-three">
       <div className="bulk-header-three">
         <h1>Bulk Schedule Upload</h1>
-        <p>Follow the steps to upload and process schedules.</p>
+        <p>Review schedules per room.</p>
       </div>
 
-      {/* Stepper */}
       <div className="stepper-three">
         {steps.map((step, index) => (
           <div className="step-wrapper-three" key={step.number}>
@@ -399,44 +260,30 @@ const [schedules, setSchedules] =
         ))}
       </div>
 
-      {/* Calendar Card */}
       <div className="form-card-three calendar-card">
         <div className="calendar-header">
-          <div className="week-nav">
-            <i className="fa-solid fa-chevron-left" onClick={() => setWeekOffset(w => w - 1)} />
-            <span>{weekLabel}</span>
-            <i className="fa-solid fa-chevron-right" onClick={() => setWeekOffset(w => w + 1)} />
+          <div className="room-nav">
+            <i className="fa-solid fa-chevron-left" onClick={goPrevRoom} />
+            <span className="room-name-pill">{room}</span>
+            <i className="fa-solid fa-chevron-right" onClick={goNextRoom} />
           </div>
-          <div className="room-pill">
-            {room} 
-          </div>
+          {/* Week navigation removed – no dates displayed */}
         </div>
 
-        {/*
-          Shared horizontal-scroll wrapper: the day-name header and the
-          calendar grid now live inside the SAME scrollable element, so
-          they always move together on small screens instead of the
-          header staying fixed while the grid scrolls underneath it.
-        */}
         <div className="calendar-scroll-x">
-          {/* Day headers */}
           <div className="days-header">
             <div className="time-offset" />
-            {DAYS.map((d, i) => (
+            {DAYS.map((d) => (
               <div className="day-cell" key={d}>
                 <span className="day-name">{d}</span>
-                <span className="day-date">{dayDates[i]}</span>
+                {/* day-date removed – only day name remains */}
               </div>
             ))}
           </div>
           <hr className="days-divider" />
 
-          {/* Scrollable grid (vertical only — horizontal scroll now
-              happens on the wrapper above so it stays synced with the
-              day header) */}
           <div className="scroll-area">
             <div className="cal-grid" style={{ height: totalGridHeight }}>
-              {/* Time column */}
               <div className="time-col">
                 {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => {
                   const h = START_HOUR + i;
@@ -449,18 +296,14 @@ const [schedules, setSchedules] =
                 })}
               </div>
 
-              {/* Day columns */}
               {DAYS.map((_, dayIdx) => {
                 const dayNumber = dayIdx + 1;
-                const daySchedules = schedules.filter(s => s.day === dayNumber);
+                const daySchedules = schedules.filter((s) => s.day === dayNumber);
                 return (
                   <div className="day-col" key={dayIdx} style={{ height: totalGridHeight, position: "relative" }}>
-                    {/* Hour separator lines */}
                     {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
                       <div className="hour-line" key={i} style={{ top: i * HOUR_HEIGHT }} />
                     ))}
-
-                    {/* Schedule blocks */}
                     {daySchedules.map((item) => {
                       const top = getTopFromStart(item.startH, item.startM);
                       const height = getBlockHeight(item.startH, item.startM, item.endH, item.endM);
@@ -493,11 +336,7 @@ const [schedules, setSchedules] =
                             {item.section && <span style={{ fontSize: "8px", marginLeft: "4px" }}>({item.section})</span>}
                           </div>
                           <div>
-                          <div>
-                            {formatTime12Hour(item.startH, item.startM)}
-                            {" - "}
-                            {formatTime12Hour(item.endH, item.endM)}
-                          </div>
+                            {formatTime12Hour(item.startH, item.startM)} - {formatTime12Hour(item.endH, item.endM)}
                           </div>
                           {item.faculty && item.faculty !== "TBA" && (
                             <div style={{ fontSize: "8px", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -515,7 +354,6 @@ const [schedules, setSchedules] =
         </div>
       </div>
 
-      {/* Edit Modal */}
       {editingSchedule && (
         <EditScheduleModal
           schedule={editingSchedule}
@@ -524,29 +362,26 @@ const [schedules, setSchedules] =
         />
       )}
 
-      {/* Navigation buttons */}
       <div className="bulk-footer-three step2-footer">
         <button className="btn-back-three" onClick={() => navigate(-1)}>Back</button>
         <button
           className="btn-next-three"
-          onClick={() =>
+          onClick={() => {
+            const allRoomsData = roomsWithSchedules.map((r) => ({
+              room: r.room,
+              schedules: r.schedules.map((s) => ({
+                subject: s.code,
+                section: s.section,
+                faculty: s.faculty,
+                day: DAYS[s.day - 1],
+                startTime: `${String(s.startH).padStart(2, "0")}:${String(s.startM).padStart(2, "0")}`,
+                endTime: `${String(s.endH).padStart(2, "0")}:${String(s.endM).padStart(2, "0")}`,
+              })),
+            }));
             navigate("/local-registrar/bulk-upload-4", {
-            state: {
-              semester,
-              schoolYear,
-              room,
-              schedules: schedules.map(item => ({
-                subject: item.code,
-                section: item.section,
-                faculty: item.faculty,
-                day: DAYS[item.day - 1],
-                startTime:
-                  `${String(item.startH).padStart(2,"0")}:${String(item.startM).padStart(2,"0")}`,
-                endTime:
-                  `${String(item.endH).padStart(2,"0")}:${String(item.endM).padStart(2,"0")}`
-              }))
-            }})
-          }
+              state: { semester, schoolYear, allRoomsData },
+            });
+          }}
         >
           Continue
         </button>

@@ -1,13 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import "./bulk-schedule-upload1.css";
 import { useNavigate } from "react-router-dom";
-import {
-  collection,
-  onSnapshot,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
 import Toast from "../../../Popup/Toast/Toast";
 
@@ -27,6 +21,7 @@ const schoolYears = [
 ];
 
 function CustomDropdown({ placeholder, options, value, onChange }) {
+  // (same as original – unchanged)
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -69,14 +64,10 @@ function CustomDropdown({ placeholder, options, value, onChange }) {
   );
 }
 
-export default function BulkScheduleUpload() {
+export default function BulkScheduleUpload1() {
   const navigate = useNavigate();
   const [semester, setSemester] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
-  const [rooms, setRooms] = useState([]); // array of { id, roomName }
-  const [room, setRoom] = useState("");
-  const [checking, setChecking] = useState(false);
-
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -87,86 +78,16 @@ export default function BulkScheduleUpload() {
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
     if (type !== "loading") {
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, show: false }));
-      }, 4000);
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
     }
   };
 
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "rooms"), (snapshot) => {
-      const roomList = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setRooms(roomList.map((r) => ({ id: r.id, roomName: r.roomName })));
-    });
-    return () => unsub();
-  }, []);
-
-  const handleNext = async () => {
-    if (!semester || !schoolYear || !room) {
-      showToast("error", "Incomplete", "Please fill in all fields.");
+  const handleNext = () => {
+    if (!semester || !schoolYear) {
+      showToast("error", "Incomplete", "Please select both Semester and School Year.");
       return;
     }
-
-    // Find the room ID
-    const selectedRoom = rooms.find((r) => r.roomName === room);
-    if (!selectedRoom) {
-      showToast("error", "Error", "Selected room not found.");
-      return;
-    }
-
-    setChecking(true);
-    showToast("loading", "Checking", "Checking for existing schedules...");
-
-    try {
-      // Query schedules for this room, semester, schoolYear
-      const schedulesRef = collection(
-        db,
-        "rooms",
-        selectedRoom.id,
-        "schedules",
-      );
-      const q = query(
-        schedulesRef,
-        where("semester", "==", semester),
-        where("schoolYear", "==", schoolYear),
-      );
-      const snapshot = await getDocs(q);
-
-      if (!snapshot.empty) {
-        showToast(
-          "error",
-          "Schedules Already Exist",
-          `This room already has schedules for ${semester}, ${schoolYear}. Please choose a different room, semester, or school year.`,
-        );
-        setChecking(false);
-        return;
-      }
-
-      // No conflicts – proceed
-      showToast(
-        "success",
-        "Ready",
-        "No existing schedules found. Proceeding...",
-      );
-      setTimeout(() => {
-        navigate("/local-registrar/bulk-upload-2", {
-          state: { semester, schoolYear, room },
-        });
-      }, 1000);
-    } catch (err) {
-      console.error(err);
-      showToast(
-        "error",
-        "Error",
-        "Failed to check for existing schedules. Please try again.",
-      );
-      setChecking(false);
-    } finally {
-      setChecking(false);
-    }
+    navigate("/local-registrar/bulk-upload-2", { state: { semester, schoolYear } });
   };
 
   return (
@@ -175,18 +96,15 @@ export default function BulkScheduleUpload() {
         <h1>Bulk Schedule Upload</h1>
         <p>Follow the steps to upload and process schedules.</p>
       </div>
+
       <div className="stepper-one">
         {steps.map((step, index) => (
           <div className="step-wrapper-one" key={step.number}>
             <div className="step-item-one">
-              <div
-                className={`step-circle-one ${step.number === 1 ? "active" : ""}`}
-              >
+              <div className={`step-circle-one ${step.number === 1 ? "active" : ""}`}>
                 {step.number}
               </div>
-              <span
-                className={`step-label-one ${step.number === 1 ? "active" : ""}`}
-              >
+              <span className={`step-label-one ${step.number === 1 ? "active" : ""}`}>
                 {step.label}
               </span>
             </div>
@@ -194,16 +112,8 @@ export default function BulkScheduleUpload() {
           </div>
         ))}
       </div>
+
       <div className="form-card-one">
-        <div className="form-group-one">
-          <label>Room</label>
-          <CustomDropdown
-            placeholder="Select Room"
-            options={rooms.map((r) => r.roomName)}
-            value={room}
-            onChange={setRoom}
-          />
-        </div>
         <div className="form-group-one">
           <label>Semester</label>
           <CustomDropdown
@@ -223,13 +133,10 @@ export default function BulkScheduleUpload() {
           />
         </div>
       </div>
+
       <div className="bulk-footer-one" style={{ justifyContent: "flex-end" }}>
-        <button
-          className="btn-next-one"
-          onClick={handleNext}
-          disabled={checking}
-        >
-          {checking ? "Checking..." : "Next"}
+        <button className="btn-next-one" onClick={handleNext}>
+          Next
         </button>
       </div>
 

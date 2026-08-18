@@ -106,9 +106,9 @@ function RoomManagementModals({
                 <div className="warning-modal-actions">
                   <button
                     className="rm-modal-cancel-btn"
-                    onClick={onViewAffectedSchedules}
+                    onClick={closeWarningModal}
                   >
-                    View Affected Schedules
+                    Cancel
                   </button>
 
                   <button
@@ -132,60 +132,96 @@ function RoomManagementModals({
             className="deactivation-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="maintenance-title">
-              Maintenance Schedule
-            </h3>
-
-            <div className="deactivation-date-row">
-
-              <div className="deactivation-date-field">
-                <label>Start Date</label>
-
-                <input
-                  type="date"
-                  min={todayDate}
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
+            <div className="deactivation-modal-header">
+              <div className="deactivation-modal-icon">
+                <i className="fa-solid fa-screwdriver-wrench" />
               </div>
-
-              <div className="deactivation-date-field">
-                <label>Start Time</label>
-
-                <input
-                  type="time"
-                  value={startTime}
-                  min={
-                    startDate === todayDate
-                      ? currentTime
-                      : undefined
-                  }
-                  onChange={(e) => setStartTime(e.target.value)}
-                />
+              <div>
+                <h3 className="maintenance-title">Maintenance Schedule</h3>
+                <p className="maintenance-subtitle">
+                  Set when <strong>Room {roomName}</strong> will be under maintenance.
+                </p>
               </div>
             </div>
 
-            <div className="deactivation-date-row">
+            <div className="deactivation-duration-block">
+              <span className="deactivation-duration-title">
+                <i className="fa-regular fa-calendar-check" /> Starts
+              </span>
 
-              <div className="deactivation-date-field">
-                <label>End Date</label>
+              <div className="deactivation-date-row">
+                <div className="deactivation-date-field">
+                  <label className="deactivation-date-label">Date</label>
+                  <div className="deactivation-date-input-wrap">
+                    <i className="fa-regular fa-calendar" />
+                    <input
+                      type="date"
+                      className="deactivation-date-input"
+                      min={todayDate}
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-                <input
-                  type="date"
-                  min={startDate}
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
+                <div className="deactivation-date-field">
+                  <label className="deactivation-date-label">Time</label>
+                  <div className="deactivation-date-input-wrap">
+                    <i className="fa-regular fa-clock" />
+                    <input
+                      type="time"
+                      className="deactivation-date-input"
+                      value={startTime}
+                      min={
+                        startDate === todayDate
+                          ? currentTime
+                          : undefined
+                      }
+                      onChange={(e) => setStartTime(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
+            </div>
 
-              <div className="deactivation-date-field">
-                <label>End Time</label>
+            <div className="deactivation-duration-divider" aria-hidden="true">
+              <span />
+              <i className="fa-solid fa-arrow-down" />
+              <span />
+            </div>
 
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                />
+            <div className="deactivation-duration-block">
+              <span className="deactivation-duration-title">
+                <i className="fa-regular fa-calendar-xmark" /> Ends
+              </span>
+
+              <div className="deactivation-date-row">
+                <div className="deactivation-date-field">
+                  <label className="deactivation-date-label">Date</label>
+                  <div className="deactivation-date-input-wrap">
+                    <i className="fa-regular fa-calendar" />
+                    <input
+                      type="date"
+                      className="deactivation-date-input"
+                      min={startDate}
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="deactivation-date-field">
+                  <label className="deactivation-date-label">Time</label>
+                  <div className="deactivation-date-input-wrap">
+                    <i className="fa-regular fa-clock" />
+                    <input
+                      type="time"
+                      className="deactivation-date-input"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

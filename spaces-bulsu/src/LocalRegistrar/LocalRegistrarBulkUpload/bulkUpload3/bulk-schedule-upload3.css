@@ -773,3 +773,41 @@
     font-size: 13px;
   }
 }
+
+/* Room navigation */
+.room-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.room-nav i {
+  font-size: 18px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.room-nav i:hover {
+  color: #f57c00;
+}
+.room-name-pill {
+  padding: 6px 24px;
+  border-radius: 50px;
+  background: #fef0e7;
+  color: #f57c00;
+  font-weight: 700;
+  border: 1.5px solid #f57c00;
+}
+/* Responsive: stack header */
+@media (max-width: 768px) {
+  .calendar-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .room-nav {
+    justify-content: center;
+  }
+}
