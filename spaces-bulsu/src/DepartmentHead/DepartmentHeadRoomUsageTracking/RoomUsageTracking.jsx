@@ -1,13 +1,25 @@
 import "./room-usage-tracking.css";
 
 import { useEffect, useMemo, useState } from "react";
-
 import {
   collection,
   getDocs,
 } from "firebase/firestore";
-
 import { db } from "../../firebase";
+import universityLogo from "../../assets/BSU-Logo.png";
+import collegeLogo from "../../assets/CICT-Logo.png";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+// NEW: import Toast
+import Toast from "../../Popup/Toast/Toast";
+
+const SCHOOL_HEADER = {
+  universityLogoUrl: universityLogo,
+  collegeLogoUrl: collegeLogo,
+  universityName: "Bulacan State University",
+  collegeName: "College of Information and Communications Technology",
+  systemName: "SpaceS CICT",
+};
 
 const DAY_ABBR = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -56,10 +68,20 @@ const getStatus = (dateStr, start, end) => {
   return "COMPLETED";
 };
 
+const normalizeRoomKey = (value = "") => String(value).trim().toLowerCase();
+
+const matchesRoom = (item, selectedRoom, selectedRoomId) => {
+  if (selectedRoomId && item.roomId) {
+    return item.roomId === selectedRoomId;
+  }
+  return normalizeRoomKey(item.roomName) === normalizeRoomKey(selectedRoom);
+};
+
 const normalizeSchedule = (s) => ({
   id: s.id,
   kind: "schedule",
   sourceLabel: "Class Schedule",
+  roomId: s.roomId || null,
   roomName: s.roomName,
   day: s.day,
   date: s.date || null,
@@ -78,6 +100,7 @@ const normalizeEvent = (e) => ({
   id: e.id,
   kind: "event",
   sourceLabel: "Room Activity",
+  roomId: e.roomId || null,
   roomName: e.roomName,
   day: null,
   date: e.date,
@@ -96,6 +119,7 @@ const normalizeReservation = (r) => ({
     r.reservationType === "walk-in"
       ? "Walk-in Reservation"
       : "Faculty Reservation",
+  roomId: r.roomId || null,
   roomName: r.roomName,
   day: null,
   date: r.date,
@@ -123,6 +147,7 @@ export default function RoomUsageTracking() {
   const [lastUser, setLastUser] = useState(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [upcomingSchedules, setUpcomingSchedules] = useState([]);
   const [analytics, setAnalytics] = useState({
     totalSchedules: 0,
@@ -132,7 +157,28 @@ export default function RoomUsageTracking() {
     utilization: 0,
   });
 
+  // NEW: Toast state
+  const [toast, setToast] = useState({
+    show: false,
+    message: "",
+    type: "loading",
+  });
+
+  const showToast = (message, type = "success") => {
+    setToast({ show: true, message, type });
+    if (type !== "loading") {
+      setTimeout(() => {
+        setToast({ show: false, message: "", type: "loading" });
+      }, 2500);
+    }
+  };
+
   const isToday = (date || todayString()) === todayString();
+
+  const selectedRoomId = useMemo(() => {
+    const match = rooms.find((r) => (r.roomName || r.name) === room);
+    return match ? match.id : null;
+  }, [rooms, room]);
 
   useEffect(() => {
     loadRooms();
@@ -199,10 +245,14 @@ export default function RoomUsageTracking() {
   const getOccurrencesForDate = (targetDate) => {
     const dayAbbrev = getDayAbbrev(targetDate);
     const scheduleOccurrences = allSchedules
-      .filter((s) => s.roomName === room && s.day === dayAbbrev)
+      .filter((s) => matchesRoom(s, room, selectedRoomId) && s.day === dayAbbrev)
       .map((s) => ({ ...s, date: targetDate }));
-    const eventOccurrences = allEvents.filter((e) => e.roomName === room && e.date === targetDate);
-    const reservationOccurrences = allReservations.filter((r) => r.roomName === room && r.date === targetDate);
+    const eventOccurrences = allEvents.filter(
+      (e) => matchesRoom(e, room, selectedRoomId) && e.date === targetDate
+    );
+    const reservationOccurrences = allReservations.filter(
+      (r) => matchesRoom(r, room, selectedRoomId) && r.date === targetDate
+    );
     return [...scheduleOccurrences, ...eventOccurrences, ...reservationOccurrences]
       .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   };
@@ -258,8 +308,8 @@ export default function RoomUsageTracking() {
     const currentDate = date || todayString();
     const scheduleHistory = getOccurrencesForDate(currentDate).filter((item) => item.kind === "schedule");
     const otherHistory = [
-      ...allEvents.filter((e) => e.roomName === room),
-      ...allReservations.filter((r) => r.roomName === room),
+      ...allEvents.filter((e) => matchesRoom(e, room, selectedRoomId)),
+      ...allReservations.filter((r) => matchesRoom(r, room, selectedRoomId)),
     ];
     const historyData = [...scheduleHistory, ...otherHistory].sort((a, b) => {
       const aEnd = new Date(`${a.date}T${a.endTime}`);
@@ -295,6 +345,130 @@ export default function RoomUsageTracking() {
 
     const utilization = Math.min(100, Math.round((occupiedMinutes / (12 * 60)) * 100));
     setAnalytics({ totalSchedules: combined.length, completed, ongoing, upcoming, utilization });
+  };
+
+  // ─── PDF Export ─────────────────────────────────────────────────
+  const handleExport = () => {
+    if (history.length === 0) {
+      showToast("No history to export for this room yet.", "error");
+      return;
+    }
+
+    setExporting(true);
+    showToast("Generating PDF...", "loading");
+
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const marginX = 40;
+
+      // ---- Formal document header ----
+      const logoSize = 50;
+      const centerX = pageWidth / 2;
+
+      if (SCHOOL_HEADER.universityLogoUrl) {
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
+      }
+
+      if (SCHOOL_HEADER.collegeLogoUrl) {
+        pdf.addImage(
+          SCHOOL_HEADER.collegeLogoUrl,
+          "PNG",
+          pageWidth - marginX - logoSize,
+          22,
+          logoSize,
+          logoSize
+        );
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.setTextColor(20, 27, 45);
+      pdf.text(SCHOOL_HEADER.universityName, centerX, 36, { align: "center" });
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(SCHOOL_HEADER.collegeName, centerX, 50, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, centerX, 62, { align: "center" });
+
+      pdf.setDrawColor(245, 124, 0);
+      pdf.setLineWidth(1.5);
+      pdf.line(marginX, 82, pageWidth - marginX, 82);
+
+      // ---- Report title + filters ----
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.setTextColor(245, 124, 0);
+      pdf.text("Room Usage History Log", marginX, 104);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(`Room: ${room}`, marginX, 120);
+      pdf.text(
+        `Generated: ${new Date().toLocaleString()}`,
+        pageWidth - marginX,
+        120,
+        { align: "right" }
+      );
+
+      // ---- Table ----
+      const rows = history.map((item) => [
+        `${item.date || "-"}\n${format12Hour(item.startTime)} - ${format12Hour(item.endTime)}`,
+        item.subject,
+        item.facultyName,
+        item.sourceLabel,
+        getStatus(item.date, item.startTime, item.endTime),
+      ]);
+
+      autoTable(pdf, {
+        startY: 134,
+        head: [["Date & Time", "Subject / Event", "Requested By", "Type", "Status"]],
+        body: rows,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 9, cellPadding: 6, valign: "middle" },
+        headStyles: {
+          fillColor: [245, 124, 0],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 9,
+        },
+        bodyStyles: { textColor: [26, 26, 26] },
+        alternateRowStyles: { fillColor: [253, 246, 240] },
+        margin: { left: marginX, right: marginX },
+      });
+
+      // ---- Footer ----
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - marginX,
+          pdf.internal.pageSize.getHeight() - 20,
+          { align: "right" }
+        );
+        pdf.text(
+          `${SCHOOL_HEADER.systemName} — Confidential`,
+          marginX,
+          pdf.internal.pageSize.getHeight() - 20
+        );
+      }
+
+      const safeRoomName = (room || "room").replace(/\s+/g, "-");
+      pdf.save(`room-usage-${safeRoomName}-${todayString()}.pdf`);
+
+      showToast("PDF exported successfully!", "success");
+    } catch (err) {
+      console.error("Export failed:", err);
+      showToast("Failed to generate the PDF. Please try again.", "error");
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Pagination
@@ -522,12 +696,17 @@ export default function RoomUsageTracking() {
           )}
         </div>
 
-        {/* ── History table + pagination — own card, separate from rut-content-card ── */}
+        {/* ── History table + pagination — own card ── */}
         <div className="rut-history-section">
           <div className="rut-history-header">
             <h2 className="rut-history-title">Recent History Log</h2>
-            <button className="rut-export-btn">
-              <i className="fa-solid fa-download" /> Export
+            <button
+              className="rut-export-btn"
+              onClick={handleExport}
+              disabled={exporting || history.length === 0}
+            >
+              <i className={`fa-solid ${exporting ? "fa-spinner fa-spin" : "fa-file-pdf"}`} />
+              {exporting ? "Generating..." : "Export PDF"}
             </button>
           </div>
 
@@ -585,7 +764,7 @@ export default function RoomUsageTracking() {
             </table>
           </div>
 
-          {/* Pagination — same style as room management */}
+          {/* Pagination */}
           <div className="rut-pagination-row">
             <span className="rut-pagination-info">
               Showing {history.length === 0 ? 0 : (historyPage - 1) * HISTORY_PAGE_SIZE + 1} to{" "}
@@ -639,6 +818,16 @@ export default function RoomUsageTracking() {
           </div>
         </div>
       </div>
+
+      {/* Toast */}
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        message={toast.message}
+        onClose={() =>
+          setToast({ show: false, type: "", message: "" })
+        }
+      />
     </>
   );
 }

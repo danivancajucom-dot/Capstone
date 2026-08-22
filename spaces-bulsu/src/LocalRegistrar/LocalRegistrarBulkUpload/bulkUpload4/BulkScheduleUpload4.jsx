@@ -146,6 +146,7 @@ export default function BulkScheduleUpload4() {
         const roomId = roomDoc.id;
 
         for (const schedule of schedules) {
+          // Current schedules (editable)
           const docRef = await addDoc(collection(db, "rooms", roomId, "schedules"), {
             subject: schedule.subject || "",
             section: schedule.section || "",
@@ -157,6 +158,20 @@ export default function BulkScheduleUpload4() {
             schoolYear,
             createdAt: serverTimestamp(),
           });
+
+          // Original schedules (reference)
+          await addDoc(collection(db, "rooms", roomId, "originalSchedules"), {
+            subject: schedule.subject || "",
+            section: schedule.section || "",
+            faculty: schedule.faculty || "TBA",
+            day: schedule.day || "",
+            startTime: schedule.startTime || "",
+            endTime: schedule.endTime || "",
+            semester,
+            schoolYear,
+            createdAt: serverTimestamp(),
+          });
+
           allSaved.push({ room, ...schedule, docId: docRef.id });
         }
       }

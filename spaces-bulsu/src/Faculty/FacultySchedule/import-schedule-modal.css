@@ -1,0 +1,306 @@
+/* ─── OVERLAY ────────────────────────────────────────────────────── */
+.ism-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+/* ─── MODAL ──────────────────────────────────────────────────────── */
+.ism-modal {
+  background: #ffffff;
+  border-radius: 20px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+  animation: ismFadeIn 0.25s ease;
+  position: relative;
+}
+
+@keyframes ismFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ─── HEADER ────────────────────────────────────────────────────── */
+.ism-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.ism-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.ism-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: 0.2s;
+}
+.ism-close-btn:hover {
+  background: #f3f4f6;
+  color: #1a1a1a;
+}
+
+/* ─── BODY ──────────────────────────────────────────────────────── */
+.ism-body {
+  padding: 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+.ism-body p {
+  margin: 0 0 16px;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.ism-body p strong {
+  color: #F97316;
+}
+
+/* ─── DROPZONE ──────────────────────────────────────────────────── */
+.ism-dropzone {
+  border: 2.5px dashed #d1d5db;
+  border-radius: 14px;
+  padding: 30px;
+  text-align: center;
+  transition: 0.25s ease;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+.ism-dropzone.dragging {
+  border-color: #F97316;
+  background: #FFF7ED;
+}
+.ism-dropzone.has-file {
+  border-color: #22c55e;
+  background: #f0fdf4;
+  padding: 16px 20px;
+}
+
+/* ─── DROP PLACEHOLDER ──────────────────────────────────────────── */
+.ism-drop-placeholder {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #6b7280;
+}
+.ism-drop-placeholder i {
+  font-size: 44px;
+  color: #F97316;
+}
+.ism-drop-placeholder span {
+  font-size: 15px;
+  font-weight: 500;
+}
+.ism-drop-placeholder small {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* ─── FILE INFO ─────────────────────────────────────────────────── */
+.ism-file-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+.ism-file-icon {
+  font-size: 32px;
+  color: #F97316;
+}
+.ism-file-details {
+  flex: 1;
+  text-align: left;
+}
+.ism-file-name {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+  word-break: break-all;
+}
+.ism-file-size {
+  font-size: 12px;
+  color: #6b7280;
+}
+.ism-remove-file {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: 0.2s;
+}
+.ism-remove-file:hover {
+  background: #fef2f2;
+}
+
+/* ─── PROGRESS ──────────────────────────────────────────────────── */
+.ism-progress {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #FFF7ED;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #FED7AA;
+}
+.ism-progress i {
+  color: #F97316;
+}
+
+/* ─── FOOTER ────────────────────────────────────────────────────── */
+.ism-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.ism-cancel-btn {
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  transition: 0.2s;
+  font-size: 14px;
+}
+.ism-cancel-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+.ism-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ism-import-btn {
+  padding: 10px 28px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: #F97316;
+  color: #fff;
+  transition: 0.2s;
+  font-size: 14px;
+}
+.ism-import-btn:hover:not(:disabled) {
+  background: #ea6c0a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+.ism-import-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ─── TOAST INSIDE MODAL ───────────────────────────────────────── */
+.ism-toast {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  animation: ismSlideUp 0.3s ease;
+  max-width: 90%;
+  z-index: 10;
+}
+.ism-toast.success {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+.ism-toast.error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+@keyframes ismSlideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ─── RESPONSIVE ────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .ism-modal {
+    max-width: 100%;
+    margin: 10px;
+    border-radius: 16px;
+  }
+  .ism-header {
+    padding: 16px 18px;
+  }
+  .ism-header h3 {
+    font-size: 18px;
+  }
+  .ism-body {
+    padding: 16px 18px;
+  }
+  .ism-dropzone {
+    padding: 20px;
+    min-height: 100px;
+  }
+  .ism-footer {
+    padding: 12px 18px;
+    flex-direction: column-reverse;
+  }
+  .ism-cancel-btn,
+  .ism-import-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

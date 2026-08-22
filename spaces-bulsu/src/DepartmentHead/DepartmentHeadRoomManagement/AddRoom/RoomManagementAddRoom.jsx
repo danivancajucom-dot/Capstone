@@ -145,6 +145,11 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
         semester: "", schoolYear: "", createdAt: serverTimestamp(),
       });
 
+      await setDoc(doc(db, "rooms", roomRef.id, "originalSchedules", "_metadata"), {
+        initialized: true, totalSchedules: 0,
+        semester: "", schoolYear: "", createdAt: serverTimestamp(),
+      });
+
       await logActivity({
         userId: firebaseUser.uid, user: fullName, role: currentUser.role,
         action: "Created Room", actionType: "success",

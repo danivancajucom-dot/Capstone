@@ -86,7 +86,7 @@ html, body {
 
 .up-header {
   width: 100%;
-  text-align: left;
+  text-align: center;
 }
 
 .up-card:not(.up-card-activity) .up-header {

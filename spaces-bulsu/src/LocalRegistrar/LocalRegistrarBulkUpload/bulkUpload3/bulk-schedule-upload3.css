@@ -264,6 +264,125 @@
   border-top: 1px solid #f3f4f6;
 }
 
+/* ---- Schedule block (calendar event) ---- */
+.calendar-event {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-sizing: border-box;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.calendar-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.24);
+  filter: brightness(1.06);
+  z-index: 5;
+}
+
+/* Code always renders on its own full-width line, so it can never be
+   squeezed or hidden by anything else. */
+.calendar-event-code {
+  display: block;
+  width: 100%;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Time, faculty, and section each get their own full-width line too —
+   nothing shares horizontal space, so nothing can crowd another out. */
+.calendar-event-time,
+.calendar-event-faculty,
+.calendar-event-section-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.calendar-event-time {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.calendar-event-faculty {
+  font-size: 9.5px;
+  font-weight: 500;
+  opacity: 0.88;
+  margin-top: auto;
+}
+
+.calendar-event-section-line {
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.calendar-event-time i,
+.calendar-event-faculty i,
+.calendar-event-section-line i {
+  font-size: 8px;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.calendar-event-time span,
+.calendar-event-faculty span,
+.calendar-event-section-line span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Shorter blocks progressively lose the least important line instead of
+   clipping text mid-word. */
+.calendar-event.is-compact {
+  padding: 5px 8px;
+  gap: 2px;
+}
+
+/* Mini blocks: code and time share one row (the only case where they
+   compete for space — there's no room for a second line regardless). */
+.calendar-event.is-mini {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 8px;
+  gap: 6px;
+}
+
+.calendar-event.is-mini .calendar-event-code {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+}
+
+.calendar-event.is-mini .calendar-event-time {
+  width: auto;
+  flex-shrink: 0;
+}
+
 .bulk-footer-three {
   display: flex;
   justify-content: flex-end;
@@ -446,23 +565,51 @@
   color: #f57c00;
 }
 
-.time-inputs {
+.time-native-input {
+  width: 100%;
+  height: 46px;
+  border: 1.5px solid #FED7AA;
+  border-radius: 10px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  padding: 0 10px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.time-native-input:focus {
+  outline: none;
+  border-color: #f57c00;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.12);
+}
+
+.time-native-input::-webkit-calendar-picker-indicator {
+  filter: invert(46%) sepia(94%) saturate(1786%) hue-rotate(360deg) brightness(101%) contrast(101%);
+  cursor: pointer;
+}
+
+.time-hint {
+  grid-column: span 2;
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
+  gap: 6px;
 }
 
-.time-inputs input {
-  width: 100px;
-  text-align: center;
-  font-weight: 700;
-}
-
-.time-separator {
-  font-size: 20px;
-  font-weight: 800;
+.time-hint i {
   color: #f57c00;
+  font-size: 11px;
+}
+
+.time-hint-error {
+  color: #ef4444;
+  font-weight: 700;
 }
 
 .modal-actions {
@@ -630,12 +777,14 @@
   }
 
   .field-group.full-width,
-  .time-row {
+  .time-row,
+  .time-hint {
     grid-column: span 1;
   }
 
-  .time-inputs input {
-    width: 100%;
+  .time-native-input {
+    height: 46px;
+    font-size: 16px; /* keep at 16px+ so iOS Safari doesn't auto-zoom on focus */
   }
 
   .modal-actions {
@@ -757,7 +906,7 @@
     padding: 12px;
   }
 
-  .time-inputs input {
+  .time-native-input {
     font-size: 16px;
   }
 
@@ -771,6 +920,15 @@
     height: 48px;
     min-width: 0;
     font-size: 13px;
+  }
+
+  .calendar-event-code {
+    font-size: 10.5px;
+  }
+
+  .calendar-event-time,
+  .calendar-event-faculty {
+    font-size: 9px;
   }
 }
 
