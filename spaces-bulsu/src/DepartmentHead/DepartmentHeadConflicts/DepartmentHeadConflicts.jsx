@@ -5,6 +5,21 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 
+// ─── PDF Libraries & Logos ──────────────────────────────────────────
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import universityLogo from "../../assets/BSU-Logo.png";
+import collegeLogo from "../../assets/CICT-Logo.png";
+
+// ─── School Header (same as other modules) ─────────────────────────
+const SCHOOL_HEADER = {
+  universityLogoUrl: universityLogo,
+  collegeLogoUrl: collegeLogo,
+  universityName: "Bulacan State University",
+  collegeName: "College of Information and Communications Technology",
+  systemName: "SpaceS CICT",
+};
+
 // ─── Helpers (matching WeeklyCalendar) ──────────────────────────────
 const semesterRank = (sem = "") => {
   const s = sem.toLowerCase();
@@ -26,6 +41,7 @@ function DepartmentHeadConflicts() {
   const [activeTab, setActiveTab] = useState("all");
   const [unresolved, setUnresolved] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const [toast, setToast] = useState({
     show: false,
@@ -174,7 +190,6 @@ function DepartmentHeadConflicts() {
               conflictEndTime: overlapTime.end,
               reassignPending: pendingKeys.has(`${schedule.id}_${event.id}`),
               status: "",
-              // Capture resolution info if available
               resolution: event.resolution || null,
               resolutionReason: event.resolutionReason || null,
             };
@@ -231,9 +246,10 @@ function DepartmentHeadConflicts() {
         ? "Great — nothing has slipped through unaddressed."
         : "Resolved conflicts will be logged here for your records.";
 
+  // ─── CSV Export ──────────────────────────────────────────────────────
   const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
-  const handleExport = () => {
+  const handleExportCSV = () => {
     if (displayConflicts.length === 0) {
       showToast(
         "error",
@@ -287,9 +303,173 @@ function DepartmentHeadConflicts() {
     showToast(
       "success",
       "Exported",
-      `${displayConflicts.length} conflict${displayConflicts.length === 1 ? "" : "s"} downloaded.`,
+      `${displayConflicts.length} conflict${displayConflicts.length === 1 ? "" : "s"} downloaded as CSV.`,
     );
+    setExportMenuOpen(false);
   };
+
+  // ─── PDF Export ──────────────────────────────────────────────────────
+  const handleExportPDF = () => {
+    if (displayConflicts.length === 0) {
+      showToast(
+        "error",
+        "Nothing to Export",
+        "There are no conflicts in this view.",
+      );
+      return;
+    }
+
+    showToast("loading", "Generating PDF...", "Please wait.");
+
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const marginX = 40;
+      const logoSize = 50;
+      const centerX = pageWidth / 2;
+
+      // ---- Letterhead ----
+      if (SCHOOL_HEADER.universityLogoUrl) {
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
+      }
+      if (SCHOOL_HEADER.collegeLogoUrl) {
+        pdf.addImage(
+          SCHOOL_HEADER.collegeLogoUrl,
+          "PNG",
+          pageWidth - marginX - logoSize,
+          22,
+          logoSize,
+          logoSize
+        );
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.setTextColor(20, 27, 45);
+      pdf.text(SCHOOL_HEADER.universityName, centerX, 36, { align: "center" });
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(SCHOOL_HEADER.collegeName, centerX, 50, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, centerX, 62, { align: "center" });
+
+      pdf.setDrawColor(245, 124, 0);
+      pdf.setLineWidth(1.5);
+      pdf.line(marginX, 82, pageWidth - marginX, 82);
+
+      // ---- Title & filters ----
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.setTextColor(245, 124, 0);
+      pdf.text(`Conflict Report — ${activeTab.toUpperCase()}`, marginX, 104);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(`Total Conflicts: ${displayConflicts.length}`, marginX, 120);
+      pdf.text(
+        `Generated: ${new Date().toLocaleString()}`,
+        pageWidth - marginX,
+        120,
+        { align: "right" }
+      );
+
+      // ---- Table ----
+      const tableRows = displayConflicts.map((c) => [
+        c.roomName,
+        c.floor,
+        c.courseTitle || "-",
+        c.faculty,
+        c.section || "-",
+        c.day,
+        c.date,
+        `${c.startTime} - ${c.endTime}`,
+        c.activityTitle,
+        `${c.conflictStartTime} - ${c.conflictEndTime}`,
+        c.status.toUpperCase(),
+      ]);
+
+      autoTable(pdf, {
+        startY: 134,
+        head: [
+          [
+            "Room",
+            "Floor",
+            "Course",
+            "Faculty",
+            "Section",
+            "Day",
+            "Date",
+            "Class Time",
+            "Activity",
+            "Overlap",
+            "Status",
+          ],
+        ],
+        body: tableRows,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 7, cellPadding: 4, valign: "middle" },
+        headStyles: {
+          fillColor: [245, 124, 0],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 7,
+        },
+        bodyStyles: { textColor: [26, 26, 26] },
+        alternateRowStyles: { fillColor: [253, 246, 240] },
+        margin: { left: marginX, right: marginX },
+        // Reduce font size for narrow columns
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 50 },
+          4: { cellWidth: 40 },
+          5: { cellWidth: 30 },
+          6: { cellWidth: 50 },
+          7: { cellWidth: 60 },
+          8: { cellWidth: 60 },
+          9: { cellWidth: 50 },
+          10: { cellWidth: 40 },
+        },
+      });
+
+      // ---- Footer ----
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - marginX,
+          pdf.internal.pageSize.getHeight() - 20,
+          { align: "right" }
+        );
+        pdf.text(
+          `${SCHOOL_HEADER.systemName} — Confidential`,
+          marginX,
+          pdf.internal.pageSize.getHeight() - 20
+        );
+      }
+
+      pdf.save(`conflict-report-${activeTab}-${new Date().toISOString().slice(0, 10)}.pdf`);
+      showToast(
+        "success",
+        "PDF Exported",
+        `${displayConflicts.length} conflict${displayConflicts.length === 1 ? "" : "s"} downloaded.`
+      );
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      showToast("error", "Export Failed", "Could not generate PDF. Try again.");
+    } finally {
+      setExportMenuOpen(false);
+    }
+  };
+
+  // ─── Render ──────────────────────────────────────────────────────────
 
   return (
     <>
@@ -302,13 +482,28 @@ function DepartmentHeadConflicts() {
               department.
             </p>
           </div>
-          <button
-            className="dept-conflict-export-btn"
-            disabled={loading}
-            onClick={handleExport}
-          >
-            <i className="fa-solid fa-download"></i> Export Report
-          </button>
+
+          {/* ── Export Dropdown ── */}
+          <div className="dept-export-dropdown">
+            <button
+              className="dept-conflict-export-btn"
+              onClick={() => setExportMenuOpen(!exportMenuOpen)}
+              disabled={loading}
+            >
+              <i className="fa-solid fa-download"></i> Export Report
+              <i className={`fa-solid fa-chevron-down ${exportMenuOpen ? "rotate" : ""}`}></i>
+            </button>
+            {exportMenuOpen && (
+              <div className="dept-export-menu">
+                <button onClick={handleExportPDF}>
+                  <i className="fa-regular fa-file-pdf"></i> Export as PDF
+                </button>
+                <button onClick={handleExportCSV}>
+                  <i className="fa-solid fa-file-csv"></i> Export as CSV
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* STATS */}
