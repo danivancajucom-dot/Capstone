@@ -39,6 +39,12 @@
   gap: 14px;
 }
 
+/* ─── EXPORT BUTTON & DROPDOWN ─── */
+.dept-export-dropdown {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .dept-conflict-export-btn {
   padding: 10px 20px;
   border: none;
@@ -72,6 +78,69 @@
   background-color: var(--dc-accent);
   border-color: var(--dc-accent);
   color: white;
+}
+
+.dept-conflict-export-btn .fa-chevron-down {
+  transition: transform 0.2s ease;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.dept-conflict-export-btn .fa-chevron-down.rotate {
+  transform: rotate(180deg);
+}
+
+/* Dropdown menu */
+.dept-export-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  overflow: hidden;
+  z-index: 50;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+
+.dept-export-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+  text-align: left;
+}
+
+.dept-export-menu button i {
+  width: 18px;
+  color: var(--dc-muted);
+  font-size: 14px;
+}
+
+.dept-export-menu button:hover {
+  background: var(--dc-accent-soft);
+  color: var(--dc-accent);
+}
+
+.dept-export-menu button:hover i {
+  color: var(--dc-accent);
+}
+
+.dept-export-menu button:active {
+  background: #fde8c8;
 }
 
 /* ---------------- STATS ---------------- */
@@ -182,21 +251,18 @@
   user-select: none;
 }
 
-/* ✅ Hover effect – now orange themed */
 .conflict-nav-item:hover {
-  background: var(--dc-accent-soft); /* #fff3e8 – soft orange */
+  background: var(--dc-accent-soft);
   color: var(--dc-accent);
   border-color: var(--dc-accent-border);
 }
 
-/* Active state */
 .conflict-nav-item.active {
   color: var(--dc-accent);
   background: var(--dc-accent-soft);
   border: 1px solid var(--dc-accent);
 }
 
-/* Remove the pulse/active transform */
 .conflict-nav-item:active {
   transform: none;
 }
@@ -309,6 +375,12 @@
   }
 
   .conflict-nav {
+    width: 100%;
+  }
+
+  .dept-export-menu {
+    right: auto;
+    left: 0;
     width: 100%;
   }
 }

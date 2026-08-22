@@ -289,3 +289,43 @@
     text-align: center;
   }
 }
+
+.lr-vr-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.lr-vr-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lr-vr-export-pdf-btn {
+  padding: 8px 16px;
+  background: #f57c00;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.lr-vr-export-pdf-btn:hover:not(:disabled) {
+  background: #e06b00;
+}
+
+.lr-vr-export-pdf-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

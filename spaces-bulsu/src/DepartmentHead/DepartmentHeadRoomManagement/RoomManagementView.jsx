@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   query,
   where,
+  getDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { logActivity } from "../../utils/logActivity";
@@ -19,6 +20,20 @@ import { useDeactivationModals } from "./hooks/useDeactivationModals";
 import "./room-management-view.css";
 import Toast from "../../Popup/Toast/Toast";
 import DeleteRoomPopup from "../../Popup/DeleteRoomPopup/DeleteRoomPopup";
+// NEW: PDF libraries and logos
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import universityLogo from "../../assets/BSU-Logo.png";
+import collegeLogo from "../../assets/CICT-Logo.png";
+
+// NEW: School header constant (same as other components)
+const SCHOOL_HEADER = {
+  universityLogoUrl: universityLogo,
+  collegeLogoUrl: collegeLogo,
+  universityName: "Bulacan State University",
+  collegeName: "College of Information and Communications Technology",
+  systemName: "SpaceS CICT",
+};
 
 function getActiveRoomStyle(room) {
   const iconVariant = room.type === "lecture" ? "peach" : "orange";
@@ -72,25 +87,18 @@ function RoomManagementView({
 
   const toMinutes = (time) => {
     if (!time) return 0;
-
     const [h, m] = time.split(":").map(Number);
-
     return h * 60 + m;
   };
 
   const isRoomOccupiedNow = (schedules = []) => {
     const today = getToday();
-
     const now = new Date();
-
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
     return schedules.some((schedule) => {
       if (schedule.day !== today) return false;
-
       const start = toMinutes(schedule.startTime);
       const end = toMinutes(schedule.endTime);
-
       return currentMinutes >= start && currentMinutes < end;
     });
   };
@@ -110,43 +118,115 @@ function RoomManagementView({
     }
   };
 
-  const handleExport = async () => {
-    try {
-      showToast("loading", "Exporting rooms...");
+  // ─── NEW: PDF Export ─────────────────────────────────────────────────
+  const handleExportPDF = async () => {
+    if (rooms.length === 0) {
+      showToast("error", "No rooms to export.");
+      return;
+    }
 
-      if (!rooms.length) {
-        showToast("error", "No rooms to export");
-        return;
+    showToast("loading", "Generating PDF...");
+
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const marginX = 40;
+      const logoSize = 50;
+      const centerX = pageWidth / 2;
+
+      // ---- Letterhead ----
+      if (SCHOOL_HEADER.universityLogoUrl) {
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
+      }
+      if (SCHOOL_HEADER.collegeLogoUrl) {
+        pdf.addImage(
+          SCHOOL_HEADER.collegeLogoUrl,
+          "PNG",
+          pageWidth - marginX - logoSize,
+          22,
+          logoSize,
+          logoSize
+        );
       }
 
-      await new Promise((res) => setTimeout(res, 800));
-      const headers = ["Room Name", "Capacity", "Type", "Status", "Equipment"];
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.setTextColor(20, 27, 45);
+      pdf.text(SCHOOL_HEADER.universityName, centerX, 36, { align: "center" });
 
-      const rows = rooms.map((r) => [
-        r.id,
-        r.capacity,
-        r.typeLabel,
-        r.roomStatus,
-        r.equipment.join(", "),
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(SCHOOL_HEADER.collegeName, centerX, 50, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, centerX, 62, { align: "center" });
+
+      pdf.setDrawColor(245, 124, 0);
+      pdf.setLineWidth(1.5);
+      pdf.line(marginX, 82, pageWidth - marginX, 82);
+
+      // ---- Title & filters ----
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.setTextColor(245, 124, 0);
+      pdf.text("Room Management Report", marginX, 104);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - marginX, 120, {
+        align: "right",
+      });
+
+      // ---- Table ----
+      const rows = rooms.map((room) => [
+        room.id,
+        room.capacity,
+        room.typeLabel,
+        room.equipment.join(", "),
+        room.roomStatus.toUpperCase(),
       ]);
 
-      const csvContent = [
-        headers.join(","),
-        ...rows.map((row) => row.map((v) => `"${v}"`).join(",")),
-      ].join("\n");
+      autoTable(pdf, {
+        startY: 134,
+        head: [["Room Name", "Capacity", "Type", "Equipment", "Status"]],
+        body: rows,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 9, cellPadding: 6, valign: "middle" },
+        headStyles: {
+          fillColor: [245, 124, 0],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 9,
+        },
+        bodyStyles: { textColor: [26, 26, 26] },
+        alternateRowStyles: { fillColor: [253, 246, 240] },
+        margin: { left: marginX, right: marginX },
+      });
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `rooms_export_${Date.now()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // ---- Footer ----
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - marginX,
+          pdf.internal.pageSize.getHeight() - 20,
+          { align: "right" }
+        );
+        pdf.text(
+          `${SCHOOL_HEADER.systemName} — Confidential`,
+          marginX,
+          pdf.internal.pageSize.getHeight() - 20
+        );
+      }
 
-      showToast("success", "Export successful!");
+      pdf.save(`rooms_export_${Date.now()}.pdf`);
+      showToast("success", "PDF exported successfully!");
     } catch (error) {
-      console.error(error);
+      console.error("PDF export failed:", error);
       showToast("error", "Export failed. Try again.");
     }
   };
@@ -160,30 +240,20 @@ function RoomManagementView({
 
     const checkExpiredMaintenance = async () => {
       const roomSnapshot = await getDocs(collection(db, "rooms"));
-
       const now = new Date();
-
       for (const roomDoc of roomSnapshot.docs) {
         const room = roomDoc.data();
-
         if (room.roomStatus !== "maintenance") continue;
-
         if (!room.maintenanceEndDate || !room.maintenanceEndTime) continue;
-
         const endDateTime = new Date(
-          `${room.maintenanceEndDate}T${room.maintenanceEndTime}`,
+          `${room.maintenanceEndDate}T${room.maintenanceEndTime}`
         );
-
         if (now >= endDateTime) {
           await updateDoc(doc(db, "rooms", roomDoc.id), {
             roomStatus: "active",
-
             maintenanceStartDate: null,
-
             maintenanceStartTime: null,
-
             maintenanceEndDate: null,
-
             maintenanceEndTime: null,
           });
         }
@@ -194,10 +264,8 @@ function RoomManagementView({
 
     const unsubscribeRooms = onSnapshot(
       collection(db, "rooms"),
-
       (snapshot) => {
         roomListeners.forEach((u) => u());
-
         roomListeners.length = 0;
 
         if (snapshot.empty) {
@@ -213,16 +281,14 @@ function RoomManagementView({
 
           const unsub = onSnapshot(
             collection(db, "rooms", roomDoc.id, "schedules"),
-
             (scheduleSnapshot) => {
               const schedules = scheduleSnapshot.docs.map((doc) => ({
                 id: doc.id,
-
                 ...doc.data(),
               }));
 
               const index = roomCache.findIndex(
-                (r) => r.firestoreId === roomDoc.id,
+                (r) => r.firestoreId === roomDoc.id
               );
 
               const occupied = isRoomOccupiedNow(schedules);
@@ -251,19 +317,17 @@ function RoomManagementView({
               else roomCache.push(room);
 
               setRooms([...roomCache]);
-
               setLoading(false);
-            },
+            }
           );
 
           roomListeners.push(unsub);
         });
-      },
+      }
     );
 
     return () => {
       unsubscribeRooms();
-
       roomListeners.forEach((u) => u());
     };
   }, []);
@@ -283,14 +347,12 @@ function RoomManagementView({
     endTime,
   }) => {
     const room = rooms.find((r) => r.id === modals.roomName);
-
     if (!room) return;
 
     try {
       showToast("loading", "Putting room under maintenance...");
 
       const firebaseUser = auth.currentUser;
-
       const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
       const currentUser = userSnap.data();
 
@@ -301,25 +363,18 @@ function RoomManagementView({
         userId: firebaseUser.uid,
         user: fullName,
         role: currentUser.role,
-
         action: "Marked Room Under Maintenance",
         actionType: "warning",
-
         target: room.roomName,
         details: "Changed room status to Under Maintenance",
-
         status: "SUCCESS",
       });
 
       await updateDoc(doc(db, "rooms", room.firestoreId), {
         roomStatus: "maintenance",
-
         maintenanceStartDate: startDate,
-
         maintenanceStartTime: startTime,
-
         maintenanceEndDate: endDate,
-
         maintenanceEndTime: endTime,
       });
 
@@ -339,56 +394,36 @@ function RoomManagementView({
 
       const flipName = (name) => {
         if (!name) return "";
-
         const parts = name.split(",");
-
         if (parts.length !== 2) return normalizeName(name);
-
         return normalizeName(`${parts[1]} ${parts[0]}`);
       };
 
       for (const schedule of room.schedules) {
         if (!schedule.faculty) continue;
-
         const faculty = usersSnap.docs.find((docUser) => {
           const user = docUser.data();
-
           const fullname = normalizeName(`${user.firstName} ${user.lastName}`);
-
           return fullname === flipName(schedule.faculty);
         });
-
         if (!faculty) continue;
 
         await addDoc(collection(db, "notifications"), {
           userId: faculty.id,
-
           ownerType: "faculty",
-
           title: "Room Under Maintenance",
-
           message: `Room ${room.id} has been placed under maintenance from ${startDate} ${startTime} until ${endDate} ${endTime}. Your scheduled class may be affected.`,
-
           type: "room-maintenance",
-
           unread: true,
-
           archived: false,
-
           badge: "NEW",
-
           createdAt: serverTimestamp(),
         });
       }
 
-      //---------------------------------------
-      // success
-      //---------------------------------------
-
       showToast("success", "Room is now under maintenance.");
     } catch (err) {
       console.error(err);
-
       showToast("error", "Failed to put room under maintenance.");
     }
 
@@ -445,7 +480,6 @@ function RoomManagementView({
     if (!room) return;
     await updateDoc(doc(db, "rooms", room.firestoreId), {
       roomStatus: "active",
-
       maintenanceStartDate: null,
       maintenanceStartTime: null,
       maintenanceEndDate: null,
@@ -460,18 +494,18 @@ function RoomManagementView({
   };
 
   const activeRooms = rooms.filter(
-    (room) => room.roomStatus === "active",
+    (room) => room.roomStatus === "active"
   ).length;
 
   const inactiveRooms = rooms.filter(
-    (room) => room.roomStatus === "inactive",
+    (room) => room.roomStatus === "inactive"
   ).length;
 
   const maintenanceRooms = rooms.filter(
-    (room) => room.roomStatus === "maintenance",
+    (room) => room.roomStatus === "maintenance"
   ).length;
   const availableRooms = rooms.filter(
-    (room) => room.roomStatus === "active" && room.status === "AVAILABLE",
+    (room) => room.roomStatus === "active" && room.status === "AVAILABLE"
   ).length;
 
   if (loading) {
@@ -534,10 +568,10 @@ function RoomManagementView({
             <button
               type="button"
               className="action-pill outline export-btn"
-              onClick={handleExport}
+              onClick={handleExportPDF}
             >
               <i className="fa-solid fa-download" aria-hidden="true" />
-              Export
+              Export PDF
             </button>
             <button
               type="button"
@@ -680,7 +714,7 @@ function RoomManagementView({
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate(
-                              `/department-head/edit-room/${room.firestoreId}`,
+                              `/department-head/edit-room/${room.firestoreId}`
                             );
                           }}
                           aria-label={`Edit ${room.id}`}

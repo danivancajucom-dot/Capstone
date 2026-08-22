@@ -6,6 +6,21 @@ import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase";
+import Toast from "../../Popup/Toast/Toast";
+
+// ─── PDF Libraries & Logos ──────────────────────────────────────────
+import jsPDF from "jspdf";
+import universityLogo from "../../assets/BSU-Logo.png";
+import collegeLogo from "../../assets/CICT-Logo.png";
+
+// ─── School Header ──────────────────────────────────────────────────
+const SCHOOL_HEADER = {
+  universityLogoUrl: universityLogo,
+  collegeLogoUrl: collegeLogo,
+  universityName: "Bulacan State University",
+  collegeName: "College of Information and Communications Technology",
+  systemName: "SpaceS CICT",
+};
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
@@ -14,6 +29,16 @@ const toDateStr = (date) => {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+};
+
+// ─── 12-hour format helper ──────────────────────────────────────────
+const format12Hour = (time) => {
+  if (!time) return "-";
+  const [hour, minute] = time.split(":").map(Number);
+  if (isNaN(hour) || isNaN(minute)) return time;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
 };
 
 function LocalRegistrarViewRoomCard() {
@@ -29,6 +54,21 @@ function LocalRegistrarViewRoomCard() {
   const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
   const [reassignedInto, setReassignedInto] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  const [toast, setToast] = useState({
+    show: false,
+    type: "",
+    title: "",
+    message: "",
+  });
+
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
+    }
+  };
 
   useEffect(() => {
     loadSchedules();
@@ -59,7 +99,7 @@ function LocalRegistrarViewRoomCard() {
       return;
     }
 
-    // ─── load events, reservations, releases, reassignments (unchanged) ───
+    // ─── load events, reservations, releases, reassignments ───
     const eventSnap = await getDocs(collection(db, "events"));
     const eventList = eventSnap.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
@@ -105,7 +145,7 @@ function LocalRegistrarViewRoomCard() {
     );
   };
 
-  // ─── Helper functions (unchanged) ──────────────────────────────
+  // ─── Helper functions ──────────────────────────────────────────────
   const getSchedulesByDay = (day) => {
     return schedules.filter(
       (schedule) => schedule.day?.trim().toUpperCase() === day
@@ -182,6 +222,263 @@ function LocalRegistrarViewRoomCard() {
     ];
   };
 
+  // ─── PDF EXPORT (Portrait, No Legend, Full Page) ─────────────────
+  const handleExportPDF = async () => {
+    if (schedules.length === 0) {
+      showToast("error", "No Schedules", "This room has no schedules to export.");
+      return;
+    }
+    setExporting(true);
+    showToast("loading", "Generating PDF...", "Please wait.");
+
+    try {
+      // ── Portrait A4 ──
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // ---- Smaller margins ----
+      const marginX = 30;
+      const marginY = 25;
+      const logoSize = 30;
+
+      // ---- Letterhead ----
+      if (SCHOOL_HEADER.universityLogoUrl) {
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 14, logoSize, logoSize);
+      }
+      if (SCHOOL_HEADER.collegeLogoUrl) {
+        pdf.addImage(
+          SCHOOL_HEADER.collegeLogoUrl,
+          "PNG",
+          pageWidth - marginX - logoSize,
+          14,
+          logoSize,
+          logoSize
+        );
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.setTextColor(20, 27, 45);
+      pdf.text(SCHOOL_HEADER.universityName, pageWidth / 2, 26, { align: "center" });
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(SCHOOL_HEADER.collegeName, pageWidth / 2, 38, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, pageWidth / 2, 48, { align: "center" });
+
+      pdf.setDrawColor(245, 124, 0);
+      pdf.setLineWidth(1.2);
+      pdf.line(marginX, 60, pageWidth - marginX, 60);
+
+      // ---- Title & Details ----
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(13);
+      pdf.setTextColor(245, 124, 0);
+      pdf.text(`Classroom Schedule — ${room?.roomName || "Room"}`, marginX, 78);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(107, 114, 128);
+      const details = `${schoolYear || "N/A"} | ${semester || "N/A"} | Generated: ${new Date().toLocaleString()}`;
+      pdf.text(details, marginX, 90);
+
+      // ---- Calendar Grid ----
+      const timeColWidth = 46;
+      const dayWidth = (pageWidth - marginX * 2 - timeColWidth) / 7;
+
+      const topOfCalendar = 108;
+      const bottomMargin = 30; // space for footer
+      const availableHeight = pageHeight - topOfCalendar - bottomMargin;
+      const totalHours = 13; // 7 AM to 8 PM
+      const hourHeight = availableHeight / totalHours;
+
+      // ---- Faculty color mapping ----
+      const facultyColors = {};
+      const colorPalette = [
+        [255, 215, 195], [215, 235, 255], [215, 255, 215], [255, 240, 195],
+        [235, 215, 255], [255, 215, 225], [195, 240, 240], [255, 230, 205],
+        [205, 225, 255], [225, 255, 225]
+      ];
+      let colorIndex = 0;
+
+      const getFacultyColor = (faculty) => {
+        const key = (faculty || "Unknown").trim().toLowerCase();
+        if (!facultyColors[key]) {
+          facultyColors[key] = colorPalette[colorIndex % colorPalette.length];
+          colorIndex++;
+        }
+        return facultyColors[key];
+      };
+
+      // ---- Draw time labels & horizontal grid lines ----
+      pdf.setDrawColor(200, 200, 200);
+      pdf.setLineWidth(0.4);
+      for (let h = 0; h <= totalHours; h++) {
+        const y = topOfCalendar + h * hourHeight;
+        pdf.line(marginX + timeColWidth, y, pageWidth - marginX, y);
+        if (h < totalHours) {
+          const hour = 7 + h;
+          const label = hour <= 11 ? `${hour} AM` : hour === 12 ? `12 PM` : `${hour - 12} PM`;
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(6.5);
+          pdf.setTextColor(100, 100, 100);
+          pdf.text(label, marginX + 3, y + 4);
+        }
+      }
+
+      // ---- Draw vertical day separators ----
+      for (let d = 0; d <= 7; d++) {
+        const x = marginX + timeColWidth + d * dayWidth;
+        pdf.line(x, topOfCalendar, x, topOfCalendar + totalHours * hourHeight);
+      }
+
+      // ---- Day headers ----
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8);
+      pdf.setTextColor(50, 50, 50);
+      for (let d = 0; d < 7; d++) {
+        const x = marginX + timeColWidth + d * dayWidth + dayWidth / 2;
+        pdf.text(DAYS[d], x, topOfCalendar - 5, { align: "center" });
+      }
+
+      // ---- Schedule blocks ----
+      const calendarStartMinutes = 7 * 60;
+      const sortedSchedules = [...schedules].sort((a, b) => {
+        const dayOrder = DAYS.indexOf(a.day?.trim().toUpperCase()) - DAYS.indexOf(b.day?.trim().toUpperCase());
+        if (dayOrder !== 0) return dayOrder;
+        return convertToMinutes(a.startTime) - convertToMinutes(b.startTime);
+      });
+
+      for (const schedule of sortedSchedules) {
+        const dayIndex = DAYS.indexOf(schedule.day?.trim().toUpperCase());
+        if (dayIndex === -1) continue;
+
+        const startMin = convertToMinutes(schedule.startTime);
+        const endMin = convertToMinutes(schedule.endTime);
+        const duration = endMin - startMin;
+        if (duration <= 0) continue;
+
+        const topOffset = ((startMin - calendarStartMinutes) / 60) * hourHeight;
+        const blockHeight = (duration / 60) * hourHeight;
+        const finalBlockHeight = Math.max(blockHeight, 12);
+
+        const x = marginX + timeColWidth + dayIndex * dayWidth + 2;
+        const y = topOfCalendar + topOffset + 2;
+        const w = dayWidth - 4;
+
+        // Color per faculty
+        const faculty = schedule.faculty || "";
+        const [r, g, b] = getFacultyColor(faculty);
+        const isDarkText = (r + g + b) / 3 < 180;
+
+        // Rounded rectangle
+        const radius = 2;
+        pdf.setFillColor(r, g, b);
+        pdf.setDrawColor(200, 180, 160);
+        pdf.setLineWidth(0.3);
+        pdf.roundedRect(x, y, w, finalBlockHeight, radius, radius, "FD");
+
+        // ---- Content ----
+        const subject = schedule.courseTitle || schedule.subject || "Class";
+        const timeLabel = `${format12Hour(schedule.startTime)} - ${format12Hour(schedule.endTime)}`;
+        const section = schedule.section || "";
+
+        // Dynamic font sizes
+        let titleSize, detailSize, spacing;
+        if (finalBlockHeight > 30) {
+          titleSize = 7; detailSize = 5.5; spacing = 8;
+        } else if (finalBlockHeight > 20) {
+          titleSize = 6; detailSize = 5; spacing = 7;
+        } else {
+          titleSize = 5.5; detailSize = 4.5; spacing = 6;
+        }
+
+        let textY = y + 4;
+        const padX = 3;
+
+        // Subject
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(titleSize);
+        pdf.setTextColor(isDarkText ? 255 : 26, isDarkText ? 255 : 26, isDarkText ? 255 : 26);
+        let displaySubject = subject;
+        const maxChars = Math.floor((w - 6) / (titleSize * 0.45));
+        if (displaySubject.length > maxChars && maxChars > 3) {
+          displaySubject = displaySubject.substring(0, maxChars - 2) + "..";
+        }
+        pdf.text(displaySubject, x + padX, textY);
+        textY += spacing;
+
+        // Faculty
+        if (finalBlockHeight > 18 && faculty) {
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(detailSize);
+          pdf.setTextColor(isDarkText ? 230 : 50, isDarkText ? 230 : 50, isDarkText ? 230 : 50);
+          let displayFaculty = faculty;
+          const maxFacultyChars = Math.floor((w - 6) / (detailSize * 0.45));
+          if (displayFaculty.length > maxFacultyChars && maxFacultyChars > 3) {
+            displayFaculty = displayFaculty.substring(0, maxFacultyChars - 2) + "..";
+          }
+          pdf.text(displayFaculty, x + padX, textY);
+          textY += spacing;
+        }
+
+        // Section
+        if (finalBlockHeight > 22 && section) {
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(detailSize - 0.5);
+          pdf.setTextColor(isDarkText ? 210 : 80, isDarkText ? 210 : 80, isDarkText ? 210 : 80);
+          let displaySection = section;
+          const maxSectionChars = Math.floor((w - 6) / ((detailSize - 0.5) * 0.45));
+          if (displaySection.length > maxSectionChars && maxSectionChars > 3) {
+            displaySection = displaySection.substring(0, maxSectionChars - 2) + "..";
+          }
+          pdf.text(`[${displaySection}]`, x + padX, textY);
+          textY += spacing;
+        }
+
+        // Time
+        if (finalBlockHeight > 14) {
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(detailSize - 0.5);
+          pdf.setTextColor(isDarkText ? 210 : 100, isDarkText ? 210 : 100, isDarkText ? 210 : 100);
+          pdf.text(timeLabel, x + padX, textY);
+        }
+      }
+
+      // ---- No legend (removed) ----
+
+      // ---- Footer ----
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - marginX,
+          pageHeight - 16,
+          { align: "right" }
+        );
+        pdf.text(
+          `${SCHOOL_HEADER.systemName} — Confidential`,
+          marginX,
+          pageHeight - 16
+        );
+      }
+
+      pdf.save(`Room-Schedule-${room?.roomName || "Room"}-${new Date().toISOString().slice(0,10)}.pdf`);
+
+      showToast("success", "PDF Downloaded", "Schedule exported successfully.");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      showToast("error", "Export Failed", "Could not generate PDF.");
+    }
+    setExporting(false);
+  };
+
   // ─── Render ────────────────────────────────────────────────────────
   return (
     <>
@@ -225,7 +522,19 @@ function LocalRegistrarViewRoomCard() {
               )}
               {isOriginal && <span>Weekly Schedule (Original)</span>}
             </div>
-            <span className="lr-vr-room-name">{room?.roomName}</span>
+            <div className="lr-vr-header-right">
+              <span className="lr-vr-room-name">{room?.roomName}</span>
+              {isOriginal && (
+                <button
+                  className="lr-vr-export-pdf-btn"
+                  onClick={handleExportPDF}
+                  disabled={exporting || schedules.length === 0}
+                >
+                  <i className="fa-solid fa-download"></i>
+                  {exporting ? "Generating..." : "Export PDF"}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="lr-vr-scroll-x">
@@ -268,10 +577,8 @@ function LocalRegistrarViewRoomCard() {
                     const dateStr = toDateStr(dateObj);
                     const daySchedules = getSchedulesByDay(day);
 
-                    // For original, show all schedules (no conflict filtering)
                     let filteredSchedules = daySchedules;
                     if (!isOriginal) {
-                      // Filter out released, reassigned‑away, and conflicting events/reservations
                       filteredSchedules = daySchedules.filter((schedule) => {
                         if (releasedKeys.has(`${schedule.id}_${dateStr}`)) return false;
                         if (reassignedAwayKeys.has(`${schedule.id}_${dateStr}`)) return false;
@@ -301,7 +608,6 @@ function LocalRegistrarViewRoomCard() {
                             }
                           />
                         ))}
-                        {/* Show events/reservations/reassignments only if not original */}
                         {!isOriginal &&
                           getItemsForDate(dateObj).map((item) => (
                             <ScheduleCard
@@ -348,6 +654,14 @@ function LocalRegistrarViewRoomCard() {
           </div>
         </div>
       </div>
+
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+      />
     </>
   );
 }
