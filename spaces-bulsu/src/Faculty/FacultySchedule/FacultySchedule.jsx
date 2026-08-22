@@ -1,10 +1,11 @@
 // ============================================================
-// FILE: WeeklyCalendar.jsx (with Toast & details modal)
+// FILE: WeeklyCalendar.jsx (with Import Schedule button)
 // ============================================================
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
 import ReleaseRoomModal from "../../Components/ReleaseRoomModal/ReleaseRoomModal";
 import ScheduleDetailsModal from "../../Components/ScheduleDetailsModal/ScheduleDetailsModal";
+import ImportScheduleModal from "./ImportScheduleModal";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
 import {
@@ -25,20 +26,22 @@ const END_HOUR = 21;
 const HOUR_HEIGHT = 60;
 
 const CARD_COLORS = [
-  { bg: "#EEF2FF", border: "#4F6EF7", text: "#3651D4", timeBg: "#C7D0FA" }, // blue - Academic
-  { bg: "#ECFDF5", border: "#34C77B", text: "#1A9E5C", timeBg: "#A7F0CC" }, // green - Institutional
-  { bg: "#FFF7ED", border: "#F97316", text: "#C2621A", timeBg: "#FDD9B5" }, // orange - Reservation
-  { bg: "#F5F3FF", border: "#8B5CF6", text: "#6D28D9", timeBg: "#DDD6FE" }, // purple - Reassigned
+  { bg: "#EEF2FF", border: "#4F6EF7", text: "#3651D4", timeBg: "#C7D0FA" }, // Academic
+  { bg: "#ECFDF5", border: "#34C77B", text: "#1A9E5C", timeBg: "#A7F0CC" }, // Institutional
+  { bg: "#FFF7ED", border: "#F97316", text: "#C2621A", timeBg: "#FDD9B5" }, // Reservation
+  { bg: "#F5F3FF", border: "#8B5CF6", text: "#6D28D9", timeBg: "#DDD6FE" }, // Reassigned
+  { bg: "#F3E8FF", border: "#c38af8", text: "#7E22CE", timeBg: "#E9D5FF" }, // Online
 ];
 
 const LEGEND = [
   { label: "Academic",      color: "#4F6EF7" },
-  { label: "Institutional", color: "#34C77B" },
+  { label: "Room Activity", color: "#34C77B" },
   { label: "Reservation",   color: "#F97316" },
   { label: "Reassigned",    color: "#8B5CF6" },
+  { label: "Online",        color: "#c38af8" },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────
 
 const normalizeName = (name = "") =>
   name
@@ -129,17 +132,9 @@ const computeStatus = (dateStr, startTime, endTime) => {
   return { status: "COMPLETED", remainingMinutes: 0 };
 };
 
-// ─── Notification helper ──────────────────────────────────────────────
+// ─── Notification helper ──────────────────────────────────────────
 
-const notifyReleaseRoom = async ({
-  facultyId,
-  facultyName,
-  roomName,
-  subject,
-  date,
-  startTime,
-  endTime,
-}) => {
+const notifyReleaseRoom = async ({ facultyId, facultyName, roomName, subject, date, startTime, endTime }) => {
   try {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
@@ -203,7 +198,7 @@ const notifyReleaseRoom = async ({
   }
 };
 
-// ─── MAIN COMPONENT ─────────────────────────────────────────────────────
+// ─── MAIN COMPONENT ─────────────────────────────────────────────
 
 export default function WeeklyCalendar() {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -213,6 +208,7 @@ export default function WeeklyCalendar() {
   const [activeTerm, setActiveTerm] = useState(null);
 
   const [scheduleEvents, setScheduleEvents] = useState([]);
+  const [facultyOnlineEvents, setFacultyOnlineEvents] = useState([]);
   const [overrideEvents, setOverrideEvents] = useState([]);
   const [reservationEvents, setReservationEvents] = useState([]);
   const [reassignedEvents, setReassignedEvents] = useState([]);
@@ -222,7 +218,10 @@ export default function WeeklyCalendar() {
   const [detailsTarget, setDetailsTarget] = useState(null);
   const [submittingRelease, setSubmittingRelease] = useState(false);
 
-  // ─── Toast state ──────────────────────────────────────────────────────
+  // ─── Import Schedule Modal state ────────────────────────────────
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // ─── Toast state ──────────────────────────────────────────────────
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -255,7 +254,7 @@ export default function WeeklyCalendar() {
     loadFacultySchedule();
   }, []);
 
-  // ─── LOAD FUNCTION ──────────────────────────────────────────────────
+  // ─── LOAD FUNCTION ──────────────────────────────────────────────
 
   const loadFacultySchedule = async () => {
     setLoading(true);
@@ -279,6 +278,7 @@ export default function WeeklyCalendar() {
         `${me.lastName}, ${me.firstName}${me.middleInitial ? ` ${me.middleInitial}` : ""}`
       );
 
+      // ─── 1. Load room schedules ──────────────────────────────────
       const roomsSnap = await getDocs(collection(db, "rooms"));
       const matchedSchedules = [];
 
@@ -343,6 +343,26 @@ export default function WeeklyCalendar() {
         setNoSchedule(true);
       }
 
+      // ─── 2. Load faculty online schedules ──────────────────────
+      const facultySchedulesSnap = await getDocs(
+        query(
+          collection(db, "facultySchedules"),
+          where("userId", "==", firebaseUser.uid)
+        )
+      );
+
+      const onlineSchedules = [];
+      facultySchedulesSnap.forEach((d) => {
+        const data = d.data();
+        onlineSchedules.push({
+          id: d.id,
+          ...data,
+          isOnline: true,
+        });
+      });
+      setFacultyOnlineEvents(onlineSchedules);
+
+      // ─── 3. Load events ──────────────────────────────────────────
       if (hasSchedules) {
         const eventSnap = await getDocs(collection(db, "events"));
         const myEvents = eventSnap.docs
@@ -353,7 +373,7 @@ export default function WeeklyCalendar() {
         setOverrideEvents([]);
       }
 
-      // Approved reservations
+      // ─── 4. Approved reservations ───────────────────────────────
       const reservationSnap = await getDocs(
         collection(db, "reservationRequests")
       );
@@ -371,7 +391,7 @@ export default function WeeklyCalendar() {
         });
       setReservationEvents(myReservations);
 
-      // Releases
+      // ─── 5. Releases ─────────────────────────────────────────────
       const releaseQ = query(
         collection(db, "roomReleases"),
         where("releasedBy", "==", firebaseUser.uid)
@@ -385,7 +405,7 @@ export default function WeeklyCalendar() {
       );
       setReleasedKeys(keys);
 
-      // Reassignments
+      // ─── 6. Reassignments ──────────────────────────────────────
       const reassignQ = query(
         collection(db, "roomReassignments"),
         where("facultyId", "==", firebaseUser.uid),
@@ -405,7 +425,7 @@ export default function WeeklyCalendar() {
     }
   };
 
-  // ─── Week computation ──────────────────────────────────────────────
+  // ─── Week computation ──────────────────────────────────────────
 
   const getStartOfWeek = (date) => {
     const d = new Date(date);
@@ -440,6 +460,8 @@ export default function WeeklyCalendar() {
 
   const totalH = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
 
+  // ─── CALENDAR EVENTS ────────────────────────────────────────────
+
   const calendarEvents = useMemo(() => {
     const items = [];
 
@@ -447,6 +469,7 @@ export default function WeeklyCalendar() {
       reassignedEvents.map((r) => `${r.scheduleId}_${r.date}`)
     );
 
+    // ── Room schedules ──
     scheduleEvents.forEach((s) => {
       const dayIdx = DAYS.indexOf(s.day) + 1;
       if (dayIdx < 1) return;
@@ -460,6 +483,8 @@ export default function WeeklyCalendar() {
 
       const [startH, startM] = parseTimeParts(s.startTime);
       const [endH, endM] = parseTimeParts(s.endTime);
+
+      const colorIdx = s.isOnline ? 4 : 0;
 
       items.push({
         id: `sched-${s.id}-${occurrenceDateStr}`,
@@ -476,27 +501,63 @@ export default function WeeklyCalendar() {
         rawEndTime: s.endTime,
         title: s.subject || "Class",
         location: `${s.roomName || "-"}${s.floor ? ` | ${s.floor}` : ""}`,
-        faculty: s.faculty || "Faculty", // ✅ added faculty
+        faculty: s.faculty || "Faculty",
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
-        colorIdx: 0,
+        colorIdx,
+        isOnline: s.isOnline || false,
       });
     });
 
+    // ── Faculty online schedules ──
+    facultyOnlineEvents.forEach((s) => {
+      const dayIdx = DAYS.indexOf(s.day) + 1;
+      if (dayIdx < 1) return;
+
+      const occurrenceDate = new Date(weekStart);
+      occurrenceDate.setDate(weekStart.getDate() + (dayIdx - 1));
+      const occurrenceDateStr = toDateStr(occurrenceDate);
+
+      const [startH, startM] = parseTimeParts(s.startTime);
+      const [endH, endM] = parseTimeParts(s.endTime);
+
+      items.push({
+        id: `faculty-online-${s.id}-${occurrenceDateStr}`,
+        kind: "faculty-online",
+        scheduleId: s.id,
+        roomId: null,
+        roomName: "Online",
+        subject: s.subject,
+        section: s.section,
+        day: s.day,
+        date: occurrenceDateStr,
+        rawStartTime: s.startTime,
+        rawEndTime: s.endTime,
+        title: `${s.subject || "Online Class"}${s.section ? ` (${s.section})` : ""}`,
+        location: "Online Class",
+        faculty: s.facultyName || "Faculty",
+        dayIdx,
+        daySpan: 1,
+        startH, startM, endH, endM,
+        colorIdx: 4, // Online color
+        isOnline: true,
+        isFacultyOnline: true,
+      });
+    });
+
+    // ── Events (overrides) ──
     overrideEvents.forEach((e) => {
       if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
-
       const dayIdx = mondayIndexFromDate(e.date);
       const [startH, startM] = parseTimeParts(e.startTime);
       const [endH, endM] = parseTimeParts(e.endTime);
-
       items.push({
         id: `event-${e.id}`,
         kind: "event",
         title: e.title || e.purpose || "Room Activity",
         location: `${e.roomName || "-"} | Room Activity`,
-        roomName: e.roomName || "-", // ✅ add this
+        roomName: e.roomName || "-",
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
@@ -508,19 +569,18 @@ export default function WeeklyCalendar() {
       });
     });
 
+    // ── Reservations ──
     reservationEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
-
       const dayIdx = mondayIndexFromDate(r.date);
       const [startH, startM] = parseTimeParts(r.startTime);
       const [endH, endM] = parseTimeParts(r.endTime);
-
       items.push({
         id: `resv-${r.id}`,
         kind: "reservation",
         title: r.customPurpose || r.courseTitle || r.purpose || "Reservation",
         location: `${r.roomName || "-"} | Reservation`,
-        roomName: r.roomName || "-", // ✅ add this
+        roomName: r.roomName || "-",
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
@@ -532,19 +592,18 @@ export default function WeeklyCalendar() {
       });
     });
 
+    // ── Reassignments ──
     reassignedEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
-
       const dayIdx = mondayIndexFromDate(r.date);
       const [startH, startM] = parseTimeParts(r.startTime);
       const [endH, endM] = parseTimeParts(r.endTime);
-
       items.push({
         id: `reassign-${r.id}`,
         kind: "reassignment",
         title: `${r.courseTitle || "Class"} (Moved)`,
         location: `${r.newRoomName || "-"} | Reassigned Room`,
-        roomName: r.newRoomName || "-", // ✅ add this
+        roomName: r.newRoomName || "-",
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
@@ -556,9 +615,11 @@ export default function WeeklyCalendar() {
         originalRoom: r.oldRoomName,
       });
     });
+
     return items;
   }, [
     scheduleEvents,
+    facultyOnlineEvents,
     overrideEvents,
     reservationEvents,
     releasedKeys,
@@ -567,10 +628,9 @@ export default function WeeklyCalendar() {
     weekEnd.getTime(),
   ]);
 
-  // ─── Click handler ──────────────────────────────────────────────────
+  // ─── Click handler ──────────────────────────────────────────────
 
   const handleEventClick = (ev) => {
-    // Compute status for all event types
     let status = "SCHEDULED";
     if (ev.date && ev.rawStartTime && ev.rawEndTime) {
       const result = computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime);
@@ -579,16 +639,14 @@ export default function WeeklyCalendar() {
 
     if (ev.kind === "schedule") {
       if (status !== "COMPLETED") {
-        // Ongoing or Upcoming → allow release
         openReleaseModal(ev);
         return;
       }
     }
-    // For all others or completed schedules, show details modal
     setDetailsTarget({ ...ev, status });
   };
 
-  // ─── Release modal helpers ──────────────────────────────────────────
+  // ─── Release modal helpers ──────────────────────────────────────
 
   const openReleaseModal = (ev) => {
     const { status, remainingMinutes } = computeStatus(
@@ -693,19 +751,45 @@ export default function WeeklyCalendar() {
     }
   };
 
-  // ─── RENDER ──────────────────────────────────────────────────────────
+  // ─── Import Success Handler ────────────────────────────────────
+
+  const handleImportSuccess = () => {
+    showToast("success", "Schedule Updated", "Your schedule has been updated.");
+    loadFacultySchedule();
+  };
+
+  // ─── RENDER ──────────────────────────────────────────────────────
 
   return (
     <>
       <div className="wc-page">
-        <div className="wc-legend">
-          {LEGEND.map(l => (
-            <div className="wc-legend-item" key={l.label}>
-              <span className="wc-legend-dot" style={{ background: l.color }} />
-              <span className="wc-legend-label">{l.label}</span>
-            </div>
-          ))}
+        {/* ─── PAGE TITLE ─── */}
+        <div className="wc-page-header">
+          <div className="wc-page-header-text">
+            <h1>My Schedule</h1>
+            <p className="wc-page-subtitle">
+              View your weekly class schedule, keep track of your room assignments, and release a room for classes you won't be holding.
+            </p>
+          </div>
 
+          <div className="wc-page-actions">
+            <button className="wc-import-btn" onClick={() => setShowImportModal(true)}>
+              <i className="fa-solid fa-upload" aria-hidden="true" />
+              Import Schedule
+            </button>
+          </div>
+        </div>
+
+        {/* ─── LEGEND ROW ─── */}
+        <div className="wc-legend-row">
+          <div className="wc-legend">
+            {LEGEND.map(l => (
+              <div className="wc-legend-item" key={l.label}>
+                <span className="wc-legend-dot" style={{ background: l.color }} />
+                <span className="wc-legend-label">{l.label}</span>
+              </div>
+            ))}
+          </div>
           {activeTerm && (
             <div className="wc-legend-term">
               {activeTerm.semester} • {activeTerm.schoolYear}
@@ -743,6 +827,9 @@ export default function WeeklyCalendar() {
             <div className="wc-empty-state">
               <i className="fa-regular fa-calendar-xmark"></i>
               <p>No events found for this week.</p>
+              <p style={{ fontSize: "14px", marginTop: "8px" }}>
+                Click <strong>Import Schedule</strong> to upload your class schedule.
+              </p>
             </div>
           ) : (
             <div className="wc-scroll-area">
@@ -771,11 +858,12 @@ export default function WeeklyCalendar() {
                     const leftPct  = ((ev.dayIdx - 1) / 7) * 100;
                     const widthPct = (ev.daySpan / 7) * 100;
                     const isClickable = ev.kind === "schedule" && computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime).status !== "COMPLETED";
+                    const isOnline = ev.isOnline || false;
 
                     return (
                       <div
                         key={ev.id}
-                        className={`wc-event ${isClickable ? "wc-event--clickable" : "wc-event--viewable"}`}
+                        className={`wc-event ${isClickable ? "wc-event--clickable" : "wc-event--viewable"} ${isOnline ? "wc-event--online" : ""}`}
                         onClick={() => handleEventClick(ev)}
                         style={{
                           top:             topPx,
@@ -788,7 +876,10 @@ export default function WeeklyCalendar() {
                         }}
                       >
                         <div className="wc-event-top">
-                          <span className="wc-event-title" style={{ color: color.text }}>{ev.title}</span>
+                          <span className="wc-event-title" style={{ color: color.text }}>
+                            {ev.title}
+                            {isOnline && <span className="wc-online-badge">Online</span>}
+                          </span>
                           <span className="wc-event-time" style={{ background: color.timeBg, color: color.text }}>
                             {fmtTime(ev.startH, ev.startM)}-{fmtTime(ev.endH, ev.endM)}
                           </span>
@@ -816,6 +907,12 @@ export default function WeeklyCalendar() {
       <ScheduleDetailsModal
         target={detailsTarget}
         onClose={() => setDetailsTarget(null)}
+      />
+
+      <ImportScheduleModal
+        show={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={handleImportSuccess}
       />
 
       <Toast

@@ -12,9 +12,23 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
+// NEW: PDF libraries and logos
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import universityLogo from "../../assets/BSU-Logo.png";
+import collegeLogo from "../../assets/CICT-Logo.png";
 
 const tabs = ['All Activities', 'System Changes', 'Security Events'];
 const ITEMS_PER_PAGE = 10;
+
+// NEW: School header constant (same as RoomUsageTracking)
+const SCHOOL_HEADER = {
+  universityLogoUrl: universityLogo,
+  collegeLogoUrl: collegeLogo,
+  universityName: "Bulacan State University",
+  collegeName: "College of Information and Communications Technology",
+  systemName: "SpaceS CICT",
+};
 
 const actionIcon = (type) => {
   switch (type) {
@@ -87,15 +101,12 @@ export default function DepartmentHeadActivityLog() {
   const filteredLogs = useMemo(() => {
     let result = [...logs];
 
-    // 1️⃣ Tab filtering
     if (activeTab === "System Changes") {
       result = result.filter(log => log.actionType === "edit" || log.actionType === "success");
     } else if (activeTab === "Security Events") {
       result = result.filter(log => log.actionType === "failed" || log.actionType === "denied");
     }
-    // "All Activities" – no filter
 
-    // 2️⃣ Date range
     const now = new Date();
     let cutoffDate = null;
     if (dateRange === "Last 7 Days") {
@@ -115,7 +126,6 @@ export default function DepartmentHeadActivityLog() {
       });
     }
 
-    // 3️⃣ User role
     if (userRole !== "All Roles") {
       const roleLower = userRole.toLowerCase();
       result = result.filter((log) =>
@@ -123,15 +133,12 @@ export default function DepartmentHeadActivityLog() {
       );
     }
 
-    // 4️⃣ Action type
     if (actionType !== "All Actions") {
       const actionLower = actionType.toLowerCase();
-      // Map "Approved" → "success", "Denied" → "denied", "Failed" → "failed"
       let targetType = "";
       if (actionLower === "approved") targetType = "success";
       else if (actionLower === "denied") targetType = "denied";
       else if (actionLower === "failed") targetType = "failed";
-      // Also allow "edit" if we add it later
       else targetType = actionLower;
 
       result = result.filter((log) =>
@@ -149,13 +156,11 @@ export default function DepartmentHeadActivityLog() {
   const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
   const paginatedLogs = filteredLogs.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Reset page & selection on tab change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds([]);
   }, [activeTab, dateRange, userRole, actionType]);
 
-  // Clamp page if totalPages decreases
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -260,6 +265,131 @@ export default function DepartmentHeadActivityLog() {
     }
   };
 
+  // ─── NEW: Export PDF ────────────────────────────────────────────────
+  const handleExportPDF = () => {
+    if (filteredLogs.length === 0) {
+      showToast("No logs to export.", "error");
+      return;
+    }
+
+    showToast("Generating PDF...", "loading");
+
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const marginX = 40;
+      const logoSize = 50;
+      const centerX = pageWidth / 2;
+
+      // ---- Letterhead ----
+      if (SCHOOL_HEADER.universityLogoUrl) {
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
+      }
+      if (SCHOOL_HEADER.collegeLogoUrl) {
+        pdf.addImage(
+          SCHOOL_HEADER.collegeLogoUrl,
+          "PNG",
+          pageWidth - marginX - logoSize,
+          22,
+          logoSize,
+          logoSize
+        );
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.setTextColor(20, 27, 45);
+      pdf.text(SCHOOL_HEADER.universityName, centerX, 36, { align: "center" });
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(SCHOOL_HEADER.collegeName, centerX, 50, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, centerX, 62, { align: "center" });
+
+      pdf.setDrawColor(245, 124, 0);
+      pdf.setLineWidth(1.5);
+      pdf.line(marginX, 82, pageWidth - marginX, 82);
+
+      // ---- Title & filters ----
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.setTextColor(245, 124, 0);
+      pdf.text("Activity Log Report", marginX, 104);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(`Filters: ${activeTab} | ${dateRange} | ${userRole} | ${actionType}`, marginX, 120);
+      pdf.text(
+        `Generated: ${new Date().toLocaleString()}`,
+        pageWidth - marginX,
+        120,
+        { align: "right" }
+      );
+
+      // ---- Table ----
+      const rows = filteredLogs.map((log) => {
+        const date = log.timestamp?.toDate?.().toLocaleDateString?.() || "N/A";
+        const time = log.timestamp?.toDate?.().toLocaleTimeString?.([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }) || "";
+        return [
+          log.user || "-",
+          log.role || "-",
+          log.action || "-",
+          log.target || "-",
+          `${date} ${time}`,
+          log.status || "-",
+        ];
+      });
+
+      autoTable(pdf, {
+        startY: 134,
+        head: [["User", "Role", "Action", "Target", "Date & Time", "Status"]],
+        body: rows,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 8, cellPadding: 5, valign: "middle" },
+        headStyles: {
+          fillColor: [245, 124, 0],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 8,
+        },
+        bodyStyles: { textColor: [26, 26, 26] },
+        alternateRowStyles: { fillColor: [253, 246, 240] },
+        margin: { left: marginX, right: marginX },
+      });
+
+      // ---- Footer ----
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - marginX,
+          pdf.internal.pageSize.getHeight() - 20,
+          { align: "right" }
+        );
+        pdf.text(
+          `${SCHOOL_HEADER.systemName} — Confidential`,
+          marginX,
+          pdf.internal.pageSize.getHeight() - 20
+        );
+      }
+
+      pdf.save(`activity-log-${new Date().toISOString().slice(0,10)}.pdf`);
+      showToast("PDF exported successfully!", "success");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      showToast("Failed to generate PDF. Please try again.", "error");
+    }
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────
 
   return (
@@ -293,9 +423,10 @@ export default function DepartmentHeadActivityLog() {
             <i className="fa-solid fa-download"></i>
             Export CSV
           </button>
-          <button className="action-btn filled">
-            <i className="fa-solid fa-print"></i>
-            Print Report
+          {/* Updated PDF button with handler */}
+          <button className="action-btn filled" onClick={handleExportPDF}>
+            <i className="fa-solid fa-download"></i>
+            Export PDF
           </button>
         </div>
       </div>
@@ -392,11 +523,9 @@ export default function DepartmentHeadActivityLog() {
             </div>
           </div>
 
-          {/* "Apply Filters" – now just a visual button, or you can remove it */}
           <button
             className="apply-btn-dph"
             onClick={() => {
-              // The filters are already reactive – we just show a toast for feedback
               showToast("Filters applied", "success");
             }}
           >

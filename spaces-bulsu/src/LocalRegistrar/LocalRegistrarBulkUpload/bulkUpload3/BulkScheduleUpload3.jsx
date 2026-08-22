@@ -33,29 +33,59 @@ const colourPalette = [
   "#6f42c1", "#fd7e14", "#20c997", "#d63384", "#6610f2"
 ];
 
-// ---------- Edit Schedule Modal (unchanged) ----------
+const MIN_TIME = "07:00";
+const MAX_TIME = "20:00";
+
+function toTimeValue(h, m) {
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+// Native <input type="time"> already renders with an AM/PM picker in the
+// browser and lets the user pick any minute, not just whole hours — the
+// old plain number inputs just showed raw digits like "7" / "0".
+function clampTimeValue(value) {
+  if (!value) return MIN_TIME;
+  if (value < MIN_TIME) return MIN_TIME;
+  if (value > MAX_TIME) return MAX_TIME;
+  return value;
+}
+
+// ---------- Edit Schedule Modal ----------
 function EditScheduleModal({ schedule, onSave, onClose }) {
   const [code, setCode] = useState(schedule.code || "");
   const [name, setName] = useState(schedule.name || "");
   const [day, setDay] = useState(schedule.day);
-  const [startH, setStartH] = useState(schedule.startH);
-  const [startM, setStartM] = useState(schedule.startM);
-  const [endH, setEndH] = useState(schedule.endH);
-  const [endM, setEndM] = useState(schedule.endM);
+  const [startTime, setStartTime] = useState(toTimeValue(schedule.startH, schedule.startM));
+  const [endTime, setEndTime] = useState(toTimeValue(schedule.endH, schedule.endM));
   const [faculty, setFaculty] = useState(schedule.faculty);
   const [section, setSection] = useState(schedule.section || "");
+  const [timeError, setTimeError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    const clampedStart = clampTimeValue(startTime);
+    const clampedEnd = clampTimeValue(endTime);
+
+    if (clampedEnd <= clampedStart) {
+      setTimeError("End time must be after the start time.");
+      return;
+    }
+
+    setTimeError("");
+
+    const [startH, startM] = clampedStart.split(":").map(Number);
+    const [endH, endM] = clampedEnd.split(":").map(Number);
+
     onSave({
       ...schedule,
       code: code.trim(),
       name: name.trim(),
       day: parseInt(day),
-      startH: parseInt(startH),
-      startM: parseInt(startM),
-      endH: parseInt(endH),
-      endM: parseInt(endM),
+      startH,
+      startM,
+      endH,
+      endM,
       faculty: faculty.trim() || "TBA",
       section: section.trim(),
     });
@@ -83,20 +113,38 @@ function EditScheduleModal({ schedule, onSave, onClose }) {
               <div className="time-row">
                 <div className="time-box">
                   <label>Start Time</label>
-                  <div className="time-inputs">
-                    <input type="number" value={startH} onChange={(e) => setStartH(e.target.value)} />
-                    <span className="time-separator">:</span>
-                    <input type="number" value={startM} onChange={(e) => setStartM(e.target.value)} />
-                  </div>
+                  <input
+                    type="time"
+                    className="time-native-input"
+                    min={MIN_TIME}
+                    max={MAX_TIME}
+                    value={startTime}
+                    onChange={(e) => {
+                      setStartTime(e.target.value);
+                      setTimeError("");
+                    }}
+                    onBlur={(e) => setStartTime(clampTimeValue(e.target.value))}
+                  />
                 </div>
                 <div className="time-box">
                   <label>End Time</label>
-                  <div className="time-inputs">
-                    <input type="number" value={endH} onChange={(e) => setEndH(e.target.value)} />
-                    <span className="time-separator">:</span>
-                    <input type="number" value={endM} onChange={(e) => setEndM(e.target.value)} />
-                  </div>
+                  <input
+                    type="time"
+                    className="time-native-input"
+                    min={MIN_TIME}
+                    max={MAX_TIME}
+                    value={endTime}
+                    onChange={(e) => {
+                      setEndTime(e.target.value);
+                      setTimeError("");
+                    }}
+                    onBlur={(e) => setEndTime(clampTimeValue(e.target.value))}
+                  />
                 </div>
+                <p className="time-hint">
+                  <i className="fa-regular fa-circle-info" /> Rooms are available 7:00 AM – 8:00 PM.
+                  {timeError && <span className="time-hint-error"> {timeError}</span>}
+                </p>
               </div>
               <div className="field-group">
                 <label>Faculty</label>
@@ -116,6 +164,84 @@ function EditScheduleModal({ schedule, onSave, onClose }) {
       </div>
     </div>
   );
+}
+
+// ---------- Schedule block rendered on the calendar grid ----------
+function CalendarEventBlock({ item, onEdit }) {
+  const top = getTopFromStart(item.startH, item.startM);
+  const height = getBlockHeight(item.startH, item.startM, item.endH, item.endM);
+  const color = colourPalette[item.colorIdx % colourPalette.length];
+
+  // Every line (code, time, faculty, section) gets its own full-width row
+  // so none of them can crowd another out — the block just progressively
+  // reveals fewer lines as it gets shorter, in priority order.
+  const isMini = height < 30; // code + time share one row, nothing else fits
+  const isCompact = height < 46; // code + time only, each on its own line
+  const showFaculty = height >= 46;
+  const showSection = height >= 64;
+
+  const timeLabel = `${formatTime12Hour(item.startH, item.startM)} - ${formatTime12Hour(item.endH, item.endM)}`;
+  const facultyLabel = item.faculty || "TBA";
+  const tooltip = [
+    item.section ? `${item.code} (${item.section})` : item.code,
+    timeLabel,
+    facultyLabel,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
+  // Mini blocks: code and time share one row — the only case where they
+  // compete for space, since there's no room for a second line at all.
+  if (isMini) {
+    return (
+      <div
+        className="calendar-event is-mini"
+        style={{ top: `${top}px`, height: `${height}px`, backgroundColor: color }}
+        onClick={() => onEdit(item)}
+        title={tooltip}
+      >
+        <span className="calendar-event-code">{item.code}</span>
+        <span className="calendar-event-time">{timeLabel}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`calendar-event ${isCompact ? "is-compact" : ""}`}
+      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: color }}
+      onClick={() => onEdit(item)}
+      title={tooltip}
+    >
+      <span className="calendar-event-code">{item.code}</span>
+
+      <span className="calendar-event-time">
+        <i className="fa-regular fa-clock" aria-hidden="true" />
+        <span>{timeLabel}</span>
+      </span>
+
+      {showFaculty && (
+        <span className="calendar-event-faculty">
+          <i className="fa-regular fa-user" aria-hidden="true" />
+          <span>{facultyLabel}</span>
+        </span>
+      )}
+
+      {showSection && item.section && (
+        <span className="calendar-event-section-line">
+          <i className="fa-solid fa-tag" aria-hidden="true" />
+          <span>{item.section}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function formatTime12Hour(hour, minute) {
+  const suffix = hour >= 12 ? "PM" : "AM";
+  let displayHour = hour % 12;
+  if (displayHour === 0) displayHour = 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
 // ---------- Main Component ----------
@@ -161,13 +287,6 @@ export default function BulkScheduleUpload3() {
     if (meridian === "PM" && hour !== 12) hour += 12;
     if (meridian === "AM" && hour === 12) hour = 0;
     return [hour, minute];
-  };
-
-  const formatTime12Hour = (hour, minute) => {
-    const suffix = hour >= 12 ? "PM" : "AM";
-    let displayHour = hour % 12;
-    if (displayHour === 0) displayHour = 12;
-    return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
   };
 
   const convertSchedules = (data = []) => {
@@ -304,48 +423,9 @@ export default function BulkScheduleUpload3() {
                     {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
                       <div className="hour-line" key={i} style={{ top: i * HOUR_HEIGHT }} />
                     ))}
-                    {daySchedules.map((item) => {
-                      const top = getTopFromStart(item.startH, item.startM);
-                      const height = getBlockHeight(item.startH, item.startM, item.endH, item.endM);
-                      const color = colourPalette[item.colorIdx % colourPalette.length];
-                      return (
-                        <div
-                          key={item.id}
-                          className="calendar-event"
-                          style={{
-                            position: "absolute",
-                            top: `${top}px`,
-                            height: `${height}px`,
-                            left: "8px",
-                            right: "8px",
-                            backgroundColor: color,
-                            borderRadius: "6px",
-                            padding: "4px",
-                            color: "white",
-                            fontSize: "10px",
-                            cursor: "pointer",
-                            overflow: "hidden",
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "space-between",
-                          }}
-                          onClick={() => setEditingSchedule(item)}
-                        >
-                          <div>
-                            <strong>{item.code}</strong>
-                            {item.section && <span style={{ fontSize: "8px", marginLeft: "4px" }}>({item.section})</span>}
-                          </div>
-                          <div>
-                            {formatTime12Hour(item.startH, item.startM)} - {formatTime12Hour(item.endH, item.endM)}
-                          </div>
-                          {item.faculty && item.faculty !== "TBA" && (
-                            <div style={{ fontSize: "8px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {item.faculty}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {daySchedules.map((item) => (
+                      <CalendarEventBlock key={item.id} item={item} onEdit={setEditingSchedule} />
+                    ))}
                   </div>
                 );
               })}

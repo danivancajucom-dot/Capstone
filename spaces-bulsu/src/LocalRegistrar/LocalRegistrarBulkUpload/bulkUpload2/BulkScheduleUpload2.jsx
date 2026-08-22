@@ -71,7 +71,6 @@ async function extractRawText(file) {
   }
 }
 
-// ---------- Room card: shows a selected room + its file dropzone (click or drag) ----------
 function RoomCard({ roomName, file, onRemove, onFileChange }) {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -134,7 +133,6 @@ function RoomCard({ roomName, file, onRemove, onFileChange }) {
   );
 }
 
-// ---------- Add Room box: dashed trace box that turns into a searchable room picker ----------
 function AddRoomBox({ availableRooms, onAdd }) {
   const [isSelecting, setIsSelecting] = useState(false);
   const [search, setSearch] = useState("");
