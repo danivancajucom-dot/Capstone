@@ -166,7 +166,7 @@ ${rawText}
 // ---------- ENDPOINT 2: Online classes (Faculty) ----------
 app.post("/api/extract-online-schedule", async (req, res) => {
   try {
-    const { rawText, semester, schoolYear } = req.body;
+    const { rawText, semester, schoolYear, faculty } = req.body;
 
     if (!rawText || rawText.trim().length < 10) {
       return res.status(400).json({
@@ -182,7 +182,7 @@ Return ONLY a valid JSON array. No markdown, no extra text.
 Each object must have exactly these fields:
   "subject": string (course code)
   "section": string (section code)
-  "faculty": string (instructor name)
+  "faculty": string (instructor name, use "${faculty || 'TBA'}" if not found)
   "day": string (MON, TUE, WED, THU, FRI, SAT, SUN)
   "startTime": string (24-hour format HH:mm)
   "endTime": string (24-hour format HH:mm)
@@ -192,9 +192,11 @@ Rules:
 - If a field is missing, use empty string or "TBA" for faculty.
 - DO NOT include room information – these are online classes.
 - Parse ALL schedules listed.
+- The faculty name should be "${faculty || 'TBA'}" for all schedules.
 
 Semester: ${semester}
 School Year: ${schoolYear}
+Faculty: ${faculty || 'TBA'}
 
 Schedule Text:
 ${rawText}
@@ -210,7 +212,7 @@ ${rawText}
     schedules = schedules.map((item) => ({
       subject: item.subject || "",
       section: item.section || "",
-      faculty: item.faculty || "TBA",
+      faculty: item.faculty || faculty || "TBA",
       day: item.day ? item.day.toUpperCase().trim() : "",
       startTime: item.startTime || "",
       endTime: item.endTime || "",
@@ -218,7 +220,7 @@ ${rawText}
 
     schedules = schedules.filter((s) => s.subject || s.day);
 
-    console.log(`✅ Extracted ${schedules.length} online schedule(s)`);
+    console.log(`✅ Extracted ${schedules.length} online schedule(s) for faculty: ${faculty || 'Unknown'}`);
     res.json({ success: true, schedules });
 
   } catch (error) {

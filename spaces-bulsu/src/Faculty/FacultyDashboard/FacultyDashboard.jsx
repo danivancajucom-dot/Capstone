@@ -7,6 +7,8 @@ import {
   getDocs,
   doc,
   getDoc,
+  query,
+  where,
 } from "firebase/firestore";
 
 const DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -111,6 +113,9 @@ export default function FacultyDashboard({ onLogout }) {
   const [latestSchedules, setLatestSchedules] = useState([]);
   const [facultyName, setFacultyName] = useState("");
 
+  // ─── Online classes ──────────────────────────────────────────────
+  const [onlineSchedules, setOnlineSchedules] = useState([]);
+
   const [releasedKeys, setReleasedKeys] = useState(new Set());
   const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
   const [reassignedInto, setReassignedInto] = useState([]);
@@ -128,7 +133,7 @@ export default function FacultyDashboard({ onLogout }) {
     loadMySchedule();
   }, []);
 
-  // ─── MAIN LOAD FUNCTION (reservations always loaded) ────────────
+  // ─── MAIN LOAD FUNCTION ──────────────────────────────────────────
   const loadMySchedule = async () => {
     setLoading(true);
 
@@ -207,10 +212,27 @@ export default function FacultyDashboard({ onLogout }) {
       } else {
         setLatestSchedules([]);
         setActiveTerm(null);
-        // No schedules, but we still load reservations below
       }
 
-      // ─── 2. LOAD RELEASES ──────────────────────────────────
+      // ─── 2. LOAD ONLINE CLASSES ──────────────────────────────
+      try {
+        const onlineQuery = query(
+          collection(db, "facultySchedules"),
+          where("userId", "==", firebaseUser.uid)
+        );
+        const onlineSnap = await getDocs(onlineQuery);
+        const onlineList = onlineSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          isOnline: true,
+        }));
+        setOnlineSchedules(onlineList);
+      } catch (err) {
+        console.warn("Failed to load online schedules:", err);
+        setOnlineSchedules([]);
+      }
+
+      // ─── 3. LOAD RELEASES ──────────────────────────────────
       const releaseSnap = await getDocs(collection(db, "roomReleases"));
       const keys = new Set(
         releaseSnap.docs
@@ -220,7 +242,7 @@ export default function FacultyDashboard({ onLogout }) {
       );
       setReleasedKeys(keys);
 
-      // ─── 3. LOAD REASSIGNMENTS ─────────────────────────────
+      // ─── 4. LOAD REASSIGNMENTS ─────────────────────────────
       const reassignSnap = await getDocs(collection(db, "roomReassignments"));
       const allReassignments = reassignSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -238,7 +260,7 @@ export default function FacultyDashboard({ onLogout }) {
       setReassignedAwayKeys(awayKeys);
       setReassignedInto(allReassignments);
 
-      // ─── 4. LOAD APPROVED RESERVATIONS (ALWAYS) ────────────
+      // ─── 5. LOAD APPROVED RESERVATIONS ────────────────────
       const reservationSnap = await getDocs(
         collection(db, "reservationRequests")
       );
@@ -265,9 +287,7 @@ export default function FacultyDashboard({ onLogout }) {
     }
   };
 
-  // ─── rest of component unchanged ──────────────────────────────────
-  // (allItems, todaysItems, upcomingItems, render, etc.)
-  // ... (same as before)
+  // ─── Compute all items ──────────────────────────────────────────
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const todayAbbrev = DAY_LABELS[now.getDay()];
@@ -276,6 +296,7 @@ export default function FacultyDashboard({ onLogout }) {
   const allItems = useMemo(() => {
     const items = [];
 
+    // ── Academic schedules ──
     latestSchedules.forEach((s) => {
       const occurrenceDate = getNextOccurrenceDate(s.day, s.startTime, now);
       if (!occurrenceDate) return;
@@ -298,9 +319,37 @@ export default function FacultyDashboard({ onLogout }) {
         isToday: dateStr === todayStr,
         isRecurring: true,
         faculty: s.faculty,
+        isOnline: false,
       });
     });
 
+    // ── Online classes ──
+    onlineSchedules.forEach((s) => {
+      const occurrenceDate = getNextOccurrenceDate(s.day, s.startTime, now);
+      if (!occurrenceDate) return;
+      const dateStr = toDateStr(occurrenceDate);
+      // No releases for online classes, they are always on the faculty's schedule
+      // No reassignments for online classes
+
+      items.push({
+        id: s.id,
+        kind: "online",
+        subject: s.subject,
+        roomName: "Online", // Display as "Online"
+        section: s.section,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        day: s.day,
+        date: dateStr,
+        occurrence: occurrenceDate,
+        isToday: dateStr === todayStr,
+        isRecurring: true,
+        faculty: s.facultyName || "Faculty",
+        isOnline: true,
+      });
+    });
+
+    // ── Reassignments (moved classes) ──
     reassignedInto.forEach((r) => {
       const occurrence = new Date(`${r.date}T${r.startTime}:00`);
       if (occurrence < now) return;
@@ -317,9 +366,11 @@ export default function FacultyDashboard({ onLogout }) {
         isRecurring: false,
         faculty: r.facultyName || "Faculty",
         originalRoom: r.oldRoomName,
+        isOnline: false,
       });
     });
 
+    // ── Approved reservations ──
     approvedReservations.forEach((r) => {
       const occurrence = new Date(`${r.date}T${r.startTime}:00`);
       if (occurrence < now) return;
@@ -335,6 +386,7 @@ export default function FacultyDashboard({ onLogout }) {
         isToday: r.date === todayStr,
         isRecurring: false,
         faculty: r.facultyName || "Faculty",
+        isOnline: false,
       });
     });
 
@@ -342,6 +394,7 @@ export default function FacultyDashboard({ onLogout }) {
     return items;
   }, [
     latestSchedules,
+    onlineSchedules,
     releasedKeys,
     reassignedAwayKeys,
     reassignedInto,
@@ -394,6 +447,7 @@ export default function FacultyDashboard({ onLogout }) {
         )
       : null;
 
+  // Include online classes in room count: we count unique room names (including "Online")
   const roomsThisWeek = useMemo(
     () => new Set(allItems.map((item) => item.roomName)).size,
     [allItems]
@@ -449,7 +503,7 @@ export default function FacultyDashboard({ onLogout }) {
               <div className="dash-stat-chip">
                 <i className="fa-solid fa-layer-group"></i>
                 <div>
-                  <strong>{latestSchedules.length}</strong>
+                  <strong>{latestSchedules.length + onlineSchedules.length}</strong>
                   <span>Meetings / Week</span>
                 </div>
               </div>
@@ -541,7 +595,11 @@ export default function FacultyDashboard({ onLogout }) {
                     </span>
 
                     <div className="banner-art">
-                      <i className="fa-solid fa-chalkboard-user"></i>
+                      {activeBanner.isOnline ? (
+                        <i className="fa-solid fa-wifi"></i>
+                      ) : (
+                        <i className="fa-solid fa-chalkboard-user"></i>
+                      )}
                     </div>
 
                     <div className="banner-overlay">
@@ -554,6 +612,9 @@ export default function FacultyDashboard({ onLogout }) {
                         )}
                         {activeBanner.kind === "reservation" && (
                           <span className="banner-tag"> (Reservation)</span>
+                        )}
+                        {activeBanner.isOnline && (
+                          <span className="banner-tag online-tag"> (Online)</span>
                         )}
                       </p>
 
@@ -639,6 +700,9 @@ export default function FacultyDashboard({ onLogout }) {
                             )}
                             {item.kind === "reservation" && (
                               <span className="upcoming-tag"> (Reservation)</span>
+                            )}
+                            {item.isOnline && (
+                              <span className="upcoming-tag online-tag"> (Online)</span>
                             )}
                           </h1>
                           {item.isToday && <span className="today-chip">Today</span>}
