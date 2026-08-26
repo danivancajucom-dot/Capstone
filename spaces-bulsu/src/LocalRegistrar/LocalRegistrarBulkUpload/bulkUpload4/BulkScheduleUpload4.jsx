@@ -12,6 +12,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
+import { findFacultyUser } from "../../../utils/findFacultyUser";
+import { parseFacultyName } from "../../../utils/parseFacultyName";
 
 const steps = [
   { number: 1, label: "SETUP" },
@@ -27,32 +29,6 @@ const formatTime12Hour = (time) => {
   let displayHour = hour % 12;
   if (displayHour === 0) displayHour = 12;
   return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
-};
-
-// ─── Normalize name (same as other modules) ──────────────────────────
-const normalizeName = (name = "") =>
-  name
-    .toLowerCase()
-    .replace(/\./g, "")
-    .replace(/,/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-// ─── Find user by name ───────────────────────────────────────────────
-const findUserByName = async (name) => {
-  if (!name) return null;
-  const usersSnap = await getDocs(collection(db, "users"));
-  const normalizedTarget = normalizeName(name);
-  for (const doc of usersSnap.docs) {
-    const data = doc.data();
-    const fullName = normalizeName(
-      `${data.lastName || ""}, ${data.firstName || ""}${data.middleInitial ? ` ${data.middleInitial}` : ""}`
-    );
-    if (fullName === normalizedTarget) {
-      return { id: doc.id, ...data };
-    }
-  }
-  return null;
 };
 
 // ─── Send notifications ─────────────────────────────────────────────
@@ -135,6 +111,10 @@ export default function BulkScheduleUpload4() {
         }
       }
 
+      // Get all users for faculty matching
+      const usersSnap = await getDocs(collection(db, "users"));
+      const facultySet = new Set();
+
       // For each room, save schedules
       const allSaved = [];
       for (const roomData of allRoomsData) {
@@ -146,11 +126,19 @@ export default function BulkScheduleUpload4() {
         const roomId = roomDoc.id;
 
         for (const schedule of schedules) {
-          // Current schedules (editable)
+          // ✅ Parse faculty name to extract last and first
+          const parsed = parseFacultyName(schedule.faculty || "TBA");
+          
+          // ✅ KEEP original faculty name as-is (from the file)
+          const originalFacultyName = schedule.faculty || "TBA";
+
+          // Save to schedules
           const docRef = await addDoc(collection(db, "rooms", roomId, "schedules"), {
             subject: schedule.subject || "",
             section: schedule.section || "",
-            faculty: schedule.faculty || "TBA",
+            faculty: originalFacultyName, // ✅ Original from file
+            facultyLastName: parsed.lastName || "", // ✅ Extracted last name
+            facultyFirstName: parsed.firstName || "", // ✅ Extracted first name
             day: schedule.day || "",
             startTime: schedule.startTime || "",
             endTime: schedule.endTime || "",
@@ -159,11 +147,13 @@ export default function BulkScheduleUpload4() {
             createdAt: serverTimestamp(),
           });
 
-          // Original schedules (reference)
+          // Save to originalSchedules
           await addDoc(collection(db, "rooms", roomId, "originalSchedules"), {
             subject: schedule.subject || "",
             section: schedule.section || "",
-            faculty: schedule.faculty || "TBA",
+            faculty: originalFacultyName,
+            facultyLastName: parsed.lastName || "",
+            facultyFirstName: parsed.firstName || "",
             day: schedule.day || "",
             startTime: schedule.startTime || "",
             endTime: schedule.endTime || "",
@@ -172,11 +162,26 @@ export default function BulkScheduleUpload4() {
             createdAt: serverTimestamp(),
           });
 
-          allSaved.push({ room, ...schedule, docId: docRef.id });
+          if (parsed.lastName && parsed.firstName) {
+            facultySet.add({
+              name: originalFacultyName,
+              lastName: parsed.lastName,
+              firstName: parsed.firstName
+            });
+          }
+
+          allSaved.push({ 
+            room, 
+            ...schedule, 
+            docId: docRef.id, 
+            faculty: originalFacultyName,
+            facultyLastName: parsed.lastName || "",
+            facultyFirstName: parsed.firstName || ""
+          });
         }
       }
 
-      // Activity log
+      // ─── Activity log ──────────────────────────────────────────
       await logActivity({
         userId: currentUserData.userId,
         user: currentUserData.user,
@@ -187,26 +192,23 @@ export default function BulkScheduleUpload4() {
         status: "SUCCESS",
       });
 
-      // Notify faculty (deduplicated)
-      const facultySet = new Set();
-      for (const s of allSaved) {
-        if (s.faculty && s.faculty !== "TBA") facultySet.add(s.faculty);
-      }
-      for (const facultyName of facultySet) {
-        const facultyUser = await findUserByName(facultyName);
-        if (facultyUser && facultyUser.id) {
+      // ─── Notify faculty ──────────────────────────────────────
+      for (const faculty of facultySet) {
+        const facultyUserDoc = findFacultyUser(usersSnap, faculty.lastName, faculty.firstName);
+        if (facultyUserDoc) {
+          const userId = facultyUserDoc.id;
           await sendNotification(
-            facultyUser.id,
+            userId,
             "faculty",
             "New Schedule Uploaded",
-            `A schedule has been uploaded for ${facultyName}.`,
+            `A schedule has been uploaded for ${faculty.name}.`,
             "schedule-upload",
             "NEW"
           );
         }
       }
 
-      // Notify department heads
+      // ─── Notify department heads ─────────────────────────────
       const deptHeadsSnap = await getDocs(query(collection(db, "users"), where("role", "==", "department-head")));
       const deptHeadNotifications = [];
       deptHeadsSnap.forEach((doc) => {
@@ -223,7 +225,7 @@ export default function BulkScheduleUpload4() {
       });
       await Promise.all(deptHeadNotifications);
 
-      // Notify self
+      // ─── Notify self ──────────────────────────────────────────
       if (currentUserData.userId) {
         await sendNotification(
           currentUserData.userId,

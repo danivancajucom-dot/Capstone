@@ -40,9 +40,6 @@ function toTimeValue(h, m) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-// Native <input type="time"> already renders with an AM/PM picker in the
-// browser and lets the user pick any minute, not just whole hours — the
-// old plain number inputs just showed raw digits like "7" / "0".
 function clampTimeValue(value) {
   if (!value) return MIN_TIME;
   if (value < MIN_TIME) return MIN_TIME;
@@ -172,11 +169,8 @@ function CalendarEventBlock({ item, onEdit }) {
   const height = getBlockHeight(item.startH, item.startM, item.endH, item.endM);
   const color = colourPalette[item.colorIdx % colourPalette.length];
 
-  // Every line (code, time, faculty, section) gets its own full-width row
-  // so none of them can crowd another out — the block just progressively
-  // reveals fewer lines as it gets shorter, in priority order.
-  const isMini = height < 30; // code + time share one row, nothing else fits
-  const isCompact = height < 46; // code + time only, each on its own line
+  const isMini = height < 30;
+  const isCompact = height < 46;
   const showFaculty = height >= 46;
   const showSection = height >= 64;
 
@@ -190,8 +184,6 @@ function CalendarEventBlock({ item, onEdit }) {
     .filter(Boolean)
     .join(" • ");
 
-  // Mini blocks: code and time share one row — the only case where they
-  // compete for space, since there's no room for a second line at all.
   if (isMini) {
     return (
       <div
@@ -262,7 +254,7 @@ export default function BulkScheduleUpload3() {
 
   const { semester, schoolYear, roomData } = location.state;
 
-  // Conversion helpers (unchanged)
+  // Conversion helpers
   const convertDayToNumber = (day) => {
     switch (day?.toUpperCase()) {
       case "MON": return 1;
@@ -316,14 +308,15 @@ export default function BulkScheduleUpload3() {
     });
   };
 
-  // Build roomsWithSchedules (only rooms with schedules)
-  const roomsWithSchedules = roomData
+  // ✅ Build initial roomsWithSchedules and store in state
+  const initialRoomsWithSchedules = roomData
     .filter((data) => data.schedules && data.schedules.length > 0)
     .map((data) => ({
       room: data.room,
       schedules: convertSchedules(data.schedules),
     }));
 
+  const [roomsWithSchedules, setRoomsWithSchedules] = useState(initialRoomsWithSchedules);
   const [currentRoomIndex, setCurrentRoomIndex] = useState(0);
   const [editingSchedule, setEditingSchedule] = useState(null);
 
@@ -341,9 +334,20 @@ export default function BulkScheduleUpload3() {
   const currentRoomData = roomsWithSchedules[currentRoomIndex];
   const { room, schedules } = currentRoomData;
 
+  // ✅ Update a single schedule and trigger re-render
   const handleUpdateSchedule = (updated) => {
-    const updatedSchedules = schedules.map((s) => (s.id === updated.id ? updated : s));
-    roomsWithSchedules[currentRoomIndex].schedules = updatedSchedules;
+    const updatedRooms = roomsWithSchedules.map((roomData, idx) => {
+      if (idx === currentRoomIndex) {
+        return {
+          ...roomData,
+          schedules: roomData.schedules.map((s) =>
+            s.id === updated.id ? updated : s
+          ),
+        };
+      }
+      return roomData;
+    });
+    setRoomsWithSchedules(updatedRooms);
     setEditingSchedule(null);
   };
 
@@ -386,7 +390,6 @@ export default function BulkScheduleUpload3() {
             <span className="room-name-pill">{room}</span>
             <i className="fa-solid fa-chevron-right" onClick={goNextRoom} />
           </div>
-          {/* Week navigation removed – no dates displayed */}
         </div>
 
         <div className="calendar-scroll-x">
@@ -395,7 +398,6 @@ export default function BulkScheduleUpload3() {
             {DAYS.map((d) => (
               <div className="day-cell" key={d}>
                 <span className="day-name">{d}</span>
-                {/* day-date removed – only day name remains */}
               </div>
             ))}
           </div>
@@ -447,6 +449,7 @@ export default function BulkScheduleUpload3() {
         <button
           className="btn-next-three"
           onClick={() => {
+            // ✅ Use updated roomsWithSchedules from state
             const allRoomsData = roomsWithSchedules.map((r) => ({
               room: r.room,
               schedules: r.schedules.map((s) => ({

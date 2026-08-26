@@ -24,6 +24,35 @@ const toDateStr = (date) => {
   return `${y}-${m}-${d}`;
 };
 
+// ---------- COLOR HELPERS ----------
+// Pastel color for regular schedules (based on faculty name)
+const getFacultyColor = (faculty) => {
+  if (!faculty) return "#E0E0E0";
+  let hash = 0;
+  for (let i = 0; i < faculty.length; i++) {
+    hash = faculty.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 80%)`; // pastel, lively
+};
+
+// Fixed lively colors for special categories
+const getCategoryColor = (source) => {
+  switch (source) {
+    case "event":
+      return "#4DD0E1"; // bright cyan (room activity)
+    case "reservation":
+      return "#FFB74D"; // soft orange (approved reservation)
+    case "reassignment":
+      return "#81C784"; // soft green (moved into room)
+    case "walkin":
+      return "#FFD54F"; // soft yellow (walk‑in)
+    default:
+      return "#E0E0E0";
+  }
+};
+// ------------------------------------
+
 function DepartmentHeadViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
@@ -350,42 +379,69 @@ function DepartmentHeadViewRoomCard() {
                                   normalizeScheduleItem(schedule, "schedule")
                                 )
                               }
+                              // Faculty‑based pastel color
+                              facultyColor={getFacultyColor(schedule.faculty)}
                             />
                           ))}
 
                         {/* ROOM ACTIVITIES, RESERVATIONS, REASSIGNED‑IN */}
-                        {dateEvents.map((event) => (
-                          <ScheduleCard
-                            key={event.id}
-                            schedule={{
-                              ...event,
-                              subject:
-                                event.title ||
-                                event.purpose ||
-                                event.courseTitle ||
-                                (event._source === "reassignment"
-                                  ? `${event.courseTitle || "Class"} (Moved)`
-                                  : "Walk-in Reservation"),
+                        {dateEvents.map((event) => {
+                          // Determine category for color
+                          let category;
+                          let facultyName;
 
-                              faculty:
-                                event.title
-                                  ? "ROOM ACTIVITY"
-                                  : event.requesterName ||
-                                    event.facultyName ||
-                                    "Walk-in",
-                            }}
-                            top={getTopPosition(event.startTime)}
-                            height={getCardHeight(
-                              event.startTime,
-                              event.endTime
-                            )}
-                            onClick={() =>
-                              setSelectedSchedule(
-                                normalizeScheduleItem(event, event._source)
-                              )
-                            }
-                          />
-                        ))}
+                          if (event._source === "event") {
+                            category = "event";
+                            facultyName = "ROOM ACTIVITY";
+                          } else if (event._source === "reservation") {
+                            category = "reservation";
+                            facultyName =
+                              event.requesterName || event.facultyName || "Walk-in";
+                          } else if (event._source === "reassignment") {
+                            category = "reassignment";
+                            facultyName =
+                              event.facultyName || event.courseTitle || "Moved Class";
+                          } else {
+                            // fallback (shouldn't happen)
+                            category = "walkin";
+                            facultyName = "Walk-in";
+                          }
+
+                          // If it's a reservation but no requester, treat as walk‑in for color
+                          if (event._source === "reservation" && !event.requesterName && !event.facultyName) {
+                            category = "walkin";
+                          }
+
+                          const color = getCategoryColor(category);
+
+                          return (
+                            <ScheduleCard
+                              key={event.id}
+                              schedule={{
+                                ...event,
+                                subject:
+                                  event.title ||
+                                  event.purpose ||
+                                  event.courseTitle ||
+                                  (event._source === "reassignment"
+                                    ? `${event.courseTitle || "Class"} (Moved)`
+                                    : "Walk-in Reservation"),
+                                faculty: facultyName,
+                              }}
+                              top={getTopPosition(event.startTime)}
+                              height={getCardHeight(
+                                event.startTime,
+                                event.endTime
+                              )}
+                              onClick={() =>
+                                setSelectedSchedule(
+                                  normalizeScheduleItem(event, event._source)
+                                )
+                              }
+                              facultyColor={color}
+                            />
+                          );
+                        })}
                       </div>
                     );
                   })

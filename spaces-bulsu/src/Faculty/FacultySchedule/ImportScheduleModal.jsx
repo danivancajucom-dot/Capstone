@@ -216,14 +216,15 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
       } else {
         const rawText = await extractRawText(file);
         const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        const response = await fetch(`${apiUrl}/api/extract-schedule`, {
+        const { semester: facultySemester, schoolYear: facultySchoolYear } = await getFacultyLatestTerm(facultyName);
+
+        const response = await fetch(`${apiUrl}/api/extract-online-schedule`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             rawText,
-            room: "",
-            semester: "",
-            schoolYear: "",
+            semester: facultySemester,
+            schoolYear: facultySchoolYear,
           }),
         });
         if (!response.ok) throw new Error("AI extraction failed.");

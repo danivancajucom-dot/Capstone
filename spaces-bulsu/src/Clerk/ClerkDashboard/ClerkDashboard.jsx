@@ -13,6 +13,7 @@ import MaintenanceRoomCard from "../../Components/MaintenanceRoomCard/Maintenanc
 import ReservedRoomCard from "../../Components/ReservedRoomCard/ReservedRoomCard";
 import { useNavigate } from "react-router-dom";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
+import ReleasedRoomsModal from "../../Components/ReleaseRoomModal/ReleasedRoomsModal";
 
 const DAY_ABBR = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const ROOMS_PER_PAGE = 9;
@@ -35,6 +36,8 @@ function ClerkDashboard() {
   const [releases, setReleases] = useState([]);       // All releases
   const [reassignments, setReassignments] = useState([]); // All reassignments
   const [visibleCount, setVisibleCount] = useState(ROOMS_PER_PAGE);
+  const [showReleasedModal, setShowReleasedModal] = useState(false);
+  const [releaseModalInitial, setReleaseModalInitial] = useState(null);
   const navigate = useNavigate();
 
   const now = new Date();
@@ -363,7 +366,7 @@ function ClerkDashboard() {
   // ─── Released Rooms for side panel ─────────────────────────────────────
 
   // Get today's releases with room details
-  const todaysReleases = releases
+    const todaysReleases = releases
     .filter((r) => r.date === today)
     .map((r) => {
       const room = rooms.find((rm) => rm.id === r.roomId);
@@ -372,6 +375,22 @@ function ClerkDashboard() {
         roomName: r.roomName || room?.roomName || "Unknown Room",
         roomImage: room?.image || null,
       };
+    });
+
+  // All-time releases (for the "View All" modal), newest first
+  const allReleasesWithRoomInfo = releases
+    .map((r) => {
+      const room = rooms.find((rm) => rm.id === r.roomId);
+      return {
+        ...r,
+        roomName: r.roomName || room?.roomName || "Unknown Room",
+        roomImage: room?.image || null,
+      };
+    })
+    .sort((a, b) => {
+      const aTime = a.releasedAt?.toMillis ? a.releasedAt.toMillis() : 0;
+      const bTime = b.releasedAt?.toMillis ? b.releasedAt.toMillis() : 0;
+      return bTime - aTime;
     });
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -485,13 +504,21 @@ function ClerkDashboard() {
           </div>
 
           <div className="clerk-dashboard-right">
-            <div className="clerk-dashboard-side-box">
+                        <div className="clerk-dashboard-side-box">
               <div className="clerk-side-box-header">
                 <div className="clerk-side-box-title">
                   <i className="fa-regular fa-circle-check clerk-side-icon"></i>
                   <span>Released Rooms</span>
                 </div>
-                <button className="clerk-view-all-btn">View All</button>
+                <button
+                  className="clerk-view-all-btn"
+                  onClick={() => {
+                    setReleaseModalInitial(null);
+                    setShowReleasedModal(true);
+                  }}
+                >
+                  View All
+                </button>
               </div>
               <div className="released-rooms-list">
                 {todaysReleases.length === 0 ? (
@@ -506,9 +533,10 @@ function ClerkDashboard() {
                       subject={release.subject || "N/A"}
                       ago="Today"
                       image={release.roomImage || "/default-room.png"}
-                      onClick={() =>
-                        navigate("/clerk/schedule-view-academic-schedule")
-                      }
+                      onClick={() => {
+                        setReleaseModalInitial(release);
+                        setShowReleasedModal(true);
+                      }}
                     />
                   ))
                 )}
@@ -541,8 +569,18 @@ function ClerkDashboard() {
               </div>
             </div>
           </div>
-        </div>
+                </div>
       </div>
+
+      <ReleasedRoomsModal
+        show={showReleasedModal}
+        onClose={() => {
+          setShowReleasedModal(false);
+          setReleaseModalInitial(null);
+        }}
+        releases={allReleasesWithRoomInfo}
+        initialSelected={releaseModalInitial}
+      />
     </>
   );
 }

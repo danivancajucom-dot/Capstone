@@ -9,6 +9,22 @@ import {
 
 import { db } from "../../firebase";
 
+// ─── PDF & Toast ──────────────────────────────────────────────────────
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import Toast from "../../Popup/Toast/Toast";
+import universityLogo from "../../assets/BSU-Logo.png";
+import collegeLogo from "../../assets/CICT-Logo.png";
+
+// ─── School Header ──────────────────────────────────────────────────
+const SCHOOL_HEADER = {
+  universityLogoUrl: universityLogo,
+  collegeLogoUrl: collegeLogo,
+  universityName: "Bulacan State University",
+  collegeName: "College of Information and Communications Technology",
+  systemName: "SpaceS CICT",
+};
+
 const DAY_ABBR = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const todayString = () =>
@@ -155,6 +171,23 @@ export default function RoomUsageTracking() {
     upcoming: 0,
     utilization: 0,
   });
+  const [exporting, setExporting] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+
+  // ─── Toast state ──────────────────────────────────────────────────
+  const [toast, setToast] = useState({
+    show: false,
+    type: "",
+    title: "",
+    message: "",
+  });
+
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
+    }
+  };
 
   const isToday = (date || todayString()) === todayString();
 
@@ -206,12 +239,10 @@ export default function RoomUsageTracking() {
         .filter((r) => String(r.status || "").toLowerCase() === "approved")
         .map((r) => normalizeReservation(r));
 
-      // ─── Releases ──────────────────────────────────────────────
       const releaseSnap = await getDocs(collection(db, "roomReleases"));
       const releaseList = releaseSnap.docs
         .map((d) => normalizeRelease({ id: d.id, ...d.data() }));
 
-      // ─── Reassignments ──────────────────────────────────────────
       const reassignSnap = await getDocs(collection(db, "roomReassignments"));
       const reassignList = reassignSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -238,21 +269,18 @@ export default function RoomUsageTracking() {
   const getOccurrencesForDate = (targetDate) => {
     const dayAbbrev = getDayAbbrev(targetDate);
 
-    // ─── Build release keys: scheduleId_date ─────────────────────
     const releaseKeys = new Set(
       allReleases
         .filter((r) => r.date === targetDate)
         .map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    // ─── Build reassign‑away keys: scheduleId_date ───────────────
     const reassignAwayKeys = new Set(
       allReassignments
         .filter((r) => r.date === targetDate && r.oldRoomId)
         .map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    // ─── Schedule occurrences ─────────────────────────────────────
     let scheduleOccurrences = allSchedules
       .filter((s) => s.roomName === room && s.day === dayAbbrev)
       .filter((s) => {
@@ -261,13 +289,9 @@ export default function RoomUsageTracking() {
       })
       .map((s) => ({ ...s, date: targetDate }));
 
-    // ─── Events ──────────────────────────────────────────────────
     const eventOccurrences = allEvents.filter((e) => e.roomName === room && e.date === targetDate);
-
-    // ─── Reservations ────────────────────────────────────────────
     const reservationOccurrences = allReservations.filter((r) => r.roomName === room && r.date === targetDate);
 
-    // ─── Reassignments INTO this room ────────────────────────────
     const reassignInto = allReassignments
       .filter((r) => r.date === targetDate && r.roomName === room)
       .map((r) => ({
@@ -279,7 +303,6 @@ export default function RoomUsageTracking() {
         roomName: r.roomName,
       }));
 
-    // ─── Combine and sort ────────────────────────────────────────
     return [...scheduleOccurrences, ...eventOccurrences, ...reservationOccurrences, ...reassignInto]
       .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   };
@@ -334,8 +357,6 @@ export default function RoomUsageTracking() {
   const buildHistory = () => {
     const currentDate = date || todayString();
     const allOccurrences = getOccurrencesForDate(currentDate);
-    // Filter only schedules for history (or we could include events/reservations as well)
-    // But we already have events/reservations separately. Let's use allOccurrences.
     const historyData = allOccurrences
       .filter(item => item.kind === "schedule" || item.kind === "reassignment")
       .sort((a, b) => {
@@ -344,7 +365,6 @@ export default function RoomUsageTracking() {
         return bEnd - aEnd;
       });
 
-    // Also include events and reservations that are not already in the list
     const otherHistory = [
       ...allEvents.filter((e) => e.roomName === room && e.date === currentDate),
       ...allReservations.filter((r) => r.roomName === room && r.date === currentDate),
@@ -385,6 +405,127 @@ export default function RoomUsageTracking() {
 
     const utilization = Math.min(100, Math.round((occupiedMinutes / (12 * 60)) * 100));
     setAnalytics({ totalSchedules: combined.length, completed, ongoing, upcoming, utilization });
+  };
+
+  // ─── PDF Export ──────────────────────────────────────────────────────
+  const handleExportPDF = () => {
+    if (history.length === 0) {
+      showToast("error", "Nothing to Export", "No history data available for this room.");
+      return;
+    }
+
+    setExporting(true);
+    showToast("loading", "Generating PDF...", "Please wait.");
+
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const marginX = 40;
+      const logoSize = 50;
+      const centerX = pageWidth / 2;
+
+      // ── Letterhead ──
+      if (SCHOOL_HEADER.universityLogoUrl) {
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
+      }
+      if (SCHOOL_HEADER.collegeLogoUrl) {
+        pdf.addImage(
+          SCHOOL_HEADER.collegeLogoUrl,
+          "PNG",
+          pageWidth - marginX - logoSize,
+          22,
+          logoSize,
+          logoSize
+        );
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.setTextColor(20, 27, 45);
+      pdf.text(SCHOOL_HEADER.universityName, centerX, 36, { align: "center" });
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(SCHOOL_HEADER.collegeName, centerX, 50, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, centerX, 62, { align: "center" });
+
+      pdf.setDrawColor(245, 124, 0);
+      pdf.setLineWidth(1.5);
+      pdf.line(marginX, 82, pageWidth - marginX, 82);
+
+      // ── Title & Filters ──
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.setTextColor(245, 124, 0);
+      pdf.text("Room Usage History Log", marginX, 104);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(`Room: ${room}`, marginX, 120);
+      pdf.text(`Date: ${date || "All"}`, marginX, 134);
+      pdf.text(
+        `Generated: ${new Date().toLocaleString()}`,
+        pageWidth - marginX,
+        120,
+        { align: "right" }
+      );
+
+      // ── Table ──
+      const rows = history.map((item) => [
+        `${item.date || "-"}\n${format12Hour(item.startTime)} - ${format12Hour(item.endTime)}`,
+        item.subject,
+        item.facultyName,
+        item.sourceLabel,
+        getStatus(item.date, item.startTime, item.endTime),
+      ]);
+
+      autoTable(pdf, {
+        startY: 148,
+        head: [["Date & Time", "Subject / Event", "Requested By", "Type", "Status"]],
+        body: rows,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 9, cellPadding: 6, valign: "middle" },
+        headStyles: {
+          fillColor: [245, 124, 0],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 9,
+        },
+        bodyStyles: { textColor: [26, 26, 26] },
+        alternateRowStyles: { fillColor: [253, 246, 240] },
+        margin: { left: marginX, right: marginX },
+      });
+
+      // ── Footer ──
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - marginX,
+          pdf.internal.pageSize.getHeight() - 20,
+          { align: "right" }
+        );
+        pdf.text(
+          `${SCHOOL_HEADER.systemName} — Confidential`,
+          marginX,
+          pdf.internal.pageSize.getHeight() - 20
+        );
+      }
+
+      pdf.save(`room-usage-${room.replace(/\s+/g, "-")}-${todayString()}.pdf`);
+      showToast("success", "PDF Downloaded", `${history.length} records exported.`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      showToast("error", "Export Failed", "Could not generate PDF. Please try again.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Pagination
@@ -617,12 +758,17 @@ export default function RoomUsageTracking() {
           )}
         </div>
 
-        {/* ── History table + pagination — own card, separate from rut-content-card ── */}
+        {/* ── History table + pagination ── */}
         <div className="rut-history-section">
           <div className="rut-history-header">
             <h2 className="rut-history-title">Recent History Log</h2>
-            <button className="rut-export-btn">
-              <i className="fa-solid fa-download" /> Export
+            <button
+              className="rut-export-btn"
+              onClick={handleExportPDF}
+              disabled={exporting || history.length === 0}
+            >
+              <i className={`fa-solid ${exporting ? "fa-spinner fa-spin" : "fa-download"}`} />
+              {exporting ? "Generating..." : "Export PDF"}
             </button>
           </div>
 
@@ -665,11 +811,9 @@ export default function RoomUsageTracking() {
                       </span>
                     </td>
                     <td>
-                      <button
-                        className="rut-action-btn"
-                        onClick={() => alert(
-                          `Type: ${schedule.sourceLabel}\nRequested By: ${schedule.facultyName}\nSubject: ${schedule.subject}\nSection: ${schedule.section || "-"}\nDate: ${schedule.date}\nTime: ${format12Hour(schedule.startTime)} - ${format12Hour(schedule.endTime)}`
-                        )}
+                     <button
+                      className="rut-action-btn"
+                      onClick={() => setSelectedRecord(schedule)}
                       >
                         <i className="fa-solid fa-eye" />
                       </button>
@@ -680,7 +824,6 @@ export default function RoomUsageTracking() {
             </table>
           </div>
 
-          {/* Pagination — same style as room management */}
           <div className="rut-pagination-row">
             <span className="rut-pagination-info">
               Showing {history.length === 0 ? 0 : (historyPage - 1) * HISTORY_PAGE_SIZE + 1} to{" "}
@@ -734,6 +877,51 @@ export default function RoomUsageTracking() {
           </div>
         </div>
       </div>
+
+      {selectedRecord && (
+        <div className="rut-modal-overlay" onClick={() => setSelectedRecord(null)}>
+          <div className="rut-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="rut-modal-header">
+              <span className="rut-type-badge">{selectedRecord.sourceLabel}</span>
+              <button className="rut-modal-close" onClick={() => setSelectedRecord(null)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+
+            <h2 className="rut-modal-subject">{selectedRecord.subject}</h2>
+
+            <div className="rut-modal-grid">
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">REQUESTED BY</span>
+                <span className="rut-modal-value">{selectedRecord.facultyName}</span>
+              </div>
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">SECTION</span>
+                <span className="rut-modal-value">{selectedRecord.section || "-"}</span>
+              </div>
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">DATE</span>
+                <span className="rut-modal-value">{selectedRecord.date}</span>
+              </div>
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">TIME</span>
+                <span className="rut-modal-value">
+                  {format12Hour(selectedRecord.startTime)} - {format12Hour(selectedRecord.endTime)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Toast ────────────────────────────────────────────────────── */}
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+      />
     </>
   );
 }

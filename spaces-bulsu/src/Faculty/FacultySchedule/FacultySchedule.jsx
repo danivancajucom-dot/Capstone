@@ -1,9 +1,9 @@
 // ============================================================
-// FILE: WeeklyCalendar.jsx (with Import Schedule button)
+// FILE: WeeklyCalendar.jsx (with conflict detection - no design changes)
 // ============================================================
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
-import ReleaseRoomModal from "../../Components/ReleaseRoomModal/ReleaseRoomModal";
+import ReleasedRoomsModal from "../../Components/ReleaseRoomModal/ReleasedRoomsModal";
 import ScheduleDetailsModal from "../../Components/ScheduleDetailsModal/ScheduleDetailsModal";
 import ImportScheduleModal from "./ImportScheduleModal";
 import Toast from "../../Popup/Toast/Toast";
@@ -132,6 +132,16 @@ const computeStatus = (dateStr, startTime, endTime) => {
   return { status: "COMPLETED", remainingMinutes: 0 };
 };
 
+// ─── NEW: Event overlap detection ────────────────────────────────
+const eventsOverlap = (event1, event2) => {
+  const getMin = (h, m) => h * 60 + m;
+  const start1 = getMin(event1.startH, event1.startM);
+  const end1 = getMin(event1.endH, event1.endM);
+  const start2 = getMin(event2.startH, event2.startM);
+  const end2 = getMin(event2.endH, event2.endM);
+  return start1 < end2 && end1 > start2;
+};
+
 // ─── Notification helper ──────────────────────────────────────────
 
 const notifyReleaseRoom = async ({ facultyId, facultyName, roomName, subject, date, startTime, endTime }) => {
@@ -218,10 +228,8 @@ export default function WeeklyCalendar() {
   const [detailsTarget, setDetailsTarget] = useState(null);
   const [submittingRelease, setSubmittingRelease] = useState(false);
 
-  // ─── Import Schedule Modal state ────────────────────────────────
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // ─── Toast state ──────────────────────────────────────────────────
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -344,81 +352,96 @@ export default function WeeklyCalendar() {
       }
 
       // ─── 2. Load faculty online schedules ──────────────────────
-      const facultySchedulesSnap = await getDocs(
-        query(
-          collection(db, "facultySchedules"),
-          where("userId", "==", firebaseUser.uid)
-        )
-      );
+      try {
+        const facultySchedulesSnap = await getDocs(
+          query(
+            collection(db, "facultySchedules"),
+            where("userId", "==", firebaseUser.uid)
+          )
+        );
 
-      const onlineSchedules = [];
-      facultySchedulesSnap.forEach((d) => {
-        const data = d.data();
-        onlineSchedules.push({
-          id: d.id,
-          ...data,
-          isOnline: true,
+        const onlineSchedules = [];
+        facultySchedulesSnap.forEach((d) => {
+          const data = d.data();
+          onlineSchedules.push({
+            id: d.id,
+            ...data,
+            isOnline: true,
+          });
         });
-      });
-      setFacultyOnlineEvents(onlineSchedules);
+        setFacultyOnlineEvents(onlineSchedules);
+      } catch (err) {
+        console.warn("Failed to load faculty online schedules:", err);
+        setFacultyOnlineEvents([]);
+      }
 
-      // ─── 3. Load events ──────────────────────────────────────────
+      // ─── 3. Load events (room activities) ──────────────────────
       if (hasSchedules) {
-        const eventSnap = await getDocs(collection(db, "events"));
-        const myEvents = eventSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((e) => myRoomIds.includes(e.roomId));
-        setOverrideEvents(myEvents);
+        try {
+          const eventSnap = await getDocs(collection(db, "events"));
+          const myEvents = eventSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((e) => myRoomIds.includes(e.roomId) && e.status !== "Cancelled");
+          setOverrideEvents(myEvents);
+        } catch (err) {
+          console.warn("Failed to load events:", err);
+          setOverrideEvents([]);
+        }
       } else {
         setOverrideEvents([]);
       }
 
       // ─── 4. Approved reservations ───────────────────────────────
-      const reservationSnap = await getDocs(
-        collection(db, "reservationRequests")
-      );
-      const myReservations = reservationSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((r) => {
-          const isOwnerById =
-            r.userId === firebaseUser.uid ||
-            r.createdBy === firebaseUser.uid;
-          const isOwnerByName =
-            normalizeName(r.requesterName || r.facultyName || "") === myName;
-          const isApproved =
-            String(r.status || "").toLowerCase() === "approved";
-          return (isOwnerById || isOwnerByName) && isApproved;
-        });
-      setReservationEvents(myReservations);
+      try {
+        const reservationSnap = await getDocs(collection(db, "reservationRequests"));
+        const myReservations = reservationSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((r) => {
+            const isOwnerById = r.userId === firebaseUser.uid || r.createdBy === firebaseUser.uid;
+            const isOwnerByName = normalizeName(r.requesterName || r.facultyName || "") === myName;
+            const isApproved = String(r.status || "").toLowerCase() === "approved";
+            return (isOwnerById || isOwnerByName) && isApproved;
+          });
+        setReservationEvents(myReservations);
+      } catch (err) {
+        console.warn("Failed to load reservations:", err);
+        setReservationEvents([]);
+      }
 
       // ─── 5. Releases ─────────────────────────────────────────────
-      const releaseQ = query(
-        collection(db, "roomReleases"),
-        where("releasedBy", "==", firebaseUser.uid)
-      );
-      const releaseSnap = await getDocs(releaseQ);
-      const keys = new Set(
-        releaseSnap.docs.map((d) => {
-          const r = d.data();
-          return `${r.scheduleId}_${r.date}`;
-        })
-      );
-      setReleasedKeys(keys);
+      try {
+        const releaseQ = query(collection(db, "roomReleases"), where("releasedBy", "==", firebaseUser.uid));
+        const releaseSnap = await getDocs(releaseQ);
+        const keys = new Set(
+          releaseSnap.docs.map((d) => {
+            const r = d.data();
+            return `${r.scheduleId}_${r.date}`;
+          })
+        );
+        setReleasedKeys(keys);
+      } catch (err) {
+        console.warn("Failed to load releases:", err);
+        setReleasedKeys(new Set());
+      }
 
       // ─── 6. Reassignments ──────────────────────────────────────
-      const reassignQ = query(
-        collection(db, "roomReassignments"),
-        where("facultyId", "==", firebaseUser.uid),
-        where("status", "==", "approved")
-      );
-      const reassignSnap = await getDocs(reassignQ);
-      const myReassignments = reassignSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setReassignedEvents(myReassignments);
+      try {
+        const reassignQ = query(
+          collection(db, "roomReassignments"),
+          where("facultyId", "==", firebaseUser.uid)
+        );
+        const reassignSnap = await getDocs(reassignQ);
+        const myReassignments = reassignSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((r) => String(r.status || "").toLowerCase() === "approved");
+        setReassignedEvents(myReassignments);
+      } catch (err) {
+        console.warn("Failed to load reassignments:", err);
+        setReassignedEvents([]);
+      }
+
     } catch (err) {
-      console.error(err);
+      console.error("loadFacultySchedule error:", err);
       showToast("error", "Error", "Failed to load your schedule.");
     } finally {
       setLoading(false);
@@ -464,12 +487,12 @@ export default function WeeklyCalendar() {
 
   const calendarEvents = useMemo(() => {
     const items = [];
-
     const reassignedKeys = new Set(
       reassignedEvents.map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    // ── Room schedules ──
+    // ── 1. Create schedule items ──
+    const scheduleItems = [];
     scheduleEvents.forEach((s) => {
       const dayIdx = DAYS.indexOf(s.day) + 1;
       if (dayIdx < 1) return;
@@ -483,10 +506,9 @@ export default function WeeklyCalendar() {
 
       const [startH, startM] = parseTimeParts(s.startTime);
       const [endH, endM] = parseTimeParts(s.endTime);
-
       const colorIdx = s.isOnline ? 4 : 0;
 
-      items.push({
+      scheduleItems.push({
         id: `sched-${s.id}-${occurrenceDateStr}`,
         kind: "schedule",
         scheduleId: s.id,
@@ -510,7 +532,66 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── Faculty online schedules ──
+    // ── 2. Create activity items (room activities) ──
+    const activityItems = [];
+    overrideEvents.forEach((e) => {
+      if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
+      const dayIdx = mondayIndexFromDate(e.date);
+      const [startH, startM] = parseTimeParts(e.startTime);
+      const [endH, endM] = parseTimeParts(e.endTime);
+
+      // Check if this activity conflicts with a schedule
+      let conflictsWithSchedule = false;
+      let conflictingSchedule = null;
+
+      for (const s of scheduleItems) {
+        if (s.dayIdx === dayIdx && eventsOverlap(s, { startH, startM, endH, endM, dayIdx })) {
+          conflictsWithSchedule = true;
+          conflictingSchedule = s;
+          break;
+        }
+      }
+
+      activityItems.push({
+        id: `event-${e.id}`,
+        kind: "event",
+        title: e.title || e.purpose || "Room Activity",
+        location: `${e.roomName || "-"} | Room Activity`,
+        roomName: e.roomName || "-",
+        dayIdx,
+        daySpan: 1,
+        startH, startM, endH, endM,
+        colorIdx: 1, // Room Activity color (green)
+        faculty: e.faculty || "Department Head",
+        date: e.date,
+        rawStartTime: e.startTime,
+        rawEndTime: e.endTime,
+        conflictsWithSchedule,
+        conflictingSchedule,
+      });
+    });
+
+    // ── 3. Filter out schedules that are overridden by activities ──
+    const overriddenScheduleIds = new Set();
+    for (const activity of activityItems) {
+      if (activity.conflictsWithSchedule && activity.conflictingSchedule) {
+        overriddenScheduleIds.add(activity.conflictingSchedule.id);
+      }
+    }
+
+    // ── 4. Add schedules (excluding overridden ones) ──
+    for (const s of scheduleItems) {
+      if (!overriddenScheduleIds.has(s.id)) {
+        items.push(s);
+      }
+    }
+
+    // ── 5. Add activities (all of them) ──
+    for (const activity of activityItems) {
+      items.push(activity);
+    }
+
+    // ── 6. Faculty online schedules ──
     facultyOnlineEvents.forEach((s) => {
       const dayIdx = DAYS.indexOf(s.day) + 1;
       if (dayIdx < 1) return;
@@ -540,36 +621,13 @@ export default function WeeklyCalendar() {
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
-        colorIdx: 4, // Online color
+        colorIdx: 4,
         isOnline: true,
         isFacultyOnline: true,
       });
     });
 
-    // ── Events (overrides) ──
-    overrideEvents.forEach((e) => {
-      if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
-      const dayIdx = mondayIndexFromDate(e.date);
-      const [startH, startM] = parseTimeParts(e.startTime);
-      const [endH, endM] = parseTimeParts(e.endTime);
-      items.push({
-        id: `event-${e.id}`,
-        kind: "event",
-        title: e.title || e.purpose || "Room Activity",
-        location: `${e.roomName || "-"} | Room Activity`,
-        roomName: e.roomName || "-",
-        dayIdx,
-        daySpan: 1,
-        startH, startM, endH, endM,
-        colorIdx: 1,
-        faculty: e.faculty || "Department Head",
-        date: e.date,
-        rawStartTime: e.startTime,
-        rawEndTime: e.endTime,
-      });
-    });
-
-    // ── Reservations ──
+    // ── 7. Reservations ──
     reservationEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
       const dayIdx = mondayIndexFromDate(r.date);
@@ -592,7 +650,7 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── Reassignments ──
+    // ── 8. Reassignments ──
     reassignedEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
       const dayIdx = mondayIndexFromDate(r.date);
@@ -852,10 +910,10 @@ export default function WeeklyCalendar() {
                   ))}
 
                   {calendarEvents.map(ev => {
-                    const color   = CARD_COLORS[ev.colorIdx];
-                    const topPx   = ((ev.startH - START_HOUR) + ev.startM / 60) * HOUR_HEIGHT;
+                    const color = CARD_COLORS[ev.colorIdx];
+                    const topPx = ((ev.startH - START_HOUR) + ev.startM / 60) * HOUR_HEIGHT;
                     const heightPx = ((ev.endH - ev.startH) + (ev.endM - ev.startM) / 60) * HOUR_HEIGHT - 4;
-                    const leftPct  = ((ev.dayIdx - 1) / 7) * 100;
+                    const leftPct = ((ev.dayIdx - 1) / 7) * 100;
                     const widthPct = (ev.daySpan / 7) * 100;
                     const isClickable = ev.kind === "schedule" && computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime).status !== "COMPLETED";
                     const isOnline = ev.isOnline || false;
@@ -866,13 +924,13 @@ export default function WeeklyCalendar() {
                         className={`wc-event ${isClickable ? "wc-event--clickable" : "wc-event--viewable"} ${isOnline ? "wc-event--online" : ""}`}
                         onClick={() => handleEventClick(ev)}
                         style={{
-                          top:             topPx,
-                          height:          Math.max(heightPx, 24),
-                          left:            `${leftPct}%`,
-                          width:           `calc(${widthPct}% - 4px)`,
+                          top: topPx,
+                          height: Math.max(heightPx, 24),
+                          left: `${leftPct}%`,
+                          width: `calc(${widthPct}% - 4px)`,
                           backgroundColor: color.bg,
-                          borderLeft:      `4px solid ${color.border}`,
-                          cursor:          isClickable ? "pointer" : "default",
+                          borderLeft: `4px solid ${color.border}`,
+                          cursor: isClickable ? "pointer" : "default",
                         }}
                       >
                         <div className="wc-event-top">
@@ -897,7 +955,7 @@ export default function WeeklyCalendar() {
 
       {/* ─── Modals ────────────────────────────────────────────────── */}
 
-      <ReleaseRoomModal
+      <ReleasedRoomsModal
         target={releaseTarget}
         onClose={() => setReleaseTarget(null)}
         onConfirm={handleConfirmRelease}
