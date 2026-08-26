@@ -41,6 +41,35 @@ const format12Hour = (time) => {
   return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
 };
 
+// ─── COLOR HELPERS (UI) ─────────────────────────────────────────────
+// Pastel color per faculty (consistent)
+const getFacultyColor = (faculty) => {
+  if (!faculty) return "#E0E0E0";
+  let hash = 0;
+  for (let i = 0; i < faculty.length; i++) {
+    hash = faculty.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 80%)`; // pastel, lively
+};
+
+// Fixed lively colors for special categories
+const getCategoryColor = (source) => {
+  switch (source) {
+    case "event":
+      return "#4DD0E1"; // bright cyan (room activity)
+    case "reservation":
+      return "#FFB74D"; // soft orange (approved reservation)
+    case "reassignment":
+      return "#81C784"; // soft green (moved into room)
+    case "walkin":
+      return "#FFD54F"; // soft yellow (walk‑in)
+    default:
+      return "#E0E0E0";
+  }
+};
+// ─────────────────────────────────────────────────────────────────────
+
 function LocalRegistrarViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
@@ -83,7 +112,7 @@ function LocalRegistrarViewRoomCard() {
 
     if (isOriginal) {
       list = list.filter(
-        (s) => s.semester === semester && s.schoolYear === schoolYear
+        (s) => s.semester === semester && s.schoolYear === schoolYear,
       );
     }
 
@@ -106,13 +135,15 @@ function LocalRegistrarViewRoomCard() {
       .filter((event) => event.roomId === room.id);
     setEvents(eventList);
 
-    const reservationSnap = await getDocs(collection(db, "reservationRequests"));
+    const reservationSnap = await getDocs(
+      collection(db, "reservationRequests"),
+    );
     const reservationList = reservationSnap.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
       .filter(
         (reservation) =>
           reservation.roomId === room.id &&
-          String(reservation.status).toLowerCase() === "approved"
+          String(reservation.status).toLowerCase() === "approved",
       );
     setReservations(reservationList);
 
@@ -121,7 +152,7 @@ function LocalRegistrarViewRoomCard() {
       releaseSnap.docs
         .map((d) => d.data())
         .filter((r) => r.roomId === room.id)
-        .map((r) => `${r.scheduleId}_${r.date}`)
+        .map((r) => `${r.scheduleId}_${r.date}`),
     );
     setReleasedKeys(keys);
 
@@ -131,24 +162,22 @@ function LocalRegistrarViewRoomCard() {
       .filter(
         (r) =>
           String(r.status || "").toLowerCase() === "approved" &&
-          (r.oldRoomId === room.id || r.newRoomId === room.id)
+          (r.oldRoomId === room.id || r.newRoomId === room.id),
       );
     setReassignedAwayKeys(
       new Set(
         roomReassignments
           .filter((r) => r.oldRoomId === room.id)
-          .map((r) => `${r.scheduleId}_${r.date}`)
-      )
+          .map((r) => `${r.scheduleId}_${r.date}`),
+      ),
     );
-    setReassignedInto(
-      roomReassignments.filter((r) => r.newRoomId === room.id)
-    );
+    setReassignedInto(roomReassignments.filter((r) => r.newRoomId === room.id));
   };
 
   // ─── Helper functions ──────────────────────────────────────────────
   const getSchedulesByDay = (day) => {
     return schedules.filter(
-      (schedule) => schedule.day?.trim().toUpperCase() === day
+      (schedule) => schedule.day?.trim().toUpperCase() === day,
     );
   };
 
@@ -225,258 +254,577 @@ function LocalRegistrarViewRoomCard() {
   // ─── PDF EXPORT (Portrait, No Legend, Full Page) ─────────────────
   const handleExportPDF = async () => {
     if (schedules.length === 0) {
-      showToast("error", "No Schedules", "This room has no schedules to export.");
+      showToast(
+        "error",
+        "No Schedules",
+        "This room has no schedules to export.",
+      );
       return;
     }
+
     setExporting(true);
+
     showToast("loading", "Generating PDF...", "Please wait.");
 
     try {
-      // ── Portrait A4 ──
-      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      // ============================================================
+      // PDF SETUP
+      // ============================================================
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "pt",
+        format: "a4",
+      });
+
       const pageWidth = pdf.internal.pageSize.getWidth();
+
       const pageHeight = pdf.internal.pageSize.getHeight();
 
-      // ---- Smaller margins ----
-      const marginX = 30;
-      const marginY = 25;
+      const marginX = 28;
+
+      const timeColWidth = 45;
+
+      const topHeader = 105;
+
+      const bottomFooter = 30;
+
+      const calendarTop = topHeader;
+
+      const calendarBottom = pageHeight - bottomFooter;
+
+      const calendarHeight = calendarBottom - calendarTop;
+
+      // 7:00 AM - 8:00 PM = 13 hours
+      const calendarStartMinutes = 7 * 60;
+      const calendarEndMinutes = 20 * 60;
+
+      const totalHours = 13;
+
+      const hourHeight = calendarHeight / totalHours;
+
+      const dayWidth = (pageWidth - marginX * 2 - timeColWidth) / 7;
+
+      // ============================================================
+      // HEADER / LOGOS
+      // ============================================================
+
       const logoSize = 30;
 
-      // ---- Letterhead ----
       if (SCHOOL_HEADER.universityLogoUrl) {
-        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 14, logoSize, logoSize);
+        pdf.addImage(
+          SCHOOL_HEADER.universityLogoUrl,
+          "PNG",
+          marginX,
+          12,
+          logoSize,
+          logoSize,
+        );
       }
+
       if (SCHOOL_HEADER.collegeLogoUrl) {
         pdf.addImage(
           SCHOOL_HEADER.collegeLogoUrl,
           "PNG",
           pageWidth - marginX - logoSize,
-          14,
+          12,
           logoSize,
-          logoSize
+          logoSize,
         );
       }
 
+      // ============================================================
+      // UNIVERSITY NAME
+      // ============================================================
+
       pdf.setFont("helvetica", "bold");
+
       pdf.setFontSize(11);
+
       pdf.setTextColor(20, 27, 45);
-      pdf.text(SCHOOL_HEADER.universityName, pageWidth / 2, 26, { align: "center" });
+
+      pdf.text(SCHOOL_HEADER.universityName, pageWidth / 2, 24, {
+        align: "center",
+      });
+
+      // ============================================================
+      // COLLEGE NAME
+      // ============================================================
 
       pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
+
+      pdf.setFontSize(7.5);
+
       pdf.setTextColor(107, 114, 128);
-      pdf.text(SCHOOL_HEADER.collegeName, pageWidth / 2, 38, { align: "center" });
-      pdf.text(SCHOOL_HEADER.systemName, pageWidth / 2, 48, { align: "center" });
+
+      pdf.text(SCHOOL_HEADER.collegeName, pageWidth / 2, 36, {
+        align: "center",
+      });
+
+      // ============================================================
+      // SYSTEM NAME
+      // ============================================================
+
+      pdf.text(SCHOOL_HEADER.systemName, pageWidth / 2, 47, {
+        align: "center",
+      });
+
+      // ============================================================
+      // HEADER DIVIDER
+      // ============================================================
 
       pdf.setDrawColor(245, 124, 0);
-      pdf.setLineWidth(1.2);
-      pdf.line(marginX, 60, pageWidth - marginX, 60);
 
-      // ---- Title & Details ----
+      pdf.setLineWidth(1.2);
+
+      pdf.line(marginX, 58, pageWidth - marginX, 58);
+
+      // ============================================================
+      // CENTERED ROOM TITLE
+      // ============================================================
+
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(13);
+
+      pdf.setFontSize(12);
+
       pdf.setTextColor(245, 124, 0);
-      pdf.text(`Classroom Schedule — ${room?.roomName || "Room"}`, marginX, 78);
+
+      pdf.text(
+        `Classroom Schedule — ${room?.roomName || "Room"}`,
+        pageWidth / 2,
+        77,
+        {
+          align: "center",
+        },
+      );
+
+      // ============================================================
+      // CENTERED SCHOOL YEAR + SEMESTER
+      // ============================================================
 
       pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
+
+      pdf.setFontSize(7.5);
+
       pdf.setTextColor(107, 114, 128);
-      const details = `${schoolYear || "N/A"} | ${semester || "N/A"} | Generated: ${new Date().toLocaleString()}`;
-      pdf.text(details, marginX, 90);
 
-      // ---- Calendar Grid ----
-      const timeColWidth = 46;
-      const dayWidth = (pageWidth - marginX * 2 - timeColWidth) / 7;
+      pdf.text(
+        `${schoolYear || "N/A"} | ${semester || "N/A"}`,
+        pageWidth / 2,
+        89,
+        {
+          align: "center",
+        },
+      );
 
-      const topOfCalendar = 108;
-      const bottomMargin = 30; // space for footer
-      const availableHeight = pageHeight - topOfCalendar - bottomMargin;
-      const totalHours = 13; // 7 AM to 8 PM
-      const hourHeight = availableHeight / totalHours;
+      // ============================================================
+      // FACULTY COLOR MAPPING
+      // ============================================================
 
-      // ---- Faculty color mapping ----
       const facultyColors = {};
+
       const colorPalette = [
-        [255, 215, 195], [215, 235, 255], [215, 255, 215], [255, 240, 195],
-        [235, 215, 255], [255, 215, 225], [195, 240, 240], [255, 230, 205],
-        [205, 225, 255], [225, 255, 225]
+        [255, 225, 210],
+        [220, 235, 255],
+        [220, 248, 220],
+        [255, 240, 205],
+        [235, 220, 255],
+        [255, 220, 230],
+        [215, 245, 245],
+        [255, 230, 205],
+        [220, 230, 255],
+        [230, 250, 225],
       ];
+
       let colorIndex = 0;
 
-      const getFacultyColor = (faculty) => {
+      const getFacultyColorPDF = (faculty) => {
         const key = (faculty || "Unknown").trim().toLowerCase();
+
         if (!facultyColors[key]) {
           facultyColors[key] = colorPalette[colorIndex % colorPalette.length];
+
           colorIndex++;
         }
+
         return facultyColors[key];
       };
 
-      // ---- Draw time labels & horizontal grid lines ----
-      pdf.setDrawColor(200, 200, 200);
-      pdf.setLineWidth(0.4);
+      // ============================================================
+      // CALENDAR GRID
+      // ============================================================
+
+      pdf.setDrawColor(220, 220, 220);
+
+      pdf.setLineWidth(0.35);
+
+      // ============================================================
+      // HORIZONTAL GRID + TIME LABELS
+      // ============================================================
+
       for (let h = 0; h <= totalHours; h++) {
-        const y = topOfCalendar + h * hourHeight;
+        const y = calendarTop + h * hourHeight;
+
+        // Horizontal line
         pdf.line(marginX + timeColWidth, y, pageWidth - marginX, y);
-        if (h < totalHours) {
-          const hour = 7 + h;
-          const label = hour <= 11 ? `${hour} AM` : hour === 12 ? `12 PM` : `${hour - 12} PM`;
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(6.5);
-          pdf.setTextColor(100, 100, 100);
-          pdf.text(label, marginX + 3, y + 4);
+
+        // Time label
+        const hour = 7 + h;
+
+        let label;
+
+        if (hour < 12) {
+          label = `${hour} AM`;
+        } else if (hour === 12) {
+          label = "12 PM";
+        } else {
+          label = `${hour - 12} PM`;
         }
+
+        pdf.setFont("helvetica", "normal");
+
+        pdf.setFontSize(6.5);
+
+        pdf.setTextColor(105, 105, 105);
+
+        // Put 8 PM slightly above bottom line
+        const labelY = h === totalHours ? y - 2 : y + 4;
+
+        pdf.text(label, marginX + 2, labelY);
       }
 
-      // ---- Draw vertical day separators ----
+      // ============================================================
+      // VERTICAL DAY SEPARATORS
+      // ============================================================
+
       for (let d = 0; d <= 7; d++) {
         const x = marginX + timeColWidth + d * dayWidth;
-        pdf.line(x, topOfCalendar, x, topOfCalendar + totalHours * hourHeight);
+
+        pdf.line(x, calendarTop, x, calendarBottom);
       }
 
-      // ---- Day headers ----
+      // ============================================================
+      // DAY HEADERS
+      // ============================================================
+
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(8);
+
+      pdf.setFontSize(7.5);
+
       pdf.setTextColor(50, 50, 50);
+
       for (let d = 0; d < 7; d++) {
         const x = marginX + timeColWidth + d * dayWidth + dayWidth / 2;
-        pdf.text(DAYS[d], x, topOfCalendar - 5, { align: "center" });
+
+        pdf.text(DAYS[d], x, calendarTop - 5, {
+          align: "center",
+        });
       }
 
-      // ---- Schedule blocks ----
-      const calendarStartMinutes = 7 * 60;
+      // ============================================================
+      // SORT SCHEDULES
+      // ============================================================
+
       const sortedSchedules = [...schedules].sort((a, b) => {
-        const dayOrder = DAYS.indexOf(a.day?.trim().toUpperCase()) - DAYS.indexOf(b.day?.trim().toUpperCase());
-        if (dayOrder !== 0) return dayOrder;
+        const dayOrder =
+          DAYS.indexOf(a.day?.trim().toUpperCase()) -
+          DAYS.indexOf(b.day?.trim().toUpperCase());
+
+        if (dayOrder !== 0) {
+          return dayOrder;
+        }
+
         return convertToMinutes(a.startTime) - convertToMinutes(b.startTime);
       });
 
+      // ============================================================
+      // DRAW SCHEDULE BLOCKS
+      // ============================================================
+
       for (const schedule of sortedSchedules) {
         const dayIndex = DAYS.indexOf(schedule.day?.trim().toUpperCase());
-        if (dayIndex === -1) continue;
+
+        if (dayIndex === -1) {
+          continue;
+        }
 
         const startMin = convertToMinutes(schedule.startTime);
+
         const endMin = convertToMinutes(schedule.endTime);
-        const duration = endMin - startMin;
-        if (duration <= 0) continue;
 
-        const topOffset = ((startMin - calendarStartMinutes) / 60) * hourHeight;
-        const blockHeight = (duration / 60) * hourHeight;
-        const finalBlockHeight = Math.max(blockHeight, 12);
+        // Ignore invalid schedules
+        if (endMin <= startMin) {
+          continue;
+        }
 
-        const x = marginX + timeColWidth + dayIndex * dayWidth + 2;
-        const y = topOfCalendar + topOffset + 2;
-        const w = dayWidth - 4;
+        // Ignore schedules completely
+        // outside 7 AM - 8 PM
+        if (endMin <= calendarStartMinutes || startMin >= calendarEndMinutes) {
+          continue;
+        }
 
-        // Color per faculty
+        // ==========================================================
+        // CLAMP TO 7 AM - 8 PM
+        // ==========================================================
+
+        const visibleStart = Math.max(startMin, calendarStartMinutes);
+
+        const visibleEnd = Math.min(endMin, calendarEndMinutes);
+
+        const duration = visibleEnd - visibleStart;
+
+        if (duration <= 0) {
+          continue;
+        }
+
+        // ==========================================================
+        // BLOCK POSITION
+        // ==========================================================
+
+        const topOffset =
+          ((visibleStart - calendarStartMinutes) / 60) * hourHeight;
+
+        const rawHeight = (duration / 60) * hourHeight;
+
+        // Small gap between schedules
+        const verticalGap = 2.5;
+
+        const x = marginX + timeColWidth + dayIndex * dayWidth + verticalGap;
+
+        const y = calendarTop + topOffset + verticalGap;
+
+        const w = dayWidth - verticalGap * 2;
+
+        const blockHeight = Math.max(rawHeight - verticalGap * 2, 18);
+
+        // ==========================================================
+        // BLOCK COLOR
+        // ==========================================================
+
         const faculty = schedule.faculty || "";
-        const [r, g, b] = getFacultyColor(faculty);
-        const isDarkText = (r + g + b) / 3 < 180;
 
-        // Rounded rectangle
-        const radius = 2;
+        const [r, g, b] = getFacultyColorPDF(faculty);
+
+        const averageColor = (r + g + b) / 3;
+
+        const textColor = averageColor < 180 ? [255, 255, 255] : [35, 35, 35];
+
+        const secondaryTextColor =
+          averageColor < 180 ? [235, 235, 235] : [75, 75, 75];
+
+        // ==========================================================
+        // DRAW BLOCK
+        // ==========================================================
+
         pdf.setFillColor(r, g, b);
-        pdf.setDrawColor(200, 180, 160);
-        pdf.setLineWidth(0.3);
-        pdf.roundedRect(x, y, w, finalBlockHeight, radius, radius, "FD");
 
-        // ---- Content ----
+        pdf.setDrawColor(
+          Math.max(r - 25, 0),
+          Math.max(g - 25, 0),
+          Math.max(b - 25, 0),
+        );
+
+        pdf.setLineWidth(0.35);
+
+        pdf.roundedRect(x, y, w, blockHeight, 3, 3, "FD");
+
+        // ==========================================================
+        // CONTENT AREA
+        // ==========================================================
+
+        const innerPaddingX = 5;
+
+        const contentX = x + innerPaddingX;
+
+        const contentWidth = w - innerPaddingX * 2;
+
+        // ==========================================================
+        // CONTENT FONT SIZES
+        // ==========================================================
+
         const subject = schedule.courseTitle || schedule.subject || "Class";
-        const timeLabel = `${format12Hour(schedule.startTime)} - ${format12Hour(schedule.endTime)}`;
+
         const section = schedule.section || "";
 
-        // Dynamic font sizes
-        let titleSize, detailSize, spacing;
-        if (finalBlockHeight > 30) {
-          titleSize = 7; detailSize = 5.5; spacing = 8;
-        } else if (finalBlockHeight > 20) {
-          titleSize = 6; detailSize = 5; spacing = 7;
-        } else {
-          titleSize = 5.5; detailSize = 4.5; spacing = 6;
+        const timeLabel = `${format12Hour(schedule.startTime)} - ${format12Hour(
+          schedule.endTime,
+        )}`;
+
+        let titleSize = 7;
+
+        let detailSize = 5.5;
+
+        let lineSpacing = 7;
+
+        if (blockHeight < 32) {
+          titleSize = 6.2;
+          detailSize = 4.8;
+          lineSpacing = 6;
         }
 
-        let textY = y + 4;
-        const padX = 3;
-
-        // Subject
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(titleSize);
-        pdf.setTextColor(isDarkText ? 255 : 26, isDarkText ? 255 : 26, isDarkText ? 255 : 26);
-        let displaySubject = subject;
-        const maxChars = Math.floor((w - 6) / (titleSize * 0.45));
-        if (displaySubject.length > maxChars && maxChars > 3) {
-          displaySubject = displaySubject.substring(0, maxChars - 2) + "..";
+        if (blockHeight < 24) {
+          titleSize = 5.7;
+          detailSize = 4.4;
+          lineSpacing = 5.5;
         }
-        pdf.text(displaySubject, x + padX, textY);
-        textY += spacing;
 
-        // Faculty
-        if (finalBlockHeight > 18 && faculty) {
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(detailSize);
-          pdf.setTextColor(isDarkText ? 230 : 50, isDarkText ? 230 : 50, isDarkText ? 230 : 50);
-          let displayFaculty = faculty;
-          const maxFacultyChars = Math.floor((w - 6) / (detailSize * 0.45));
-          if (displayFaculty.length > maxFacultyChars && maxFacultyChars > 3) {
-            displayFaculty = displayFaculty.substring(0, maxFacultyChars - 2) + "..";
+        // ==========================================================
+        // TEXT FIT HELPER
+        // ==========================================================
+
+        const fitText = (text, fontSize) => {
+          if (!text) {
+            return "";
           }
-          pdf.text(displayFaculty, x + padX, textY);
-          textY += spacing;
-        }
 
-        // Section
-        if (finalBlockHeight > 22 && section) {
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(detailSize - 0.5);
-          pdf.setTextColor(isDarkText ? 210 : 80, isDarkText ? 210 : 80, isDarkText ? 210 : 80);
-          let displaySection = section;
-          const maxSectionChars = Math.floor((w - 6) / ((detailSize - 0.5) * 0.45));
-          if (displaySection.length > maxSectionChars && maxSectionChars > 3) {
-            displaySection = displaySection.substring(0, maxSectionChars - 2) + "..";
+          pdf.setFontSize(fontSize);
+
+          const maxWidth = contentWidth - 2;
+
+          if (pdf.getTextWidth(text) <= maxWidth) {
+            return text;
           }
-          pdf.text(`[${displaySection}]`, x + padX, textY);
-          textY += spacing;
+
+          let result = text;
+
+          while (
+            result.length > 3 &&
+            pdf.getTextWidth(`${result}...`) > maxWidth
+          ) {
+            result = result.slice(0, -1);
+          }
+
+          return `${result}...`;
+        };
+
+        // ==========================================================
+        // BUILD CONTENT FIRST
+        // ==========================================================
+
+        const contentLines = [];
+
+        // SUBJECT
+        contentLines.push({
+          text: fitText(subject, titleSize),
+          font: "bold",
+          size: titleSize,
+        });
+
+        // FACULTY
+        if (faculty && blockHeight >= 27) {
+          contentLines.push({
+            text: fitText(faculty, detailSize),
+            font: "normal",
+            size: detailSize,
+          });
         }
 
-        // Time
-        if (finalBlockHeight > 14) {
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(detailSize - 0.5);
-          pdf.setTextColor(isDarkText ? 210 : 100, isDarkText ? 210 : 100, isDarkText ? 210 : 100);
-          pdf.text(timeLabel, x + padX, textY);
+        // SECTION
+        if (section && blockHeight >= 38) {
+          contentLines.push({
+            text: fitText(`[${section}]`, detailSize),
+            font: "normal",
+            size: detailSize,
+          });
         }
+
+        // TIME
+        if (blockHeight >= 48) {
+          contentLines.push({
+            text: timeLabel,
+            font: "normal",
+            size: Math.max(detailSize - 0.3, 4),
+          });
+        }
+
+        // ==========================================================
+        // VERTICAL CENTERING
+        // ==========================================================
+
+        const totalContentHeight = contentLines.length * lineSpacing;
+
+        let textY = y + (blockHeight - totalContentHeight) / 2 + 5;
+
+        // Prevent content from going
+        // too close to the top
+        textY = Math.max(textY, y + 5);
+
+        // ==========================================================
+        // DRAW CONTENT
+        // ==========================================================
+
+        contentLines.forEach((line, index) => {
+          pdf.setFont("helvetica", line.font);
+
+          pdf.setFontSize(line.size);
+
+          // Subject = primary
+          // Others = secondary
+          pdf.setTextColor(...(index === 0 ? textColor : secondaryTextColor));
+
+          pdf.text(line.text, x + w / 2, textY, {
+            align: "center",
+          });
+
+          textY += lineSpacing;
+        });
       }
 
-      // ---- No legend (removed) ----
+      // ============================================================
+      // FOOTER
+      // ============================================================
 
-      // ---- Footer ----
       const pageCount = pdf.internal.getNumberOfPages();
+
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
+
         pdf.setFont("helvetica", "normal");
+
         pdf.setFontSize(7);
+
         pdf.setTextColor(150, 150, 150);
-        pdf.text(
-          `Page ${i} of ${pageCount}`,
-          pageWidth - marginX,
-          pageHeight - 16,
-          { align: "right" }
-        );
+
+        // Bottom-left
         pdf.text(
           `${SCHOOL_HEADER.systemName} — Confidential`,
           marginX,
-          pageHeight - 16
+          pageHeight - 12,
+        );
+
+        // Bottom-right
+        pdf.text(
+          `Generated: ${new Date().toLocaleString()}`,
+          pageWidth - marginX,
+          pageHeight - 12,
+          {
+            align: "right",
+          },
         );
       }
 
-      pdf.save(`Room-Schedule-${room?.roomName || "Room"}-${new Date().toISOString().slice(0,10)}.pdf`);
+      // ============================================================
+      // SAVE PDF
+      // ============================================================
+
+      pdf.save(
+        `Room-Schedule-${room?.roomName || "Room"}-${new Date()
+          .toISOString()
+          .slice(0, 10)}.pdf`,
+      );
+
+      // ============================================================
+      // SUCCESS
+      // ============================================================
 
       showToast("success", "PDF Downloaded", "Schedule exported successfully.");
     } catch (err) {
       console.error("PDF export failed:", err);
+
       showToast("error", "Export Failed", "Could not generate PDF.");
+    } finally {
+      setExporting(false);
     }
-    setExporting(false);
   };
 
   // ─── Render ────────────────────────────────────────────────────────
@@ -559,8 +907,25 @@ function LocalRegistrarViewRoomCard() {
             {/* Schedule grid */}
             <div className="lr-vr-schedule-container">
               <div className="lr-vr-time-column">
-                {["07 AM","08 AM","09 AM","10 AM","11 AM","12 PM","01 PM","02 PM","03 PM","04 PM","05 PM","06 PM","07 PM","08 PM"].map((label) => (
-                  <div className="lr-vr-time-slot" key={label}>{label}</div>
+                {[
+                  "07 AM",
+                  "08 AM",
+                  "09 AM",
+                  "10 AM",
+                  "11 AM",
+                  "12 PM",
+                  "01 PM",
+                  "02 PM",
+                  "03 PM",
+                  "04 PM",
+                  "05 PM",
+                  "06 PM",
+                  "07 PM",
+                  "08 PM",
+                ].map((label) => (
+                  <div className="lr-vr-time-slot" key={label}>
+                    {label}
+                  </div>
                 ))}
               </div>
 
@@ -580,8 +945,10 @@ function LocalRegistrarViewRoomCard() {
                     let filteredSchedules = daySchedules;
                     if (!isOriginal) {
                       filteredSchedules = daySchedules.filter((schedule) => {
-                        if (releasedKeys.has(`${schedule.id}_${dateStr}`)) return false;
-                        if (reassignedAwayKeys.has(`${schedule.id}_${dateStr}`)) return false;
+                        if (releasedKeys.has(`${schedule.id}_${dateStr}`))
+                          return false;
+                        if (reassignedAwayKeys.has(`${schedule.id}_${dateStr}`))
+                          return false;
                         const sStart = convertToMinutes(schedule.startTime);
                         const sEnd = convertToMinutes(schedule.endTime);
                         const items = getItemsForDate(dateObj);
@@ -595,48 +962,84 @@ function LocalRegistrarViewRoomCard() {
 
                     return (
                       <div className="lr-vr-calendar-day" key={day}>
+                        {/* Regular schedules */}
                         {filteredSchedules.map((schedule) => (
                           <ScheduleCard
                             key={schedule.id}
                             schedule={schedule}
                             top={getTopPosition(schedule.startTime)}
-                            height={getCardHeight(schedule.startTime, schedule.endTime)}
+                            height={getCardHeight(
+                              schedule.startTime,
+                              schedule.endTime,
+                            )}
                             onClick={() =>
                               setSelectedSchedule(
-                                normalizeScheduleItem(schedule, "schedule")
+                                normalizeScheduleItem(schedule, "schedule"),
                               )
                             }
+                            // ── Faculty color (pastel) ──
+                            facultyColor={getFacultyColor(schedule.faculty)}
                           />
                         ))}
+
+                        {/* Events, reservations, reassignments */}
                         {!isOriginal &&
-                          getItemsForDate(dateObj).map((item) => (
-                            <ScheduleCard
-                              key={item.id}
-                              schedule={{
-                                ...item,
-                                subject:
-                                  item.title ||
-                                  item.purpose ||
-                                  item.courseTitle ||
-                                  (item._source === "reassignment"
-                                    ? `${item.courseTitle || "Class"} (Moved)`
-                                    : "Walk-in Reservation"),
-                                faculty:
-                                  item.title
-                                    ? "ROOM ACTIVITY"
-                                    : item.requesterName ||
-                                      item.facultyName ||
-                                      "Walk-in",
-                              }}
-                              top={getTopPosition(item.startTime)}
-                              height={getCardHeight(item.startTime, item.endTime)}
-                              onClick={() =>
-                                setSelectedSchedule(
-                                  normalizeScheduleItem(item, item._source)
-                                )
+                          getItemsForDate(dateObj).map((item) => {
+                            // Determine category and faculty name for display
+                            let category = item._source;
+                            let facultyName;
+                            if (category === "event") {
+                              facultyName = "ROOM ACTIVITY";
+                            } else if (category === "reservation") {
+                              facultyName =
+                                item.requesterName ||
+                                item.facultyName ||
+                                "Walk-in";
+                              // If no requester/faculty, treat as walk-in for color
+                              if (!item.requesterName && !item.facultyName) {
+                                category = "walkin";
                               }
-                            />
-                          ))}
+                            } else if (category === "reassignment") {
+                              facultyName =
+                                item.facultyName ||
+                                item.courseTitle ||
+                                "Moved Class";
+                            } else {
+                              category = "walkin";
+                              facultyName = "Walk-in";
+                            }
+
+                            const color = getCategoryColor(category);
+
+                            return (
+                              <ScheduleCard
+                                key={item.id}
+                                schedule={{
+                                  ...item,
+                                  subject:
+                                    item.title ||
+                                    item.purpose ||
+                                    item.courseTitle ||
+                                    (item._source === "reassignment"
+                                      ? `${item.courseTitle || "Class"} (Moved)`
+                                      : "Walk-in Reservation"),
+                                  faculty: facultyName,
+                                }}
+                                top={getTopPosition(item.startTime)}
+                                height={getCardHeight(
+                                  item.startTime,
+                                  item.endTime,
+                                )}
+                                onClick={() =>
+                                  setSelectedSchedule(
+                                    normalizeScheduleItem(item, item._source),
+                                  )
+                                }
+                                // ── Category color ──
+                                facultyColor={color}
+                              />
+                            );
+                          })}
                       </div>
                     );
                   })

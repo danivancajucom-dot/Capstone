@@ -157,8 +157,7 @@ export default function RoomUsageTracking() {
     utilization: 0,
   });
 
-  // NEW: Toast state
-  const [toast, setToast] = useState({
+const [selectedRecord, setSelectedRecord] = useState(null);  const [toast, setToast] = useState({
     show: false,
     message: "",
     type: "loading",
@@ -751,9 +750,7 @@ export default function RoomUsageTracking() {
                     <td>
                       <button
                         className="rut-action-btn"
-                        onClick={() => alert(
-                          `Type: ${schedule.sourceLabel}\nRequested By: ${schedule.facultyName}\nSubject: ${schedule.subject}\nSection: ${schedule.section || "-"}\nDate: ${schedule.date}\nTime: ${format12Hour(schedule.startTime)} - ${format12Hour(schedule.endTime)}`
-                        )}
+                        onClick={() => setSelectedRecord(schedule)}
                       >
                         <i className="fa-solid fa-eye" />
                       </button>
@@ -818,6 +815,42 @@ export default function RoomUsageTracking() {
           </div>
         </div>
       </div>
+
+      {selectedRecord && (
+        <div className="rut-modal-overlay" onClick={() => setSelectedRecord(null)}>
+          <div className="rut-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="rut-modal-header">
+              <span className="rut-type-badge">{selectedRecord.sourceLabel}</span>
+              <button className="rut-modal-close" onClick={() => setSelectedRecord(null)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+
+            <h2 className="rut-modal-subject">{selectedRecord.subject}</h2>
+
+            <div className="rut-modal-grid">
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">REQUESTED BY</span>
+                <span className="rut-modal-value">{selectedRecord.facultyName}</span>
+              </div>
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">SECTION</span>
+                <span className="rut-modal-value">{selectedRecord.section || "-"}</span>
+              </div>
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">DATE</span>
+                <span className="rut-modal-value">{selectedRecord.date}</span>
+              </div>
+              <div className="rut-modal-field">
+                <span className="rut-modal-label">TIME</span>
+                <span className="rut-modal-value">
+                  {format12Hour(selectedRecord.startTime)} - {format12Hour(selectedRecord.endTime)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       <Toast

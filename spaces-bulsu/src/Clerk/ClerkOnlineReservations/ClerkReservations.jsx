@@ -5,6 +5,22 @@ import ReservationCard from "../../Components/ReservationCard/ReservationCard";
 import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
+import Toast from "../../Popup/Toast/Toast";
+
+// ─── PDF Libraries & Logos ──────────────────────────────────────────
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import universityLogo from "../../assets/BSU-Logo.png";
+import collegeLogo from "../../assets/CICT-Logo.png";
+
+// ─── School Header ──────────────────────────────────────────────────
+const SCHOOL_HEADER = {
+  universityLogoUrl: universityLogo,
+  collegeLogoUrl: collegeLogo,
+  universityName: "Bulacan State University",
+  collegeName: "College of Information and Communications Technology",
+  systemName: "SpaceS CICT",
+};
 
 const TABS = ["Pending", "Approved", "Denied", "Cancelled"];
 const PAGE_SIZE = 8;
@@ -12,6 +28,16 @@ const PAGE_SIZE = 8;
 // ─── Helpers ───────────────────────────────────────────────────────────
 const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
 const normalizeRoom = (name) => name?.toLowerCase().trim().replace(/\s+/g, '') || "";
+
+// ─── Format 12-hour ──────────────────────────────────────────────────
+const format12Hour = (time) => {
+  if (!time) return "-";
+  const [hour, minute] = time.split(":").map(Number);
+  if (isNaN(hour) || isNaN(minute)) return time;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
 
 // ─── Empty icon (SVG) ──────────────────────────────────────────────────
 const EmptyIcon = () => (
@@ -66,6 +92,24 @@ function ClerkReservations() {
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
 
+  // ─── Export state ──────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [toast, setToast] = useState({
+    show: false,
+    type: "",
+    title: "",
+    message: "",
+  });
+
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
+    }
+  };
+
+  // ─── Firestore subscription ────────────────────────────────────────
   useEffect(() => {
     const q = query(collection(db, "reservationRequests"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(
@@ -104,16 +148,13 @@ function ClerkReservations() {
   const trimmedSearch = searchTerm.trim().toLowerCase();
 
   const filtered = tabFiltered.filter((r) => {
-    // Search by faculty/requester name
     const name = (r.facultyName || r.requesterName || "").toLowerCase();
     if (trimmedSearch && !name.includes(trimmedSearch)) return false;
 
-    // Room filter – normalize both sides
     const roomNameNormalized = normalizeRoom(r.roomName);
     const filterRoomNormalized = normalizeRoom(filterRoom);
     if (filterRoom && roomNameNormalized !== filterRoomNormalized) return false;
 
-    // Date filter
     if (filterDate && r.date !== filterDate) return false;
 
     return true;
@@ -147,7 +188,7 @@ function ClerkReservations() {
   const visibleReservations = sorted.slice(0, visibleCount);
   const hasMore = visibleCount < sorted.length;
 
-  // ─── Counts for tabs (unfiltered) ──────────────────────────────────
+  // ─── Counts for tabs ──────────────────────────────────────────────────
   const counts = {
     Pending: reservations.filter((r) => normalizeStatus(r.status) === "pending").length,
     Approved: reservations.filter((r) => normalizeStatus(r.status) === "approved").length,
@@ -155,7 +196,7 @@ function ClerkReservations() {
     Cancelled: reservations.filter((r) => normalizeStatus(r.status) === "cancelled").length,
   };
 
-  // ─── Unique room names for filter dropdown (normalized, display original) ──
+  // ─── Unique room names for filter dropdown ──────────────────────────
   const roomMap = new Map();
   reservations.forEach((r) => {
     const original = (r.roomName || "").trim();
@@ -165,7 +206,6 @@ function ClerkReservations() {
       roomMap.set(normalized, original);
     }
   });
-  // Convert to array of { original, normalized } for the dropdown
   const roomOptions = Array.from(roomMap.entries()).map(([normalized, original]) => ({
     normalized,
     original,
@@ -178,6 +218,207 @@ function ClerkReservations() {
     setFilterDate("");
     setSortBy("date");
     setSortOrder("desc");
+  };
+
+  // ─── EXPORT FUNCTIONS ──────────────────────────────────────────────
+
+  // ── CSV Export ──
+  const exportCSV = () => {
+    if (sorted.length === 0) {
+      showToast("error", "Nothing to Export", "No reservations match your filters.");
+      return;
+    }
+
+    showToast("loading", "Preparing CSV...", "Please wait.");
+
+    try {
+      const headers = [
+        "Faculty/Requester",
+        "Room",
+        "Date",
+        "Start Time",
+        "End Time",
+        "Purpose",
+        "Status",
+        "Organization",
+        "Section",
+      ];
+
+      const rows = sorted.map((r) => [
+        r.facultyName || r.requesterName || "-",
+        r.roomName || "-",
+        r.date || "-",
+        r.startTime ? format12Hour(r.startTime) : "-",
+        r.endTime ? format12Hour(r.endTime) : "-",
+        r.customPurpose || r.purpose || r.courseTitle || "-",
+        r.status || "-",
+        r.organizationName || r.attendees?.organization || "-",
+        r.yearSectionGroup || r.attendees?.yearSectionGroup || "-",
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `reservations-${activeTab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast("success", "CSV Downloaded", `${sorted.length} reservations exported.`);
+    } catch (err) {
+      console.error("CSV export failed:", err);
+      showToast("error", "Export Failed", "Could not generate CSV.");
+    }
+    setExportMenuOpen(false);
+  };
+
+  // ── PDF Export ──
+  const exportPDF = () => {
+    if (sorted.length === 0) {
+      showToast("error", "Nothing to Export", "No reservations match your filters.");
+      return;
+    }
+
+    showToast("loading", "Generating PDF...", "Please wait.");
+
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const marginX = 40;
+      const logoSize = 40;
+      const centerX = pageWidth / 2;
+
+      // ── Letterhead ──
+      if (SCHOOL_HEADER.universityLogoUrl) {
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 20, logoSize, logoSize);
+      }
+      if (SCHOOL_HEADER.collegeLogoUrl) {
+        pdf.addImage(
+          SCHOOL_HEADER.collegeLogoUrl,
+          "PNG",
+          pageWidth - marginX - logoSize,
+          20,
+          logoSize,
+          logoSize
+        );
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(13);
+      pdf.setTextColor(20, 27, 45);
+      pdf.text(SCHOOL_HEADER.universityName, centerX, 34, { align: "center" });
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(SCHOOL_HEADER.collegeName, centerX, 48, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, centerX, 58, { align: "center" });
+
+      pdf.setDrawColor(245, 124, 0);
+      pdf.setLineWidth(1.5);
+      pdf.line(marginX, 74, pageWidth - marginX, 74);
+
+      // ── Title & Filters ──
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.setTextColor(245, 124, 0);
+      pdf.text(`Reservation Report — ${activeTab}`, marginX, 98);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(107, 114, 128);
+      let filterSummary = "";
+      if (searchTerm) filterSummary += `Faculty: ${searchTerm} | `;
+      if (filterRoom) {
+        const roomName = roomOptions.find(o => o.normalized === filterRoom)?.original || filterRoom;
+        filterSummary += `Room: ${roomName} | `;
+      }
+      if (filterDate) filterSummary += `Date: ${filterDate} | `;
+      if (!filterSummary) filterSummary = "All reservations";
+      pdf.text(`Filters: ${filterSummary}`, marginX, 112);
+      pdf.text(
+        `Generated: ${new Date().toLocaleString()}`,
+        pageWidth - marginX,
+        112,
+        { align: "right" }
+      );
+
+      // ── Table ──
+      const tableRows = sorted.map((r) => [
+        r.facultyName || r.requesterName || "-",
+        r.roomName || "-",
+        r.date || "-",
+        r.startTime ? format12Hour(r.startTime) : "-",
+        r.endTime ? format12Hour(r.endTime) : "-",
+        r.customPurpose || r.purpose || r.courseTitle || "-",
+        r.status || "-",
+        r.organizationName || r.attendees?.organization || "-",
+        r.yearSectionGroup || r.attendees?.yearSectionGroup || "-",
+      ]);
+
+      autoTable(pdf, {
+        startY: 130,
+        head: [["Faculty", "Room", "Date", "Start", "End", "Purpose", "Status", "Organization", "Section"]],
+        body: tableRows,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 7, cellPadding: 4, valign: "middle" },
+        headStyles: {
+          fillColor: [245, 124, 0],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 7,
+        },
+        bodyStyles: { textColor: [26, 26, 26] },
+        alternateRowStyles: { fillColor: [253, 246, 240] },
+        margin: { left: marginX, right: marginX },
+        columnStyles: {
+          0: { cellWidth: 55 },
+          1: { cellWidth: 45 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 35 },
+          5: { cellWidth: 60 },
+          6: { cellWidth: 35 },
+          7: { cellWidth: 50 },
+          8: { cellWidth: 45 },
+        },
+      });
+
+      // ── Footer ──
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - marginX,
+          pdf.internal.pageSize.getHeight() - 16,
+          { align: "right" }
+        );
+        pdf.text(
+          `${SCHOOL_HEADER.systemName} — Confidential`,
+          marginX,
+          pdf.internal.pageSize.getHeight() - 16
+        );
+      }
+
+      pdf.save(`reservations-${activeTab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.pdf`);
+
+      showToast("success", "PDF Downloaded", `${sorted.length} reservations exported.`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      showToast("error", "Export Failed", "Could not generate PDF.");
+    }
+    setExportMenuOpen(false);
   };
 
   // ─── Render list ────────────────────────────────────────────────────
@@ -225,10 +466,36 @@ function ClerkReservations() {
     <div className="clerk-reservations">
       {/* ─── Header ────────────────────────────────────────────── */}
       <div className="clerk-reservations-header">
-        <h1>Reservation Requests</h1>
-        <p className="clerk-reservations-subtitle">
-          Review, approve, and track room reservation requests from your department.
-        </p>
+        <div className="clerk-reservations-header-top">
+          <div>
+            <h1>Reservation Requests</h1>
+            <p className="clerk-reservations-subtitle">
+              Review, approve, and track room reservation requests from your department.
+            </p>
+          </div>
+
+          {/* ── Export Dropdown ── */}
+          <div className="clerk-export-dropdown">
+            <button
+              className="clerk-export-btn"
+              onClick={() => setExportMenuOpen(!exportMenuOpen)}
+              disabled={loading || sorted.length === 0}
+            >
+              <i className="fa-solid fa-download"></i> Export Report
+              <i className={`fa-solid fa-chevron-down ${exportMenuOpen ? "rotate" : ""}`}></i>
+            </button>
+            {exportMenuOpen && (
+              <div className="clerk-export-menu">
+                <button onClick={exportPDF}>
+                  <i className="fa-regular fa-file-pdf"></i> Export as PDF
+                </button>
+                <button onClick={exportCSV}>
+                  <i className="fa-solid fa-file-csv"></i> Export as CSV
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ─── Filter Bar (outside white box) ──────────────────── */}
@@ -354,6 +621,14 @@ function ClerkReservations() {
           </div>
         )}
       </div>
+
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+      />
     </div>
   );
 }

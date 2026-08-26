@@ -723,3 +723,145 @@ RESPONSIVE
   .rut-title { font-size: 26px; }
   .rut-analytics { grid-template-columns: 1fr 1fr; }
 }
+
+.rut-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 27, 45, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: rut-fade-in 0.15s ease-out;
+}
+
+@keyframes rut-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.rut-modal-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  animation: rut-pop-in 0.18s ease-out;
+}
+
+@keyframes rut-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.rut-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 27, 45, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999; /* was 1000 — bumped so it always sits above navbar/toast */
+  padding: 20px;
+  box-sizing: border-box;
+  animation: rut-fade-in 0.15s ease-out;
+}
+
+@keyframes rut-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.rut-modal-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  width: 100%;
+  max-width: 440px;
+  max-height: calc(100vh - 40px); /* prevents overflow on short viewports */
+  overflow-y: auto;
+  box-sizing: border-box;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  animation: rut-pop-in 0.18s ease-out;
+  font-family: 'Lexend', sans-serif; /* was inheriting from wherever it's mounted */
+}
+
+@keyframes rut-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.rut-modal-header {
+  display: flex;
+  align-items: flex-start; /* was center — kept badge and X aligned even if badge wraps */
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.rut-modal-header .rut-type-badge {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0; /* allows badge text to wrap/truncate instead of pushing the X out */
+}
+
+.rut-modal-close {
+  background: #f4f6f9;
+  border: none;
+  width: 32px;
+  height: 32px;
+  min-width: 32px; /* was shrinking when badge text got long */
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 14px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: 0.15s;
+}
+
+.rut-modal-close:hover { background: #fee2e2; color: #dc2626; }
+
+.rut-modal-subject {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin: 0 0 20px;
+  line-height: 1.3;
+  word-break: break-word; /* was overflowing card on long subjects */
+}
+
+.rut-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px; /* row gap vs column gap so rows don't feel cramped */
+}
+
+.rut-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; /* was letting long values force the grid wider than the card */
+}
+
+.rut-modal-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.06em;
+}
+
+.rut-modal-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  word-break: break-word;
+}
+
+@media (max-width: 480px) {
+  .rut-modal-card { padding: 22px; }
+  .rut-modal-grid { grid-template-columns: 1fr; }
+}

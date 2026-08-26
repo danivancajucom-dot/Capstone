@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
+import { findFacultyUserByName } from "../../utils/findFacultyUser";
+import { formatFacultyName } from "../../utils/parseFacultyName";
 
 // ─── PDF Libraries & Logos ──────────────────────────────────────────
 import jsPDF from "jspdf";
@@ -11,7 +13,7 @@ import autoTable from "jspdf-autotable";
 import universityLogo from "../../assets/BSU-Logo.png";
 import collegeLogo from "../../assets/CICT-Logo.png";
 
-// ─── School Header (same as other modules) ─────────────────────────
+// ─── School Header ──────────────────────────────────────────────────
 const SCHOOL_HEADER = {
   universityLogoUrl: universityLogo,
   collegeLogoUrl: collegeLogo,
@@ -20,7 +22,7 @@ const SCHOOL_HEADER = {
   systemName: "SpaceS CICT",
 };
 
-// ─── Helpers (matching WeeklyCalendar) ──────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────
 const semesterRank = (sem = "") => {
   const s = sem.toLowerCase();
   if (s.includes("2nd")) return 2;
@@ -33,7 +35,7 @@ const schoolYearStart = (sy = "") => {
   return match ? parseInt(match[0], 10) : 0;
 };
 
-// ───────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────
 
 function DepartmentHeadConflicts() {
   const [conflicts, setConflicts] = useState([]);
@@ -42,6 +44,7 @@ function DepartmentHeadConflicts() {
   const [unresolved, setUnresolved] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [toast, setToast] = useState({
     show: false,
@@ -59,7 +62,7 @@ function DepartmentHeadConflicts() {
 
   useEffect(() => {
     loadConflicts();
-  }, []);
+  }, [refreshKey]);
 
   const convertToMinutes = (time) => {
     const [h, m] = time.split(":").map(Number);
@@ -177,7 +180,7 @@ function DepartmentHeadConflicts() {
               room,
               event,
               schedule,
-              courseTitle: schedule.courseTitle || "",
+              courseTitle: schedule.courseTitle || schedule.subject || "",
               faculty: schedule.faculty || "",
               section: schedule.section || "",
               day: schedule.day,
@@ -223,6 +226,15 @@ function DepartmentHeadConflicts() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResolved = () => {
+    setRefreshKey((prev) => prev + 1);
+    showToast(
+      "success",
+      "Conflict Resolved",
+      "The conflict has been resolved successfully."
+    );
   };
 
   const displayConflicts =
@@ -275,16 +287,16 @@ function DepartmentHeadConflicts() {
 
     const rows = displayConflicts.map((c) => [
       c.roomName,
-      c.floor,
-      c.courseTitle,
-      c.faculty,
-      c.section,
-      c.day,
-      c.date,
-      `${c.startTime}-${c.endTime}`,
-      c.activityTitle,
-      `${c.conflictStartTime}-${c.conflictEndTime}`,
-      c.status,
+      c.floor || "",
+      c.courseTitle || "",
+      c.faculty || "",
+      c.section || "",
+      c.day || "",
+      c.date || "",
+      `${c.startTime || ""}-${c.endTime || ""}`,
+      c.activityTitle || "",
+      `${c.conflictStartTime || ""}-${c.conflictEndTime || ""}`,
+      c.status || "",
     ]);
 
     const csv = [headers, ...rows]
@@ -377,17 +389,17 @@ function DepartmentHeadConflicts() {
 
       // ---- Table ----
       const tableRows = displayConflicts.map((c) => [
-        c.roomName,
-        c.floor,
+        c.roomName || "",
+        c.floor || "",
         c.courseTitle || "-",
-        c.faculty,
+        c.faculty || "",
         c.section || "-",
-        c.day,
-        c.date,
-        `${c.startTime} - ${c.endTime}`,
-        c.activityTitle,
-        `${c.conflictStartTime} - ${c.conflictEndTime}`,
-        c.status.toUpperCase(),
+        c.day || "",
+        c.date || "",
+        `${c.startTime || ""} - ${c.endTime || ""}`,
+        c.activityTitle || "",
+        `${c.conflictStartTime || ""} - ${c.conflictEndTime || ""}`,
+        (c.status || "").toUpperCase(),
       ]);
 
       autoTable(pdf, {
@@ -419,7 +431,6 @@ function DepartmentHeadConflicts() {
         bodyStyles: { textColor: [26, 26, 26] },
         alternateRowStyles: { fillColor: [253, 246, 240] },
         margin: { left: marginX, right: marginX },
-        // Reduce font size for narrow columns
         columnStyles: {
           0: { cellWidth: 50 },
           1: { cellWidth: 30 },
@@ -591,6 +602,7 @@ function DepartmentHeadConflicts() {
                   showReassign={
                     activeTab === "all" && !conflict.reassignPending
                   }
+                  onResolved={handleResolved}
                 />
               ))
             )}

@@ -18,6 +18,8 @@ import {
 import { auth } from "../../firebase";
 import { logActivity } from "../../utils/logActivity";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
+import { findFacultyUserByName, findFacultyUser } from "../../utils/findFacultyUser";
+import { parseFacultyName, formatFacultyName } from "../../utils/parseFacultyName";
 
 function parseTime(t) {
   if (!t) return null;
@@ -28,14 +30,6 @@ function parseTime(t) {
 function overlap(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && aEnd > bStart;
 }
-
-const normalizeName = (name = "") => {
-  return name
-    .replace(/\./g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-};
 
 // ---------------- DISPLAY HELPERS ----------------
 function formatTime12(t) {
@@ -163,7 +157,6 @@ export default function RoomActivity() {
         }))
         .filter((s) => {
           if (s.day !== day) return false;
-
           return overlap(reqStart, reqEnd, parseTime(s.startTime), parseTime(s.endTime));
         });
 
@@ -175,8 +168,6 @@ export default function RoomActivity() {
   }, [form, rooms]);
 
   // ---------------- MAINTENANCE CHECK ----------------
-  // Hindi dapat makapag-override ang department head sa isang room na
-  // naka-maintenance sa loob ng hinihiling na petsa/oras.
   useEffect(() => {
     if (!form.room || !form.date || !form.startTime || !form.endTime) {
       setMaintenanceBlocked(false);
@@ -256,7 +247,7 @@ export default function RoomActivity() {
       const currentUser = userSnap.data();
 
       const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
-
+      
       // create room activity
       const activityRef = await addDoc(collection(db, "events"), {
         roomId: roomDoc.id,
@@ -295,101 +286,108 @@ export default function RoomActivity() {
           reason: form.reason,
         },
       });
+      
 
       // -----------------------------
-      // SEND NOTIFICATION TO FACULTIES
+      // SEND NOTIFICATION TO AFFECTED FACULTIES
       // -----------------------------
 
       const usersSnap = await getDocs(collection(db, "users"));
+      let notifiedCount = 0;
 
       for (const conflict of conflicts) {
-        if (!conflict.faculty) continue;
+        if (!conflict.faculty || conflict.faculty === "TBA") continue;
 
-        const scheduleName = normalizeName(conflict.faculty);
-
-        const facultyUser = usersSnap.docs.find((userDoc) => {
-          const user = userDoc.data();
-
-          const accountName = normalizeName(
-            `${user.lastName}, ${user.firstName}${
-              user.middleInitial ? ` ${user.middleInitial}` : ""
-            }`
+        // Try to find the faculty using the stored facultyLastName/facultyFirstName first
+        let facultyDoc = null;
+        
+        if (conflict.facultyLastName && conflict.facultyFirstName) {
+          facultyDoc = findFacultyUser(
+            usersSnap, 
+            conflict.facultyLastName, 
+            conflict.facultyFirstName
           );
-
-          return (
-            user.role === "faculty" &&
-            accountName === scheduleName
-          );
-        });
-
-        if (!facultyUser) {
-          console.log("Faculty not found:", conflict.faculty);
-          continue;
         }
-        //AFFECTED FACULTY
-        await addDoc(collection(db, "notifications"), {
-          userId: facultyUser.id,
-          ownerType: "faculty",
+        
+        // If not found, try by parsing the full name
+        if (!facultyDoc) {
+          facultyDoc = findFacultyUserByName(usersSnap, conflict.faculty);
+        }
 
-          activityId: activityRef.id,
+        if (facultyDoc) {
+          console.log("Conflict faculty (raw):", conflict.faculty);
+console.log("Matched facultyDoc:", facultyDoc?.id, facultyDoc?.data());
 
-          title: "Room Activity Override",
+          await addDoc(collection(db, "notifications"), {
+            userId: facultyDoc.id,
+            ownerType: "faculty",
 
-          message: `${form.title} will use ${roomDoc.roomName} on ${form.date} (${formatTime12(
-            form.startTime
-          )} - ${formatTime12(
-            form.endTime
-          )}). Your scheduled class may be affected.`,
+            activityId: activityRef.id,
 
-          type: "room-activity",
+            title: "Room Activity Override",
 
-          unread: true,
-          archived: false,
+            message: `${form.title} will use ${roomDoc.roomName} on ${form.date} (${formatTime12(
+              form.startTime
+            )} - ${formatTime12(
+              form.endTime
+            )}). Your scheduled class (${conflict.subject || conflict.title || "Untitled"}) may be affected.`,
 
-          badge: "NEW",
+            type: "room-activity",
 
-          roomId: roomDoc.id,
-          roomName: roomDoc.roomName,
+            unread: true,
+            archived: false,
 
-          activityTitle: form.title,
-          activityReason: form.reason,
+            badge: "NEW",
 
-          activityDate: form.date,
-          activityStart: form.startTime,
-          activityEnd: form.endTime,
+            roomId: roomDoc.id,
+            roomName: roomDoc.roomName,
 
-          affectedScheduleId: conflict.id,
-          affectedSubject: conflict.title || "",
-          affectedFaculty: conflict.faculty || "",
+            activityTitle: form.title,
+            activityReason: form.reason,
 
-          createdAt: serverTimestamp(),
-        });
+            activityDate: form.date,
+            activityStart: form.startTime,
+            activityEnd: form.endTime,
 
-        //DEPARTMENT HEAD
-        await addDoc(collection(db, "notifications"), {
-          userId: auth.currentUser.uid,
-          ownerType: "department-head",
+            affectedScheduleId: conflict.id,
+            affectedSubject: conflict.subject || conflict.title || "",
+            affectedFaculty: conflict.faculty || "",
 
-          activityId: activityRef.id,
-
-          title: "Room Activity Created",
-
-          message:
-            conflicts.length > 0
-              ? `${form.title} has been created. ${conflicts.length} faculty schedule(s) were affected and notified.`
-              : `${form.title} has been created successfully.`,
-
-          type: "room-activity-status",
-
-          unread: true,
-          archived: false,
-          badge: "INFO",
-
-          createdAt: serverTimestamp(),
-        });
+            createdAt: serverTimestamp(),
+          });
+          notifiedCount++;
+        }
       }
 
-      showToast("success", "Success", "Room Activity Created!");
+      // Notify department head (self) that notification was sent
+      await addDoc(collection(db, "notifications"), {
+        userId: firebaseUser.uid,
+        ownerType: "department-head",
+
+        activityId: activityRef.id,
+
+        title: "Room Activity Created",
+
+        message:
+          notifiedCount > 0
+            ? `${form.title} has been created. ${notifiedCount} faculty schedule(s) were affected and notified.`
+            : `${form.title} has been created successfully. No faculty schedules were affected.`,
+
+        type: "room-activity-status",
+
+        unread: true,
+        archived: false,
+        badge: "INFO",
+
+        createdAt: serverTimestamp(),
+      });
+
+      
+      showToast(
+        "success", 
+        "Success", 
+        `Room Activity Created! ${notifiedCount} faculty notified.`
+      );
 
       setShowModal(false);
       setForm({
@@ -400,6 +398,7 @@ export default function RoomActivity() {
         endTime: "",
         reason: "",
       });
+      setConflicts([]);
     } catch (error) {
       console.error(error);
 
@@ -620,7 +619,10 @@ export default function RoomActivity() {
                 {conflicts.map((c) => (
                   <div key={c.id} className="ra-conflict-item">
                     <div>
-                      <div className="ra-conflict-code">{c.title || "Untitled Schedule"}</div>
+                      <div className="ra-conflict-code">
+                        {c.subject || c.title || "Untitled Schedule"}
+                        {c.section ? ` (${c.section})` : ""}
+                      </div>
                       <div className="ra-conflict-time">
                         {formatTime12(c.startTime)} – {formatTime12(c.endTime)}
                         {c.faculty ? ` · ${c.faculty}` : ""}

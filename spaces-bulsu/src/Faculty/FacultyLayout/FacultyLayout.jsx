@@ -29,7 +29,6 @@ export default function FacultyLayout() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
 
-      // load profile
       const userSnap = await getDoc(doc(db, "users", user.uid));
       if (userSnap.exists()) {
         const d = userSnap.data();
@@ -41,7 +40,6 @@ export default function FacultyLayout() {
         });
       }
 
-      // ✅ FIX: Remove `where("archived", "==", false)` – fetch ALL notifications
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
@@ -49,14 +47,20 @@ export default function FacultyLayout() {
         orderBy("createdAt", "desc")
       );
 
-      const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-        setNotifications(
-          snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-        );
-      });
+      const unsubscribeNotif = onSnapshot(
+        q,
+        (snapshot) => {
+          setNotifications(
+            snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }))
+          );
+        },
+        (error) => {
+          console.error("❌ Notifications query failed:", error.code, error.message);
+        }
+      );
 
       return unsubscribeNotif;
     });
@@ -107,7 +111,6 @@ export default function FacultyLayout() {
     }
   };
 
-  // ✅ Now these counts include archived items because the state holds everything
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
   const archivedCount = notifications.filter((n) => n.archived).length;
   const allCount = notifications.filter((n) => !n.archived).length;
@@ -115,7 +118,7 @@ export default function FacultyLayout() {
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
     if (activeTab === "archived") return item.archived;
-    return !item.archived; // "all" – only non‑archived
+    return !item.archived;
   });
 
   const emptyCopy = {
@@ -136,10 +139,17 @@ export default function FacultyLayout() {
     },
   }[activeTab];
 
+  // ✅ Expanded typeIcon to include all relevant types
   const typeIcon = {
     schedule: "fa-regular fa-calendar",
     urgent: "fa-solid fa-exclamation",
     approved: "fa-solid fa-check",
+    "room-reassignment": "fa-solid fa-arrows-rotate",
+    "room-activity": "fa-solid fa-calendar-plus",
+    "room-release": "fa-solid fa-door-open",
+    "conflict-resolution": "fa-solid fa-circle-check",
+    "schedule-upload": "fa-solid fa-upload",
+    default: "fa-solid fa-bell",
   };
 
   // ── Logout ──────────────────────────────────────────────────────────────
@@ -169,7 +179,6 @@ export default function FacultyLayout() {
 
         {/* SIDEBAR */}
         <aside className="faculty-sidebar">
-
           <div className="faculty-logo">
             <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="faculty-logo-img" />
             <div className="faculty-logo-text">
@@ -179,49 +188,23 @@ export default function FacultyLayout() {
           </div>
 
           <nav className="faculty-nav">
-            <NavLink
-              end
-              to="/faculty"
-              className={({ isActive }) => (isActive ? "faculty-active" : "")}
-            >
-              <i className="fa-solid fa-house"></i>
-              <span>Dashboard</span>
+            <NavLink end to="/faculty" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
+              <i className="fa-solid fa-house"></i><span>Dashboard</span>
             </NavLink>
-
-            <NavLink
-              to="/faculty/schedule"
-              className={({ isActive }) => (isActive ? "faculty-active" : "")}
-            >
-              <i className="fa-solid fa-calendar-days"></i>
-              <span>Schedule</span>
+            <NavLink to="/faculty/schedule" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
+              <i className="fa-solid fa-calendar-days"></i><span>Schedule</span>
             </NavLink>
-
-            <NavLink
-              to="/faculty/rooms"
-              className={({ isActive }) => (isActive ? "faculty-active" : "")}
-            >
-              <i className="fa-solid fa-building"></i>
-              <span>Rooms</span>
+            <NavLink to="/faculty/rooms" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
+              <i className="fa-solid fa-building"></i><span>Rooms</span>
             </NavLink>
-
-            <NavLink
-              to="/faculty/reservations"
-              className={({ isActive }) => (isActive ? "faculty-active" : "")}
-            >
-              <i className="fa-solid fa-bookmark"></i>
-              <span>Reservations</span>
+            <NavLink to="/faculty/reservations" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
+              <i className="fa-solid fa-bookmark"></i><span>Reservations</span>
             </NavLink>
-
-            <NavLink
-              to="/faculty/broadcast-channel"
-              className={({ isActive }) => (isActive ? "faculty-active" : "")}
-            >
-              <i className="fa-solid fa-bell"></i>
-              <span>Announcement Channel</span>
+            <NavLink to="/faculty/broadcast-channel" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
+              <i className="fa-solid fa-bell"></i><span>Announcement Channel</span>
             </NavLink>
           </nav>
 
-          {/* PROFILE CARD — bottom of sidebar */}
           <NavLink
             to="/faculty/profile"
             className={({ isActive }) => `sidebar-profile ${isActive ? "faculty-active" : ""}`}
@@ -238,7 +221,6 @@ export default function FacultyLayout() {
               <span className="sidebar-profile-role">{profile.role}</span>
             </div>
           </NavLink>
-
         </aside>
 
         {/* MAIN */}
@@ -283,10 +265,7 @@ export default function FacultyLayout() {
                             <span className="notif-top-badge">{unreadCount} new</span>
                           )}
                         </div>
-                        <button
-                          className="notif-close"
-                          onClick={() => setShowNotifications(false)}
-                        >
+                        <button className="notif-close" onClick={() => setShowNotifications(false)}>
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
@@ -333,7 +312,7 @@ export default function FacultyLayout() {
                           filteredNotifications.map((item, i) => (
                             <div key={item.id} style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                               <NotificationCard
-                                icon={typeIcon[item.type] || "fa-solid fa-bell"}
+                                icon={typeIcon[item.type] || typeIcon.default}
                                 title={item.title}
                                 message={item.message}
                                 time={formatTime(item.createdAt)}
@@ -341,7 +320,10 @@ export default function FacultyLayout() {
                                 type={item.type}
                                 unread={item.unread}
                                 archived={item.archived}
-                                onClick={() => markAsRead(item.id)}
+                                assignmentId={item.assignmentId} // ✅ ITO ANG IDINAGDAG
+                                onClick={() => {
+                                  if (item.unread) markAsRead(item.id);
+                                }}
                                 onArchive={() => archiveNotification(item.id)}
                               />
                             </div>

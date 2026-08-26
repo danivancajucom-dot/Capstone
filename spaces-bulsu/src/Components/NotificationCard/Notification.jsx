@@ -16,6 +16,9 @@ export default function NotificationCard({
 }) {
   const navigate = useNavigate();
 
+  // Determine if this is a room reassignment notification
+  const isRoomReassignment = type === "room-reassignment";
+
   return (
     <div
       className={`notification-card ${type} ${unread ? "is-unread" : ""}`}
@@ -43,7 +46,8 @@ export default function NotificationCard({
           <span className="notification-card-time">{time}</span>
 
           <div className="notification-card-actions">
-            {type === "room-reassignment" && assignmentId && (
+            {/* ✅ "View" button for room reassignment */}
+            {isRoomReassignment && assignmentId && (
               <button
                 type="button"
                 className="notification-card-view"
