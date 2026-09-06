@@ -116,6 +116,22 @@ const fetchLinkPreview = async (url) => {
   }
 };
 
+// ─── Search highlight helper ───────────────────────────────────────────
+const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function highlightText(text, query) {
+  if (!text || !query || !query.trim()) return text;
+  const q = query.trim();
+  const parts = text.split(new RegExp(`(${escapeRegExp(q)})`, "gi"));
+  return parts.map((part, i) =>
+    part.toLowerCase() === q.toLowerCase() ? (
+      <mark className="bc-highlight" key={i}>{part}</mark>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────
 
 export default function BroadcastChannel() {
@@ -135,10 +151,18 @@ export default function BroadcastChannel() {
   const [linkPreview, setLinkPreview] = useState(null);
   const [fetchingPreview, setFetchingPreview] = useState(false);
 
+  // ─── Search & Pin state ──────────────────────────────────────────
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showPinnedPanel, setShowPinnedPanel] = useState(false);
+
   const imageRef = useRef(null);
   const fileRef = useRef(null);
   const bottomRef = useRef(null);
   const menuRefs = useRef(new Map());
+  const messageRefs = useRef(new Map());
+  const searchInputRef = useRef(null);
+  const pinnedPanelRef = useRef(null);
 
   const [toast, setToast] = useState({
     show: false,
@@ -217,7 +241,9 @@ export default function BroadcastChannel() {
   }, [userRole]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (!searchQuery && !showPinnedPanel) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
   }, [messages.length]);
 
   // ─── Link preview ──────────────────────────────────────────────────
@@ -245,20 +271,27 @@ export default function BroadcastChannel() {
     return () => clearTimeout(timer);
   }, [message]);
 
-  // ─── Click outside menu ────────────────────────────────────────────
+  // ─── Click outside menu / pinned panel ──────────────────────────────
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (!openMenuId) return;
-      const el = menuRefs.current.get(openMenuId);
-      if (el && !el.contains(e.target)) {
-        setOpenMenuId(null);
-        setConfirmingId(null);
+      if (openMenuId) {
+        const el = menuRefs.current.get(openMenuId);
+        if (el && !el.contains(e.target)) {
+          setOpenMenuId(null);
+          setConfirmingId(null);
+        }
+      }
+      if (showPinnedPanel && pinnedPanelRef.current && !pinnedPanelRef.current.contains(e.target)) {
+        // Ignore clicks on the pin toggle button itself (it has its own handler)
+        if (!e.target.closest(".bc-pin-toggle-btn")) {
+          setShowPinnedPanel(false);
+        }
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [openMenuId]);
+  }, [openMenuId, showPinnedPanel]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -266,10 +299,19 @@ export default function BroadcastChannel() {
       setLightboxImage(null);
       setOpenMenuId(null);
       setConfirmingId(null);
+      setShowPinnedPanel(false);
+      if (showSearch) {
+        setShowSearch(false);
+        setSearchQuery("");
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [showSearch]);
+
+  useEffect(() => {
+    if (showSearch) searchInputRef.current?.focus();
+  }, [showSearch]);
 
   // ─── Attachment handlers ────────────────────────────────────────────
 
@@ -344,6 +386,7 @@ export default function BroadcastChannel() {
         createdAt: serverTimestamp(),
         reactions: { like: [], love: [] },
         linkPreview: previewData || null,
+        pinned: false,
       };
 
       // Single image (for old display)
@@ -469,6 +512,39 @@ export default function BroadcastChannel() {
     }
   };
 
+  // ─── Pin / Unpin ─────────────────────────────────────────────────────
+
+  const togglePin = async (id, currentlyPinned) => {
+    try {
+      await updateDoc(doc(db, "broadcastChannels", id), {
+        pinned: !currentlyPinned,
+        pinnedAt: !currentlyPinned ? serverTimestamp() : null,
+      });
+      showToast(
+        "success",
+        currentlyPinned ? "Unpinned" : "Pinned",
+        currentlyPinned
+          ? "Removed from pinned announcements."
+          : "Added to pinned announcements."
+      );
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Failed", "Could not update the pin status.");
+    } finally {
+      setOpenMenuId(null);
+    }
+  };
+
+  const scrollToMessage = (id) => {
+    const el = messageRefs.current.get(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("bc-message-flash");
+      setTimeout(() => el.classList.remove("bc-message-flash"), 1400);
+    }
+    setShowPinnedPanel(false);
+  };
+
   // ─── Helpers ─────────────────────────────────────────────────────────
 
   const getReactorNames = (uids = []) => {
@@ -512,6 +588,29 @@ export default function BroadcastChannel() {
 
   const canSend =
     !uploading && (message.trim() || selectedImages.length > 0 || selectedFiles.length > 0);
+
+  const pinnedMessages = messages.filter((m) => m.pinned);
+
+  const visibleMessages = searchQuery.trim()
+    ? messages.filter((m) => {
+        const q = searchQuery.trim().toLowerCase();
+        const matchesContent = (m.content || "").toLowerCase().includes(q);
+        const matchesSender = (m.senderName || "").toLowerCase().includes(q);
+        const matchesFile =
+          (m.fileName || "").toLowerCase().includes(q) ||
+          (m.files || []).some((f) => (f.name || "").toLowerCase().includes(q));
+        return matchesContent || matchesSender || matchesFile;
+      })
+    : messages;
+
+  const pinnedPreviewText = (m) => {
+    if (m.content) return m.content;
+    const imgCount = (m.imageUrls || (m.imageUrl ? [m.imageUrl] : [])).length;
+    const fileCount = (m.files || (m.fileUrl ? [1] : [])).length;
+    if (imgCount) return `📷 ${imgCount} photo${imgCount > 1 ? "s" : ""}`;
+    if (fileCount) return `📎 ${fileCount} file${fileCount > 1 ? "s" : ""}`;
+    return "Announcement";
+  };
 
   // ─── File display component ─────────────────────────────────────────
 
@@ -570,11 +669,93 @@ export default function BroadcastChannel() {
             </span>
           </div>
         </div>
-        <div className="bc-message-counter">
-          <i className="fa-regular fa-message"></i>
-          {messages.length} announcement{messages.length === 1 ? "" : "s"}
+
+        <div className="bc-topbar-actions">
+          <button
+            className={`bc-icon-btn ${showSearch ? "is-active" : ""}`}
+            onClick={() => {
+              setShowSearch((s) => {
+                if (s) setSearchQuery("");
+                return !s;
+              });
+              setShowPinnedPanel(false);
+            }}
+            aria-label="Search announcements"
+          >
+            <i className="fa-solid fa-magnifying-glass"></i>
+          </button>
+
+          <button
+            className={`bc-icon-btn bc-pin-toggle-btn ${showPinnedPanel ? "is-active" : ""}`}
+            onClick={() => {
+              setShowPinnedPanel((p) => !p);
+              setShowSearch(false);
+            }}
+            aria-label="Pinned announcements"
+            disabled={pinnedMessages.length === 0}
+          >
+            <i className="fa-solid fa-thumbtack"></i>
+            {pinnedMessages.length > 0 && (
+              <span className="bc-icon-badge">{pinnedMessages.length}</span>
+            )}
+          </button>
+
+          <div className="bc-message-counter">
+            <i className="fa-regular fa-message"></i>
+            <span>{messages.length} announcement{messages.length === 1 ? "" : "s"}</span>
+          </div>
         </div>
       </div>
+
+      {/* SEARCH BAR */}
+      {showSearch && (
+        <div className="bc-search-bar">
+          <i className="fa-solid fa-magnifying-glass"></i>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search announcements, senders, or files…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <span className="bc-search-count">
+              {visibleMessages.length} result{visibleMessages.length === 1 ? "" : "s"}
+            </span>
+          )}
+          <button
+            className="bc-search-close"
+            onClick={() => {
+              setShowSearch(false);
+              setSearchQuery("");
+            }}
+            aria-label="Close search"
+          >
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      )}
+
+      {/* PINNED PANEL */}
+      {showPinnedPanel && pinnedMessages.length > 0 && (
+        <div className="bc-pinned-panel" ref={pinnedPanelRef}>
+          <div className="bc-pinned-panel-header">
+            <i className="fa-solid fa-thumbtack"></i>
+            <span>Pinned Announcements ({pinnedMessages.length})</span>
+          </div>
+          <div className="bc-pinned-list">
+            {pinnedMessages.map((m) => (
+              <button key={m.id} className="bc-pinned-item" onClick={() => scrollToMessage(m.id)}>
+                <div className="bc-pinned-item-avatar">{getInitials(m.senderName)}</div>
+                <div className="bc-pinned-item-body">
+                  <strong>{m.senderName}</strong>
+                  <span>{pinnedPreviewText(m)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* MESSAGES */}
       <div className="bc-messages">
@@ -584,22 +765,31 @@ export default function BroadcastChannel() {
             <h2>Loading</h2>
             <p>Please wait while we retrieve available contents.</p>
           </div>
-        ) : messages.length === 0 ? (
-          <div className="bc-empty-state">
-            <i className="fa-solid fa-bullhorn"></i>
-            <p>No announcements yet.</p>
-            {userRole === "Department Head" && (
-              <span className="bc-empty-hint">Your first announcement will appear here.</span>
-            )}
-          </div>
+        ) : visibleMessages.length === 0 ? (
+          searchQuery.trim() ? (
+            <div className="bc-empty-state">
+              <i className="fa-solid fa-magnifying-glass"></i>
+              <p>No results for "{searchQuery}"</p>
+              <span className="bc-empty-hint">Try a different keyword or sender name.</span>
+            </div>
+          ) : (
+            <div className="bc-empty-state">
+              <i className="fa-solid fa-bullhorn"></i>
+              <p>No announcements yet.</p>
+              {userRole === "Department Head" && (
+                <span className="bc-empty-hint">Your first announcement will appear here.</span>
+              )}
+            </div>
+          )
         ) : (
-          messages.map((msg, index) => {
-            const previousMsg = messages[index - 1];
+          visibleMessages.map((msg, index) => {
+            const previousMsg = visibleMessages[index - 1];
             const isMine = auth.currentUser && msg.senderId === auth.currentUser.uid;
             const likeUids = msg.reactions?.like ?? [];
             const loveUids = msg.reactions?.love ?? [];
             const iLiked = likeUids.includes(auth.currentUser?.uid);
             const iLoved = loveUids.includes(auth.currentUser?.uid);
+            const canManage = isMine || userRole === "Department Head";
 
             // Determine which images to show (array first, fallback to single)
             const imageUrls = msg.imageUrls || (msg.imageUrl ? [msg.imageUrl] : []);
@@ -607,8 +797,8 @@ export default function BroadcastChannel() {
             const files = msg.files || (msg.fileUrl ? [{ url: msg.fileUrl, name: msg.fileName || "File", type: msg.fileType || "" }] : []);
 
             return (
-              <div key={msg.id}>
-                {shouldShowDivider(msg, previousMsg) && (
+              <div key={msg.id} ref={(el) => messageRefs.current.set(msg.id, el)}>
+                {!searchQuery.trim() && shouldShowDivider(msg, previousMsg) && (
                   <div className="bc-divider">
                     <span>{formatDateDivider(msg.createdAt)}</span>
                   </div>
@@ -627,7 +817,7 @@ export default function BroadcastChannel() {
 
                   <div className="bc-message-card">
                     <div className="bc-message-meta">
-                      <strong>{isMine ? "You" : msg.senderName}</strong>
+                      <strong>{isMine ? "You" : highlightText(msg.senderName, searchQuery)}</strong>
                       <span className="bc-role-chip">{msg.senderRole}</span>
                       {msg.recipient && msg.recipient !== "All Staffs" && (
                         <span className="bc-to-chip">
@@ -635,8 +825,13 @@ export default function BroadcastChannel() {
                           {msg.recipient}
                         </span>
                       )}
+                      {msg.pinned && (
+                        <span className="bc-pinned-chip">
+                          <i className="fa-solid fa-thumbtack"></i> Pinned
+                        </span>
+                      )}
 
-                      {isMine && (
+                      {canManage && (
                         <div
                           className="bc-msg-menu"
                           ref={(el) => menuRefs.current.set(msg.id, el)}
@@ -673,13 +868,26 @@ export default function BroadcastChannel() {
                                   </div>
                                 </div>
                               ) : (
-                                <button
-                                  className="bc-msg-menu-item is-danger"
-                                  onClick={() => setConfirmingId(msg.id)}
-                                >
-                                  <i className="fa-solid fa-trash"></i>
-                                  Unsend for everyone
-                                </button>
+                                <>
+                                  {userRole === "Department Head" && (
+                                    <button
+                                      className="bc-msg-menu-item"
+                                      onClick={() => togglePin(msg.id, msg.pinned)}
+                                    >
+                                      <i className="fa-solid fa-thumbtack"></i>
+                                      {msg.pinned ? "Unpin message" : "Pin message"}
+                                    </button>
+                                  )}
+                                  {isMine && (
+                                    <button
+                                      className="bc-msg-menu-item is-danger"
+                                      onClick={() => setConfirmingId(msg.id)}
+                                    >
+                                      <i className="fa-solid fa-trash"></i>
+                                      Unsend for everyone
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}
@@ -688,7 +896,7 @@ export default function BroadcastChannel() {
                     </div>
 
                     <div
-                      className={`bc-bubble ${isMine ? "bc-bubble-right" : "bc-bubble-left"}`}
+                      className={`bc-bubble ${isMine ? "bc-bubble-right" : "bc-bubble-left"} ${msg.pinned ? "bc-bubble-pinned" : ""}`}
                       title={formatTimestamp(msg.createdAt)}
                     >
                       {/* ─── IMAGES ──────────────────────────────────── */}
@@ -738,7 +946,11 @@ export default function BroadcastChannel() {
                       )}
 
                       {/* ─── TEXT ───────────────────────────────────── */}
-                      {msg.content && <div className="bc-bubble-text">{msg.content}</div>}
+                      {msg.content && (
+                        <div className="bc-bubble-text">
+                          {highlightText(msg.content, searchQuery)}
+                        </div>
+                      )}
 
                       {/* ─── TIMESTAMP ───────────────────────────────── */}
                       {msg.createdAt && (
@@ -856,7 +1068,7 @@ export default function BroadcastChannel() {
           <div className="bc-toolbar">
             <div className="bc-toolbar-left">
               <button onClick={() => fileRef.current.click()} disabled={uploading} type="button">
-                <i className="fa-solid fa-paperclip"></i> Attach
+                <i className="fa-solid fa-paperclip"></i> <span>Attach</span>
               </button>
               <input
                 ref={fileRef}
@@ -867,7 +1079,7 @@ export default function BroadcastChannel() {
               />
 
               <button onClick={() => imageRef.current.click()} disabled={uploading} type="button">
-                <i className="fa-regular fa-image"></i> Image
+                <i className="fa-regular fa-image"></i> <span>Image</span>
               </button>
               <input
                 ref={imageRef}

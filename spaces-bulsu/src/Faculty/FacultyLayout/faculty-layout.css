@@ -124,7 +124,7 @@
   background: #fff;
   border-bottom: 1px solid #ececec;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;   /* push actions to the right */
   align-items: center;
   padding: 0 30px;
   gap: 20px;
@@ -132,35 +132,12 @@
   transition: left .2s;
 }
 
-.header-search {
-  width: 600px;
-  position: relative;
-  max-width: 100%;
-  margin: 0 auto;
-}
-
-.header-search i {
-  position: absolute;
-  left: 18px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #8f96a3;
-}
-
-.header-search input {
-  width: 100%;
-  height: 52px;
-  border: none;
-  outline: none;
-  border-radius: 16px;
-  background: #eef1f5;
-  padding-left: 50px;
-  font-family: 'Lexend', sans-serif;
-}
+/* ─── Search bar styles completely removed ─── */
 
 .header-actions {
   display: flex;
   gap: 12px;
+  margin-left: auto;   /* ensures the container is pushed right, but since the header uses flex-end, this is redundant; kept for safety */
 }
 
 .header-btn {
@@ -331,14 +308,7 @@
 
 @media(max-width:768px){
 
-  .header-search{
-    width:180px;
-  }
-
-  .header-search input{
-    height:46px;
-  }
-
+  /* No search bar to adjust, but keep responsive padding */
   .faculty-content{
     padding:16px;
   }

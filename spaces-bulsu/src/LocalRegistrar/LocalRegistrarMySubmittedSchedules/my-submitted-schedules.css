@@ -6,200 +6,179 @@
   min-height: 100vh;
 }
 
-.lr-ss-page-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:25px;
+.lr-ss-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
 }
 
-.lr-ss-page-header h1{
-  margin:0;
-  font-size:34px;
-  font-weight:800;
+.lr-ss-page-header h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 800;
 }
 
-.list-card{
-  background:#fff;
-  border-radius:14px;
-  padding:25px;
-  box-shadow:0 3px 10px rgba(0,0,0,.08);
+.list-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 25px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .08);
 }
 
 /* ---------- SCHOOL YEAR ---------- */
 
-.folder-block{
-  margin-bottom:0;
+.folder-block {
+  margin-bottom: 0;
 }
 
-.folder-title{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:15px 18px;
-  border-radius:10px;
-  color:#f57c00;
-  font-size:18px;
-  font-weight:700;
-  cursor:pointer;
-  transition:.2s;
+.folder-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  border-radius: 10px;
+  color: #f57c00;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
 }
 
-.folder-title:hover{
-  background:#f57c00;
+.folder-title:hover {
+  background: #f57c00;
   color: white;
-
 }
 
 /* ---------- SEMESTER ---------- */
 
-.semester-block{
-  margin-left:40px;
-  margin-top:12px;
+.semester-block {
+  margin-left: 40px;
+  margin-top: 12px;
 }
 
-.semester-title{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:12px 15px;
+.semester-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
   color: #f57c00;
-  border-radius:10px;
-  cursor:pointer;
-  transition:.2s;
-  font-weight:600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: .2s;
+  font-weight: 600;
 }
 
-.semester-title:hover{
-  background:#f57c00;
+.semester-title:hover {
+  background: #f57c00;
   color: white;
 }
 
-/* ---------- ROOM ---------- */
+/* ─── ROOM GRID (2–3 columns) ─── */
 
-.room-item{
-
-  margin-left:45px;
-
-  margin-top:10px;
-
-  padding:14px 18px;
-
-  border-radius:10px;
-
-  display:flex;
-
-  align-items:center;
-
-  gap:12px;
-
-  background:white;
-
-  border:1px solid #ececec;
-
-  cursor:pointer;
-
-  transition:.2s;
-
+.room-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 12px 0 0 45px;
+  padding: 4px 0;
 }
 
-.room-item:hover{
-
-  transform:translateX(8px);
-
-  border-color:#f57c00;
-
-  color:#f57c00;
-
+@media (min-width: 720px) {
+  .room-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
-.room-item i{
-
-  font-size:18px;
-
+@media (min-width: 1100px) {
+  .room-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
-.room-item span{
+/* ─── ROOM ITEM ─── */
 
-  font-size:15px;
-
-  font-weight:600;
-
+.room-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid #ececec;
+  cursor: pointer;
+  transition: .2s;
+  min-height: 58px;
 }
 
-/* Loading */
-
-.room-empty{
-    min-height:60vh;
-
-    display:flex;
-    flex-direction:column;
-
-    align-items:center;
-    justify-content:center;
-
-    text-align:center;
+.room-item:hover {
+  transform: translateX(6px);
+  border-color: #f57c00;
+  color: #f57c00;
 }
 
-.room-empty i{
-    font-size:75px;
-    color:#CBD5E1;
-
-    margin-bottom:20px;
+.room-item i {
+  font-size: 18px;
 }
 
-.room-empty h2{
-    font-size:28px;
-    font-weight:700;
-    color:#334155;
+.room-item span {
+  font-size: 15px;
+  font-weight: 600;
 }
 
-.room-empty p{
-    margin-top:10px;
-    color:#64748B;
-    max-width:420px;
-    line-height:1.6;
+/* ─── Loading ─── */
+
+.room-empty {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
-
-/* ---------- EMPTY ---------- */
-
-.list-card h3{
-
-  text-align:center;
-
-  color:#94a3b8;
-
-  padding:50px;
-
+.room-empty i {
+  font-size: 75px;
+  color: #CBD5E1;
+  margin-bottom: 20px;
 }
 
-/* ---------- ANIMATION ---------- */
+.room-empty h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.room-empty p {
+  margin-top: 10px;
+  color: #64748B;
+  max-width: 420px;
+  line-height: 1.6;
+}
+
+/* ─── Empty state ─── */
+
+.list-card h3 {
+  text-align: center;
+  color: #94a3b8;
+  padding: 50px;
+}
+
+/* ─── Animations ─── */
 
 .folder-block,
 .semester-block,
-.room-item{
-
-  animation:fade .25s ease;
-
+.room-item {
+  animation: fade .25s ease;
 }
 
-@keyframes fade{
-
-  from{
-
-    opacity:0;
-
-    transform:translateY(8px);
-
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
-
-  to{
-
-    opacity:1;
-
-    transform:none;
-
+  to {
+    opacity: 1;
+    transform: none;
   }
-
 }

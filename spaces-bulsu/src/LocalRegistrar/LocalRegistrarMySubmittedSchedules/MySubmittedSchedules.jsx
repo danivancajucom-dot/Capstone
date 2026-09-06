@@ -65,7 +65,6 @@ export default function MySubmittedSchedules() {
   const toggleSY = (sy) => {
     setExpandedSY((prev) => ({
       ...prev,
-
       [sy]: !prev[sy],
     }));
   };
@@ -73,7 +72,6 @@ export default function MySubmittedSchedules() {
   const toggleSem = (key) => {
     setExpandedSem((prev) => ({
       ...prev,
-
       [key]: !prev[key],
     }));
   };
@@ -88,9 +86,7 @@ export default function MySubmittedSchedules() {
         {loading ? (
           <div className="room-empty">
             <i className="fa-solid fa-spinner fa-spin"></i>
-
             <h2>Loading Submitted Schedules</h2>
-
             <p>Please wait while we retrieve submitted schedules.</p>
           </div>
         ) : Object.keys(folders).length === 0 ? (
@@ -107,7 +103,6 @@ export default function MySubmittedSchedules() {
                     expandedSY[schoolYear] ? "fa-folder-open" : "fa-folder"
                   }`}
                 ></i>
-
                 <span>{schoolYear}</span>
               </div>
 
@@ -126,31 +121,32 @@ export default function MySubmittedSchedules() {
                             expandedSem[key] ? "fa-folder-open" : "fa-folder"
                           }`}
                         ></i>
-
                         <span>{semester}</span>
                       </div>
 
-                      {expandedSem[key] &&
-                        rooms.map((room) => (
-                          <div
-                            key={room.id}
-                            className="room-item"
-                            onClick={() => {
-                              navigate("/local-registrar/room-card", {
-                                state: {
-                                  room,
-                                  semester,
-                                  schoolYear,
-                                  isOriginal: true, 
-                                },
-                              });
-                            }}
-                          >
-                            <i className="fa-solid fa-door-open"></i>
-
-                            <span>{room.roomName}</span>
-                          </div>
-                        ))}
+                      {expandedSem[key] && (
+                        <div className="room-grid">
+                          {rooms.map((room) => (
+                            <div
+                              key={room.id}
+                              className="room-item"
+                              onClick={() => {
+                                navigate("/local-registrar/room-card", {
+                                  state: {
+                                    room,
+                                    semester,
+                                    schoolYear,
+                                    isOriginal: true,
+                                  },
+                                });
+                              }}
+                            >
+                              <i className="fa-solid fa-door-open"></i>
+                              <span>{room.roomName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

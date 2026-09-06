@@ -44,6 +44,7 @@ export default function FacultyLayout() {
         collection(db, "notifications"),
         where("userId", "==", user.uid),
         where("ownerType", "==", "faculty"),
+        where("archived", "==", false), // only fetch unarchived
         orderBy("createdAt", "desc")
       );
 
@@ -89,14 +90,6 @@ export default function FacultyLayout() {
     }
   };
 
-  const archiveNotification = async (id) => {
-    try {
-      await updateDoc(doc(db, "notifications", id), { archived: true });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const markAllAsRead = async () => {
     const unread = notifications.filter((n) => n.unread && !n.archived);
     if (unread.length === 0) return;
@@ -112,13 +105,12 @@ export default function FacultyLayout() {
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
-  const archivedCount = notifications.filter((n) => n.archived).length;
   const allCount = notifications.filter((n) => !n.archived).length;
 
+  // Filter: only "all" and "unread" since archived is removed
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
-    if (activeTab === "archived") return item.archived;
-    return !item.archived;
+    return !item.archived; // "all" – show all unarchived
   });
 
   const emptyCopy = {
@@ -132,14 +124,8 @@ export default function FacultyLayout() {
       title: "All caught up!",
       text: "You've read all your notifications.",
     },
-    archived: {
-      icon: "fa-box-open",
-      title: "No archived notifications",
-      text: "Archived notifications will appear here.",
-    },
   }[activeTab];
 
-  // ✅ Expanded typeIcon to include all relevant types
   const typeIcon = {
     schedule: "fa-regular fa-calendar",
     urgent: "fa-solid fa-exclamation",
@@ -227,10 +213,6 @@ export default function FacultyLayout() {
         <div className="faculty-main">
 
           <header className="faculty-header">
-            <div className="header-search">
-              <i className="fa-solid fa-magnifying-glass"></i>
-              <input type="text" placeholder="Search rooms or users..." />
-            </div>
 
             <div className="header-actions">
               {/* NOTIFICATION TRIGGER */}
@@ -283,12 +265,7 @@ export default function FacultyLayout() {
                         >
                           Unread <span className="notif-tab-count">{unreadCount}</span>
                         </button>
-                        <button
-                          className={activeTab === "archived" ? "active" : ""}
-                          onClick={() => setActiveTab("archived")}
-                        >
-                          Archived <span className="notif-tab-count">{archivedCount}</span>
-                        </button>
+                        {/* Archived tab removed */}
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
@@ -320,11 +297,11 @@ export default function FacultyLayout() {
                                 type={item.type}
                                 unread={item.unread}
                                 archived={item.archived}
-                                assignmentId={item.assignmentId} // ✅ ITO ANG IDINAGDAG
+                                assignmentId={item.assignmentId}
                                 onClick={() => {
                                   if (item.unread) markAsRead(item.id);
                                 }}
-                                onArchive={() => archiveNotification(item.id)}
+                                // ❌ No onArchive prop
                               />
                             </div>
                           ))

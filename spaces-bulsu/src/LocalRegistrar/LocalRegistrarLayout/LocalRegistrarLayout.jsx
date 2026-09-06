@@ -10,11 +10,11 @@ import {
   onSnapshot,
   doc,
   updateDoc,
-  writeBatch,               // ← added for markAllAsRead
+  writeBatch,
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
-import NotificationCard from "../../Components/NotificationCard/Notification"; // ← added
+import NotificationCard from "../../Components/NotificationCard/Notification";
 
 export default function LocalRegistrarLayout() {
   const [openSchedule, setOpenSchedule] = useState(false);
@@ -49,9 +49,6 @@ export default function LocalRegistrarLayout() {
       if (!user) return;
 
       // ── Profile listener (real-time) ────────────────────────
-      // Using onSnapshot instead of a one-time getDoc so that any
-      // update made elsewhere (e.g. Profile page photo upload)
-      // reflects here instantly without needing a page refresh.
       const unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
@@ -64,12 +61,12 @@ export default function LocalRegistrarLayout() {
         }
       });
 
-      // ── Notifications listener ──────────────────────────────
+      // ── Notifications listener (only unarchived) ────────────
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
-        where("ownerType", "==", "local-registrar"), // matches role value used in notifications
-        where("archived", "==", false),
+        where("ownerType", "==", "local-registrar"),
+        where("archived", "==", false), // only fetch unarchived
         orderBy("createdAt", "desc")
       );
 
@@ -112,13 +109,7 @@ export default function LocalRegistrarLayout() {
     }
   };
 
-  const archiveNotification = async (id) => {
-    try {
-      await updateDoc(doc(db, "notifications", id), { archived: true });
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // ─── Archive functions removed ────────────────────────────────
 
   const markAllAsRead = async () => {
     const unread = notifications.filter((n) => n.unread && !n.archived);
@@ -135,13 +126,12 @@ export default function LocalRegistrarLayout() {
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
-  const archivedCount = notifications.filter((n) => n.archived).length;
   const allCount = notifications.filter((n) => !n.archived).length;
 
+  // Only two tabs: All and Unread (archived is gone)
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
-    if (activeTab === "archived") return item.archived;
-    return !item.archived;
+    return !item.archived; // "all" – show all unarchived
   });
 
   const emptyCopy = {
@@ -155,17 +145,18 @@ export default function LocalRegistrarLayout() {
       title: "All caught up!",
       text: "You've read all your notifications.",
     },
-    archived: {
-      icon: "fa-box-open",
-      title: "No archived notifications",
-      text: "Archived notifications will appear here.",
-    },
   }[activeTab];
 
   const typeIcon = {
     schedule: "fa-regular fa-calendar",
     urgent: "fa-solid fa-exclamation",
     approved: "fa-solid fa-check",
+    "room-reassignment": "fa-solid fa-arrows-rotate",
+    "room-activity": "fa-solid fa-calendar-plus",
+    "room-release": "fa-solid fa-door-open",
+    "conflict-resolution": "fa-solid fa-circle-check",
+    "schedule-upload": "fa-solid fa-upload",
+    default: "fa-solid fa-bell",
   };
 
   // ── Logout ──────────────────────────────────────────────────────
@@ -257,10 +248,6 @@ export default function LocalRegistrarLayout() {
         <div className="registrar-main">
 
           <header className="registrar-header">
-            <div className="registrar-header-search">
-              <i className="fa-solid fa-magnifying-glass"></i>
-              <input type="text" placeholder="Search..." />
-            </div>
 
             <div className="header-actions">
               {/* ── NOTIFICATION TRIGGER ────────────────────────── */}
@@ -316,12 +303,7 @@ export default function LocalRegistrarLayout() {
                         >
                           Unread <span className="notif-tab-count-LR">{unreadCount}</span>
                         </button>
-                        <button
-                          className={activeTab === "archived" ? "active" : ""}
-                          onClick={() => setActiveTab("archived")}
-                        >
-                          Archived <span className="notif-tab-count-LR">{archivedCount}</span>
-                        </button>
+                        {/* Archived tab removed */}
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
@@ -345,7 +327,7 @@ export default function LocalRegistrarLayout() {
                           filteredNotifications.map((item, i) => (
                             <div key={item.id} style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                               <NotificationCard
-                                icon={typeIcon[item.type] || "fa-solid fa-bell"}
+                                icon={typeIcon[item.type] || typeIcon.default}
                                 title={item.title}
                                 message={item.message}
                                 time={formatTime(item.createdAt)}
@@ -354,7 +336,7 @@ export default function LocalRegistrarLayout() {
                                 unread={item.unread}
                                 archived={item.archived}
                                 onClick={() => markAsRead(item.id)}
-                                onArchive={() => archiveNotification(item.id)}
+                                // ❌ No onArchive prop
                               />
                             </div>
                           ))

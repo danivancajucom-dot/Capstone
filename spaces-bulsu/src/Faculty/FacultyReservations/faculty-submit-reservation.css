@@ -641,6 +641,168 @@ body {
 }
 
 /* ============================
+   SUCCESS DIALOG (after submit)
+============================ */
+
+.rs-success-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.rs-success-modal {
+  background: #ffffff;
+  width: 460px;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 20px;
+  padding: 32px 32px 28px;
+  text-align: center;
+  animation: popup 0.2s ease;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+}
+
+.rs-success-icon {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #DCFCE7;
+  color: #16A34A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.rs-success-modal h3 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1E2430;
+  margin-bottom: 8px;
+}
+
+.rs-success-subtitle {
+  font-size: 13.5px;
+  color: #64748B;
+  line-height: 1.6;
+  margin-bottom: 22px;
+}
+
+.rs-success-details {
+  text-align: left;
+  background: #F8F7F5;
+  border: 1px solid #EFEAE4;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin-bottom: 24px;
+}
+
+.rs-success-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.rs-success-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #94A3B8;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding-top: 1px;
+}
+
+.rs-success-value {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1E2430;
+  text-align: right;
+}
+
+.rs-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: #FEF3C7;
+  color: #B45309;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.rs-success-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.rs-success-secondary,
+.rs-success-primary {
+  flex: 1;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+  font-family: inherit;
+}
+
+.rs-success-secondary {
+  background: #ffffff;
+  border: 1.5px solid #F2690D;
+  color: #F2690D;
+}
+
+.rs-success-secondary:hover {
+  background: #FFF3EA;
+}
+
+.rs-success-primary {
+  background: #F2690D;
+  border: none;
+  color: #ffffff;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.rs-success-primary:hover {
+  background: #d95f08;
+}
+
+@media (max-width: 480px) {
+  .rs-success-modal {
+    padding: 26px 20px 22px;
+    border-radius: 16px;
+  }
+
+  .rs-success-row {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .rs-success-value {
+    text-align: left;
+  }
+
+  .rs-success-actions {
+    flex-direction: column;
+  }
+}
+
+/* ============================
    RESPONSIVE
 ============================ */
 
@@ -707,4 +869,61 @@ body {
 
 .equipment-name{
     font-weight:600;
+}
+
+/* ─── Validation error styles ──────────────────────────────────────── */
+
+.faculty-submit-input.error {
+  border-color: #dc2626 !important;
+  background-color: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+.faculty-submit-input.error:focus {
+  border-color: #b91c1c !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25) !important;
+}
+
+.equipment-card.error {
+  border-color: #dc2626 !important;
+  background-color: #fef2f2 !important;
+}
+
+.room-card.error {
+  border-color: #dc2626 !important;
+  background-color: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+.field-error-message {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+/* ─── Submit button error state ────────────────────────────────────── */
+
+.faculty-submit-confirm-btn.has-errors {
+  background-color: #dc2626 !important;
+  animation: pulse-error 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-error {
+  0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50%  { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+.faculty-submit-confirm-btn.has-errors:hover {
+  background-color: #b91c1c !important;
+  transform: scale(1.02);
+}
+
+/* ─── Disabled button ────────────────────────────────────────────────── */
+
+.faculty-submit-confirm-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

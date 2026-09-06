@@ -15,6 +15,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import NotificationCard from "../../Components/NotificationCard/Notification";
+import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup"; // ← added
 
 export default function ClerkLayout() {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ export default function ClerkLayout() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
 
-  //  Notification state 
+  // Notification state
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
@@ -32,7 +33,6 @@ export default function ClerkLayout() {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) return;
 
-      // load profile
       getDoc(doc(db, "users", user.uid)).then((snap) => {
         if (snap.exists()) {
           const d = snap.data();
@@ -45,7 +45,6 @@ export default function ClerkLayout() {
         }
       });
 
-      //  Notifications listener (clerk) 
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
@@ -69,7 +68,7 @@ export default function ClerkLayout() {
     return () => unsubscribeAuth();
   }, []);
 
-  // Notification helpers 
+  // ── Notification helpers ──────────────────────────────────────
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
@@ -90,14 +89,6 @@ export default function ClerkLayout() {
     }
   };
 
-  const archiveNotification = async (id) => {
-    try {
-      await updateDoc(doc(db, "notifications", id), { archived: true });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const markAllAsRead = async () => {
     const unread = notifications.filter((n) => n.unread && !n.archived);
     if (unread.length === 0) return;
@@ -113,13 +104,11 @@ export default function ClerkLayout() {
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
-  const archivedCount = notifications.filter((n) => n.archived).length;
   const allCount = notifications.filter((n) => !n.archived).length;
 
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
-    if (activeTab === "archived") return item.archived;
-    return !item.archived;
+    return !item.archived; // "all"
   });
 
   const emptyCopy = {
@@ -133,20 +122,21 @@ export default function ClerkLayout() {
       title: "All caught up!",
       text: "You've read all your notifications.",
     },
-    archived: {
-      icon: "fa-box-open",
-      title: "No archived notifications",
-      text: "Archived notifications will appear here.",
-    },
   }[activeTab];
 
   const typeIcon = {
     schedule: "fa-regular fa-calendar",
     urgent: "fa-solid fa-exclamation",
     approved: "fa-solid fa-check",
+    "room-reassignment": "fa-solid fa-arrows-rotate",
+    "room-activity": "fa-solid fa-calendar-plus",
+    "room-release": "fa-solid fa-door-open",
+    "conflict-resolution": "fa-solid fa-circle-check",
+    "schedule-upload": "fa-solid fa-upload",
+    default: "fa-solid fa-bell",
   };
 
-  // Logout 
+  // ── Logout ──────────────────────────────────────────────────────
 
   const handleLogout = async () => {
     try {
@@ -267,13 +257,10 @@ export default function ClerkLayout() {
         <div className="clerk-main">
 
           <header className="clerk-header">
-            <div className="clerk-header-search">
-              <i className="fa-solid fa-magnifying-glass"></i>
-              <input type="text" placeholder="Search..." />
-            </div>
+            {/* ─── Search bar removed ─────────────────────────────────── */}
 
             <div className="clerk-header-actions">
-              {/* NOTIFICATION TRIGGER  */}
+              {/* NOTIFICATION TRIGGER */}
               <div className="clerk-notification-container">
                 <button
                   className={`clerk-header-btn ${showNotifications ? "clerk-notif-btn-open" : ""}`}
@@ -326,12 +313,6 @@ export default function ClerkLayout() {
                         >
                           Unread <span className="clerk-notif-tab-count">{unreadCount}</span>
                         </button>
-                        <button
-                          className={activeTab === "archived" ? "clerk-active" : ""}
-                          onClick={() => setActiveTab("archived")}
-                        >
-                          Archived <span className="clerk-notif-tab-count">{archivedCount}</span>
-                        </button>
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
@@ -355,7 +336,7 @@ export default function ClerkLayout() {
                           filteredNotifications.map((item, i) => (
                             <div key={item.id} style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                               <NotificationCard
-                                icon={typeIcon[item.type] || "fa-solid fa-bell"}
+                                icon={typeIcon[item.type] || typeIcon.default}
                                 title={item.title}
                                 message={item.message}
                                 time={formatTime(item.createdAt)}
@@ -364,7 +345,6 @@ export default function ClerkLayout() {
                                 unread={item.unread}
                                 archived={item.archived}
                                 onClick={() => markAsRead(item.id)}
-                                onArchive={() => archiveNotification(item.id)}
                               />
                             </div>
                           ))
@@ -388,24 +368,12 @@ export default function ClerkLayout() {
         </div>
       </div>
 
-      {/* LOGOUT MODAL */}
+      {/* ─── USE LOGOUT POPUP COMPONENT ────────────────────────── */}
       {showLogout && (
-        <div className="clerk-modal-overlay">
-          <div className="clerk-logout-modal">
-            <div className="clerk-modal-icon">
-              <i className="fa-solid fa-triangle-exclamation"></i>
-            </div>
-            <h2>Are you sure you want to logout?</h2>
-            <div className="clerk-modal-actions">
-              <button className="clerk-modal-btn clerk-cancel" onClick={() => setShowLogout(false)}>
-                Cancel
-              </button>
-              <button className="clerk-modal-btn clerk-confirm" onClick={handleLogout}>
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
+        <LogoutPopup
+          onCancel={() => setShowLogout(false)}
+          onConfirm={handleLogout}
+        />
       )}
 
       {/* LOGOUT LOADING */}

@@ -208,7 +208,9 @@ position:relative;
 max-width: 100%;  
 margin: 0 auto; 
 }
-
+.clerk-header-actions {
+  margin-left: auto;          /* pushes the actions to the right */
+}
 .clerk-header-search i{
 position:absolute;
 left:18px;
