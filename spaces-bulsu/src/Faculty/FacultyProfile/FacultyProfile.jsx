@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "./faculty-profile.css";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc, collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth"; // ← added sendPasswordResetEmail
 import { logActivity } from "../../utils/logActivity";
 import Toast from "../../Popup/Toast/Toast";
 
@@ -26,8 +26,7 @@ async function uploadToCloudinary(file) {
   return data.secure_url;
 }
 
-// Icon + accent color per actionType — adjust to match whatever values your
-// logActivity() calls actually use (e.g. "edit", "create", "delete", "login").
+// Icon + accent color per actionType
 const ACTIVITY_ICON = {
   edit:    "fa-solid fa-pen",
   create:  "fa-solid fa-plus",
@@ -118,8 +117,6 @@ export default function FacultyProfile() {
   }, []);
 
   // ── Load activity log ───────────────────────────────────────────────────────
-  // ⚠️ Adjust the collection name / field ("user") / order field ("timestamp")
-  // below to match your actual logActivity() implementation.
   useEffect(() => {
     if (!form.firstName && !form.lastName) return;
 
@@ -240,6 +237,17 @@ export default function FacultyProfile() {
 
   const handleChange = (field) => (e) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  // ── Password Reset ─────────────────────────────────────────────────────────
+  const handleResetPassword = async () => {
+    try {
+      await sendPasswordResetEmail(auth, form.email);
+      showToast("success", "Password Reset Email Sent", "Check your inbox for the reset link.");
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Password Reset Failed", err.message);
+    }
+  };
 
   // ── Avatar: preview → saved photo → initials fallback ──────────────────────
   const displayPhoto = previewUrl || form.photoUrl;
@@ -364,7 +372,7 @@ export default function FacultyProfile() {
               </button>
             )}
 
-            {/* ── Fields (no password here — see Settings) ── */}
+            {/* ── Fields ── */}
             <div className="up-fields">
               <div className="up-field">
                 <label>First Name</label>
@@ -394,6 +402,17 @@ export default function FacultyProfile() {
               <div className="up-field">
                 <label>Role</label>
                 <input className="up-input" value={form.role} readOnly />
+              </div>
+
+              {/* ─── NEW: Password Reset ───────────────────────────── */}
+              <div className="up-field">
+                <label>Password</label>
+                <button
+                  className="up-reset-password-btn"
+                  onClick={handleResetPassword}
+                >
+                  Send Password Reset Email
+                </button>
               </div>
             </div>
 

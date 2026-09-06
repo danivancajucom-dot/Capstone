@@ -45,7 +45,7 @@ export default function DepartmentHeadLayout() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) return;
 
-      // Real-time profile listener (same as LR)
+      // Real-time profile listener
       const unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
@@ -58,6 +58,7 @@ export default function DepartmentHeadLayout() {
         }
       });
 
+      // ─── Only fetch unarchived notifications ────────────────────
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
@@ -84,6 +85,8 @@ export default function DepartmentHeadLayout() {
     return () => unsubscribe();
   }, []);
 
+  // ── Notification helpers ──────────────────────────────────────
+
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const now  = new Date();
@@ -100,10 +103,7 @@ export default function DepartmentHeadLayout() {
     catch (err) { console.error(err); }
   };
 
-  const archiveNotification = async (id) => {
-    try { await updateDoc(doc(db, "notifications", id), { archived: true }); }
-    catch (err) { console.error(err); }
-  };
+  // ─── archiveNotification removed ───────────────────────────────
 
   const markAllAsRead = async () => {
     const unread = notifications.filter((n) => n.unread && !n.archived);
@@ -118,13 +118,12 @@ export default function DepartmentHeadLayout() {
   };
 
   const unreadCount   = notifications.filter((n) => n.unread && !n.archived).length;
-  const archivedCount = notifications.filter((n) => n.archived).length;
   const allCount      = notifications.filter((n) => !n.archived).length;
 
+  // ─── Only two tabs: All and Unread ──────────────────────────────
   const filteredNotifications = notifications.filter((item) => {
-    if (activeTab === "unread")   return item.unread && !item.archived;
-    if (activeTab === "archived") return item.archived;
-    return !item.archived;
+    if (activeTab === "unread") return item.unread && !item.archived;
+    return !item.archived; // "all"
   });
 
   const emptyCopy = {
@@ -138,17 +137,19 @@ export default function DepartmentHeadLayout() {
       title: "All caught up!",
       text: "You've read all your notifications.",
     },
-    archived: {
-      icon: "fa-box-open",
-      title: "No archived notifications",
-      text: "Archived notifications will appear here.",
-    },
   }[activeTab];
 
+  // ✅ Expanded typeIcon to include all relevant types
   const typeIcon = {
     schedule: "fa-regular fa-calendar",
     urgent:   "fa-solid fa-exclamation",
     approved: "fa-solid fa-check",
+    "room-reassignment": "fa-solid fa-arrows-rotate",
+    "room-activity": "fa-solid fa-calendar-plus",
+    "room-release": "fa-solid fa-door-open",
+    "conflict-resolution": "fa-solid fa-circle-check",
+    "schedule-upload": "fa-solid fa-upload",
+    default: "fa-solid fa-bell",
   };
 
   const handleLogout = async () => {
@@ -253,10 +254,7 @@ export default function DepartmentHeadLayout() {
         <div className="dept-main">
 
           <header className="dept-header">
-            <div className="dept-header-search">
-              <i className="fa-solid fa-magnifying-glass"></i>
-              <input type="text" placeholder="Search users, rooms, schedules..." />
-            </div>
+            
 
             <div className="header-actions">
               {/* NOTIFICATION TRIGGER */}
@@ -290,15 +288,13 @@ export default function DepartmentHeadLayout() {
                       </div>
 
                       <div className="notif-tabs-DH">
-                        <button className={activeTab === "all"      ? "active" : ""} onClick={() => setActiveTab("all")}>
+                        <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>
                           All <span className="notif-tab-count-DH">{allCount}</span>
                         </button>
-                        <button className={activeTab === "unread"   ? "active" : ""} onClick={() => setActiveTab("unread")}>
+                        <button className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>
                           Unread <span className="notif-tab-count-DH">{unreadCount}</span>
                         </button>
-                        <button className={activeTab === "archived" ? "active" : ""} onClick={() => setActiveTab("archived")}>
-                          Archived <span className="notif-tab-count-DH">{archivedCount}</span>
-                        </button>
+                        {/* Archived tab removed */}
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
@@ -322,7 +318,7 @@ export default function DepartmentHeadLayout() {
                           filteredNotifications.map((item, i) => (
                             <div key={item.id} style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                               <NotificationCard
-                                icon={typeIcon[item.type] || "fa-solid fa-bell"}
+                                icon={typeIcon[item.type] || typeIcon.default}
                                 title={item.title}
                                 message={item.message}
                                 time={formatTime(item.createdAt)}
@@ -331,7 +327,7 @@ export default function DepartmentHeadLayout() {
                                 unread={item.unread}
                                 archived={item.archived}
                                 onClick={() => markAsRead(item.id)}
-                                onArchive={() => archiveNotification(item.id)}
+                                // ❌ No onArchive prop
                               />
                             </div>
                           ))

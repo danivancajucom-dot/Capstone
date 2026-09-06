@@ -1,233 +1,219 @@
-.room-card{
-
-    width:100%;
-    min-height:250px;
-    background:white;
-    border-radius:16px;
-    padding:24px;
-    box-shadow:0 8px 20px rgba(0,0,0,.08);
-    display:flex;
-    gap:22px;
-    transition:.25s;
+.room-card {
+  position: relative;         /* needed for absolute badge */
+  width: 100%;
+  min-height: 250px;
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.08);
+  display: flex;
+  gap: 22px;
+  transition: .25s;
 }
 
-.room-card:hover{
+.room-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 28px rgba(0,0,0,.08);
 }
 
-.room-card-image{
-
-    width:110px;
-    height:110px;
-
-    border-radius:14px;
-
-    background:#F1F5F9;
-
-    display:flex;
-
-    justify-content:center;
-    align-items:center;
-
-    flex-shrink:0;
+/* ─── Status badge – upper right ─── */
+.room-status-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 2;
+  background: #e5e7eb;
+  color: #374151;
 }
 
-.room-card-image i{
-
-    font-size:42px;
-
-    color:#F97316;
+.room-status-badge span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
 }
 
-.room-card-image img{
-
-    width:100%;
-    height:100%;
-
-    object-fit:cover;
-
-    border-radius:14px;
-}
-.room-card-content{
-  flex:1;
-  display:flex;
-  flex-direction:column;
-  justify-content:space-between;
+.room-status-badge.available {
+  background: #dcfce7;
+  color: #15803d;
 }
 
-.room-card-header{
-
-    display:flex;
-
-    justify-content:space-between;
-
-    align-items:flex-start;
-
-    gap:20px;
+.room-status-badge.available span {
+  background: #22c55e;
 }
 
-.room-card-header h2{
-
-    font-size:23px;
-
-    font-weight:700;
-
-    color:#1E293B;
+.room-status-badge.occupied {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
-.room-card-header span{
-
-    color:#64748B;
-
-    font-size:14px;
+.room-status-badge.occupied span {
+  background: #ef4444;
 }
 
-.room-status{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 14px;
-  border-radius:999px;
-  font-size:13px;
-  font-weight:700;
+.room-status-badge.maintenance {
+  background: #fef3c7;
+  color: #92400e;
 }
 
-.room-status span{
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  margin:0;
+.room-status-badge.maintenance span {
+  background: #f59e0b;
 }
 
-.room-status.available{
-  background:#ECFDF5;
-  color:white;
+/* ─── Rest of the styles (unchanged) ─── */
+
+.room-card-image {
+  width: 110px;
+  height: 110px;
+  border-radius: 14px;
+  background: #F1F5F9;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.room-status.available span{
-  background:#22C55E;
+.room-card-image i {
+  font-size: 42px;
+  color: #F97316;
 }
 
-.room-status.occupied{
-  background:#FEF2F2;
-  color:white;
+.room-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 14px;
 }
 
-.room-status.occupied span{
-  background:#EF4444;
+.room-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
-.room-info{
-  display:flex;
-  gap:40px;
-  margin-top:20px;
+.room-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
 }
 
-.room-info div{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  color:#475569;
-  font-size:15px;
+.room-card-header h2 {
+  font-size: 23px;
+  font-weight: 700;
+  color: #1E293B;
 }
 
-.room-info i{
-  color:#F97316;
-  width:18px;
+.room-card-header span {
+  color: #64748B;
+  font-size: 14px;
 }
 
-.room-footer{
-  margin-top:auto;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding-top:18px;
-  border-top:1px solid #E5E7EB;
+.room-info {
+  display: flex;
+  gap: 40px;
+  margin-top: 20px;
 }
 
-.room-time{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  font-weight:600;
-  color:#334155;
+.room-info div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 15px;
 }
 
-.room-time i{
-  color:#F97316;
+.room-info i {
+  color: #F97316;
+  width: 18px;
 }
 
-.room-actions{
-  display:flex;
-  gap:12px;
+.room-footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 18px;
+  border-top: 1px solid #E5E7EB;
 }
 
-.room-actions button{
-  border:none;
-  cursor:pointer;
-  font-weight:600;
-  border-radius:10px;
-  padding:11px 18px;
-  transition:.2s;
+.room-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #334155;
 }
 
-.view-btn{
-  background:#F1F5F9;
-  color:#334155;
+.room-time i {
+  color: #F97316;
 }
 
-.view-btn:hover{
-  background:#E2E8F0;
+.room-actions {
+  display: flex;
+  gap: 12px;
 }
 
-.reserve-btn{
-  background:#F97316;
-  color:white;
+.room-actions button {
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 11px 18px;
+  transition: .2s;
 }
 
-.reserve-btn:hover{
-  background:#EA580C;
+.view-btn {
+  background: #F1F5F9;
+  color: #334155;
 }
 
-.notify-btn{
-  background:#FEF3C7;
-  color:#92400E;
+.view-btn:hover {
+  background: #E2E8F0;
 }
 
-.notify-btn:hover{
-  background:#FDE68A;
+.reserve-btn {
+  background: #F97316;
+  color: white;
 }
 
-@media(max-width:900px){
-
-.room-card{
-
-    flex-direction:column;
+.reserve-btn:hover {
+  background: #EA580C;
 }
 
-.room-card-image{
-
-    width:100%;
-
-    height:180px;
+.notify-btn {
+  background: #FEF3C7;
+  color: #92400E;
 }
 
-.room-footer{
-
-    flex-direction:column;
-
-    align-items:stretch;
+.notify-btn:hover {
+  background: #FDE68A;
 }
 
-.room-actions{
-
-    width:100%;
-}
-
-.room-actions button{
-
-    flex:1;
-}
-
+@media (max-width: 900px) {
+  .room-card {
+    flex-direction: column;
+  }
+  .room-card-image {
+    width: 100%;
+    height: 180px;
+  }
+  .room-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .room-actions {
+    width: 100%;
+  }
+  .room-actions button {
+    flex: 1;
+  }
 }

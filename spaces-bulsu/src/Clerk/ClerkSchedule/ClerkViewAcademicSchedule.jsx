@@ -4,7 +4,7 @@ import "./clerk-view-academic-schedule.css";
 import LRRoomCard from "../../Components/LRRoomCard/LRRoomCard";
 import {
   collection,
-  getDocs,
+  onSnapshot,
 } from "firebase/firestore";
 
 import { db } from "../../firebase";
@@ -17,20 +17,17 @@ const FLOORS = [
   "4th floor",
 ];
 
+// ─── Time helpers ─────────────────────────────────────────────────────
 const timeToMinutes = (time) => {
   if (!time) return 0;
-
   if (!time.includes(" ")) {
     const [hour, minute] = time.split(":").map(Number);
     return hour * 60 + minute;
   }
-
   const [clock, period] = time.trim().split(" ");
   let [hour, minute] = clock.split(":").map(Number);
-
   if (period === "PM" && hour !== 12) hour += 12;
   if (period === "AM" && hour === 12) hour = 0;
-
   return hour * 60 + minute;
 };
 
@@ -44,7 +41,6 @@ const getCurrentDay = () => {
   return days[new Date().getDay()];
 };
 
-// Local date string (YYYY-MM-DD) – avoids UTC shift
 const getToday = () => {
   const now = new Date();
   const y = now.getFullYear();
@@ -58,250 +54,271 @@ const isUnderMaintenance = (roomData) => {
   return roomStatus === "maintenance";
 };
 
+// ─── Latest schedule helpers ─────────────────────────────────────────
+const semesterRank = (sem = "") => {
+  const s = sem.toLowerCase();
+  if (s.includes("2nd")) return 2;
+  if (s.includes("1st")) return 1;
+  return 0;
+};
+
+const schoolYearStart = (sy = "") => {
+  const match = sy.match(/\d{4}/);
+  return match ? parseInt(match[0], 10) : 0;
+};
+
+const getLatestSchedule = (schedules) => {
+  if (!schedules || schedules.length === 0) return null;
+  return schedules.reduce((best, cur) => {
+    const by = schoolYearStart(best.schoolYear);
+    const bs = semesterRank(best.semester);
+    const cy = schoolYearStart(cur.schoolYear);
+    const cs = semesterRank(cur.semester);
+    if (cy > by || (cy === by && cs > bs)) return cur;
+    return best;
+  }, schedules[0]);
+};
+
+// ─── Main component ──────────────────────────────────────────────────
 function ClerkViewAcademicSchedule() {
   const navigate = useNavigate();
-
-  const [semester, setSemester] = useState("");
-  const [schoolYear, setSchoolYear] = useState("");
   const [selectedFloor, setSelectedFloor] = useState("All Floors");
 
+  // ─── Real‑time state ───────────────────────────────────────────────
   const [rooms, setRooms] = useState([]);
+  const [roomSchedules, setRoomSchedules] = useState({});
+  const [events, setEvents] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [releases, setReleases] = useState([]);
+  const [reassignments, setReassignments] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // ─── Pagination ────────────────────────────────────────────────────
+  const PAGE_SIZE = 8;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // ─── Listeners ─────────────────────────────────────────────────────
+
   useEffect(() => {
-    loadRooms();
-  }, [semester, schoolYear, selectedFloor]);
+    const unsubRooms = onSnapshot(collection(db, "rooms"), (snap) => {
+      const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setRooms(data);
+      setLoading(false);
+    });
 
-  const loadRooms = async () => {
-    setLoading(true);
+    const unsubEvents = onSnapshot(collection(db, "events"), (snap) => {
+      setEvents(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
 
-    try {
-      const today = getToday();
-      const currentMinutes = getCurrentMinutes();
-      const todayDay = getCurrentDay();
+    const unsubReservations = onSnapshot(
+      collection(db, "reservationRequests"),
+      (snap) => {
+        const data = snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((r) => String(r.status || "").toLowerCase() === "approved");
+        setReservations(data);
+      }
+    );
 
-      // ─── FETCH ALL DATA ──────────────────────────────────────
-      const roomSnapshot = await getDocs(collection(db, "rooms"));
-      const eventSnapshot = await getDocs(collection(db, "events"));
-      const reservationSnapshot = await getDocs(
-        collection(db, "reservationRequests")
-      );
+    const unsubReleases = onSnapshot(collection(db, "roomReleases"), (snap) => {
+      setReleases(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
 
-      // ─── RELEASES ─────────────────────────────────────────────
-      const releaseSnap = await getDocs(collection(db, "roomReleases"));
-      const releaseMap = new Map(); // roomId -> Set of `${scheduleId}_${date}`
-      releaseSnap.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.date !== today) return;
-        const key = `${data.scheduleId}_${data.date}`;
-        if (!releaseMap.has(data.roomId)) {
-          releaseMap.set(data.roomId, new Set());
+    const unsubReassignments = onSnapshot(
+      collection(db, "roomReassignments"),
+      (snap) => {
+        const data = snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((r) => String(r.status || "").toLowerCase() === "approved");
+        setReassignments(data);
+      }
+    );
+
+    return () => {
+      unsubRooms();
+      unsubEvents();
+      unsubReservations();
+      unsubReleases();
+      unsubReassignments();
+    };
+  }, []);
+
+  // ─── Per‑room schedules listener ──────────────────────────────────
+  useEffect(() => {
+    if (rooms.length === 0) return;
+
+    const unsubs = rooms.map((room) =>
+      onSnapshot(
+        collection(db, "rooms", room.id, "schedules"),
+        (snap) => {
+          const list = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((s) => !s.initialized);
+          setRoomSchedules((prev) => ({
+            ...prev,
+            [room.id]: list,
+          }));
         }
-        releaseMap.get(data.roomId).add(key);
-      });
+      )
+    );
 
-      // ─── REASSIGNMENTS ────────────────────────────────────────
-      const reassignSnap = await getDocs(collection(db, "roomReassignments"));
-      const reassignAwayMap = new Map(); // roomId -> Set of keys (moved out)
-      const reassignIntoMap = new Map(); // roomId -> array of reassign items (moved in)
+    return () => unsubs.forEach((u) => u());
+  }, [rooms.map((r) => r.id).join(",")]);
 
-      reassignSnap.docs.forEach((doc) => {
-        const data = doc.data();
-        if (String(data.status || "").toLowerCase() !== "approved") return;
-        if (data.date !== today) return;
+  // ─── Reset pagination on floor change ────────────────────────────
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedFloor]);
 
-        const key = `${data.scheduleId}_${data.date}`;
+  // ─── Compute rooms with latest schedule and status ────────────────
 
-        if (data.oldRoomId) {
-          if (!reassignAwayMap.has(data.oldRoomId)) {
-            reassignAwayMap.set(data.oldRoomId, new Set());
-          }
-          reassignAwayMap.get(data.oldRoomId).add(key);
-        }
+  const computedRooms = (() => {
+    const today = getToday();
+    const currentMinutes = getCurrentMinutes();
+    const todayDay = getCurrentDay();
 
-        if (data.newRoomId) {
-          if (!reassignIntoMap.has(data.newRoomId)) {
-            reassignIntoMap.set(data.newRoomId, []);
-          }
-          reassignIntoMap.get(data.newRoomId).push(data);
-        }
-      });
+    const releaseKeysToday = new Set(
+      releases
+        .filter((r) => r.date === today)
+        .map((r) => `${r.scheduleId}_${r.date}`)
+    );
 
-      // ─── PROCESS EACH ROOM ──────────────────────────────────
-      const filteredRooms = [];
+    const reassignAwayKeysToday = new Set(
+      reassignments
+        .filter((r) => r.date === today && r.oldRoomId)
+        .map((r) => `${r.scheduleId}_${r.date}`)
+    );
 
-      for (const roomDoc of roomSnapshot.docs) {
-        const roomData = roomDoc.data();
+    const reassignIntoByRoom = reassignments
+      .filter((r) => r.date === today && r.newRoomId)
+      .reduce((acc, r) => {
+        if (!acc[r.newRoomId]) acc[r.newRoomId] = [];
+        acc[r.newRoomId].push(r);
+        return acc;
+      }, {});
 
+    return rooms
+      .map((room) => {
         // Floor filter
-        if (
-          selectedFloor !== "All Floors" &&
-          roomData.floor !== selectedFloor
-        ) {
-          continue;
+        if (selectedFloor !== "All Floors" && room.floor !== selectedFloor) {
+          return null;
         }
 
-        // Maintenance check (highest priority)
-        const maintenance = isUnderMaintenance(roomData);
+        const maintenance = isUnderMaintenance(room);
+        const schedules = roomSchedules[room.id] || [];
+        const latestSchedule = getLatestSchedule(schedules);
 
-        // Fetch schedules for this room
-        const scheduleSnapshot = await getDocs(
-          collection(db, "rooms", roomDoc.id, "schedules")
-        );
-        const schedules = scheduleSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        // Check if any schedule matches the semester/schoolYear filter
-        const hasMatchingSchedule = schedules.some((schedule) => {
-          const semesterMatch = !semester || schedule.semester === semester;
-          const schoolYearMatch = !schoolYear || schedule.schoolYear === schoolYear;
-          return semesterMatch && schoolYearMatch;
-        });
-
-        // If no matching schedule, skip this room entirely
-        if (!hasMatchingSchedule) continue;
-
-        // ─── DETERMINE OCCUPANCY ──────────────────────────────
+        // ── Determine occupancy by checking ALL schedules today ──
         let occupied = false;
         let occupiedUntil = "";
+        let currentSchedule = null;
 
-        const releasesForRoom = releaseMap.get(roomDoc.id) || new Set();
-        const reassignAwayForRoom = reassignAwayMap.get(roomDoc.id) || new Set();
+        // 1. Check all schedules for today
+        const todaySchedules = schedules.filter(
+          (s) =>
+            !s.initialized &&
+            s.day?.toUpperCase() === todayDay &&
+            !releaseKeysToday.has(`${s.id}_${today}`) &&
+            !reassignAwayKeysToday.has(`${s.id}_${today}`)
+        );
 
-        // 1. Check regular schedules (skip released & reassigned‑away)
-        schedules.forEach((schedule) => {
-          if (schedule.initialized) return;
-          if (schedule.day?.toUpperCase() !== todayDay) return;
-
-          const key = `${schedule.id}_${today}`;
-          if (releasesForRoom.has(key)) return;
-          if (reassignAwayForRoom.has(key)) return;
-
-          const start = timeToMinutes(schedule.startTime);
-          const end = timeToMinutes(schedule.endTime);
-
+        for (const sched of todaySchedules) {
+          const start = timeToMinutes(sched.startTime);
+          const end = timeToMinutes(sched.endTime);
           if (currentMinutes >= start && currentMinutes < end) {
             occupied = true;
-            occupiedUntil = schedule.endTime;
+            occupiedUntil = sched.endTime;
+            currentSchedule = sched;
+            break;
           }
-        });
-
-        // 2. Check events (if not already occupied)
-        if (!occupied) {
-          const roomEvents = eventSnapshot.docs
-            .map((doc) => ({ id: doc.id, ...doc.data() }))
-            .filter((event) => event.roomId === roomDoc.id && event.date === today);
-
-          roomEvents.forEach((event) => {
-            const start = timeToMinutes(event.startTime);
-            const end = timeToMinutes(event.endTime);
-            if (currentMinutes >= start && currentMinutes < end) {
-              occupied = true;
-              occupiedUntil = event.endTime;
-            }
-          });
         }
 
-        // 3. Check approved reservations (case‑insensitive)
+        // 2. If not occupied, check events
         if (!occupied) {
-          const roomReservations = reservationSnapshot.docs
-            .map((doc) => ({ id: doc.id, ...doc.data() }))
-            .filter(
-              (res) =>
-                res.roomId === roomDoc.id &&
-                res.date === today &&
-                String(res.status).toLowerCase() === "approved"
-            );
-
-          roomReservations.forEach((reservation) => {
-            const start = timeToMinutes(reservation.startTime);
-            const end = timeToMinutes(reservation.endTime);
+          const roomEvents = events.filter((e) => e.roomId === room.id && e.date === today);
+          for (const e of roomEvents) {
+            const start = timeToMinutes(e.startTime);
+            const end = timeToMinutes(e.endTime);
             if (currentMinutes >= start && currentMinutes < end) {
               occupied = true;
-              occupiedUntil = reservation.endTime;
+              occupiedUntil = e.endTime;
+              currentSchedule = e;
+              break;
             }
-          });
+          }
         }
 
-        // 4. Check reassigned‑in (if not already occupied)
+        // 3. If not occupied, check reservations
         if (!occupied) {
-          const reassignIntoForRoom = reassignIntoMap.get(roomDoc.id) || [];
-          reassignIntoForRoom.forEach((item) => {
+          const roomReservations = reservations.filter(
+            (r) => r.roomId === room.id && r.date === today
+          );
+          for (const r of roomReservations) {
+            const start = timeToMinutes(r.startTime);
+            const end = timeToMinutes(r.endTime);
+            if (currentMinutes >= start && currentMinutes < end) {
+              occupied = true;
+              occupiedUntil = r.endTime;
+              currentSchedule = r;
+              break;
+            }
+          }
+        }
+
+        // 4. If not occupied, check reassigned‑in
+        if (!occupied) {
+          const reassignInto = reassignIntoByRoom[room.id] || [];
+          for (const item of reassignInto) {
             const start = timeToMinutes(item.startTime);
             const end = timeToMinutes(item.endTime);
             if (currentMinutes >= start && currentMinutes < end) {
               occupied = true;
               occupiedUntil = item.endTime;
+              currentSchedule = item;
+              break;
             }
-          });
+          }
         }
 
-        // ─── FINAL STATUS ─────────────────────────────────────
         const status = maintenance
           ? "Under Maintenance"
           : occupied
           ? "Occupied"
           : "Available";
 
-        filteredRooms.push({
-          id: roomDoc.id,
-          ...roomData,
+        return {
+          id: room.id,
+          ...room,
           status,
-        });
-      }
+          latestSchedule,   // for display (most recent semester/year)
+          currentSchedule,  // the actual schedule occupying now
+        };
+      })
+      .filter(Boolean);
+  })();
 
-      setRooms(filteredRooms);
-    } catch (err) {
-      console.error(err);
-    }
+  // ─── Paginate ──────────────────────────────────────────────────────
+  const visibleRooms = computedRooms.slice(0, visibleCount);
+  const hasMore = visibleCount < computedRooms.length;
 
-    setLoading(false);
+  const loadMore = () => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
   };
+
+  // ─── Render ────────────────────────────────────────────────────────
 
   return (
     <div className="clerk-academic-schedule">
       <div>
         <h1>Academic Schedule</h1>
         <p>
-          This page allows the clerk to view classroom schedules by
-          room and filter them by semester, school year, and floor.
+          View classroom schedules by room. Shows the latest schedule for each room.
+          Status updates automatically in real time.
         </p>
       </div>
 
       <div className="white-box-rooms">
-        <div className="filters">
-          <div className="dropdown-container">
-            <select
-              className="dropdown"
-              value={semester}
-              onChange={(e) => setSemester(e.target.value)}
-              style={{ color: semester ? "#000" : "#64748B" }}
-            >
-              <option value="">Select Semester</option>
-              <option value="1st Semester">1st Semester</option>
-              <option value="2nd Semester">2nd Semester</option>
-            </select>
-            <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
-          </div>
-
-          <div className="dropdown-container">
-            <select
-              className="dropdown"
-              value={schoolYear}
-              onChange={(e) => setSchoolYear(e.target.value)}
-              style={{ color: schoolYear ? "#000" : "#64748B" }}
-            >
-              <option value="">Select School Year</option>
-              <option value="2026-2027">2026-2027</option>
-              <option value="2027-2028">2027-2028</option>
-              <option value="2028-2029">2028-2029</option>
-            </select>
-            <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
-          </div>
-        </div>
-
+        {/* Floor filter only */}
         <div className="floor-buttons-lr">
           {FLOORS.map((floor) => (
             <button
@@ -321,14 +338,14 @@ function ClerkViewAcademicSchedule() {
               <h2>Loading Rooms</h2>
               <p>Please wait while we retrieve available rooms.</p>
             </div>
-          ) : rooms.length === 0 ? (
+          ) : computedRooms.length === 0 ? (
             <div className="room-empty">
               <i className="fa-regular fa-building"></i>
               <h2>No Rooms Found</h2>
-              <p>No rooms match the selected filters or have schedules.</p>
+              <p>No rooms match the selected floor or have schedules.</p>
             </div>
           ) : (
-            rooms.map((room) => (
+            visibleRooms.map((room) => (
               <LRRoomCard
                 key={room.id}
                 roomName={room.roomName}
@@ -336,6 +353,8 @@ function ClerkViewAcademicSchedule() {
                 capacity={room.capacity}
                 roomType={room.roomType}
                 status={room.status}
+                latestSchedule={room.latestSchedule}
+                currentSchedule={room.currentSchedule}
                 onClick={() =>
                   navigate("/clerk/schedule-room-card", {
                     state: {
@@ -349,9 +368,11 @@ function ClerkViewAcademicSchedule() {
           )}
         </div>
 
-        {!loading && rooms.length > 0 && (
+        {!loading && hasMore && (
           <div className="load-more-schedule">
-            <button className="load-more-btn-sched">Load More</button>
+            <button className="load-more-btn-sched" onClick={loadMore}>
+              Load More ({computedRooms.length - visibleCount} remaining)
+            </button>
           </div>
         )}
       </div>

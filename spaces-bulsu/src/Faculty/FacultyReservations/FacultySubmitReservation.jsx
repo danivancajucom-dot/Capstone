@@ -1,7 +1,8 @@
 // ============================================================
-// FILE: FacultySubmitReservation.jsx (FIXED – activity log & notifications)
+// FILE: FacultySubmitReservation.jsx (real‑time validation clearing)
 // ============================================================
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import "./faculty-submit-reservation.css";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
@@ -17,7 +18,26 @@ import {
   where,
 } from "firebase/firestore";
 
+// ─── 12-hour time formatter ─────────────────────────────────
+const format12Hour = (time) => {
+  if (!time) return "-";
+  const [hour, minute] = time.split(":").map(Number);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return time;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const h = hour % 12 || 12;
+  return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "-";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+};
+
 function FacultySubmitReservation() {
+  const navigate = useNavigate();
+
   const [purpose, setPurpose] = useState("");
   const [courseTitle, setCourseTitle] = useState("");
 
@@ -41,6 +61,14 @@ function FacultySubmitReservation() {
   const [submitting, setSubmitting] = useState(false);
 
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // ─── Validation feedback state ─────────────────────────────
+  const [validationAttempted, setValidationAttempted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // ─── Success dialog state ───────────────────────────────────
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [submittedReservation, setSubmittedReservation] = useState(null);
 
   const [toast, setToast] = useState({
     show: false,
@@ -347,74 +375,81 @@ function FacultySubmitReservation() {
     setLoading(false);
   };
 
-  const validate = () => {
-    if (!courseTitle) return "Course title is required.";
-    if (!date) return "Select a reservation date.";
-    if (!audienceType) return "Select audience type.";
+  // ─── VALIDATE (returns error object) ────────────────────────────
+  const validateFields = () => {
+    const errors = {};
 
-    // Class-specific validation
+    if (!courseTitle) errors.courseTitle = "Course title is required.";
+    if (!date) errors.date = "Select a reservation date.";
+    if (!audienceType) errors.audienceType = "Select audience type.";
+
     if (audienceType === "Class") {
-      if (!course) return "Enter course.";
-      if (!yearSectionGroup) return "Enter Year / Section Group.";
+      if (!course) errors.course = "Enter course.";
+      if (!yearSectionGroup) errors.yearSectionGroup = "Enter Year / Section Group.";
       if (!["Lecture", "Hands-on", "Examination"].includes(purpose)) {
-        return "Select a valid purpose for Class (Lecture, Hands-on, Examination).";
+        errors.purpose = "Select a valid purpose for Class (Lecture, Hands-on, Examination).";
       }
       if (purpose === "Hands-on" && selectedEquipment.length === 0) {
-        return "Select at least one required equipment.";
+        errors.selectedEquipment = "Select at least one required equipment.";
       }
       if ((purpose === "Lecture" || purpose === "Examination") && !studentRange) {
-        return "Select the estimated number of students.";
+        errors.studentRange = "Select the estimated number of students.";
       }
     }
 
-    // Organization-specific validation
     if (audienceType === "Organization") {
-      if (!organization) return "Enter organization name.";
+      if (!organization) errors.organization = "Enter organization name.";
       if (!["Workshop", "Training", "Meeting", "Other Activity"].includes(purpose)) {
-        return "Select a valid purpose for Organization (Workshop, Training, Meeting, Other Activity).";
+        errors.purpose = "Select a valid purpose for Organization (Workshop, Training, Meeting, Other Activity).";
       }
       if (purpose === "Other Activity" && !customPurposeText.trim()) {
-        return "Please specify the activity.";
+        errors.customPurposeText = "Please specify the activity.";
       }
-      if (!studentRange) {
-        return "Select the estimated number of attendees.";
-      }
+      if (!studentRange) errors.studentRange = "Select the estimated number of attendees.";
     }
 
     // Time validation
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const selectedDate = new Date(date);
-    selectedDate.setHours(0, 0, 0, 0);
-    if (selectedDate < today) {
-      return "You cannot reserve a past date.";
-    }
-
-    if (!startTime) return "Select a start time.";
-    if (!endTime) return "Select an end time.";
-
-    const start = convertToMinutes(startTime);
-    const end = convertToMinutes(endTime);
-
-    if (start < 420) return "Reservations can only start from 7:00 AM.";
-    if (end > 1200) return "Reservations must end before 8:00 PM.";
-    if (start >= end) return "End time must be after start time.";
-
-    if (isToday(date)) {
-      const now = getCurrentMinutes();
-      if (start <= now) {
-        return "You cannot reserve a past time today.";
+    if (date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selectedDate = new Date(date);
+      selectedDate.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        errors.date = "You cannot reserve a past date.";
       }
     }
 
-    if (!selectedRoom) return "Select an available room.";
-    if (selectedRoom.maintenance)
-      return "This room is under maintenance during the selected time.";
+    if (!startTime) errors.startTime = "Select a start time.";
+    if (!endTime) errors.endTime = "Select an end time.";
 
-    return null;
+    if (startTime && endTime) {
+      const start = convertToMinutes(startTime);
+      const end = convertToMinutes(endTime);
+      if (start < 420) errors.startTime = "Reservations can only start from 7:00 AM.";
+      if (end > 1200) errors.endTime = "Reservations must end before 8:00 PM.";
+      if (start >= end) errors.endTime = "End time must be after start time.";
+      if (isToday(date) && start <= getCurrentMinutes()) {
+        errors.startTime = "You cannot reserve a past time today.";
+      }
+    }
+
+    if (!selectedRoom) errors.selectedRoom = "Select an available room.";
+    else if (selectedRoom.maintenance) {
+      errors.selectedRoom = "This room is under maintenance during the selected time.";
+    }
+
+    return errors;
   };
 
-  // ─── NOTIFICATION HELPER (ownerType normalized) ────────────────────
+  // ─── Re‑validate and update errors (called on every change) ────
+  const revalidate = () => {
+    if (validationAttempted) {
+      const newErrors = validateFields();
+      setFieldErrors(newErrors);
+    }
+  };
+
+  // ─── NOTIFICATION HELPER ──────────────────────────────────────────
 
   const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
@@ -427,7 +462,7 @@ function FacultySubmitReservation() {
       let ownerType = "";
       if (role === "clerk") ownerType = "clerk";
       else if (role.includes("department") && role.includes("head")) ownerType = "department-head";
-      else return; // skip others
+      else return;
 
       notifications.push(
         addDoc(collection(db, "notifications"), {
@@ -451,7 +486,17 @@ function FacultySubmitReservation() {
   // ─── MAIN SUBMIT ────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
-    // ─── First, check for user conflict (double-booking) ──────────────
+    // ─── Validate first ──────────────────────────────────────────
+    const errors = validateFields();
+    if (Object.keys(errors).length > 0) {
+      setValidationAttempted(true);
+      setFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      showToast("error", "Validation Error", firstError);
+      return;
+    }
+
+    // ─── Check user conflict ──────────────────────────────────────
     const conflictCheck = await checkUserConflict();
     if (conflictCheck?.conflict) {
       showToast(
@@ -459,12 +504,6 @@ function FacultySubmitReservation() {
         "Time Conflict Detected",
         `You already have a ${conflictCheck.status.toLowerCase()} reservation for "${conflictCheck.existingRoom}" on ${conflictCheck.existingDate} from ${conflictCheck.existingStart} to ${conflictCheck.existingEnd}. Please choose a different time.`
       );
-      return;
-    }
-
-    const error = validate();
-    if (error) {
-      showToast("error", "Validation Error", error);
       return;
     }
 
@@ -566,11 +605,23 @@ function FacultySubmitReservation() {
 
       setShowConfirm(false);
 
-      showToast(
-        "success",
-        "Reservation Submitted",
-        "Your reservation request has been sent for approval."
-      );
+      // Capture the just-submitted details for the success dialog
+      setSubmittedReservation({
+        courseTitle,
+        roomName: selectedRoom.roomName,
+        floor: selectedRoom.floor,
+        date,
+        startTime,
+        endTime,
+        purpose: finalPurpose,
+        audienceType,
+        course,
+        yearSectionGroup,
+        organization,
+      });
+
+      setToast((prev) => ({ ...prev, show: false }));
+      setShowSuccessModal(true);
 
       // Reset form
       setCourseTitle("");
@@ -587,6 +638,8 @@ function FacultySubmitReservation() {
       setRooms([]);
       setSelectedEquipment([]);
       setStudentRange("");
+      setValidationAttempted(false);
+      setFieldErrors({});
     } catch (err) {
       console.error(err);
       showToast("error", "Firestore Error", err.message);
@@ -595,34 +648,24 @@ function FacultySubmitReservation() {
     }
   };
 
-  // ─── Check if form is complete ─────────────────────────────────────
+  // ─── Handle submit button click ──────────────────────────────────
 
-  const isFormComplete = () => {
-    if (!courseTitle) return false;
-    if (!date) return false;
-    if (!audienceType) return false;
-
-    if (audienceType === "Class") {
-      if (!course) return false;
-      if (!yearSectionGroup) return false;
-      if (!["Lecture", "Hands-on", "Examination"].includes(purpose)) return false;
-      if (purpose === "Hands-on" && selectedEquipment.length === 0) return false;
-      if ((purpose === "Lecture" || purpose === "Examination") && !studentRange) return false;
+  const handleSubmitClick = () => {
+    if (submitting) return;
+    setValidationAttempted(true);
+    const errors = validateFields();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      showToast("error", "Validation Error", firstError);
+      return;
     }
-
-    if (audienceType === "Organization") {
-      if (!organization) return false;
-      if (!["Workshop", "Training", "Meeting", "Other Activity"].includes(purpose)) return false;
-      if (purpose === "Other Activity" && !customPurposeText.trim()) return false;
-      if (!studentRange) return false;
-    }
-
-    if (!startTime) return false;
-    if (!endTime) return false;
-    if (!selectedRoom) return false;
-
-    return true;
+    setShowConfirm(true);
   };
+
+  // ─── Check if there are any validation errors ────────────────────
+
+  const hasErrors = Object.keys(fieldErrors).length > 0;
 
   // ─── Render ──────────────────────────────────────────────────────────
 
@@ -642,11 +685,17 @@ function FacultySubmitReservation() {
               <div className="faculty-submit-form-group">
                 <label>Course Title</label>
                 <input
-                  className="faculty-submit-input"
+                  className={`faculty-submit-input ${validationAttempted && fieldErrors.courseTitle ? "error" : ""}`}
                   placeholder="Enter course title"
                   value={courseTitle}
-                  onChange={(e) => setCourseTitle(e.target.value)}
+                  onChange={(e) => {
+                    setCourseTitle(e.target.value);
+                    revalidate();
+                  }}
                 />
+                {validationAttempted && fieldErrors.courseTitle && (
+                  <span className="field-error-message">{fieldErrors.courseTitle}</span>
+                )}
               </div>
 
               {/* AUDIENCE TYPE */}
@@ -654,7 +703,7 @@ function FacultySubmitReservation() {
                 <label>Audience Type</label>
                 <div className="faculty-submit-dropdown-wrapper">
                   <select
-                    className="faculty-submit-input faculty-submit-dropdown"
+                    className={`faculty-submit-input faculty-submit-dropdown ${validationAttempted && fieldErrors.audienceType ? "error" : ""}`}
                     value={audienceType}
                     onChange={(e) => {
                       setAudienceType(e.target.value);
@@ -665,6 +714,7 @@ function FacultySubmitReservation() {
                       setYearSectionGroup("");
                       setOrganization("");
                       setCustomPurposeText("");
+                      revalidate();
                     }}
                   >
                     <option value="">Select Audience</option>
@@ -673,6 +723,9 @@ function FacultySubmitReservation() {
                   </select>
                   <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
                 </div>
+                {validationAttempted && fieldErrors.audienceType && (
+                  <span className="field-error-message">{fieldErrors.audienceType}</span>
+                )}
 
                 {/* CLASS FIELDS */}
                 {audienceType === "Class" && (
@@ -680,20 +733,32 @@ function FacultySubmitReservation() {
                     <div className="faculty-submit-form-group">
                       <label>Course</label>
                       <input
-                        className="faculty-submit-input"
+                        className={`faculty-submit-input ${validationAttempted && fieldErrors.course ? "error" : ""}`}
                         placeholder="BSIT"
                         value={course}
-                        onChange={(e) => setCourse(e.target.value)}
+                        onChange={(e) => {
+                          setCourse(e.target.value);
+                          revalidate();
+                        }}
                       />
+                      {validationAttempted && fieldErrors.course && (
+                        <span className="field-error-message">{fieldErrors.course}</span>
+                      )}
                     </div>
                     <div className="faculty-submit-form-group">
                       <label>Year / Section Group</label>
                       <input
-                        className="faculty-submit-input"
+                        className={`faculty-submit-input ${validationAttempted && fieldErrors.yearSectionGroup ? "error" : ""}`}
                         placeholder="Ex. 3F-G2"
                         value={yearSectionGroup}
-                        onChange={(e) => setYearSectionGroup(e.target.value)}
+                        onChange={(e) => {
+                          setYearSectionGroup(e.target.value);
+                          revalidate();
+                        }}
                       />
+                      {validationAttempted && fieldErrors.yearSectionGroup && (
+                        <span className="field-error-message">{fieldErrors.yearSectionGroup}</span>
+                      )}
                     </div>
                   </>
                 )}
@@ -703,11 +768,17 @@ function FacultySubmitReservation() {
                   <div className="faculty-submit-form-group">
                     <label>Organization Name</label>
                     <input
-                      className="faculty-submit-input"
+                      className={`faculty-submit-input ${validationAttempted && fieldErrors.organization ? "error" : ""}`}
                       placeholder="Computer Society"
                       value={organization}
-                      onChange={(e) => setOrganization(e.target.value)}
+                      onChange={(e) => {
+                        setOrganization(e.target.value);
+                        revalidate();
+                      }}
                     />
+                    {validationAttempted && fieldErrors.organization && (
+                      <span className="field-error-message">{fieldErrors.organization}</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -717,13 +788,14 @@ function FacultySubmitReservation() {
                 <label>Purpose</label>
                 <div className="faculty-submit-dropdown-wrapper">
                   <select
-                    className="faculty-submit-input faculty-submit-dropdown"
+                    className={`faculty-submit-input faculty-submit-dropdown ${validationAttempted && fieldErrors.purpose ? "error" : ""}`}
                     value={purpose}
                     onChange={(e) => {
                       setPurpose(e.target.value);
                       setSelectedEquipment([]);
                       setStudentRange("");
                       setCustomPurposeText("");
+                      revalidate();
                     }}
                   >
                     <option value="">Select Purpose</option>
@@ -745,6 +817,9 @@ function FacultySubmitReservation() {
                   </select>
                   <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
                 </div>
+                {validationAttempted && fieldErrors.purpose && (
+                  <span className="field-error-message">{fieldErrors.purpose}</span>
+                )}
               </div>
 
               {/* CLASS SUB‑OPTIONS */}
@@ -758,14 +833,20 @@ function FacultySubmitReservation() {
                         type="button"
                         className={`equipment-card ${
                           selectedEquipment.includes(item.id) ? "selected" : ""
-                        }`}
-                        onClick={() => toggleEquipment(item.id)}
+                        } ${validationAttempted && fieldErrors.selectedEquipment ? "error" : ""}`}
+                        onClick={() => {
+                          toggleEquipment(item.id);
+                          revalidate();
+                        }}
                       >
                         <span className="equipment-icon">{item.icon}</span>
                         <span className="equipment-name">{item.label}</span>
                       </button>
                     ))}
                   </div>
+                  {validationAttempted && fieldErrors.selectedEquipment && (
+                    <span className="field-error-message">{fieldErrors.selectedEquipment}</span>
+                  )}
                 </div>
               )}
 
@@ -776,9 +857,12 @@ function FacultySubmitReservation() {
                     <label>Estimated Number of Students</label>
                     <div className="faculty-submit-dropdown-wrapper">
                       <select
-                        className="faculty-submit-input faculty-submit-dropdown"
+                        className={`faculty-submit-input faculty-submit-dropdown ${validationAttempted && fieldErrors.studentRange ? "error" : ""}`}
                         value={studentRange}
-                        onChange={(e) => setStudentRange(e.target.value)}
+                        onChange={(e) => {
+                          setStudentRange(e.target.value);
+                          revalidate();
+                        }}
                       >
                         <option value="">Select Range</option>
                         <option value="30-50">30 - 50 Students</option>
@@ -788,6 +872,9 @@ function FacultySubmitReservation() {
                       </select>
                       <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
                     </div>
+                    {validationAttempted && fieldErrors.studentRange && (
+                      <span className="field-error-message">{fieldErrors.studentRange}</span>
+                    )}
                   </div>
                 )}
 
@@ -797,9 +884,12 @@ function FacultySubmitReservation() {
                   <label>Estimated Number of Attendees</label>
                   <div className="faculty-submit-dropdown-wrapper">
                     <select
-                      className="faculty-submit-input faculty-submit-dropdown"
+                      className={`faculty-submit-input faculty-submit-dropdown ${validationAttempted && fieldErrors.studentRange ? "error" : ""}`}
                       value={studentRange}
-                      onChange={(e) => setStudentRange(e.target.value)}
+                      onChange={(e) => {
+                        setStudentRange(e.target.value);
+                        revalidate();
+                      }}
                     >
                       <option value="">Select Range</option>
                       <option value="1-30">1 - 30 Persons</option>
@@ -810,6 +900,9 @@ function FacultySubmitReservation() {
                     </select>
                     <i className="fa-solid fa-angle-down faculty-submit-dropdown-icon"></i>
                   </div>
+                  {validationAttempted && fieldErrors.studentRange && (
+                    <span className="field-error-message">{fieldErrors.studentRange}</span>
+                  )}
                 </div>
               )}
 
@@ -818,11 +911,17 @@ function FacultySubmitReservation() {
                 <div className="faculty-submit-form-group">
                   <label>Specify Activity</label>
                   <input
-                    className="faculty-submit-input"
+                    className={`faculty-submit-input ${validationAttempted && fieldErrors.customPurposeText ? "error" : ""}`}
                     placeholder="Describe the activity..."
                     value={customPurposeText}
-                    onChange={(e) => setCustomPurposeText(e.target.value)}
+                    onChange={(e) => {
+                      setCustomPurposeText(e.target.value);
+                      revalidate();
+                    }}
                   />
+                  {validationAttempted && fieldErrors.customPurposeText && (
+                    <span className="field-error-message">{fieldErrors.customPurposeText}</span>
+                  )}
                 </div>
               )}
 
@@ -839,12 +938,18 @@ function FacultySubmitReservation() {
                   <input
                     id="date-input"
                     type="date"
-                    className="faculty-submit-input"
+                    className={`faculty-submit-input ${validationAttempted && fieldErrors.date ? "error" : ""}`}
                     min={new Date().toISOString().split("T")[0]}
                     value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    onChange={(e) => {
+                      setDate(e.target.value);
+                      revalidate();
+                    }}
                   />
                 </div>
+                {validationAttempted && fieldErrors.date && (
+                  <span className="field-error-message">{fieldErrors.date}</span>
+                )}
               </div>
 
               {/* TIME */}
@@ -861,13 +966,19 @@ function FacultySubmitReservation() {
                     <input
                       id="start-input"
                       type="time"
-                      className="faculty-submit-input faculty-submit-time-input"
+                      className={`faculty-submit-input faculty-submit-time-input ${validationAttempted && fieldErrors.startTime ? "error" : ""}`}
                       min="07:00"
                       max="20:00"
                       value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
+                      onChange={(e) => {
+                        setStartTime(e.target.value);
+                        revalidate();
+                      }}
                     />
                   </div>
+                  {validationAttempted && fieldErrors.startTime && (
+                    <span className="field-error-message">{fieldErrors.startTime}</span>
+                  )}
                 </div>
 
                 <div className="faculty-submit-form-group">
@@ -882,13 +993,19 @@ function FacultySubmitReservation() {
                     <input
                       id="end-input"
                       type="time"
-                      className="faculty-submit-input faculty-submit-time-input"
+                      className={`faculty-submit-input faculty-submit-time-input ${validationAttempted && fieldErrors.endTime ? "error" : ""}`}
                       min="07:00"
                       max="20:00"
                       value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
+                      onChange={(e) => {
+                        setEndTime(e.target.value);
+                        revalidate();
+                      }}
                     />
                   </div>
+                  {validationAttempted && fieldErrors.endTime && (
+                    <span className="field-error-message">{fieldErrors.endTime}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -901,7 +1018,10 @@ function FacultySubmitReservation() {
                   <select
                     className="faculty-submit-venue-dropdown"
                     value={selectedFloor}
-                    onChange={(e) => setSelectedFloor(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedFloor(e.target.value);
+                      revalidate();
+                    }}
                   >
                     <option value="">All Floors</option>
                     <option value="1st">1st Floor</option>
@@ -929,7 +1049,6 @@ function FacultySubmitReservation() {
               ) : (
                 <div className="room-grid">
                   {rooms.map((room) => {
-                    // Determine status label
                     let statusLabel = "Available";
                     let statusIcon = "fa-circle-check";
                     if (room.maintenance) {
@@ -943,23 +1062,22 @@ function FacultySubmitReservation() {
                       statusIcon = "fa-circle-xmark";
                     }
 
+                    const isSelected = selectedRoom?.id === room.id;
+                    const isError = validationAttempted && fieldErrors.selectedRoom && !isSelected;
+
                     return (
                       <div
                         key={room.id}
                         className={`
                           room-card
-                          ${
-                            room.maintenance
-                              ? "maintenance"
-                              : room.available
-                              ? "available"
-                              : "occupied"
-                          }
-                          ${selectedRoom?.id === room.id ? "selected" : ""}
+                          ${room.maintenance ? "maintenance" : room.available ? "available" : "occupied"}
+                          ${isSelected ? "selected" : ""}
+                          ${isError ? "error" : ""}
                         `}
                         onClick={() => {
                           if (!room.available || room.maintenance || room.reservedByUser) return;
                           setSelectedRoom(room);
+                          revalidate();
                         }}
                       >
                         <div className="room-name">
@@ -981,6 +1099,9 @@ function FacultySubmitReservation() {
                   })}
                 </div>
               )}
+              {validationAttempted && fieldErrors.selectedRoom && (
+                <span className="field-error-message" style={{ marginTop: "10px" }}>{fieldErrors.selectedRoom}</span>
+              )}
             </div>
           </div>
         </div>
@@ -990,12 +1111,10 @@ function FacultySubmitReservation() {
             Back
           </button>
           <button
-            className={`faculty-submit-confirm-btn ${!isFormComplete() || submitting ? "disabled" : ""}`}
-            onClick={() => {
-              if (submitting) return;
-              setShowConfirm(true);
-            }}
-            disabled={!isFormComplete() || submitting}
+            className={`faculty-submit-confirm-btn ${submitting ? "disabled" : ""} ${validationAttempted && hasErrors ? "has-errors" : ""}`}
+            onClick={handleSubmitClick}
+            disabled={submitting}
+            title={validationAttempted && hasErrors ? "Please fix the errors above" : "Submit your reservation request"}
           >
             {submitting ? "Submitting..." : "Submit Request"}
           </button>
@@ -1023,6 +1142,92 @@ function FacultySubmitReservation() {
                   disabled={submitting}
                 >
                   {submitting ? "Submitting..." : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── SUCCESS DIALOG ────────────────────────────────────────── */}
+        {showSuccessModal && submittedReservation && (
+          <div className="rs-success-overlay">
+            <div className="rs-success-modal">
+              <div className="rs-success-icon">
+                <i className="fa-solid fa-circle-check"></i>
+              </div>
+
+              <h3>Reservation Submitted!</h3>
+              <p className="rs-success-subtitle">
+                Your request has been sent for approval. You'll get a notification once it's reviewed.
+              </p>
+
+              <div className="rs-success-details">
+                <div className="rs-success-row">
+                  <span className="rs-success-label">Course Title</span>
+                  <span className="rs-success-value">{submittedReservation.courseTitle}</span>
+                </div>
+
+                <div className="rs-success-row">
+                  <span className="rs-success-label">Room</span>
+                  <span className="rs-success-value">
+                    {submittedReservation.roomName}
+                    {submittedReservation.floor ? ` (${submittedReservation.floor} Floor)` : ""}
+                  </span>
+                </div>
+
+                <div className="rs-success-row">
+                  <span className="rs-success-label">Date</span>
+                  <span className="rs-success-value">{formatDateLong(submittedReservation.date)}</span>
+                </div>
+
+                <div className="rs-success-row">
+                  <span className="rs-success-label">Time</span>
+                  <span className="rs-success-value">
+                    {format12Hour(submittedReservation.startTime)} - {format12Hour(submittedReservation.endTime)}
+                  </span>
+                </div>
+
+                <div className="rs-success-row">
+                  <span className="rs-success-label">Purpose</span>
+                  <span className="rs-success-value">{submittedReservation.purpose}</span>
+                </div>
+
+                <div className="rs-success-row">
+                  <span className="rs-success-label">Audience</span>
+                  <span className="rs-success-value">
+                    {submittedReservation.audienceType}
+                    {submittedReservation.audienceType === "Class" && submittedReservation.course
+                      ? ` — ${submittedReservation.course} ${submittedReservation.yearSectionGroup || ""}`.trim()
+                      : ""}
+                    {submittedReservation.audienceType === "Organization" && submittedReservation.organization
+                      ? ` — ${submittedReservation.organization}`
+                      : ""}
+                  </span>
+                </div>
+
+                <div className="rs-success-row">
+                  <span className="rs-success-label">Status</span>
+                  <span className="rs-status-pill">
+                    <i className="fa-solid fa-clock"></i> Pending
+                  </span>
+                </div>
+              </div>
+
+              <div className="rs-success-actions">
+                <button
+                  className="rs-success-secondary"
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    setSubmittedReservation(null);
+                  }}
+                >
+                  Submit Another
+                </button>
+                <button
+                  className="rs-success-primary"
+                  onClick={() => navigate("/faculty")}
+                >
+                  Back to Dashboard
                 </button>
               </div>
             </div>

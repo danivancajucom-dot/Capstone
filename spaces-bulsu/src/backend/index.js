@@ -27,7 +27,6 @@ async function generateWithRetry(prompt, maxRetries = 3) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // ✅ No x-goog-api-key header – key is in URL
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
@@ -55,7 +54,6 @@ async function generateWithRetry(prompt, maxRetries = 3) {
       lastError = error;
       console.error(`Attempt ${attempt} failed:`, error.message);
 
-      // Retry only on rate limit or service unavailable
       const shouldRetry = (error.status === 503 || error.status === 429) && attempt < maxRetries;
       if (shouldRetry) {
         const delay = Math.pow(2, attempt) * 1000;
@@ -63,7 +61,6 @@ async function generateWithRetry(prompt, maxRetries = 3) {
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
-      // For auth errors (401/403), don't retry – throw immediately
       if (error.status === 401 || error.status === 403) {
         throw new Error("Invalid API key. Please check your GEMINI_API_KEY in .env");
       }
@@ -164,6 +161,7 @@ ${rawText}
 });
 
 // ---------- ENDPOINT 2: Online classes (Faculty) ----------
+// ✅ Only extracts schedules WITHOUT room (online classes)
 app.post("/api/extract-online-schedule", async (req, res) => {
   try {
     const { rawText, semester, schoolYear, faculty } = req.body;
@@ -176,7 +174,7 @@ app.post("/api/extract-online-schedule", async (req, res) => {
     }
 
     const prompt = `
-You are a university schedule extraction engine. Extract ALL schedules from the text below.
+You are a university schedule extraction engine. Extract ONLY the schedules that do NOT have a room assigned (online classes).
 Return ONLY a valid JSON array. No markdown, no extra text.
 
 Each object must have exactly these fields:
@@ -190,9 +188,11 @@ Each object must have exactly these fields:
 Rules:
 - Convert all times to 24-hour format.
 - If a field is missing, use empty string or "TBA" for faculty.
-- DO NOT include room information – these are online classes.
-- Parse ALL schedules listed.
+- DO NOT include any schedule that has a room number/name.
+- ONLY include schedules that are online classes (no room assigned).
 - The faculty name should be "${faculty || 'TBA'}" for all schedules.
+- If a schedule has a room, skip it entirely.
+- Parse ONLY online schedules listed.
 
 Semester: ${semester}
 School Year: ${schoolYear}
@@ -218,6 +218,7 @@ ${rawText}
       endTime: item.endTime || "",
     }));
 
+    // Additional filter to ensure no room field accidentally appears
     schedules = schedules.filter((s) => s.subject || s.day);
 
     console.log(`✅ Extracted ${schedules.length} online schedule(s) for faculty: ${faculty || 'Unknown'}`);
@@ -239,5 +240,5 @@ app.listen(PORT, () => {
   console.log("📌 Endpoints:");
   console.log("   GET  /api/test-key                    - test API key");
   console.log("   POST /api/extract-schedule           - with rooms (Local Registrar)");
-  console.log("   POST /api/extract-online-schedule    - online classes (Faculty)");
+  console.log("   POST /api/extract-online-schedule    - online classes only (Faculty)");
 });

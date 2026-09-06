@@ -10,7 +10,7 @@ import UpcomingSchedCard from "../../Components/UpcomingSchedCard/UpcomingSchedC
 import AvailableRoomCard from "../../Components/AvailableRoomCard/AvailableRoomCard";
 import OccupiedRoomCard from "../../Components/OccupiedRoomCard/OccupiedRoomCard";
 import MaintenanceRoomCard from "../../Components/MaintenanceRoomCard/MaintenanceRoomCard";
-import ReservedRoomCard from "../../Components/ReservedRoomCard/ReservedRoomCard";
+// import ReservedRoomCard from "../../Components/ReservedRoomCard/ReservedRoomCard"; // ❌ No longer needed
 import { useNavigate } from "react-router-dom";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
 import ReleasedRoomsModal from "../../Components/ReleaseRoomModal/ReleasedRoomsModal";
@@ -251,19 +251,7 @@ function ClerkDashboard() {
       };
     }
 
-    // Reserved (upcoming today)?
-    const upcoming = busy
-      .filter((item) => toMinutes(item.startTime) > currentMinutes)
-      .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime))[0];
-    if (upcoming) {
-      return {
-        ...room,
-        displayStatus: "Reserved",
-        activeBooking: upcoming,
-      };
-    }
-
-    // Available
+    // ❌ Removed "Reserved" status – only Occupied or Available
     return { ...room, displayStatus: "Available" };
   });
 
@@ -280,11 +268,8 @@ function ClerkDashboard() {
     case "maintenance":
       displayedRooms = roomStatus.filter((r) => r.displayStatus === "Maintenance");
       break;
-    case "reserved":
-      displayedRooms = roomStatus.filter((r) => r.displayStatus === "Reserved");
-      break;
     default:
-      displayedRooms = roomStatus;
+      displayedRooms = roomStatus; // "all-rooms"
   }
 
   // Reset pagination on tab change
@@ -365,8 +350,7 @@ function ClerkDashboard() {
 
   // ─── Released Rooms for side panel ─────────────────────────────────────
 
-  // Get today's releases with room details
-    const todaysReleases = releases
+  const todaysReleases = releases
     .filter((r) => r.date === today)
     .map((r) => {
       const room = rooms.find((rm) => rm.id === r.roomId);
@@ -435,14 +419,7 @@ function ClerkDashboard() {
               >
                 Maintenance
               </div>
-              <div
-                className={`clerk-room-nav-item reserved ${
-                  activeNav === "reserved" ? "active" : ""
-                }`}
-                onClick={() => setActiveNav("reserved")}
-              >
-                Reserved
-              </div>
+              {/* ❌ "Reserved" tab removed */}
             </div>
 
             <div className="status-rooms-grid">
@@ -477,15 +454,8 @@ function ClerkDashboard() {
                     case "Maintenance":
                       return <MaintenanceRoomCard key={room.id} room={room} />;
                     default:
-                      return (
-                        <ReservedRoomCard
-                          key={room.id}
-                          room={room}
-                          onViewSchedule={() =>
-                            navigate("/clerk/schedule-view-academic-schedule")
-                          }
-                        />
-                      );
+                      // Fallback (should not happen)
+                      return <OccupiedRoomCard key={room.id} room={room} />;
                   }
                 })
               )}
@@ -504,7 +474,7 @@ function ClerkDashboard() {
           </div>
 
           <div className="clerk-dashboard-right">
-                        <div className="clerk-dashboard-side-box">
+            <div className="clerk-dashboard-side-box">
               <div className="clerk-side-box-header">
                 <div className="clerk-side-box-title">
                   <i className="fa-regular fa-circle-check clerk-side-icon"></i>
@@ -569,7 +539,7 @@ function ClerkDashboard() {
               </div>
             </div>
           </div>
-                </div>
+        </div>
       </div>
 
       <ReleasedRoomsModal

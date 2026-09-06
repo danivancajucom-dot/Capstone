@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./clerk-reservations.css";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
 import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
-import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, writeBatch } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 
@@ -27,7 +27,16 @@ const PAGE_SIZE = 8;
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
-const normalizeRoom = (name) => name?.toLowerCase().trim().replace(/\s+/g, '') || "";
+const normalizeRoom = (name) => name?.toLowerCase().trim().replace(/\s+/g, "") || "";
+
+// ─── Get today's date as YYYY-MM-DD ──────────────────────────────────
+const getToday = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
 
 // ─── Format 12-hour ──────────────────────────────────────────────────
 const format12Hour = (time) => {
@@ -109,15 +118,57 @@ function ClerkReservations() {
     }
   };
 
+  // ─── Auto-cancel past-dated pending reservations (time‑aware) ──────
+  const autoCancelPastReservations = async () => {
+    const now = new Date();
+    const pendingPast = reservations.filter((r) => {
+      if (normalizeStatus(r.status) !== "pending") return false;
+
+      // Parse date and end time
+      if (!r.date || !r.endTime) return false;
+
+      const [year, month, day] = r.date.split("-").map(Number);
+      const [hour, minute] = r.endTime.split(":").map(Number);
+      const reservationEnd = new Date(year, month - 1, day, hour, minute);
+
+      // If the end time is in the past → cancel
+      return reservationEnd < now;
+    });
+
+    if (pendingPast.length === 0) return;
+
+    try {
+      const batch = writeBatch(db);
+      pendingPast.forEach((r) => {
+        const ref = doc(db, "reservationRequests", r.id);
+        batch.update(ref, {
+          status: "Cancelled",
+          cancellationReason:
+            "The reservation end time has passed without approval or denial.",
+          cancelledAt: new Date(),
+        });
+      });
+      await batch.commit();
+      console.log(`✅ Auto-cancelled ${pendingPast.length} past-dated reservations.`);
+    } catch (err) {
+      console.error("❌ Auto-cancel failed:", err);
+    }
+  };
+
   // ─── Firestore subscription ────────────────────────────────────────
   useEffect(() => {
     const q = query(collection(db, "reservationRequests"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(
       q,
-      (snapshot) => {
+      async (snapshot) => {
         const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setReservations(list);
         setLoading(false);
+
+        // After first load, auto-cancel past-dated pending reservations
+        if (!loading) {
+          await autoCancelPastReservations();
+        }
       },
       (error) => {
         console.error(error);
@@ -126,6 +177,13 @@ function ClerkReservations() {
     );
     return unsubscribe;
   }, []);
+
+  // ─── Re-run auto-cancel after updates (e.g., new reservations) ────
+  useEffect(() => {
+    if (!loading && reservations.length > 0) {
+      autoCancelPastReservations();
+    }
+  }, [reservations]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -222,7 +280,6 @@ function ClerkReservations() {
 
   // ─── EXPORT FUNCTIONS ──────────────────────────────────────────────
 
-  // ── CSV Export ──
   const exportCSV = () => {
     if (sorted.length === 0) {
       showToast("error", "Nothing to Export", "No reservations match your filters.");
@@ -279,7 +336,6 @@ function ClerkReservations() {
     setExportMenuOpen(false);
   };
 
-  // ── PDF Export ──
   const exportPDF = () => {
     if (sorted.length === 0) {
       showToast("error", "Nothing to Export", "No reservations match your filters.");
@@ -295,7 +351,6 @@ function ClerkReservations() {
       const logoSize = 40;
       const centerX = pageWidth / 2;
 
-      // ── Letterhead ──
       if (SCHOOL_HEADER.universityLogoUrl) {
         pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 20, logoSize, logoSize);
       }
@@ -305,7 +360,7 @@ function ClerkReservations() {
           "PNG",
           pageWidth - marginX - logoSize,
           20,
-          logoSize,
+           logoSize,
           logoSize
         );
       }
@@ -325,7 +380,6 @@ function ClerkReservations() {
       pdf.setLineWidth(1.5);
       pdf.line(marginX, 74, pageWidth - marginX, 74);
 
-      // ── Title & Filters ──
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
       pdf.setTextColor(245, 124, 0);
@@ -350,7 +404,6 @@ function ClerkReservations() {
         { align: "right" }
       );
 
-      // ── Table ──
       const tableRows = sorted.map((r) => [
         r.facultyName || r.requesterName || "-",
         r.roomName || "-",
@@ -391,7 +444,6 @@ function ClerkReservations() {
         },
       });
 
-      // ── Footer ──
       const pageCount = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
