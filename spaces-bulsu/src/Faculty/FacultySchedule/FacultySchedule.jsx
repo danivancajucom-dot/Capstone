@@ -1,9 +1,9 @@
 // ============================================================
-// FILE: WeeklyCalendar.jsx (with explicit showReleaseModal state)
+// FILE: WeeklyCalendar.jsx (with conflict detection - no design changes)
 // ============================================================
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
-import ReleaseRoomModal from "../../Components/ReleaseRoomModal/ReleaseRoomModal";
+import ReleasedRoomsModal from "../../Components/ReleaseRoomModal/ReleasedRoomsModal";
 import ScheduleDetailsModal from "../../Components/ScheduleDetailsModal/ScheduleDetailsModal";
 import ImportScheduleModal from "./ImportScheduleModal";
 import Toast from "../../Popup/Toast/Toast";
@@ -132,7 +132,7 @@ const computeStatus = (dateStr, startTime, endTime) => {
   return { status: "COMPLETED", remainingMinutes: 0 };
 };
 
-// ─── Event overlap detection ────────────────────────────────
+// ─── NEW: Event overlap detection ────────────────────────────────
 const eventsOverlap = (event1, event2) => {
   const getMin = (h, m) => h * 60 + m;
   const start1 = getMin(event1.startH, event1.startM);
@@ -224,8 +224,6 @@ export default function WeeklyCalendar() {
   const [reassignedEvents, setReassignedEvents] = useState([]);
   const [releasedKeys, setReleasedKeys] = useState(new Set());
 
-  // ─── NEW: explicit show state for release modal ────────────────
-  const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [releaseTarget, setReleaseTarget] = useState(null);
   const [detailsTarget, setDetailsTarget] = useState(null);
   const [submittingRelease, setSubmittingRelease] = useState(false);
@@ -697,8 +695,6 @@ export default function WeeklyCalendar() {
       status = result.status;
     }
 
-    console.log("Event clicked:", ev.kind, status, ev);
-
     if (ev.kind === "schedule") {
       if (status !== "COMPLETED") {
         openReleaseModal(ev);
@@ -733,7 +729,6 @@ export default function WeeklyCalendar() {
       status,
       remainingMinutes,
     });
-    setShowReleaseModal(true); // ✅ explicitly open the modal
   };
 
   const handleConfirmRelease = async ({ reason, details }) => {
@@ -805,7 +800,6 @@ export default function WeeklyCalendar() {
       });
 
       setReleaseTarget(null);
-      setShowReleaseModal(false);
       showToast("success", "Success", "Room released successfully! Notifications sent.");
     } catch (err) {
       console.error("Release error:", err);
@@ -961,17 +955,12 @@ export default function WeeklyCalendar() {
 
       {/* ─── Modals ────────────────────────────────────────────────── */}
 
-      {showReleaseModal && (
-        <ReleaseRoomModal
-          target={releaseTarget}
-          onClose={() => {
-            setShowReleaseModal(false);
-            setReleaseTarget(null);
-          }}
-          onConfirm={handleConfirmRelease}
-          submitting={submittingRelease}
-        />
-      )}
+      <ReleasedRoomsModal
+        target={releaseTarget}
+        onClose={() => setReleaseTarget(null)}
+        onConfirm={handleConfirmRelease}
+        submitting={submittingRelease}
+      />
 
       <ScheduleDetailsModal
         target={detailsTarget}
