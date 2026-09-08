@@ -1,9 +1,9 @@
 // ============================================================
-// FILE: WeeklyCalendar.jsx (with conflict detection - no design changes)
+// FILE: WeeklyCalendar.jsx (with correct release modal)
 // ============================================================
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
-import ReleasedRoomsModal from "../../Components/ReleaseRoomModal/ReleasedRoomsModal";
+import ReleaseRoomModal from "../../Components/ReleaseRoomModal/ReleaseRoomModal";
 import ScheduleDetailsModal from "../../Components/ScheduleDetailsModal/ScheduleDetailsModal";
 import ImportScheduleModal from "./ImportScheduleModal";
 import Toast from "../../Popup/Toast/Toast";
@@ -132,7 +132,7 @@ const computeStatus = (dateStr, startTime, endTime) => {
   return { status: "COMPLETED", remainingMinutes: 0 };
 };
 
-// ─── NEW: Event overlap detection ────────────────────────────────
+// ─── Event overlap detection ────────────────────────────────
 const eventsOverlap = (event1, event2) => {
   const getMin = (h, m) => h * 60 + m;
   const start1 = getMin(event1.startH, event1.startM);
@@ -561,7 +561,7 @@ export default function WeeklyCalendar() {
         dayIdx,
         daySpan: 1,
         startH, startM, endH, endM,
-        colorIdx: 1, // Room Activity color (green)
+        colorIdx: 1,
         faculty: e.faculty || "Department Head",
         date: e.date,
         rawStartTime: e.startTime,
@@ -728,6 +728,13 @@ export default function WeeklyCalendar() {
       endTimeLabel: fmt12Hour(ev.rawEndTime),
       status,
       remainingMinutes,
+      // ✅ Pass all fields needed by ReleaseRoomModal
+      kind: ev.kind,
+      faculty: ev.faculty,
+      rawStartTime: ev.rawStartTime,
+      rawEndTime: ev.rawEndTime,
+      title: ev.title || ev.subject,
+      originalRoom: ev.originalRoom, // for reassignments
     });
   };
 
@@ -955,7 +962,7 @@ export default function WeeklyCalendar() {
 
       {/* ─── Modals ────────────────────────────────────────────────── */}
 
-      <ReleasedRoomsModal
+      <ReleaseRoomModal
         target={releaseTarget}
         onClose={() => setReleaseTarget(null)}
         onConfirm={handleConfirmRelease}
