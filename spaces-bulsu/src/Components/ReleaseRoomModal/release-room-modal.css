@@ -1,0 +1,253 @@
+/* ─── Overlay ────────────────────────────────────────────────────────── */
+.rr-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+/* ─── Panel ──────────────────────────────────────────────────────────── */
+.rr-panel {
+  background: #fff;
+  border-radius: 24px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: rrFadeIn 0.25s ease;
+}
+
+@keyframes rrFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────── */
+.rr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.rr-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.rr-header-sub {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: #6b7280;
+}
+
+.rr-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: color 0.2s;
+  padding: 0 4px;
+}
+
+.rr-close:hover {
+  color: #1a1a1a;
+}
+
+/* ─── Card (content area) ───────────────────────────────────────────── */
+.rr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ─── Image header ──────────────────────────────────────────────────── */
+.rr-image-wrap {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.rr-image-wrap img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+.rr-image-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  padding: 20px 16px 14px;
+  color: #fff;
+}
+
+.rr-image-overlay h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.rr-image-overlay p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* ─── Detail rows ───────────────────────────────────────────────────── */
+.rr-detail-row {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.rr-detail-row:last-of-type {
+  border-bottom: none;
+}
+
+.rr-detail-row i {
+  width: 20px;
+  color: #f57c00;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+.rr-detail-row > div {
+  flex: 1;
+}
+
+.rr-detail-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.rr-detail-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.rr-status {
+  color: #f59e0b;
+}
+
+/* ─── Form groups ────────────────────────────────────────────────────── */
+.rr-form-group {
+  margin-top: 16px;
+}
+
+.rr-form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.rr-form-group label span {
+  color: #ef4444;
+}
+
+.rr-form-group select,
+.rr-form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #f9fafb;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.rr-form-group select:focus,
+.rr-form-group textarea:focus {
+  border-color: #f57c00;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.1);
+}
+
+.rr-form-group select {
+  height: 44px;
+  cursor: pointer;
+}
+
+.rr-form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ─── Release button ────────────────────────────────────────────────── */
+.rr-release-btn {
+  width: 100%;
+  padding: 14px;
+  margin-top: 20px;
+  border: none;
+  border-radius: 12px;
+  background: #f57c00;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.rr-release-btn:hover:not(:disabled) {
+  background: #e06b00;
+}
+
+.rr-release-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.rr-release-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .rr-panel {
+    padding: 20px;
+  }
+
+  .rr-image-wrap img {
+    height: 140px;
+  }
+
+  .rr-detail-row {
+    padding: 10px 0;
+  }
+
+  .rr-detail-value {
+    font-size: 14px;
+  }
+}
