@@ -336,7 +336,11 @@
   color: #ef4444;
 }
 .dept-db-room-label.free        { color: #16a34a; }
-.dept-db-room-label.maintenance { color:  rgb(107, 114, 128); }
+.dept-db-room-label.maintenance { 
+  color:  rgb(107, 114, 128); 
+  border: none;
+}
+
 
 .dept-db-last-updated {
   margin: 8px 0 0;
