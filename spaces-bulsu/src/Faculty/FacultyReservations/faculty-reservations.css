@@ -408,3 +408,163 @@ body {
 .faculty-reservation-card:hover .faculty-res-view-indicator i {
   transform: translateX(3px);
 }
+
+/* ── Toolbar (tabs + search) ────────────────────────────────────── */
+.faculty-reservations-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 6px 16px 0;
+  margin-bottom: 16px; 
+}
+
+.faculty-reservations-toolbar .faculty-reservations-nav {
+  padding: 0;
+}
+
+/* ── Search ─────────────────────────────────────────────────────── */
+.faculty-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 260px;
+  flex: 0 1 320px;
+}
+
+.faculty-search-icon {
+  position: absolute;
+  left: 14px;
+  color: #94A3B8;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.faculty-search-input {
+  width: 100%;
+  padding: 10px 36px 10px 38px;
+  border-radius: 8px;
+  border: 1px solid #E2E1DE;
+  font-size: 14px;
+  color: #1E2430;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: "Lexend", sans-serif;
+  background-color: #FAFAF9;
+}
+
+.faculty-search-input::placeholder {
+  color: #94A3B8;
+}
+
+.faculty-search-input:focus {
+  border-color: #f57c00;
+  background-color: #ffffff;
+}
+
+.faculty-search-clear {
+  position: absolute;
+  right: 10px;
+  border: none;
+  background: none;
+  color: #94A3B8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.faculty-search-clear:hover {
+  color: #f57c00;
+  background-color: #FEF0E7;
+}
+
+/* ── Pagination ─────────────────────────────────────────────────── */
+.faculty-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  flex-wrap: wrap;
+}
+
+.faculty-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #E2E1DE;
+  background: white;
+  color: #374151;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.2s;
+  font-family: "Lexend", sans-serif;
+}
+
+.faculty-page-btn:hover:not(:disabled) {
+  border-color: #f57c00;
+  color: #f57c00;
+}
+
+.faculty-page-btn.active {
+  background: #f57c00;
+  border-color: #f57c00;
+  color: white;
+}
+
+.faculty-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.faculty-page-info {
+  margin-left: 12px;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .faculty-reservations-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .faculty-search-container {
+    min-width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .faculty-pagination {
+    gap: 4px;
+  }
+
+  .faculty-page-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .faculty-page-info {
+    width: 100%;
+    text-align: center;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+}
+
+.faculty-reservations-divider {
+  border: none;
+  border-top: 1px solid #ECEAE6;
+  margin: 0 0 14px;
+}

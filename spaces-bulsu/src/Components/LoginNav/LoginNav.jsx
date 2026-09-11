@@ -2,7 +2,15 @@ import React from 'react';
 import './LoginNav.css';
 import logo from '../../assets/logo.png';
 
-export default function LoginNav({ activePage, onChangePage, onSignIn, onLogout }) {
+export default function LoginNav({
+  activePage,
+  onChangePage,
+  onSignIn,
+  onLogout,
+  onAboutClick,
+  onSupportClick,
+  onContactClick,
+}) {
   const handleSignInClick = () => {
     if (activePage === 'login') {
       onSignIn && onSignIn();
@@ -28,9 +36,15 @@ export default function LoginNav({ activePage, onChangePage, onSignIn, onLogout 
       <div className="nav-right">
         {activePage === 'login' ? (
           <>
-            <button type="button" className="nav-link">About</button>
-            <button type="button" className="nav-link">Support</button>
-            <button type="button" className="nav-link">Contact</button>
+            <button type="button" className="nav-link" onClick={onAboutClick}>
+              About
+            </button>
+            <button type="button" className="nav-link" onClick={onSupportClick}>
+              Support
+            </button>
+            <button type="button" className="nav-link" onClick={onContactClick}>
+              Contact
+            </button>
             <button 
               type="button" 
               className="nav-signin-text"

@@ -7,6 +7,7 @@ import {
   doc, addDoc, setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { logActivity } from "../../../utils/logActivity";
+import Toast from "../../../Popup/Toast/Toast";
 
 const ROOM_TYPES = ['Computer Lab', 'Lecture Room', 'Conference Room', 'Laboratory'];
 
@@ -75,6 +76,9 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
   const [roomType, setRoomType]       = useState('');
   const [equipment, setEquipment]     = useState(INITIAL_EQUIPMENT);
   const [floor, setFloor]             = useState('');
+  const [building, setBuilding]       = useState('');
+  const [buildingCustom, setBuildingCustom] = useState('');
+  const [isOtherBuilding, setIsOtherBuilding] = useState(false);
 
   const [cancelModalOpen, setCancelModalOpen]   = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -83,6 +87,21 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
   const [errors, setErrors]   = useState({});
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // ─── Toast state ──────────────────────────────────────────────────────
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
+    }
+  };
 
   const toggleEquipment = (id) =>
     setEquipment((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -94,6 +113,8 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
   const validateForm = () => {
     const errs = {};
     if (!floor)            errs.floor    = "Floor is required";
+    if (!building)         errs.building = "Building is required";
+    if (isOtherBuilding && !buildingCustom.trim()) errs.building = "Please enter the building name";
     if (!roomName.trim())  errs.roomName = "Room name is required";
     if (!capacity || capacity < 1 || capacity > 200)
       errs.capacity = "Capacity must be between 1 and 200";
@@ -111,9 +132,14 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
   const handleConfirmCreate = async () => {
     setPreviewModalOpen(false);
     setLoading(true);
+    showToast("loading", "Creating Room...", "Please wait...");
     try {
       const firebaseUser = auth.currentUser;
-      if (!firebaseUser) { alert("No authenticated user found."); setLoading(false); return; }
+      if (!firebaseUser) {
+        showToast("error", "Error", "No authenticated user found.");
+        setLoading(false);
+        return;
+      }
 
       const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
       if (!userSnap.exists()) throw new Error("User record not found.");
@@ -125,9 +151,12 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
       );
       if (!existingRoom.empty) {
         setErrors({ roomName: "Room name already exists." });
+        showToast("error", "Duplicate Room", "Room name already exists.");
         setLoading(false);
         return;
       }
+
+      const buildingFinal = isOtherBuilding ? buildingCustom.trim() : building;
 
       const roomRef = await addDoc(collection(db, "rooms"), {
         roomName: roomName.trim(),
@@ -135,7 +164,7 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
         roomType,
         equipment,
         floor,
-
+        building: buildingFinal,
         status: "AVAILABLE",
         roomStatus: "active",
       });
@@ -157,9 +186,11 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
       });
 
       setSuccessModalOpen(true);
+      showToast("success", "Room Created", `${roomName} has been added successfully.`);
     } catch (err) {
       console.error("Firestore Error:", err);
       setErrors({ submit: "Failed to create room. Please try again." });
+      showToast("error", "Creation Failed", err.message);
     } finally {
       setLoading(false);
     }
@@ -169,6 +200,7 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
     setSuccessModalOpen(false);
     setFloor(''); setRoomName(''); setCapacity(1);
     setRoomType(''); setEquipment(INITIAL_EQUIPMENT);
+    setBuilding(''); setBuildingCustom(''); setIsOtherBuilding(false);
     navigate("/department-head/room-management");
   };
 
@@ -246,7 +278,7 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
               {errors.capacity && <span className="field-error">{errors.capacity}</span>}
             </div>
 
-           {/* Room Type */}
+            {/* Room Type */}
             <div className="field-group">
               <label className="field-label">Room Type</label>
               <CustomDropdown
@@ -272,6 +304,38 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
             />
             {errors.floor && <span className="field-error">{errors.floor}</span>}
           </div>
+
+          {/* Building */}
+          <div className="field-group">
+            <label className="field-label">
+              Building <span className="required-dot">*</span>
+            </label>
+            <CustomDropdown
+              placeholder="Select building..."
+              options={['Pimentel Hall', 'Other']}
+              value={building}
+              onChange={(v) => {
+                setBuilding(v);
+                setIsOtherBuilding(v === 'Other');
+                if (v !== 'Other') setBuildingCustom('');
+                setErrors(p => ({...p, building: ''}));
+              }}
+              hasError={!!errors.building}
+            />
+            {isOtherBuilding && (
+              <input
+                className={`field-input ${errors.building ? 'has-error' : ''}`}
+                type="text"
+                placeholder="Enter building name"
+                value={buildingCustom}
+                onChange={(e) => {
+                  setBuildingCustom(e.target.value);
+                  setErrors(p => ({...p, building: ''}));
+                }}
+              />
+            )}
+            {errors.building && <span className="field-error">{errors.building}</span>}
+          </div>
         </div>
 
         <div className="section-divider" />
@@ -288,18 +352,18 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
 
           <div className="equipment-grid">
             {EQUIPMENT_OPTIONS.map(({ id, label, icon }) => (
-                <label
-                  key={id}
-                  className={`equipment-chip ${equipment[id] ? 'checked' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={equipment[id]}
-                    onChange={() => toggleEquipment(id)}
-                    style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-                  />
-                  <span className="chip-icon"><i className={icon} style={{fontSize: 18}}></i></span>
-                  <span className="chip-label">{label}</span>
+              <label
+                key={id}
+                className={`equipment-chip ${equipment[id] ? 'checked' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={equipment[id]}
+                  onChange={() => toggleEquipment(id)}
+                  style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+                />
+                <span className="chip-icon"><i className={icon} style={{fontSize: 18}}></i></span>
+                <span className="chip-label">{label}</span>
                 <span className="chip-check">
                   {equipment[id]
                     ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L4.5 8.5L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -387,34 +451,22 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
               </div>
 
               <div className="preview-row">
-                <span className="preview-label">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{verticalAlign:-2}}>
-                    <path d="M7 1C4.24 1 2 3.24 2 6C2 9.75 7 13 7 13C7 13 12 9.75 12 6C12 3.24 9.76 1 7 1ZM7 7.5C6.17 7.5 5.5 6.83 5.5 6C5.5 5.17 6.17 4.5 7 4.5C7.83 4.5 8.5 5.17 8.5 6C8.5 6.83 7.83 7.5 7 7.5Z" fill="#888"/>
-                  </svg>
-                  Floor
-                </span>
+                <span className="preview-label">Floor</span>
                 <span className="preview-value">{floor}</span>
               </div>
 
               <div className="preview-row">
-                <span className="preview-label">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{verticalAlign:-2}}>
-                    <path d="M7 1C4 1 2 3.5 2 5.5C2 9 7 13 7 13C7 13 12 9 12 5.5C12 3.5 10 1 7 1Z" stroke="#888" strokeWidth="1.5" fill="none"/>
-                    <circle cx="7" cy="5.5" r="1.5" fill="#888"/>
-                  </svg>
-                  Capacity
-                </span>
+                <span className="preview-label">Building</span>
+                <span className="preview-value">{isOtherBuilding ? buildingCustom : building}</span>
+              </div>
+
+              <div className="preview-row">
+                <span className="preview-label">Capacity</span>
                 <span className="preview-value">{capacity} people</span>
               </div>
 
               <div className="preview-row" style={{alignItems:'flex-start'}}>
-                <span className="preview-label" style={{paddingTop:2}}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{verticalAlign:-2}}>
-                    <rect x="1" y="3" width="12" height="9" rx="1.5" stroke="#888" strokeWidth="1.5" fill="none"/>
-                    <path d="M5 3V2M9 3V2M1 6H13" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                  Equipment
-                </span>
+                <span className="preview-label" style={{paddingTop:2}}>Equipment</span>
                 <div className="preview-equipment">
                   {checkedEquipment.length > 0
                       ? checkedEquipment.map(({ id, label, icon }) => (
@@ -458,6 +510,13 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
         </div>
       )}
 
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast({ show: false, type: "", title: "", message: "" })}
+      />
     </main>
   );
 }

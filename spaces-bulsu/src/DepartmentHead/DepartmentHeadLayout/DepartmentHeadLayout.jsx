@@ -181,7 +181,7 @@ export default function DepartmentHeadLayout() {
             </div>
             <div className="dept-logo-text">
               <h2>SpaceS CICT</h2>
-              <span>Department Head</span>
+              <span>Admin</span>
             </div>
           </div>
 
