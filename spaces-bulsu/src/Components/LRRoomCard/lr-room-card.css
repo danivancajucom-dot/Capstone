@@ -99,3 +99,43 @@
   width: 16px;
   color: #64748B;
 }
+
+/* ─── Equipment Row ───────────────────────────────────────── */
+.equipment-row {
+  align-items: flex-start;
+}
+
+.equipment-row > i {
+  margin-top: 4px;
+}
+
+.equipment-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.equipment-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 50px;
+  background-color: #FEF0E7;
+  color: #f57c00;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid #FDD9B5;
+}
+
+.equipment-tag i {
+  font-size: 10px;
+}
+
+.equipment-tag.more {
+  background-color: #F1F5F9;
+  color: #64748B;
+  border-color: #E2E8F0;
+}
