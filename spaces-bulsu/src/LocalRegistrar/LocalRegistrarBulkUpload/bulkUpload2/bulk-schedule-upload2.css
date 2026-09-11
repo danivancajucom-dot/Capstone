@@ -624,3 +624,28 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Duplicate room indicator */
+.room-card.is-duplicate {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.room-duplicate-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 8px;
+  margin: 0 0 8px 0;
+}
+
+.room-dropzone.disabled {
+  opacity: .55;
+  pointer-events: none;
+  cursor: not-allowed;
+}
