@@ -165,8 +165,8 @@ export default function ClerkLayout() {
           <div className="clerk-logo">
             <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="clerk-logo-img" />
             <div className="clerk-logo-text">
-              <h2>SpaceS</h2>
-              <span>Clerk Panel</span>
+              <h2>SpaceS CICT</h2>
+              <span>CICT Clerk</span>
             </div>
           </div>
 

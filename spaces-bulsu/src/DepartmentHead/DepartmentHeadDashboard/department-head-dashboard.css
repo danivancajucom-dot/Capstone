@@ -81,7 +81,7 @@
 .dept-db-stat-value.red    { color: #ef4444; }
 .dept-db-stat-value.orange { color: #f57c00; }
 .dept-db-stat-value.green  { color: #22c55e; }
-.dept-db-stat-value.gray   { color: #9ca3af; }
+.dept-db-stat-value.gray   { color: #5c6378; }
 
 /* BOTTOM GRID */
 .dept-db-bottom-grid {
@@ -336,7 +336,11 @@
   color: #ef4444;
 }
 .dept-db-room-label.free        { color: #16a34a; }
-.dept-db-room-label.maintenance { color: #9ca3af; }
+.dept-db-room-label.maintenance { 
+  color:  rgb(107, 114, 128); 
+  border: none;
+}
+
 
 .dept-db-last-updated {
   margin: 8px 0 0;

@@ -141,12 +141,29 @@
   background: #fafbfc;
 }
 
+/* ── Inactive row — gray pill only ── */
 .rooms-page .rooms-row.is-inactive {
   color: #a8aeb8;
 }
 
-.rooms-page .rooms-row.is-inactive .rm-room-name,
 .rooms-page .rooms-row.is-inactive td {
+  color: #a8aeb8;
+}
+
+.rooms-page .rooms-row.is-inactive .rm-room-name {
+  background-color: #f0f1f4;
+  border-color: #d1d5db;
+  color: #a8aeb8;
+}
+
+/* ── Maintenance row — gray pill only, normal row color ── */
+.rooms-page .rooms-row.is-maintenance {
+  cursor: default;
+}
+
+.rooms-page .rooms-row.is-maintenance .rm-room-name {
+  background-color: #f0f1f4;
+  border-color: #d1d5db;
   color: #a8aeb8;
 }
 
@@ -274,28 +291,22 @@
 }
 
 .rooms-page .row-actions {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 12px;
 }
-
-
 
 .rooms-page .room-status--active      { color: #22c55e; }
 .rooms-page .room-status--active .room-status-dot      { background-color: #22c55e; }
 .rooms-page .room-status--inactive    { color: #9ca3af; }
 .rooms-page .room-status--inactive .room-status-dot    { background-color: #9ca3af; }
-.rooms-page .room-status--maintenance { color: #ef4444; }
-.rooms-page .room-status--maintenance .room-status-dot { background-color: #ef4444; }
+.rooms-page .room-status--maintenance { color: #5c6378; }
+.rooms-page .room-status--maintenance .room-status-dot { background-color: #5c6378; }
 .rooms-page .room-status--unknown     { color: #6b7280; }
 .rooms-page .room-status--unknown .room-status-dot     { background-color: #6b7280; }
 .rooms-page .room-status--occupied    { color: #dc2626; }
 .rooms-page .room-status--occupied .room-status-dot    { background: #dc2626; }
-
-.rooms-page .row-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-}
 
 .rooms-page .action-icon-btn {
   width: 36px;

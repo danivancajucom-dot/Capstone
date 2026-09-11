@@ -47,8 +47,9 @@
 }
 
 .room-status-lr.maintenance {
-  background: #fef3c7;
-  color: #b45309;
+  background: #f3f4f6;
+  color: rgb(107, 114, 128);
+  border: 1px solid rgb(209, 213, 219);
 }
 
 .lr-room-card-info {

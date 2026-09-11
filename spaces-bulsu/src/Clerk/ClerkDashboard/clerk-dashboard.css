@@ -68,14 +68,15 @@ h1 {
 }
 
 .all-rooms {
-  background-color: #ffffff;
-  border: 1.5px solid #333333;
-  color: #333333;
+  border: 1.5px solid #f57c00;
+  background-color: #FEF0E7;
+  color: #f57c00;
 }
 
 .all-rooms.active {
-  background-color: #333333;
+  background-color: #f57c00;
   color: #ffffff;
+  border: 1.5px solid #f57c00;
 }
 
 .available {
@@ -101,7 +102,7 @@ h1 {
 }
 
 .maintenance {
-  background-color: #E2E8F0;
+  background-color: #F8FAFC;
   border: 1.5px solid #64748B;
   color: #64748B;
 }
@@ -132,7 +133,7 @@ h1 {
   padding: 10px 30px;
   border-radius: 6px;
   border: none;
-  background-color: #F2690D;
+  background-color: #f57c00;
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
@@ -158,7 +159,7 @@ h1 {
 }
 
 .clerk-side-icon {
-  color: #F2690D;
+  color: #f57c00;
   font-size: 16px;
 }
 
@@ -166,11 +167,11 @@ h1 {
   padding: 6px 16px;
   border-radius: 6px;
   border: none;
-  background-color: #F2690D;
-  color: #ffffff;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  color: #ffffff;
+  background-color: #f57c00;
 }
 
 .clerk-upcoming-box {
@@ -202,7 +203,7 @@ h1 {
 }
 
 .clerk-upcoming-icon {
-  color: #F2690D;
+  color: #f57c00;
   font-size: 16px;
 }
 
@@ -223,7 +224,7 @@ h1 {
   padding: 10px 20px;
   border-radius: 6px;
   border: none;
-  background-color: #F2690D;
+  background-color:#f57c00;
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
