@@ -623,8 +623,10 @@ function RoomManagementView({
                   <tr
                     key={room.firestoreId}
                     className={`rooms-row ${
-                      room.roomStatus !== "active"
+                      room.roomStatus === "inactive"
                         ? "is-inactive"
+                        : room.roomStatus === "maintenance"
+                        ? "is-maintenance"
                         : "clickable-row"
                     }`}
                     onClick={() => {
