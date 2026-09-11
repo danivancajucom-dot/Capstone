@@ -29,7 +29,7 @@ export default function LoginNav({
         />
 
         <div>
-          <p className="brand-name">Spaces CICT</p>
+          <p className="brand-name">SpaceS CICT</p>
         </div>
       </div>
       
