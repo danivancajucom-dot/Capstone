@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -17,7 +17,7 @@ const steps = [
   { number: 4, label: "CONFIRM" },
 ];
 
-// ---------- helper functions (unchanged) ----------
+// ---------- helper functions ----------
 async function parseExcelFile(file) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
@@ -71,18 +71,19 @@ async function extractRawText(file) {
   }
 }
 
-function RoomCard({ roomName, file, onRemove, onFileChange }) {
+function RoomCard({ roomName, file, onRemove, onFileChange, isDuplicate }) {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
+    if (isDuplicate) return;
     const dropped = e.dataTransfer.files && e.dataTransfer.files[0];
     if (dropped) onFileChange(roomName, dropped);
   };
 
   return (
-    <div className="room-card">
+    <div className={`room-card ${isDuplicate ? "is-duplicate" : ""}`}>
       <div className="room-card-header">
         <span className="room-name">{roomName}</span>
         <button
@@ -95,11 +96,18 @@ function RoomCard({ roomName, file, onRemove, onFileChange }) {
         </button>
       </div>
 
+      {isDuplicate && (
+        <div className="room-duplicate-banner">
+          <i className="fas fa-circle-exclamation" />
+          Schedule already uploaded for this term.
+        </div>
+      )}
+
       <div
-        className={`room-dropzone ${isDragging ? "dragging" : ""} ${file ? "has-file" : ""}`}
+        className={`room-dropzone ${isDragging ? "dragging" : ""} ${file ? "has-file" : ""} ${isDuplicate ? "disabled" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
-          setIsDragging(true);
+          if (!isDuplicate) setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
@@ -107,9 +115,10 @@ function RoomCard({ roomName, file, onRemove, onFileChange }) {
         <input
           type="file"
           accept=".pdf,.xlsx,.xls"
+          disabled={isDuplicate}
           onChange={(e) => {
             const selected = e.target.files[0];
-            if (selected) onFileChange(roomName, selected);
+            if (selected && !isDuplicate) onFileChange(roomName, selected);
           }}
           id={`file-${roomName}`}
         />
@@ -133,7 +142,7 @@ function RoomCard({ roomName, file, onRemove, onFileChange }) {
   );
 }
 
-function AddRoomBox({ availableRooms, onAdd }) {
+function AddRoomBox({ availableRooms, onAdd, disabledRooms }) {
   const [isSelecting, setIsSelecting] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -191,8 +200,6 @@ function AddRoomBox({ availableRooms, onAdd }) {
             <span className="add-room-empty">No matching rooms</span>
           ) : (
             filtered.map((r) => (
-              // onMouseDown (not onClick) so the option is picked before the
-              // input's blur can close this box.
               <div
                 key={r.id}
                 className="add-room-option"
@@ -222,11 +229,13 @@ function AddRoomBox({ availableRooms, onAdd }) {
     >
       <i className="fas fa-plus" />
       <span className="add-room-label">
-        {availableRooms.length === 0 ? "All rooms added" : "Add Room"}
+        {availableRooms.length === 0 ? "No rooms to add" : "Add Room"}
       </span>
       <span className="add-room-hint">
         {availableRooms.length === 0
-          ? "Nothing left to add"
+          ? disabledRooms && disabledRooms.size > 0
+            ? "All rooms already uploaded for this term"
+            : "All rooms added"
           : "Select a room to upload its schedule"}
       </span>
     </button>
@@ -238,9 +247,14 @@ export default function BulkScheduleUpload2() {
   const location = useLocation();
   const { semester, schoolYear } = location.state || {};
 
-  const [rooms, setRooms] = useState([]);          // all rooms from Firestore
-  const [selectedRooms, setSelectedRooms] = useState([]); // { roomName, file }
+  const [rooms, setRooms] = useState([]);
+  const [selectedRooms, setSelectedRooms] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // ─── Duplicate detection state ─────────────────────────────
+  const [duplicateRoomNames, setDuplicateRoomNames] = useState(new Set());
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -255,7 +269,7 @@ export default function BulkScheduleUpload2() {
     }
   };
 
-  // Load rooms from Firestore
+  // ─── Load rooms from Firestore ─────────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "rooms"), (snapshot) => {
       const roomList = snapshot.docs.map((doc) => ({
@@ -267,13 +281,65 @@ export default function BulkScheduleUpload2() {
     return () => unsub();
   }, []);
 
+  // ─── Pre-flight duplicate scan for the current term ────────
+  // Runs whenever the room list, semester, or school year changes.
+  // Marks any room that already has a schedule for this term.
+  useEffect(() => {
+    if (!semester || !schoolYear || rooms.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      setCheckingDuplicates(true);
+      try {
+        const checks = rooms.map(async (room) => {
+          const q = query(
+            collection(db, "rooms", room.id, "schedules"),
+            where("schoolYear", "==", schoolYear),
+            where("semester", "==", semester)
+          );
+          const snap = await getDocs(q);
+          return { roomName: room.roomName, hasExisting: !snap.empty };
+        });
+        const results = await Promise.all(checks);
+        if (cancelled) return;
+        const dups = new Set();
+        results.forEach((r) => {
+          if (r.hasExisting) dups.add(r.roomName);
+        });
+        setDuplicateRoomNames(dups);
+      } catch (err) {
+        console.error("Duplicate scan failed:", err);
+        if (!cancelled) showToast("error", "Check Failed", "Could not verify existing schedules.");
+      } finally {
+        if (!cancelled) setCheckingDuplicates(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rooms, semester, schoolYear]);
+
+  // ─── Available rooms exclude duplicates + already-selected ─
   const availableRooms = rooms.filter(
-    (r) => !selectedRooms.some((sr) => sr.roomName === r.roomName)
+    (r) =>
+      !selectedRooms.some((sr) => sr.roomName === r.roomName) &&
+      !duplicateRoomNames.has(r.roomName)
   );
+
+  const hiddenDuplicateCount = duplicateRoomNames.size;
 
   const handleAddRoom = (roomName) => {
     if (selectedRooms.some((r) => r.roomName === roomName)) {
       showToast("error", "Duplicate", "Room already added.");
+      return;
+    }
+    if (duplicateRoomNames.has(roomName)) {
+      showToast(
+        "error",
+        "Schedule Already Exists",
+        `Schedule already exists for ${schoolYear}, ${semester}, ${roomName}.`
+      );
       return;
     }
     setSelectedRooms([...selectedRooms, { roomName, file: null }]);
@@ -289,6 +355,25 @@ export default function BulkScheduleUpload2() {
     );
   };
 
+  // ─── Final safety check right before parsing ────────────────
+  const recheckDuplicatesForSelected = async () => {
+    const dupRooms = [];
+    await Promise.all(
+      selectedRooms.map(async ({ roomName }) => {
+        const room = rooms.find((r) => r.roomName === roomName);
+        if (!room) return;
+        const q = query(
+          collection(db, "rooms", room.id, "schedules"),
+          where("schoolYear", "==", schoolYear),
+          where("semester", "==", semester)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) dupRooms.push(roomName);
+      })
+    );
+    return dupRooms;
+  };
+
   const handleProcessAll = async () => {
     const hasFile = selectedRooms.some((r) => r.file !== null);
     if (!hasFile) {
@@ -296,10 +381,35 @@ export default function BulkScheduleUpload2() {
       return;
     }
 
+    if (!semester || !schoolYear) {
+      showToast("error", "Missing Term", "Semester and school year are required.");
+      return;
+    }
+
     setLoading(true);
-    showToast("loading", "Processing", "Parsing schedule files...");
+    showToast("loading", "Checking", "Verifying existing schedules...");
 
     try {
+      // ── Final duplicate safety check (in case another user just uploaded)
+      const duplicates = await recheckDuplicatesForSelected();
+      if (duplicates.length > 0) {
+        // refresh the set so UI hides them
+        setDuplicateRoomNames((prev) => {
+          const next = new Set(prev);
+          duplicates.forEach((d) => next.add(d));
+          return next;
+        });
+        // Drop them from the selected list
+        setSelectedRooms((prev) =>
+          prev.filter((r) => !duplicates.includes(r.roomName))
+        );
+        throw new Error(
+          `Schedule already exists for ${schoolYear}, ${semester}, ${duplicates.join(", ")}.`
+        );
+      }
+
+      showToast("loading", "Processing", "Parsing schedule files...");
+
       const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const roomData = [];
 
@@ -312,7 +422,6 @@ export default function BulkScheduleUpload2() {
         if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
           schedules = await parseExcelFile(file);
         } else {
-          // PDF → AI extraction
           const rawText = await extractRawText(file);
           const response = await fetch(`${apiUrl}/api/extract-schedule`, {
             method: "POST",
@@ -381,13 +490,26 @@ export default function BulkScheduleUpload2() {
           )}
         </div>
 
-        {selectedRooms.length === 0 && (
+        {checkingDuplicates && (
+          <p className="room-grid-empty-hint">
+            <i className="fas fa-spinner fa-spin" /> Checking existing schedules for {schoolYear} — {semester}…
+          </p>
+        )}
+
+        {!checkingDuplicates && hiddenDuplicateCount > 0 && (
+          <p className="room-grid-empty-hint">
+            <i className="fas fa-circle-info" />{" "}
+            {hiddenDuplicateCount} room{hiddenDuplicateCount > 1 ? "s" : ""} hidden — schedule
+            already exists for {schoolYear}, {semester}.
+          </p>
+        )}
+
+        {selectedRooms.length === 0 && !checkingDuplicates && (
           <p className="room-grid-empty-hint">
             <i className="fas fa-circle-info" /> No rooms added yet. Click the box below to add your first room.
           </p>
         )}
 
-        {/* Room cards grid: each selected room + its own dropzone, plus the Add Room trace box */}
         <div className="room-grid">
           {selectedRooms.map(({ roomName, file }) => (
             <RoomCard
@@ -396,10 +518,15 @@ export default function BulkScheduleUpload2() {
               file={file}
               onRemove={handleRemoveRoom}
               onFileChange={handleFileChange}
+              isDuplicate={duplicateRoomNames.has(roomName)}
             />
           ))}
 
-          <AddRoomBox availableRooms={availableRooms} onAdd={handleAddRoom} />
+          <AddRoomBox
+            availableRooms={availableRooms}
+            onAdd={handleAddRoom}
+            disabledRooms={duplicateRoomNames}
+          />
         </div>
 
         {selectedRooms.length > 0 && (
@@ -413,7 +540,7 @@ export default function BulkScheduleUpload2() {
           <button
             className="btn-next-two"
             onClick={handleProcessAll}
-            disabled={loading || selectedRooms.length === 0}
+            disabled={loading || selectedRooms.length === 0 || checkingDuplicates}
           >
             {loading ? "Processing..." : "Next"}
           </button>

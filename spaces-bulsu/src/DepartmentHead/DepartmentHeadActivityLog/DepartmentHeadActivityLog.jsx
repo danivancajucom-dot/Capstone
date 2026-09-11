@@ -6,9 +6,6 @@ import {
   onSnapshot,
   query,
   orderBy,
-  deleteDoc,
-  doc,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
@@ -50,10 +47,6 @@ export default function DepartmentHeadActivityLog() {
   const [logs, setLogs] = useState([]);
   const [todayCount, setTodayCount] = useState(0);
   const [alertCount, setAlertCount] = useState(0);
-
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const [toast, setToast] = useState({
     show: false,
@@ -158,7 +151,6 @@ export default function DepartmentHeadActivityLog() {
 
   useEffect(() => {
     setCurrentPage(1);
-    setSelectedIds([]);
   }, [activeTab, dateRange, userRole, actionType]);
 
   useEffect(() => {
@@ -175,62 +167,6 @@ export default function DepartmentHeadActivityLog() {
     return pages;
   };
   const pageNumbers = renderPageNumbers();
-
-  // ─── Selection ──────────────────────────────────────────────────────
-  const toggleSelect = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const allOnPageSelected =
-    paginatedLogs.length > 0 &&
-    paginatedLogs.every((l) => selectedIds.includes(l.id));
-
-  const toggleSelectAllOnPage = () => {
-    if (allOnPageSelected) {
-      setSelectedIds((prev) =>
-        prev.filter((id) => !paginatedLogs.some((l) => l.id === id))
-      );
-    } else {
-      setSelectedIds((prev) => [
-        ...new Set([...prev, ...paginatedLogs.map((l) => l.id)]),
-      ]);
-    }
-  };
-
-  // ─── Delete ──────────────────────────────────────────────────────────
-  const requestDeleteSingle = (id) => setDeleteTarget({ ids: [id] });
-  const requestDeleteSelected = () => setDeleteTarget({ ids: selectedIds });
-
-  const confirmDelete = async () => {
-    if (!deleteTarget || deleteTarget.ids.length === 0) return;
-    setDeleting(true);
-    try {
-      if (deleteTarget.ids.length === 1) {
-        await deleteDoc(doc(db, "activityLogs", deleteTarget.ids[0]));
-      } else {
-        const batch = writeBatch(db);
-        deleteTarget.ids.forEach((id) => {
-          batch.delete(doc(db, "activityLogs", id));
-        });
-        await batch.commit();
-      }
-      setSelectedIds((prev) =>
-        prev.filter((id) => !deleteTarget.ids.includes(id))
-      );
-      showToast(
-        `Deleted ${deleteTarget.ids.length} log${deleteTarget.ids.length > 1 ? "s" : ""}.`,
-        "success"
-      );
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to delete log(s).", "error");
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  };
 
   // ─── Export CSV ──────────────────────────────────────────────────────
   const exportCSV = async () => {
@@ -409,16 +345,6 @@ export default function DepartmentHeadActivityLog() {
         </div>
 
         <div className="log-actions">
-          {selectedIds.length > 0 && (
-            <button
-              className="action-btn outline"
-              style={{ color: "#dc2626", borderColor: "#dc2626" }}
-              onClick={requestDeleteSelected}
-            >
-              <i className="fa-solid fa-trash"></i>
-              Delete Selected ({selectedIds.length})
-            </button>
-          )}
           <button className="action-btn outline" onClick={exportCSV}>
             <i className="fa-solid fa-download"></i>
             Export CSV
@@ -538,26 +464,17 @@ export default function DepartmentHeadActivityLog() {
           <table className="log-table">
             <thead>
               <tr>
-                <th style={{ width: 36 }}>
-                  <input
-                    type="checkbox"
-                    checked={allOnPageSelected}
-                    onChange={toggleSelectAllOnPage}
-                    aria-label="Select all on this page"
-                  />
-                </th>
                 <th>USER</th>
                 <th>ACTION</th>
                 <th>TARGET</th>
                 <th>DATE & TIME</th>
                 <th>STATUS</th>
-                <th style={{ width: 60 }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {paginatedLogs.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}>
+                  <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}>
                     No activity logs found.
                   </td>
                 </tr>
@@ -572,15 +489,6 @@ export default function DepartmentHeadActivityLog() {
 
                 return (
                   <tr key={log.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(log.id)}
-                        onChange={() => toggleSelect(log.id)}
-                        aria-label={`Select log ${log.id}`}
-                      />
-                    </td>
-
                     <td>
                       <div className="user-cell">
                         <div className="user-avatar">
@@ -616,27 +524,6 @@ export default function DepartmentHeadActivityLog() {
                       <span className={`status-badge ${log.status?.toLowerCase?.()}`}>
                         {log.status}
                       </span>
-                    </td>
-
-                    <td>
-                      <button
-                        type="button"
-                        onClick={() => requestDeleteSingle(log.id)}
-                        aria-label="Delete log entry"
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          color: "#9ca3af",
-                          fontSize: 15,
-                          padding: "6px 8px",
-                          borderRadius: 6,
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
-                      >
-                        <i className="fa-solid fa-trash"></i>
-                      </button>
                     </td>
                   </tr>
                 );
@@ -698,95 +585,6 @@ export default function DepartmentHeadActivityLog() {
             </button>
           </div>
         </div>
-
-        {/* DELETE CONFIRM MODAL */}
-        {deleteTarget && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.45)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-            }}
-          >
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: 14,
-                padding: "28px 26px",
-                width: "100%",
-                maxWidth: 360,
-                textAlign: "center",
-                boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
-              }}
-            >
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "50%",
-                  background: "#fee2e2",
-                  color: "#dc2626",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 20,
-                  margin: "0 auto 14px",
-                }}
-              >
-                <i className="fa-solid fa-triangle-exclamation"></i>
-              </div>
-
-              <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800, color: "#1E2430" }}>
-                Delete {deleteTarget.ids.length > 1 ? `${deleteTarget.ids.length} logs` : "this log"}?
-              </h3>
-
-              <p style={{ margin: "0 0 20px", fontSize: 13.5, color: "#64748B" }}>
-                This action is permanent and cannot be undone.
-              </p>
-
-              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <button
-                  onClick={() => setDeleteTarget(null)}
-                  disabled={deleting}
-                  style={{
-                    padding: "10px 24px",
-                    borderRadius: 10,
-                    border: "1.5px solid #e5e7eb",
-                    background: "#fff",
-                    color: "#374151",
-                    fontWeight: 700,
-                    fontSize: 13.5,
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  onClick={confirmDelete}
-                  disabled={deleting}
-                  style={{
-                    padding: "10px 24px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "#dc2626",
-                    color: "#fff",
-                    fontWeight: 700,
-                    fontSize: 13.5,
-                    cursor: "pointer",
-                    opacity: deleting ? 0.7 : 1,
-                  }}
-                >
-                  {deleting ? "Deleting..." : "Delete"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <Toast
           show={toast.show}
