@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./clerk-view-academic-schedule.css";
 import LRRoomCard from "../../Components/LRRoomCard/LRRoomCard";
@@ -8,14 +8,6 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../../firebase";
-
-const FLOORS = [
-  "All Floors",
-  "1st floor",
-  "2nd floor",
-  "3rd floor",
-  "4th floor",
-];
 
 // ─── Time helpers ─────────────────────────────────────────────────────
 const timeToMinutes = (time) => {
@@ -36,17 +28,19 @@ const getCurrentMinutes = () => {
   return now.getHours() * 60 + now.getMinutes();
 };
 
-const getCurrentDay = () => {
-  const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-  return days[new Date().getDay()];
-};
-
 const getToday = () => {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+};
+
+const getCurrentTime = () => {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, "0");
+  const m = String(now.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
 };
 
 const isUnderMaintenance = (roomData) => {
@@ -79,12 +73,29 @@ const getLatestSchedule = (schedules) => {
   }, schedules[0]);
 };
 
+const STATUS_OPTIONS = [
+  "All Status",
+  "Available",
+  "Occupied",
+  "Under Maintenance",
+];
+
 // ─── Main component ──────────────────────────────────────────────────
 function ClerkViewAcademicSchedule() {
   const navigate = useNavigate();
+
+  // ─── Building + Floor (top) ──────────────────────────────────────
+  const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
   const [selectedFloor, setSelectedFloor] = useState("All Floors");
 
-  // ─── Real‑time state ───────────────────────────────────────────────
+  // ─── Floating filter panel ───────────────────────────────────────
+  const [selectedDate, setSelectedDate] = useState(getToday());
+  const [startTime, setStartTime] = useState(getCurrentTime());
+  const [endTime, setEndTime] = useState(getCurrentTime());
+  const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // ─── Real-time state ─────────────────────────────────────────────
   const [rooms, setRooms] = useState([]);
   const [roomSchedules, setRoomSchedules] = useState({});
   const [events, setEvents] = useState([]);
@@ -93,12 +104,18 @@ function ClerkViewAcademicSchedule() {
   const [reassignments, setReassignments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ─── Pagination ────────────────────────────────────────────────────
+  // ─── Live ticker ─────────────────────────────────────────────────
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 30 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ─── Pagination (load more) ──────────────────────────────────────
   const PAGE_SIZE = 8;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // ─── Listeners ─────────────────────────────────────────────────────
-
+  // ─── Listeners ───────────────────────────────────────────────────
   useEffect(() => {
     const unsubRooms = onSnapshot(collection(db, "rooms"), (snap) => {
       const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -143,7 +160,7 @@ function ClerkViewAcademicSchedule() {
     };
   }, []);
 
-  // ─── Per‑room schedules listener ──────────────────────────────────
+  // ─── Per-room schedules listener ─────────────────────────────────
   useEffect(() => {
     if (rooms.length === 0) return;
 
@@ -165,32 +182,76 @@ function ClerkViewAcademicSchedule() {
     return () => unsubs.forEach((u) => u());
   }, [rooms.map((r) => r.id).join(",")]);
 
-  // ─── Reset pagination on floor change ────────────────────────────
+  // ─── Reset pagination on filter change ───────────────────────────
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [selectedFloor]);
+  }, [selectedBuilding, selectedFloor, selectedStatus, selectedDate, startTime, endTime]);
 
-  // ─── Compute rooms with latest schedule and status ────────────────
+  // ─── Building options ────────────────────────────────────────────
+  const buildingOptions = useMemo(() => {
+    const set = new Set();
+    rooms.forEach((r) => r.building && set.add(r.building));
+    return ["All Buildings", ...Array.from(set).sort()];
+  }, [rooms]);
 
-  const computedRooms = (() => {
-    const today = getToday();
-    const currentMinutes = getCurrentMinutes();
-    const todayDay = getCurrentDay();
+  // ─── Floor options depend on selected building ───────────────────
+  const floorOptions = useMemo(() => {
+    const set = new Set();
+    rooms
+      .filter(
+        (r) =>
+          selectedBuilding === "All Buildings" || r.building === selectedBuilding
+      )
+      .forEach((r) => r.floor && set.add(r.floor));
+    return ["All Floors", ...Array.from(set).sort()];
+  }, [rooms, selectedBuilding]);
 
-    const releaseKeysToday = new Set(
+  // Reset floor if no longer valid
+  useEffect(() => {
+    if (!floorOptions.includes(selectedFloor)) {
+      setSelectedFloor("All Floors");
+    }
+  }, [floorOptions, selectedFloor]);
+
+  // ─── Compute rooms with latest schedule and status ───────────────
+  const computedRooms = useMemo(() => {
+    const todayDay = new Date(selectedDate + "T00:00:00")
+      .toLocaleDateString("en-US", { weekday: "short" })
+      .toUpperCase();
+
+    // Compute time window
+    const nowMinutes = getCurrentMinutes();
+    let windowStart = startTime
+      ? timeToMinutes(startTime)
+      : endTime
+      ? timeToMinutes(endTime)
+      : nowMinutes;
+    let windowEnd = endTime
+      ? timeToMinutes(endTime)
+      : startTime
+      ? timeToMinutes(startTime)
+      : nowMinutes;
+    if (windowStart > windowEnd) {
+      [windowStart, windowEnd] = [windowEnd, windowStart];
+    }
+
+    const overlaps = (startMin, endMin) =>
+      startMin <= windowEnd && endMin >= windowStart;
+
+    const releaseKeysForDate = new Set(
       releases
-        .filter((r) => r.date === today)
+        .filter((r) => r.date === selectedDate)
         .map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    const reassignAwayKeysToday = new Set(
+    const reassignAwayKeysForDate = new Set(
       reassignments
-        .filter((r) => r.date === today && r.oldRoomId)
+        .filter((r) => r.date === selectedDate && r.oldRoomId)
         .map((r) => `${r.scheduleId}_${r.date}`)
     );
 
     const reassignIntoByRoom = reassignments
-      .filter((r) => r.date === today && r.newRoomId)
+      .filter((r) => r.date === selectedDate && r.newRoomId)
       .reduce((acc, r) => {
         if (!acc[r.newRoomId]) acc[r.newRoomId] = [];
         acc[r.newRoomId].push(r);
@@ -199,33 +260,27 @@ function ClerkViewAcademicSchedule() {
 
     return rooms
       .map((room) => {
-        // Floor filter
-        if (selectedFloor !== "All Floors" && room.floor !== selectedFloor) {
-          return null;
-        }
-
         const maintenance = isUnderMaintenance(room);
         const schedules = roomSchedules[room.id] || [];
         const latestSchedule = getLatestSchedule(schedules);
 
-        // ── Determine occupancy by checking ALL schedules today ──
         let occupied = false;
         let occupiedUntil = "";
         let currentSchedule = null;
 
-        // 1. Check all schedules for today
-        const todaySchedules = schedules.filter(
+        // 1. Check schedules for the selected day
+        const daySchedules = schedules.filter(
           (s) =>
             !s.initialized &&
             s.day?.toUpperCase() === todayDay &&
-            !releaseKeysToday.has(`${s.id}_${today}`) &&
-            !reassignAwayKeysToday.has(`${s.id}_${today}`)
+            !releaseKeysForDate.has(`${s.id}_${selectedDate}`) &&
+            !reassignAwayKeysForDate.has(`${s.id}_${selectedDate}`)
         );
 
-        for (const sched of todaySchedules) {
+        for (const sched of daySchedules) {
           const start = timeToMinutes(sched.startTime);
           const end = timeToMinutes(sched.endTime);
-          if (currentMinutes >= start && currentMinutes < end) {
+          if (overlaps(start, end)) {
             occupied = true;
             occupiedUntil = sched.endTime;
             currentSchedule = sched;
@@ -233,13 +288,15 @@ function ClerkViewAcademicSchedule() {
           }
         }
 
-        // 2. If not occupied, check events
+        // 2. Events
         if (!occupied) {
-          const roomEvents = events.filter((e) => e.roomId === room.id && e.date === today);
+          const roomEvents = events.filter(
+            (e) => e.roomId === room.id && e.date === selectedDate
+          );
           for (const e of roomEvents) {
             const start = timeToMinutes(e.startTime);
             const end = timeToMinutes(e.endTime);
-            if (currentMinutes >= start && currentMinutes < end) {
+            if (overlaps(start, end)) {
               occupied = true;
               occupiedUntil = e.endTime;
               currentSchedule = e;
@@ -248,15 +305,15 @@ function ClerkViewAcademicSchedule() {
           }
         }
 
-        // 3. If not occupied, check reservations
+        // 3. Reservations
         if (!occupied) {
           const roomReservations = reservations.filter(
-            (r) => r.roomId === room.id && r.date === today
+            (r) => r.roomId === room.id && r.date === selectedDate
           );
           for (const r of roomReservations) {
             const start = timeToMinutes(r.startTime);
             const end = timeToMinutes(r.endTime);
-            if (currentMinutes >= start && currentMinutes < end) {
+            if (overlaps(start, end)) {
               occupied = true;
               occupiedUntil = r.endTime;
               currentSchedule = r;
@@ -265,13 +322,13 @@ function ClerkViewAcademicSchedule() {
           }
         }
 
-        // 4. If not occupied, check reassigned‑in
+        // 4. Reassigned-in
         if (!occupied) {
           const reassignInto = reassignIntoByRoom[room.id] || [];
           for (const item of reassignInto) {
             const start = timeToMinutes(item.startTime);
             const end = timeToMinutes(item.endTime);
-            if (currentMinutes >= start && currentMinutes < end) {
+            if (overlaps(start, end)) {
               occupied = true;
               occupiedUntil = item.endTime;
               currentSchedule = item;
@@ -290,14 +347,37 @@ function ClerkViewAcademicSchedule() {
           id: room.id,
           ...room,
           status,
-          latestSchedule,   // for display (most recent semester/year)
-          currentSchedule,  // the actual schedule occupying now
+          latestSchedule,
+          currentSchedule,
         };
       })
-      .filter(Boolean);
-  })();
+      .filter((room) => {
+        if (selectedBuilding !== "All Buildings" && room.building !== selectedBuilding)
+          return false;
+        if (selectedFloor !== "All Floors" && room.floor !== selectedFloor)
+          return false;
+        if (selectedStatus !== "All Status" && room.status !== selectedStatus)
+          return false;
+        return true;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rooms,
+    roomSchedules,
+    events,
+    reservations,
+    releases,
+    reassignments,
+    selectedBuilding,
+    selectedFloor,
+    selectedStatus,
+    selectedDate,
+    startTime,
+    endTime,
+    nowTick,
+  ]);
 
-  // ─── Paginate ──────────────────────────────────────────────────────
+  // ─── Paginate ────────────────────────────────────────────────────
   const visibleRooms = computedRooms.slice(0, visibleCount);
   const hasMore = visibleCount < computedRooms.length;
 
@@ -305,32 +385,87 @@ function ClerkViewAcademicSchedule() {
     setVisibleCount((prev) => prev + PAGE_SIZE);
   };
 
-  // ─── Render ────────────────────────────────────────────────────────
+  // ─── Clear filters ───────────────────────────────────────────────
+  const clearFilters = () => {
+    setSelectedBuilding("All Buildings");
+    setSelectedFloor("All Floors");
+    setSelectedDate(getToday());
+    setStartTime(getCurrentTime());
+    setEndTime(getCurrentTime());
+    setSelectedStatus("All Status");
+  };
 
+  const hasActiveFilters =
+    selectedBuilding !== "All Buildings" ||
+    selectedFloor !== "All Floors" ||
+    selectedStatus !== "All Status";
+
+  // ─── Render ──────────────────────────────────────────────────────
   return (
     <div className="clerk-academic-schedule">
-      <div>
+      <div className="lr-page-header">
         <h1>Academic Schedule</h1>
         <p>
-          View classroom schedules by room. Shows the latest schedule for each room.
+          View classroom schedules by building, floor, date, and time.
           Status updates automatically in real time.
         </p>
       </div>
 
       <div className="white-box-rooms">
-        {/* Floor filter only */}
-        <div className="floor-buttons-lr">
-          {FLOORS.map((floor) => (
-            <button
-              key={floor}
-              className={`floor-btn-lr ${selectedFloor === floor ? "active" : ""}`}
-              onClick={() => setSelectedFloor(floor)}
-            >
-              {floor}
-            </button>
-          ))}
+        {/* ─── BUILDING + FLOORS ──────────────────────────────── */}
+        <div className="building-floor-filter">
+          <div className="filter-group building-group">
+            <label className="filter-label">Building</label>
+            <div className="dropdown-container">
+              <select
+                className="dropdown"
+                value={selectedBuilding}
+                onChange={(e) => {
+                  setSelectedBuilding(e.target.value);
+                  setSelectedFloor("All Floors");
+                }}
+              >
+                {buildingOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+              <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
+            </div>
+          </div>
+
+          <div className="floor-buttons-lr">
+            {floorOptions.map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={`floor-btn-lr ${selectedFloor === f ? "active" : ""}`}
+                onClick={() => setSelectedFloor(f)}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* ─── ACTIVE FILTER CHIPS ─────────────────────────────── */}
+        <div className="active-filter-chips">
+          <span className="filter-chip">
+            <i className="fa-regular fa-calendar"></i>
+            {selectedDate}
+          </span>
+          <span className="filter-chip">
+            <i className="fa-regular fa-clock"></i>
+            {startTime || "--:--"} – {endTime || "--:--"}
+          </span>
+          <span className="filter-chip">
+            <i className="fa-solid fa-circle-info"></i>
+            {selectedStatus}
+          </span>
+        </div>
+
+        {/* ─── ROOM CARDS ──────────────────────────────────────── */}
         <div className="lr-room-cards">
           {loading ? (
             <div className="room-empty">
@@ -342,7 +477,7 @@ function ClerkViewAcademicSchedule() {
             <div className="room-empty">
               <i className="fa-regular fa-building"></i>
               <h2>No Rooms Found</h2>
-              <p>No rooms match the selected floor or have schedules.</p>
+              <p>No rooms match the selected filters or have schedules.</p>
             </div>
           ) : (
             visibleRooms.map((room) => (
@@ -352,6 +487,7 @@ function ClerkViewAcademicSchedule() {
                 floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}
+                equipment={room.equipment}
                 status={room.status}
                 latestSchedule={room.latestSchedule}
                 currentSchedule={room.currentSchedule}
@@ -376,6 +512,116 @@ function ClerkViewAcademicSchedule() {
           </div>
         )}
       </div>
+
+      {/* ─── FLOATING FILTER BUTTON ────────────────────────────── */}
+      <button
+        type="button"
+        className={`fab-filter-btn ${hasActiveFilters ? "has-active" : ""}`}
+        onClick={() => setShowFilterPanel((v) => !v)}
+        aria-label="Open filters"
+      >
+        <i className="fa-solid fa-sliders"></i>
+        {hasActiveFilters && <span className="fab-dot" />}
+      </button>
+
+      {/* ─── FLOATING FILTER PANEL ─────────────────────────────── */}
+      {showFilterPanel && (
+        <>
+          <div
+            className="filter-panel-overlay"
+            onClick={() => setShowFilterPanel(false)}
+          />
+          <div className="filter-panel">
+            <div className="filter-panel-header">
+              <h3>
+                <i className="fa-solid fa-sliders"></i> Filters
+              </h3>
+              <button
+                type="button"
+                className="filter-panel-close"
+                onClick={() => setShowFilterPanel(false)}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="filter-panel-body">
+              <div className="filter-group">
+                <label className="filter-label">Date</label>
+                <div className="dropdown-container">
+                  <input
+                    type="date"
+                    className="dropdown date-input"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="filter-row">
+                <div className="filter-group">
+                  <label className="filter-label">Start Time</label>
+                  <div className="dropdown-container">
+                    <input
+                      type="time"
+                      className="dropdown time-input"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">End Time</label>
+                  <div className="dropdown-container">
+                    <input
+                      type="time"
+                      className="dropdown time-input"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Status</label>
+                <div className="status-pills">
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`status-pill ${
+                        selectedStatus === s ? "active" : ""
+                      }`}
+                      onClick={() => setSelectedStatus(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="filter-panel-footer">
+              <button
+                type="button"
+                className="panel-clear-btn"
+                onClick={clearFilters}
+              >
+                <i className="fa-solid fa-rotate-left"></i> Clear
+              </button>
+              <button
+                type="button"
+                className="panel-apply-btn"
+                onClick={() => setShowFilterPanel(false)}
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

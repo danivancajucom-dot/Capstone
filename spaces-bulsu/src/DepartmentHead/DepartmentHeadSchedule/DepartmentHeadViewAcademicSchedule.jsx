@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./dept-head-view-academic-schedule.css";
 import LRRoomCard from "../../Components/LRRoomCard/LRRoomCard";
 
 import {
   collection,
-  getDocs,
+  collectionGroup,
+  onSnapshot,
 } from "firebase/firestore";
 
 import { db } from "../../firebase";
@@ -29,11 +30,6 @@ const getCurrentMinutes = () => {
   return now.getHours() * 60 + now.getMinutes();
 };
 
-const getCurrentDay = () => {
-  const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-  return days[new Date().getDay()];
-};
-
 const getToday = () => {
   const now = new Date();
   const y = now.getFullYear();
@@ -54,240 +50,340 @@ const isUnderMaintenance = (roomData) => {
   return roomStatus === "maintenance";
 };
 
+const STATUS_OPTIONS = [
+  "All Status",
+  "Available",
+  "Occupied",
+  "Under Maintenance",
+];
+
 function DepartmentHeadViewAcademicSchedule() {
   const navigate = useNavigate();
 
-  // ─── Filters ──────────────────────────────────────────────────
-  const [semester, setSemester] = useState("");
-  const [schoolYear, setSchoolYear] = useState("");
+  // ─── Building + Floor (top) ──────────────────────────────────
   const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
   const [selectedFloor, setSelectedFloor] = useState("All Floors");
-  const [selectedDate, setSelectedDate] = useState(getToday());
-  const [selectedTime, setSelectedTime] = useState(getCurrentTime());
 
-  // ─── Data ─────────────────────────────────────────────────────
-  const [allRooms, setAllRooms] = useState([]);
-  const [filteredRooms, setFilteredRooms] = useState([]);
+  // ─── Floating filter panel ───────────────────────────────────
+  const [selectedDate, setSelectedDate] = useState(getToday());
+  const [startTime, setStartTime] = useState(getCurrentTime());
+  const [endTime, setEndTime] = useState(getCurrentTime());
+  const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // ─── Realtime data ───────────────────────────────────────────
+  const [roomsData, setRoomsData] = useState([]);
+  const [schedulesData, setSchedulesData] = useState([]);
+  const [eventsData, setEventsData] = useState([]);
+  const [reservationsData, setReservationsData] = useState([]);
+  const [releasesData, setReleasesData] = useState([]);
+  const [reassignmentsData, setReassignmentsData] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ─── Live ticker ─────────────────────────────────────────────
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 30 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ─── Realtime subscriptions ──────────────────────────────────
+  useEffect(() => {
+    const unsubs = [];
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, "rooms"),
+        (snap) => {
+          setRoomsData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+          setLoading(false);
+        },
+        (err) => {
+          console.error("rooms listener:", err);
+          setLoading(false);
+        }
+      )
+    );
+
+    unsubs.push(
+      onSnapshot(
+        collectionGroup(db, "schedules"),
+        (snap) => {
+          setSchedulesData(
+            snap.docs.map((d) => ({
+              id: d.id,
+              roomId: d.ref.parent.parent?.id,
+              ...d.data(),
+            }))
+          );
+        },
+        (err) => console.error("schedules listener:", err)
+      )
+    );
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, "events"),
+        (snap) =>
+          setEventsData(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        (err) => console.error("events listener:", err)
+      )
+    );
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, "reservationRequests"),
+        (snap) =>
+          setReservationsData(
+            snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          ),
+        (err) => console.error("reservations listener:", err)
+      )
+    );
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, "roomReleases"),
+        (snap) =>
+          setReleasesData(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        (err) => console.error("releases listener:", err)
+      )
+    );
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, "roomReassignments"),
+        (snap) =>
+          setReassignmentsData(
+            snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          ),
+        (err) => console.error("reassignments listener:", err)
+      )
+    );
+
+    return () => unsubs.forEach((u) => u());
+  }, []);
+
+  // ─── Group schedules by room ─────────────────────────────────
+  const schedulesByRoom = useMemo(() => {
+    const map = new Map();
+    schedulesData.forEach((s) => {
+      if (!s.roomId) return;
+      if (!map.has(s.roomId)) map.set(s.roomId, []);
+      map.get(s.roomId).push(s);
+    });
+    return map;
+  }, [schedulesData]);
+
+  // ─── Building options ────────────────────────────────────────
+  const buildingOptions = useMemo(() => {
+    const set = new Set();
+    roomsData.forEach((r) => r.building && set.add(r.building));
+    return ["All Buildings", ...Array.from(set).sort()];
+  }, [roomsData]);
+
+  // ─── Floor options depend on building ────────────────────────
+  const floorOptions = useMemo(() => {
+    const set = new Set();
+    roomsData
+      .filter(
+        (r) =>
+          selectedBuilding === "All Buildings" || r.building === selectedBuilding
+      )
+      .forEach((r) => r.floor && set.add(r.floor));
+    return ["All Floors", ...Array.from(set).sort()];
+  }, [roomsData, selectedBuilding]);
+
+  useEffect(() => {
+    if (!floorOptions.includes(selectedFloor)) {
+      setSelectedFloor("All Floors");
+    }
+  }, [floorOptions, selectedFloor]);
+
+  // ─── Compute rooms ───────────────────────────────────────────
+  const processedRooms = useMemo(() => {
+    if (roomsData.length === 0) return [];
+
+    const selectedDay = new Date(selectedDate + "T00:00:00")
+      .toLocaleDateString("en-US", { weekday: "short" })
+      .toUpperCase();
+
+    const nowMinutes = getCurrentMinutes();
+    let windowStart = startTime
+      ? timeToMinutes(startTime)
+      : endTime
+      ? timeToMinutes(endTime)
+      : nowMinutes;
+    let windowEnd = endTime
+      ? timeToMinutes(endTime)
+      : startTime
+      ? timeToMinutes(startTime)
+      : nowMinutes;
+    if (windowStart > windowEnd) {
+      [windowStart, windowEnd] = [windowEnd, windowStart];
+    }
+
+    const releaseMap = new Map();
+    releasesData.forEach((data) => {
+      if (data.date !== selectedDate) return;
+      const key = `${data.scheduleId}_${data.date}`;
+      if (!releaseMap.has(data.roomId)) releaseMap.set(data.roomId, new Set());
+      releaseMap.get(data.roomId).add(key);
+    });
+
+    const reassignAwayMap = new Map();
+    const reassignIntoMap = new Map();
+    reassignmentsData.forEach((data) => {
+      if (String(data.status || "").toLowerCase() !== "approved") return;
+      if (data.date !== selectedDate) return;
+      const key = `${data.scheduleId}_${data.date}`;
+      if (data.oldRoomId) {
+        if (!reassignAwayMap.has(data.oldRoomId)) {
+          reassignAwayMap.set(data.oldRoomId, new Set());
+        }
+        reassignAwayMap.get(data.oldRoomId).add(key);
+      }
+      if (data.newRoomId) {
+        if (!reassignIntoMap.has(data.newRoomId)) {
+          reassignIntoMap.set(data.newRoomId, []);
+        }
+        reassignIntoMap.get(data.newRoomId).push(data);
+      }
+    });
+
+    const overlaps = (startMin, endMin) =>
+      startMin <= windowEnd && endMin >= windowStart;
+
+    const result = [];
+
+    roomsData.forEach((roomData) => {
+      const roomId = roomData.id;
+      const schedules = schedulesByRoom.get(roomId) || [];
+
+      // Only show rooms with schedules
+      if (schedules.length === 0) return;
+
+      let occupied = false;
+      let occupiedUntil = "";
+
+      const releasesForRoom = releaseMap.get(roomId) || new Set();
+      const reassignAwayForRoom = reassignAwayMap.get(roomId) || new Set();
+
+      schedules.forEach((schedule) => {
+        if (schedule.initialized) return;
+        if (schedule.day?.toUpperCase() !== selectedDay) return;
+
+        const key = `${schedule.id}_${selectedDate}`;
+        if (releasesForRoom.has(key)) return;
+        if (reassignAwayForRoom.has(key)) return;
+
+        const start = timeToMinutes(schedule.startTime);
+        const end = timeToMinutes(schedule.endTime);
+        if (overlaps(start, end)) {
+          occupied = true;
+          occupiedUntil = schedule.endTime;
+        }
+      });
+
+      if (!occupied) {
+        eventsData
+          .filter((e) => e.roomId === roomId && e.date === selectedDate)
+          .forEach((event) => {
+            const start = timeToMinutes(event.startTime);
+            const end = timeToMinutes(event.endTime);
+            if (overlaps(start, end)) {
+              occupied = true;
+              occupiedUntil = event.endTime;
+            }
+          });
+      }
+
+      if (!occupied) {
+        reservationsData
+          .filter(
+            (res) =>
+              res.roomId === roomId &&
+              res.date === selectedDate &&
+              String(res.status).toLowerCase() === "approved"
+          )
+          .forEach((reservation) => {
+            const start = timeToMinutes(reservation.startTime);
+            const end = timeToMinutes(reservation.endTime);
+            if (overlaps(start, end)) {
+              occupied = true;
+              occupiedUntil = reservation.endTime;
+            }
+          });
+      }
+
+      if (!occupied) {
+        const reassignIntoForRoom = reassignIntoMap.get(roomId) || [];
+        reassignIntoForRoom.forEach((item) => {
+          const start = timeToMinutes(item.startTime);
+          const end = timeToMinutes(item.endTime);
+          if (overlaps(start, end)) {
+            occupied = true;
+            occupiedUntil = item.endTime;
+          }
+        });
+      }
+
+      const maintenance = isUnderMaintenance(roomData);
+      const status = maintenance
+        ? "Under Maintenance"
+        : occupied
+        ? "Occupied"
+        : "Available";
+
+      result.push({
+        ...roomData,
+        id: roomId,
+        status,
+        occupiedUntil,
+      });
+    });
+
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    roomsData,
+    schedulesByRoom,
+    eventsData,
+    reservationsData,
+    releasesData,
+    reassignmentsData,
+    selectedDate,
+    startTime,
+    endTime,
+    nowTick,
+  ]);
+
+  // ─── Filter by building / floor / status ─────────────────────
+  const filteredRooms = useMemo(() => {
+    let list = processedRooms;
+
+    if (selectedBuilding !== "All Buildings") {
+      list = list.filter((r) => r.building === selectedBuilding);
+    }
+    if (selectedFloor !== "All Floors") {
+      list = list.filter((r) => r.floor === selectedFloor);
+    }
+    if (selectedStatus !== "All Status") {
+      list = list.filter((r) => r.status === selectedStatus);
+    }
+    return list;
+  }, [processedRooms, selectedBuilding, selectedFloor, selectedStatus]);
 
   // ─── Pagination ──────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // ─── Extract unique buildings & floors from room data ───────
-  const [buildingOptions, setBuildingOptions] = useState(["All Buildings"]);
-  const [floorOptions, setFloorOptions] = useState(["All Floors"]);
-
   useEffect(() => {
-    loadRooms();
-  }, [semester, schoolYear, selectedBuilding, selectedFloor, selectedDate, selectedTime]);
+    setCurrentPage(1);
+  }, [selectedBuilding, selectedFloor, selectedStatus, selectedDate, startTime, endTime]);
 
-  const loadRooms = async () => {
-    setLoading(true);
-
-    try {
-      const selectedDay = new Date(selectedDate + "T00:00:00")
-        .toLocaleDateString("en-US", { weekday: "short" })
-        .toUpperCase();
-      const minutes = timeToMinutes(selectedTime);
-
-      const roomSnapshot = await getDocs(collection(db, "rooms"));
-      const eventSnapshot = await getDocs(collection(db, "events"));
-      const reservationSnapshot = await getDocs(collection(db, "reservationRequests"));
-      const releaseSnap = await getDocs(collection(db, "roomReleases"));
-      const reassignSnap = await getDocs(collection(db, "roomReassignments"));
-
-      const releaseMap = new Map();
-      releaseSnap.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.date !== selectedDate) return;
-        const key = `${data.scheduleId}_${data.date}`;
-        if (!releaseMap.has(data.roomId)) {
-          releaseMap.set(data.roomId, new Set());
-        }
-        releaseMap.get(data.roomId).add(key);
-      });
-
-      const reassignAwayMap = new Map();
-      const reassignIntoMap = new Map();
-      reassignSnap.docs.forEach((doc) => {
-        const data = doc.data();
-        if (String(data.status || "").toLowerCase() !== "approved") return;
-        if (data.date !== selectedDate) return;
-        const key = `${data.scheduleId}_${data.date}`;
-        if (data.oldRoomId) {
-          if (!reassignAwayMap.has(data.oldRoomId)) {
-            reassignAwayMap.set(data.oldRoomId, new Set());
-          }
-          reassignAwayMap.get(data.oldRoomId).add(key);
-        }
-        if (data.newRoomId) {
-          if (!reassignIntoMap.has(data.newRoomId)) {
-            reassignIntoMap.set(data.newRoomId, []);
-          }
-          reassignIntoMap.get(data.newRoomId).push(data);
-        }
-      });
-
-      const processedRooms = [];
-      const buildingsSet = new Set();
-      const floorsSet = new Set();
-
-      for (const roomDoc of roomSnapshot.docs) {
-        const roomData = roomDoc.data();
-
-        if (roomData.building) buildingsSet.add(roomData.building);
-        if (roomData.floor) floorsSet.add(roomData.floor);
-
-        const scheduleSnapshot = await getDocs(
-          collection(db, "rooms", roomDoc.id, "schedules")
-        );
-        const schedules = scheduleSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        const matchingSchedules = schedules.filter((schedule) => {
-          const semesterMatch = !semester || schedule.semester === semester;
-          const schoolYearMatch = !schoolYear || schedule.schoolYear === schoolYear;
-          return semesterMatch && schoolYearMatch;
-        });
-
-        if (matchingSchedules.length === 0) continue;
-
-        let occupied = false;
-        let occupiedUntil = "";
-
-        const releasesForRoom = releaseMap.get(roomDoc.id) || new Set();
-        const reassignAwayForRoom = reassignAwayMap.get(roomDoc.id) || new Set();
-
-        matchingSchedules.forEach((schedule) => {
-          if (schedule.initialized) return;
-          if (schedule.day?.toUpperCase() !== selectedDay) return;
-
-          const key = `${schedule.id}_${selectedDate}`;
-          if (releasesForRoom.has(key)) return;
-          if (reassignAwayForRoom.has(key)) return;
-
-          const start = timeToMinutes(schedule.startTime);
-          const end = timeToMinutes(schedule.endTime);
-          if (minutes >= start && minutes <= end) {
-            occupied = true;
-            occupiedUntil = schedule.endTime;
-          }
-        });
-
-        if (!occupied) {
-          const roomEvents = eventSnapshot.docs
-            .map((doc) => ({ id: doc.id, ...doc.data() }))
-            .filter((event) => event.roomId === roomDoc.id && event.date === selectedDate);
-
-          roomEvents.forEach((event) => {
-            const start = timeToMinutes(event.startTime);
-            const end = timeToMinutes(event.endTime);
-            if (minutes >= start && minutes <= end) {
-              occupied = true;
-              occupiedUntil = event.endTime;
-            }
-          });
-        }
-
-        if (!occupied) {
-          const roomReservations = reservationSnapshot.docs
-            .map((doc) => ({ id: doc.id, ...doc.data() }))
-            .filter(
-              (res) =>
-                res.roomId === roomDoc.id &&
-                res.date === selectedDate &&
-                String(res.status).toLowerCase() === "approved"
-            );
-
-          roomReservations.forEach((reservation) => {
-            const start = timeToMinutes(reservation.startTime);
-            const end = timeToMinutes(reservation.endTime);
-            if (minutes >= start && minutes <= end) {
-              occupied = true;
-              occupiedUntil = reservation.endTime;
-            }
-          });
-        }
-
-        if (!occupied) {
-          const reassignIntoForRoom = reassignIntoMap.get(roomDoc.id) || [];
-          reassignIntoForRoom.forEach((item) => {
-            const start = timeToMinutes(item.startTime);
-            const end = timeToMinutes(item.endTime);
-            if (minutes >= start && minutes <= end) {
-              occupied = true;
-              occupiedUntil = item.endTime;
-            }
-          });
-        }
-
-        const maintenance = isUnderMaintenance(roomData);
-        const status = maintenance
-          ? "Under Maintenance"
-          : occupied
-          ? "Occupied"
-          : "Available";
-
-        processedRooms.push({
-          id: roomDoc.id,
-          ...roomData,
-          status,
-          occupiedUntil,
-        });
-      }
-
-      const uniqueBuildings = ["All Buildings", ...Array.from(buildingsSet).sort()];
-      const uniqueFloors = ["All Floors", ...Array.from(floorsSet).sort()];
-      setBuildingOptions(uniqueBuildings);
-      setFloorOptions(uniqueFloors);
-
-      if (!uniqueBuildings.includes(selectedBuilding)) {
-        setSelectedBuilding("All Buildings");
-      }
-      if (!uniqueFloors.includes(selectedFloor)) {
-        setSelectedFloor("All Floors");
-      }
-
-      let filtered = processedRooms;
-      if (selectedBuilding !== "All Buildings") {
-        filtered = filtered.filter((r) => r.building === selectedBuilding);
-      }
-      if (selectedFloor !== "All Floors") {
-        filtered = filtered.filter((r) => r.floor === selectedFloor);
-      }
-
-      setAllRooms(processedRooms);
-      setFilteredRooms(filtered);
-      setCurrentPage(1);
-    } catch (err) {
-      console.error(err);
-    }
-
-    setLoading(false);
-  };
-
-  // ─── Clear filters ───────────────────────────────────────────
-  const clearFilters = () => {
-    setSemester("");
-    setSchoolYear("");
-    setSelectedBuilding("All Buildings");
-    setSelectedFloor("All Floors");
-    setSelectedDate(getToday());
-    setSelectedTime(getCurrentTime());
-  };
-
-  const hasActiveFilters =
-    semester ||
-    schoolYear ||
-    selectedBuilding !== "All Buildings" ||
-    selectedFloor !== "All Floors";
-
-  // ─── Pagination calculations ────────────────────────────────
   const totalItems = filteredRooms.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const paginatedRooms = filteredRooms.slice(startIndex, endIndex);
@@ -296,127 +392,83 @@ function DepartmentHeadViewAcademicSchedule() {
     setCurrentPage(Math.min(Math.max(1, page), totalPages));
   };
 
+  // ─── Clear filters ───────────────────────────────────────────
+  const clearFilters = () => {
+    setSelectedBuilding("All Buildings");
+    setSelectedFloor("All Floors");
+    setSelectedDate(getToday());
+    setStartTime(getCurrentTime());
+    setEndTime(getCurrentTime());
+    setSelectedStatus("All Status");
+  };
+
+  const hasActiveFilters =
+    selectedBuilding !== "All Buildings" ||
+    selectedFloor !== "All Floors" ||
+    selectedStatus !== "All Status";
+
   // ─── Render ──────────────────────────────────────────────────
   return (
     <div className="lr-academic-schedule">
-      <div>
+      <div className="lr-page-header">
         <h1>Academic Schedule</h1>
         <p>
-          View classroom schedules by semester, school year, building, floor,
-          and specific date/time.
+          View classroom schedules by building, floor, date, and time.
         </p>
       </div>
 
       <div className="white-box-rooms">
-        {/* ─── FILTERS ─────────────────────────────────────────── */}
-        <div className="filters-bar">
-          <div className="filters-header">
-            <span className="filters-title">
-              <i className="fa-solid fa-sliders"></i> Filters
-            </span>
-            {hasActiveFilters && (
-              <button className="clear-filters-btn" onClick={clearFilters}>
-                <i className="fa-solid fa-xmark"></i> Clear filters
+        {/* ─── BUILDING + FLOORS ──────────────────────────────── */}
+        <div className="building-floor-filter">
+          <div className="filter-group building-group">
+            <label className="filter-label">Building</label>
+            <div className="dropdown-container">
+              <select
+                className="dropdown"
+                value={selectedBuilding}
+                onChange={(e) => {
+                  setSelectedBuilding(e.target.value);
+                  setSelectedFloor("All Floors");
+                }}
+              >
+                {buildingOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+              <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
+            </div>
+          </div>
+
+          <div className="floor-buttons-lr">
+            {floorOptions.map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={`floor-btn-lr ${selectedFloor === f ? "active" : ""}`}
+                onClick={() => setSelectedFloor(f)}
+              >
+                {f}
               </button>
-            )}
+            ))}
           </div>
+        </div>
 
-          <div className="filters">
-            <div className="filter-group">
-              <label className="filter-label">Semester</label>
-              <div className="dropdown-container">
-                <select
-                  className="dropdown"
-                  value={semester}
-                  onChange={(e) => setSemester(e.target.value)}
-                  style={{ color: semester ? "#000" : "#64748B" }}
-                >
-                  <option value="">All Semesters</option>
-                  <option value="1st Semester">1st Semester</option>
-                  <option value="2nd Semester">2nd Semester</option>
-                </select>
-                <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <label className="filter-label">School Year</label>
-              <div className="dropdown-container">
-                <select
-                  className="dropdown"
-                  value={schoolYear}
-                  onChange={(e) => setSchoolYear(e.target.value)}
-                  style={{ color: schoolYear ? "#000" : "#64748B" }}
-                >
-                  <option value="">All School Years</option>
-                  <option value="2026-2027">2026-2027</option>
-                  <option value="2027-2028">2027-2028</option>
-                  <option value="2028-2029">2028-2029</option>
-                </select>
-                <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <label className="filter-label">Building</label>
-              <div className="dropdown-container">
-                <select
-                  className="dropdown"
-                  value={selectedBuilding}
-                  onChange={(e) => setSelectedBuilding(e.target.value)}
-                >
-                  {buildingOptions.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <label className="filter-label">Floor</label>
-              <div className="dropdown-container">
-                <select
-                  className="dropdown"
-                  value={selectedFloor}
-                  onChange={(e) => setSelectedFloor(e.target.value)}
-                >
-                  {floorOptions.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-                <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <label className="filter-label">Date</label>
-              <div className="dropdown-container">
-                <input
-                  type="date"
-                  className="dropdown date-input"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <label className="filter-label">Time</label>
-              <div className="dropdown-container">
-                <input
-                  type="time"
-                  className="dropdown time-input"
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
+        {/* ─── ACTIVE FILTER CHIPS ─────────────────────────────── */}
+        <div className="active-filter-chips">
+          <span className="filter-chip">
+            <i className="fa-regular fa-calendar"></i>
+            {selectedDate}
+          </span>
+          <span className="filter-chip">
+            <i className="fa-regular fa-clock"></i>
+            {startTime || "--:--"} – {endTime || "--:--"}
+          </span>
+          <span className="filter-chip">
+            <i className="fa-solid fa-circle-info"></i>
+            {selectedStatus}
+          </span>
         </div>
 
         {/* ─── ROOM CARDS ──────────────────────────────────────── */}
@@ -433,7 +485,7 @@ function DepartmentHeadViewAcademicSchedule() {
               <h2>No Rooms Found</h2>
               <p>
                 No rooms match the selected filters or have schedules for the
-                chosen semester/school year.
+                chosen date and time.
               </p>
             </div>
           ) : (
@@ -444,6 +496,7 @@ function DepartmentHeadViewAcademicSchedule() {
                 floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}
+                equipment={room.equipment}
                 status={room.status}
                 onClick={() =>
                   navigate("/department-head/schedule-room-card", {
@@ -493,6 +546,116 @@ function DepartmentHeadViewAcademicSchedule() {
           </div>
         )}
       </div>
+
+      {/* ─── FLOATING FILTER BUTTON ────────────────────────────── */}
+      <button
+        type="button"
+        className={`fab-filter-btn ${hasActiveFilters ? "has-active" : ""}`}
+        onClick={() => setShowFilterPanel((v) => !v)}
+        aria-label="Open filters"
+      >
+        <i className="fa-solid fa-sliders"></i>
+        {hasActiveFilters && <span className="fab-dot" />}
+      </button>
+
+      {/* ─── FLOATING FILTER PANEL ─────────────────────────────── */}
+      {showFilterPanel && (
+        <>
+          <div
+            className="filter-panel-overlay"
+            onClick={() => setShowFilterPanel(false)}
+          />
+          <div className="filter-panel">
+            <div className="filter-panel-header">
+              <h3>
+                <i className="fa-solid fa-sliders"></i> Filters
+              </h3>
+              <button
+                type="button"
+                className="filter-panel-close"
+                onClick={() => setShowFilterPanel(false)}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="filter-panel-body">
+              <div className="filter-group">
+                <label className="filter-label">Date</label>
+                <div className="dropdown-container">
+                  <input
+                    type="date"
+                    className="dropdown date-input"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="filter-row">
+                <div className="filter-group">
+                  <label className="filter-label">Start Time</label>
+                  <div className="dropdown-container">
+                    <input
+                      type="time"
+                      className="dropdown time-input"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">End Time</label>
+                  <div className="dropdown-container">
+                    <input
+                      type="time"
+                      className="dropdown time-input"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Status</label>
+                <div className="status-pills">
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`status-pill ${
+                        selectedStatus === s ? "active" : ""
+                      }`}
+                      onClick={() => setSelectedStatus(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="filter-panel-footer">
+              <button
+                type="button"
+                className="panel-clear-btn"
+                onClick={clearFilters}
+              >
+                <i className="fa-solid fa-rotate-left"></i> Clear
+              </button>
+              <button
+                type="button"
+                className="panel-apply-btn"
+                onClick={() => setShowFilterPanel(false)}
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
