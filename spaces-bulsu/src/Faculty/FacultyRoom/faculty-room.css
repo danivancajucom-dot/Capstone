@@ -132,3 +132,149 @@ html, body {
   max-width: 420px;
   line-height: 1.6;
 }
+
+/* ============================ */
+/* ===== PAGE HEADER ========== */
+/* ============================ */
+.faculty-room-header {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.faculty-room-header h1 {
+  font-size: 35px;
+  font-weight: 800;
+  color: #1F2937;
+  margin: 0;
+}
+
+.faculty-room-header p {
+  margin: 6px 0 0;
+  color: #6B7280;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+/* ============================ */
+/* ===== WHITE BOX + FILTERS == */
+/* ============================ */
+.white-box-rooms {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.filters-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #ECEAE6;
+  margin-bottom: 8px;
+}
+
+.filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filters-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.filters-title i {
+  color: #F97316;
+}
+
+.clear-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #EF4444;
+  font-family: 'Lexend', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.clear-filters-btn:hover {
+  background: #FEE2E2;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+.dropdown-container {
+  position: relative;
+  width: 100%;
+}
+
+.dropdown {
+  width: 100%;
+  height: 44px;
+  padding: 0 40px 0 14px;
+  border-radius: 10px;
+  border: 1.5px solid #E5E7EB;
+  background: #fff;
+  font-family: 'Lexend', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #1F2937;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.dropdown:hover {
+  border-color: #F97316;
+}
+
+.dropdown:focus {
+  border-color: #F97316;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+}
+
+.dropdown.date-input,
+.dropdown.time-input {
+  padding-right: 14px;
+  cursor: text;
+}
+
+.dropdown-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9CA3AF;
+  font-size: 13px;
+  pointer-events: none;
+}

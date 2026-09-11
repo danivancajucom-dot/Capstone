@@ -16,7 +16,6 @@ body {
 .wc-page {
   min-height: 100vh;
   padding: 20px;
-  margin-top: 80px;
   display: flex;
   flex-direction: column;
 }
@@ -397,4 +396,11 @@ body {
   .wc-legend-term {
     align-self: flex-start;
   }
+}
+
+.wc-event-section {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin-left: 2px;
 }

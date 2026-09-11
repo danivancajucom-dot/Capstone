@@ -1,6 +1,6 @@
 .rut-page {
-  padding: 20px;
-  margin-top: 80px;
+  padding: 20px 10px 20px;
+  margin-top: 0;
   background-color: #F8F7F5;
   min-height: calc(100vh - 80px);
   display: flex;

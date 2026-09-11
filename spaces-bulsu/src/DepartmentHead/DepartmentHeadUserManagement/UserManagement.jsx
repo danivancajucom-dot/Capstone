@@ -20,7 +20,7 @@ import "./user-management.css";
 import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
 import Toast from "../../Popup/Toast/Toast";
-import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup"; // ← import the standard popup
+import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 
 emailjs.init("bNsod6OOQzMmRo0Cs");
 
@@ -69,6 +69,32 @@ function generateTempPassword() {
   return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+// ── Excel Template Downloader ─────────────────────────────────────────────────
+function downloadUserTemplate() {
+  const headers = ["First Name", "Last Name", "Email", "Role"];
+
+  const sampleRows = [
+    ["Juan", "Dela Cruz", "juan.delacruz@bulsu.edu.ph", "Faculty"],
+    ["Maria", "Santos", "maria.santos@bulsu.edu.ph", "Local Registrar"],
+    ["Pedro", "Reyes", "pedro.reyes@bulsu.edu.ph", "Clerk"],
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+
+  // Set column widths for readability
+  worksheet["!cols"] = [
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 38 },
+    { wch: 22 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+
+  XLSX.writeFile(workbook, "SpaceS_CICT_User_Template.xlsx");
+}
+
 function Stepper({ current }) {
   return (
     <div className="um-stepper">
@@ -91,7 +117,7 @@ function Stepper({ current }) {
   );
 }
 
-// ── Password Cell ─────────────────────────────────────────────────────────────
+// ── Password Cell (no longer used in table, kept for reference) ──────────
 
 function PasswordCell({ tempPassword, passwordReset }) {
   const [visible, setVisible] = useState(false);
@@ -404,7 +430,6 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
                 <th>NAME</th>
                 <th>EMAIL</th>
                 <th>ROLE</th>
-                <th>TEMP PASSWORD</th>
                 <th>STATUS</th>
                 <th>ACTIONS</th>
               </tr>
@@ -412,7 +437,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={5}>
                     <div className="um-empty-state">
                       <i className="fa-solid fa-user-slash" />
                       <p>No users found.</p>
@@ -439,9 +464,6 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
                         <span className="um-role-badge" style={{ backgroundColor: rc.bg, color: rc.text }}>
                           {u.role}
                         </span>
-                      </td>
-                      <td>
-                        <PasswordCell tempPassword={u.tempPassword} passwordReset={u.passwordReset} />
                       </td>
                       <td>
                         <span className={`um-status ${u.status?.toLowerCase()}`}>
@@ -569,7 +591,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
 function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile, setExcelFile, onNext, onBack }) {
   const canProceed =
     entryMode === "manual"
-      ? form.firstName && form.lastName && form.gender && form.email && form.role
+      ? form.firstName && form.lastName && form.email && form.role
       : entryMode === "excel" && excelFile;
 
   return (
@@ -625,20 +647,6 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
             ))}
 
             <div className="um-form-group">
-              <label>Gender</label>
-
-              <select
-                className="um-input um-select"
-                value={form.gender}
-                onChange={(e) => setForm((prev) => ({ ...prev, gender: e.target.value }))}
-              >
-                <option value="">Select gender</option>
-                <option>Male</option>
-                <option>Female</option>
-              </select>
-            </div>
-
-            <div className="um-form-group">
               <label>Email Address</label>
 
               <input
@@ -671,19 +679,32 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
         {entryMode === "excel" && (
           <>
             <div className="um-upload-info">
-              <h3>
-                <i className="fa-solid fa-table-list" /> Required Excel Columns
-              </h3>
+              <div className="um-upload-info-head">
+                <h3>
+                  <i className="fa-solid fa-table-list" /> Required Excel Columns
+                </h3>
+
+                <button
+                  type="button"
+                  className="um-template-btn"
+                  onClick={downloadUserTemplate}
+                >
+                  <i className="fa-solid fa-download" />
+                  Download Template
+                </button>
+              </div>
 
               <ul>
-                <li>firstName</li>
-                <li>lastName</li>
-                <li>gender</li>
-                <li>email</li>
-                <li>role</li>
+                <li>First Name</li>
+                <li>Last Name</li>
+                <li>Email</li>
+                <li>Role</li>
               </ul>
 
-              <p>Every row will automatically create a new user account.</p>
+              <p>
+                Download the template above, fill in the rows, then upload the file below.
+                Every row will automatically create a new user account.
+              </p>
             </div>
 
             <div className="um-form-group">
@@ -758,10 +779,6 @@ function CreateAccountStep2({ form, entryMode, excelFile, onBack, onConfirm }) {
                 <strong>{form.lastName}</strong>
               </div>
               <div className="um-confirm-row">
-                <span>Gender</span>
-                <strong>{form.gender}</strong>
-              </div>
-              <div className="um-confirm-row">
                 <span>Email</span>
                 <strong>{form.email}</strong>
               </div>
@@ -805,7 +822,7 @@ function CreateAccountStep2({ form, entryMode, excelFile, onBack, onConfirm }) {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-const EMPTY_FORM = { firstName: "", lastName: "", gender: "", email: "", role: "" };
+const EMPTY_FORM = { firstName: "", lastName: "", email: "", role: "" };
 
 export default function UserManagement() {
   const [view, setView] = useState("list");
@@ -901,7 +918,6 @@ export default function UserManagement() {
         await setDoc(doc(db, "users", uid), {
           firstName: form.firstName,
           lastName: form.lastName,
-          gender: form.gender,
           email: form.email,
           role: form.role,
           status: "Active",
@@ -950,7 +966,6 @@ export default function UserManagement() {
         const normalizedRows = rows.map((row) => ({
           firstName: row["First Name"] || row["firstName"],
           lastName: row["Last Name"] || row["lastName"],
-          gender: row["Gender"] || row["gender"],
           email: row["Email"] || row["email"],
           role: row["Role"] || row["role"],
         }));
@@ -962,7 +977,7 @@ export default function UserManagement() {
           const row = normalizedRows[i];
 
           try {
-            if (!row.firstName || !row.lastName || !row.gender || !row.email || !row.role) {
+            if (!row.firstName || !row.lastName || !row.email || !row.role) {
               throw new Error("Missing required fields");
             }
 
@@ -972,7 +987,6 @@ export default function UserManagement() {
             await setDoc(doc(db, "users", uid), {
               firstName: row.firstName,
               lastName: row.lastName,
-              gender: row.gender,
               email: row.email,
               role: row.role,
               status: "Active",
@@ -1018,9 +1032,7 @@ export default function UserManagement() {
         showToast(
           failedRows.length === 0 ? "success" : "error",
           "Bulk Upload Complete",
-          `Created ${successCount} account${successCount === 1 ? "" : "s"}${
-            failedRows.length ? `, ${failedRows.length} failed (see console for details).` : "."
-          }`
+          `Created ${successCount} account${successCount === 1 ? "" : "s"}${failedRows.length ? `, ${failedRows.length} failed (see console for details).` : "."}`
         );
 
         console.log("Failed Rows:", failedRows);

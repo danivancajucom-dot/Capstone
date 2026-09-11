@@ -943,6 +943,7 @@ export default function WeeklyCalendar() {
                         <div className="wc-event-top">
                           <span className="wc-event-title" style={{ color: color.text }}>
                             {ev.title}
+                            {ev.section && <span className="wc-event-section"> ({ev.section})</span>}
                             {isOnline && <span className="wc-online-badge">Online</span>}
                           </span>
                           <span className="wc-event-time" style={{ background: color.timeBg, color: color.text }}>

@@ -7,8 +7,14 @@ import {
   getDocs,
   doc,
   getDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
   query,
   where,
+  orderBy,
+  limit,
+  onSnapshot, // 👈 NEW
 } from "firebase/firestore";
 
 const DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -102,6 +108,66 @@ const toDateStr = (date) => {
   return `${y}-${m}-${d}`;
 };
 
+// ─── Announcement helpers ───────────────────────────────────────────
+const getInitials = (name = "") => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const timeAgo = (timestamp, now) => {
+  if (!timestamp?.toDate) return "";
+  const date = timestamp.toDate();
+  const diffMin = Math.max(0, Math.round((now - date) / 60000));
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+const announcementPreview = (a) => {
+  if (a.content) return a.content;
+  const imgCount = (a.imageUrls || (a.imageUrl ? [a.imageUrl] : [])).length;
+  const fileCount = (a.files || (a.fileUrl ? [1] : [])).length;
+  if (imgCount) return `📷 Sent ${imgCount} photo${imgCount > 1 ? "s" : ""}`;
+  if (fileCount) return `📎 Sent ${fileCount} file${fileCount > 1 ? "s" : ""}`;
+  return "New announcement";
+};
+
+// ─── Kind metadata (color/icon/label per class type) ───────────────
+const getKindMeta = (item) => {
+  if (item.isOnline) {
+    return {
+      key: "online",
+      label: "Online",
+      icon: "fa-solid fa-wifi",
+    };
+  }
+  if (item.kind === "reservation") {
+    return {
+      key: "reservation",
+      label: "Reservation",
+      icon: "fa-solid fa-bookmark",
+    };
+  }
+  if (item.kind === "reassignment") {
+    return {
+      key: "reassignment",
+      label: "Moved",
+      icon: "fa-solid fa-right-left",
+    };
+  }
+  return {
+    key: "schedule",
+    label: "Class",
+    icon: "fa-solid fa-chalkboard-user",
+  };
+};
+
 // -----------------------------------------------------------------
 // Main Component
 // -----------------------------------------------------------------
@@ -121,6 +187,11 @@ export default function FacultyDashboard({ onLogout }) {
   const [reassignedInto, setReassignedInto] = useState([]);
   const [approvedReservations, setApprovedReservations] = useState([]);
 
+  // ─── Department Head announcements ──────────────────────────────
+  const [deptAnnouncements, setDeptAnnouncements] = useState([]);
+  const [announcementLoading, setAnnouncementLoading] = useState(true);
+  const [likeBusyId, setLikeBusyId] = useState(null);
+
   const [bannerIndex, setBannerIndex] = useState(0);
 
   const [, forceTick] = useState(0);
@@ -131,6 +202,43 @@ export default function FacultyDashboard({ onLogout }) {
 
   useEffect(() => {
     loadMySchedule();
+  }, []);
+
+  // ─── 🔴 REAL-TIME ANNOUNCEMENT LISTENER ────────────────────────
+  useEffect(() => {
+    setAnnouncementLoading(true);
+
+    // We listen to the newest 15 announcements and then filter client-side.
+    // Firestore will keep this in sync — new docs, edits, and like changes
+    // will all stream in automatically.
+    const annQuery = query(
+      collection(db, "broadcastChannels"),
+      orderBy("createdAt", "desc"),
+      limit(15)
+    );
+
+    const unsubscribe = onSnapshot(
+      annQuery,
+      (snap) => {
+        const deptOnly = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((a) => a.senderRole === "Department Head")
+          .filter(
+            (a) => a.recipient === "All Staffs" || a.recipient === "Faculty"
+          )
+          .slice(0, 3);
+
+        setDeptAnnouncements(deptOnly);
+        setAnnouncementLoading(false);
+      },
+      (err) => {
+        console.warn("Announcement listener error:", err);
+        setDeptAnnouncements([]);
+        setAnnouncementLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
   // ─── MAIN LOAD FUNCTION ──────────────────────────────────────────
@@ -287,6 +395,48 @@ export default function FacultyDashboard({ onLogout }) {
     }
   };
 
+  // ─── Like / unlike an announcement ───────────────────────────────
+  const toggleAnnouncementLike = async (announcementId) => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser || likeBusyId) return;
+
+    const target = deptAnnouncements.find((a) => a.id === announcementId);
+    if (!target) return;
+
+    const currentLikes = target.reactions?.like || [];
+    const hasLiked = currentLikes.includes(firebaseUser.uid);
+
+    // Optimistic UI update — instant feedback
+    setLikeBusyId(announcementId);
+    setDeptAnnouncements((prev) =>
+      prev.map((a) => {
+        if (a.id !== announcementId) return a;
+        const likes = a.reactions?.like || [];
+        const nextLikes = hasLiked
+          ? likes.filter((uid) => uid !== firebaseUser.uid)
+          : [...likes, firebaseUser.uid];
+        return { ...a, reactions: { ...a.reactions, like: nextLikes } };
+      })
+    );
+
+    try {
+      await updateDoc(doc(db, "broadcastChannels", announcementId), {
+        "reactions.like": hasLiked
+          ? arrayRemove(firebaseUser.uid)
+          : arrayUnion(firebaseUser.uid),
+      });
+      // onSnapshot will also sync — the optimistic update just makes it feel instant
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+      // Roll back on failure
+      setDeptAnnouncements((prev) =>
+        prev.map((a) => (a.id === announcementId ? target : a))
+      );
+    } finally {
+      setLikeBusyId(null);
+    }
+  };
+
   // ─── Compute all items ──────────────────────────────────────────
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -328,14 +478,12 @@ export default function FacultyDashboard({ onLogout }) {
       const occurrenceDate = getNextOccurrenceDate(s.day, s.startTime, now);
       if (!occurrenceDate) return;
       const dateStr = toDateStr(occurrenceDate);
-      // No releases for online classes, they are always on the faculty's schedule
-      // No reassignments for online classes
 
       items.push({
         id: s.id,
         kind: "online",
         subject: s.subject,
-        roomName: "Online", // Display as "Online"
+        roomName: "Online",
         section: s.section,
         startTime: s.startTime,
         endTime: s.endTime,
@@ -356,7 +504,7 @@ export default function FacultyDashboard({ onLogout }) {
       items.push({
         id: r.id,
         kind: "reassignment",
-        subject: `${r.courseTitle || "Class"} (Moved)`,
+        subject: `${r.courseTitle || "Class"}`,
         roomName: r.newRoomName,
         startTime: r.startTime,
         endTime: r.endTime,
@@ -433,6 +581,7 @@ export default function FacultyDashboard({ onLogout }) {
   }, [todaysItems, bannerIndex]);
 
   const activeBanner = todaysItems[bannerIndex] || null;
+  const activeBannerMeta = activeBanner ? getKindMeta(activeBanner) : null;
 
   const ongoingProgress =
     activeBanner?.status === "ONGOING"
@@ -447,20 +596,121 @@ export default function FacultyDashboard({ onLogout }) {
         )
       : null;
 
-  // Include online classes in room count: we count unique room names (including "Online")
   const roomsThisWeek = useMemo(
     () => new Set(allItems.map((item) => item.roomName)).size,
     [allItems]
   );
 
   const nextClass = upcomingItems[0] || null;
+  const latestAnnouncement = deptAnnouncements[0] || null;
+  const currentUid = auth.currentUser?.uid;
 
   // ─── Render ────────────────────────────────────────────────────────────
   return (
     <div className="dashboard-shell">
       <div className="container">
         <main className="dashboard-main">
-          {/* PAGE HEADER */}
+          {/* ─── DEPARTMENT HEAD ANNOUNCEMENT (TOP) ────────────────── */}
+          {announcementLoading ? (
+            <div className="announce-card is-skeleton">
+              <div className="announce-skeleton-avatar"></div>
+              <div className="announce-skeleton-lines">
+                <div className="announce-skeleton-line w-40"></div>
+                <div className="announce-skeleton-line w-90"></div>
+                <div className="announce-skeleton-line w-60"></div>
+              </div>
+            </div>
+          ) : latestAnnouncement ? (
+            <div className="announce-card">
+              <div className="announce-card-glow" aria-hidden="true" />
+
+              {/* top strip */}
+              <div className="announce-strip">
+                <span className="announce-strip-label">
+                  <i className="fa-solid fa-bullhorn"></i>
+                  Announcement
+                  <span className="announce-live-dot" title="Live updates enabled"></span>
+                </span>
+                <span className="announce-strip-time">
+                  <i className="fa-regular fa-clock"></i>
+                  {timeAgo(latestAnnouncement.createdAt, now)}
+                </span>
+              </div>
+
+              {/* author row */}
+              <div className="announce-top">
+                <div className="announce-avatar">
+                  {getInitials(latestAnnouncement.senderName)}
+                </div>
+
+                <div className="announce-meta">
+                  <div className="announce-meta-row">
+                    <strong>{latestAnnouncement.senderName || "Department Head"}</strong>
+                    <span className="announce-role-chip">Dept. Head</span>
+                  </div>
+                  <span className="announce-subtext">
+                    College of Information and Communications Technology
+                  </span>
+                </div>
+              </div>
+
+              {/* body */}
+              <p className="announce-text">
+                {announcementPreview(latestAnnouncement)}
+              </p>
+
+              {(latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl) && (
+                <div className="announce-image-wrap">
+                  <img
+                    src={latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl}
+                    alt="Announcement attachment"
+                    className="announce-image"
+                  />
+                </div>
+              )}
+
+              {/* actions */}
+              <div className="announce-actions">
+                <button
+                  className={`announce-like-btn ${
+                    (latestAnnouncement.reactions?.like || []).includes(currentUid)
+                      ? "is-liked"
+                      : ""
+                  }`}
+                  onClick={() => toggleAnnouncementLike(latestAnnouncement.id)}
+                  disabled={likeBusyId === latestAnnouncement.id}
+                >
+                  <i
+                    className={
+                      (latestAnnouncement.reactions?.like || []).includes(currentUid)
+                        ? "fa-solid fa-heart"
+                        : "fa-regular fa-heart"
+                    }
+                  ></i>
+                  {(latestAnnouncement.reactions?.like || []).length > 0
+                    ? (latestAnnouncement.reactions?.like || []).length
+                    : "Like"}
+                </button>
+
+                {deptAnnouncements.length > 1 && (
+                  <span className="announce-more-pill">
+                    +{deptAnnouncements.length - 1} more announcement
+                    {deptAnnouncements.length - 1 === 1 ? "" : "s"}
+                  </span>
+                )}
+
+                <button
+                  className="announce-view-btn"
+                  onClick={() => navigate("/faculty/broadcast-channel")}
+                >
+                  View
+                  <i className="fa-solid fa-arrow-right"></i>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ─── PAGE HEADER ──────────────────────────────────────── */}
           <div className="dash-header">
             <div className="dash-greeting">
               <div className="dash-greeting-icon">
@@ -489,8 +739,15 @@ export default function FacultyDashboard({ onLogout }) {
             </button>
           </div>
 
-          {/* STAT CHIPS */}
-          {!loading && allItems.length > 0 && (
+          {/* ─── STAT CHIPS ───────────────────────────────────────── */}
+          {loading ? (
+            <div className="dash-stats-row">
+              <div className="stat-skeleton"></div>
+              <div className="stat-skeleton"></div>
+              <div className="stat-skeleton"></div>
+              <div className="stat-skeleton"></div>
+            </div>
+          ) : allItems.length > 0 ? (
             <div className="dash-stats-row">
               <div className="dash-stat-chip">
                 <i className="fa-solid fa-calendar-day"></i>
@@ -526,9 +783,9 @@ export default function FacultyDashboard({ onLogout }) {
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
-          {/* TODAY'S SCHEDULE */}
+          {/* ─── TODAY'S SCHEDULE ─────────────────────────────────── */}
           <section className="today-card">
             <div className="card-header">
               <div>
@@ -575,7 +832,7 @@ export default function FacultyDashboard({ onLogout }) {
                     <i className="fa-solid fa-chevron-left"></i>
                   </button>
 
-                  <div className="schedule-banner">
+                  <div className={`schedule-banner is-${activeBannerMeta.key}`}>
                     <span
                       className={`ongoing-badge ${
                         activeBanner.status === "ONGOING"
@@ -595,31 +852,24 @@ export default function FacultyDashboard({ onLogout }) {
                     </span>
 
                     <div className="banner-art">
-                      {activeBanner.isOnline ? (
-                        <i className="fa-solid fa-wifi"></i>
-                      ) : (
-                        <i className="fa-solid fa-chalkboard-user"></i>
-                      )}
+                      <i className={activeBannerMeta.icon}></i>
                     </div>
 
                     <div className="banner-overlay">
+                      <span className={`banner-kind-tag tag-${activeBannerMeta.key}`}>
+                        <i className={activeBannerMeta.icon}></i>
+                        {activeBannerMeta.label}
+                      </span>
+
                       <h1>{activeBanner.roomName}</h1>
                       <p>
                         {activeBanner.subject}
                         {activeBanner.section ? ` • ${activeBanner.section}` : ""}
-                        {activeBanner.kind === "reassignment" && (
-                          <span className="banner-tag"> (Moved)</span>
-                        )}
-                        {activeBanner.kind === "reservation" && (
-                          <span className="banner-tag"> (Reservation)</span>
-                        )}
-                        {activeBanner.isOnline && (
-                          <span className="banner-tag online-tag"> (Online)</span>
-                        )}
                       </p>
 
                       {activeBanner.status === "UPCOMING" && (
                         <span className="banner-countdown">
+                          <i className="fa-regular fa-clock"></i>
                           Starts {formatCountdown(
                             new Date(
                               now.getFullYear(),
@@ -684,46 +934,48 @@ export default function FacultyDashboard({ onLogout }) {
                 </div>
               ) : (
                 <div className="upcoming-list">
-                  {upcomingItems.map((item) => (
-                    <div className={`upcoming-card ${item.isToday ? "is-today" : ""}`} key={item.id}>
-                      <div className="date-box">
-                        <span>{DAY_LABELS[item.occurrence.getDay()]}</span>
-                        <h3>{item.occurrence.getDate()}</h3>
-                      </div>
-
-                      <div className="upcoming-main">
-                        <div className="upcoming-heading">
-                          <h1>
-                            {item.subject}
-                            {item.kind === "reassignment" && (
-                              <span className="upcoming-tag"> (Moved)</span>
-                            )}
-                            {item.kind === "reservation" && (
-                              <span className="upcoming-tag"> (Reservation)</span>
-                            )}
-                            {item.isOnline && (
-                              <span className="upcoming-tag online-tag"> (Online)</span>
-                            )}
-                          </h1>
-                          {item.isToday && <span className="today-chip">Today</span>}
+                  {upcomingItems.map((item) => {
+                    const meta = getKindMeta(item);
+                    return (
+                      <div
+                        className={`upcoming-card is-${meta.key} ${item.isToday ? "is-today" : ""}`}
+                        key={item.id}
+                      >
+                        <div className="date-box">
+                          <span>{DAY_LABELS[item.occurrence.getDay()]}</span>
+                          <h3>{item.occurrence.getDate()}</h3>
                         </div>
 
-                        {item.section && <span className="upcoming-section-label">{item.section}</span>}
+                        <div className="upcoming-main">
+                          <div className="upcoming-heading">
+                            <h1>{item.subject}</h1>
+                            {item.isToday && <span className="today-chip">Today</span>}
+                          </div>
 
-                        <div className="class-info">
-                          <span>
-                            <i className="fa-regular fa-building"></i>
-                            {item.roomName}
-                          </span>
+                          {item.section && <span className="upcoming-section-label">{item.section}</span>}
 
-                          <span>
-                            <i className="fa-regular fa-clock"></i>
-                            {formatTime(item.startTime)}
-                          </span>
+                          <div className="class-info">
+                            <span>
+                              <i className="fa-regular fa-building"></i>
+                              {item.roomName}
+                            </span>
+
+                            <span>
+                              <i className="fa-regular fa-clock"></i>
+                              {formatTime(item.startTime)}
+                            </span>
+
+                            {item.kind !== "schedule" || item.isOnline ? (
+                              <span className={`kind-pill pill-${meta.key}`}>
+                                <i className={meta.icon}></i>
+                                {meta.label}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

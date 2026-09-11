@@ -450,7 +450,7 @@ export default function DepartmentHeadDashboard() {
 
             <div className="dept-db-header">
         <div>
-          <h1 className="dept-db-title">Department Head Dashboard</h1>
+          <h1 className="dept-db-title">Admin Dashboard</h1>
           <p className="dept-db-subtitle">Monitor room status and system activity in real-time.</p>
         </div>
       </div>

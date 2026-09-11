@@ -5,6 +5,7 @@ import { db, auth } from "../../../firebase";
 import { logActivity } from "../../../utils/logActivity";
 import "./room-management-edit-details.css";
 import SavePopup from "../../../Popup/SavePopup/SavePopup";
+import Toast from "../../../Popup/Toast/Toast";
 
 const ROOM_TYPES = [
   "Computer Lab",
@@ -20,6 +21,8 @@ const EQUIPMENT_OPTIONS = [
   { id: "computer", label: "Computer" },
   { id: "smartBoard", label: "Smart Board" },
 ];
+
+const FLOORS = ["1st floor", "2nd floor", "3rd floor", "4th floor"];
 
 /* ─── Custom Dropdown ─────────────────────────────────── */
 function CustomDropdown({ placeholder, options, value, onChange }) {
@@ -72,6 +75,10 @@ function RoomManagementEditDetails() {
   const [roomName, setRoomName] = useState("");
   const [capacity, setCapacity] = useState(30);
   const [roomType, setRoomType] = useState("Computer Lab");
+  const [floor, setFloor] = useState("");
+  const [building, setBuilding] = useState("");
+  const [buildingCustom, setBuildingCustom] = useState("");
+  const [isOtherBuilding, setIsOtherBuilding] = useState(false);
   const [equipment, setEquipment] = useState({
     projector: false,
     tvDisplay: false,
@@ -81,6 +88,21 @@ function RoomManagementEditDetails() {
   });
   const [confirmModalType, setConfirmModalType] = useState(null);
 
+  // ─── Toast state ──────────────────────────────────────────────────────
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
+    }
+  };
+
   useEffect(() => {
     const loadRoom = async () => {
       try {
@@ -88,7 +110,7 @@ function RoomManagementEditDetails() {
         const roomSnap = await getDoc(roomRef);
 
         if (!roomSnap.exists()) {
-          alert("Room not found.");
+          showToast("error", "Not Found", "Room not found.");
           navigate("/department-head/room-management");
           return;
         }
@@ -97,6 +119,18 @@ function RoomManagementEditDetails() {
         setRoomName(data.roomName || "");
         setCapacity(data.capacity || 0);
         setRoomType(data.roomType || "Computer Lab");
+        setFloor(data.floor || "");
+        const buildingVal = data.building || "";
+        setBuilding(buildingVal);
+        if (buildingVal !== "Pimentel Hall" && buildingVal !== "Other") {
+          setIsOtherBuilding(true);
+          setBuilding("Other");
+          setBuildingCustom(buildingVal);
+        } else {
+          setIsOtherBuilding(false);
+          setBuilding(buildingVal);
+          setBuildingCustom("");
+        }
         setEquipment({
           projector: data.equipment?.projector || false,
           tvDisplay: data.equipment?.tvDisplay || false,
@@ -108,12 +142,14 @@ function RoomManagementEditDetails() {
           roomName: data.roomName || "",
           capacity: data.capacity || 0,
           roomType: data.roomType || "",
+          floor: data.floor || "",
+          building: data.building || "",
           equipment: data.equipment || {},
         });
         setLoading(false);
       } catch (error) {
         console.error(error);
-        alert("Failed to load room.");
+        showToast("error", "Load Failed", "Failed to load room.");
       }
     };
 
@@ -133,31 +169,30 @@ function RoomManagementEditDetails() {
   const handleCancelClick = () => setConfirmModalType("cancel");
 
   const handleSaveRoom = async () => {
+    // Show loading toast
+    showToast("loading", "Updating Room...", "Please wait...");
+
     try {
       const firebaseUser = auth.currentUser;
-
       if (!firebaseUser) {
-        alert("No authenticated user.");
+        showToast("error", "Error", "No authenticated user.");
         return;
       }
 
-      const userSnap = await getDoc(
-        doc(db, "users", firebaseUser.uid)
-      );
-
-      if (!userSnap.exists()) {
-        throw new Error("User record not found.");
-      }
+      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+      if (!userSnap.exists()) throw new Error("User record not found.");
 
       const currentUser = userSnap.data();
+      const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
 
-      const fullName =
-        `${currentUser.firstName} ${currentUser.lastName}`.trim();
+      const buildingFinal = isOtherBuilding ? buildingCustom.trim() : building;
 
       await updateDoc(doc(db, "rooms", id), {
         roomName,
         capacity,
         roomType,
+        floor,
+        building: buildingFinal,
         equipment,
       });
 
@@ -165,29 +200,31 @@ function RoomManagementEditDetails() {
         userId: firebaseUser.uid,
         user: fullName,
         role: currentUser.role,
-
         action: "Updated Room",
         actionType: "success",
-
         target: roomName,
         status: "SUCCESS",
-
         details: {
           previous: originalRoom,
           updated: {
             roomName,
             capacity,
             roomType,
+            floor,
+            building: buildingFinal,
             equipment,
           },
         },
       });
 
-      navigate("/department-head/room-management");
-
+      // Show success toast and navigate after a short delay
+      showToast("success", "Room Updated", `${roomName} has been updated successfully.`);
+      setTimeout(() => {
+        navigate("/department-head/room-management");
+      }, 1500);
     } catch (error) {
       console.error(error);
-      alert("Failed to update room.");
+      showToast("error", "Update Failed", error.message || "Failed to update room.");
     }
   };
 
@@ -229,6 +266,41 @@ function RoomManagementEditDetails() {
           </div>
         </div>
 
+        <div className="form-row two">
+          <div>
+            <label htmlFor="floor">Floor</label>
+            <CustomDropdown
+              placeholder="Select floor..."
+              options={FLOORS}
+              value={floor}
+              onChange={(v) => setFloor(v)}
+            />
+          </div>
+          <div>
+            <label htmlFor="building">Building</label>
+            <CustomDropdown
+              placeholder="Select building..."
+              options={['Pimentel Hall', 'Other']}
+              value={building}
+              onChange={(v) => {
+                setBuilding(v);
+                setIsOtherBuilding(v === 'Other');
+                if (v !== 'Other') setBuildingCustom('');
+              }}
+            />
+            {isOtherBuilding && (
+              <input
+                className="form-input"
+                type="text"
+                placeholder="Enter building name"
+                value={buildingCustom}
+                onChange={(e) => setBuildingCustom(e.target.value)}
+                style={{ marginTop: 8 }}
+              />
+            )}
+          </div>
+        </div>
+
         <div className="form-row full">
           <label>Capacity</label>
           <div className="capacity-stepper">
@@ -261,21 +333,28 @@ function RoomManagementEditDetails() {
       </div>
 
       <div className="room-details-footer-actions">
-  <button type="button" className="action-pill outline" onClick={() => navigate("/department-head/room-management")}>
-    Cancel
-  </button>
-  <button type="button" className="action-pill primary" onClick={handleSaveClick}>
-    Save
-  </button>
-</div>
+        <button type="button" className="action-pill outline" onClick={() => navigate("/department-head/room-management")}>
+          Cancel
+        </button>
+        <button type="button" className="action-pill primary" onClick={handleSaveClick}>
+          Save
+        </button>
+      </div>
 
-{confirmModalType === "save" && (
-  <SavePopup
-    onCancel={closeConfirmModal}
-    onConfirm={handleSaveRoom}
-  />
-)}
+      {confirmModalType === "save" && (
+        <SavePopup
+          onCancel={closeConfirmModal}
+          onConfirm={handleSaveRoom}
+        />
+      )}
 
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast({ show: false, type: "", title: "", message: "" })}
+      />
     </main>
   );
 }

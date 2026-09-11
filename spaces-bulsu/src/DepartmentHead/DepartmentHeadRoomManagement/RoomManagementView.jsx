@@ -20,13 +20,11 @@ import { useDeactivationModals } from "./hooks/useDeactivationModals";
 import "./room-management-view.css";
 import Toast from "../../Popup/Toast/Toast";
 import DeleteRoomPopup from "../../Popup/DeleteRoomPopup/DeleteRoomPopup";
-// NEW: PDF libraries and logos
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import universityLogo from "../../assets/BSU-Logo.png";
 import collegeLogo from "../../assets/CICT-Logo.png";
 
-// NEW: School header constant (same as other components)
 const SCHOOL_HEADER = {
   universityLogoUrl: universityLogo,
   collegeLogoUrl: collegeLogo,
@@ -43,6 +41,7 @@ function getActiveRoomStyle(room) {
 function getInactiveRoomStyle(room) {
   return { ...room, status: "inactive", inactive: true, iconVariant: "muted" };
 }
+
 const getStatusInfo = (status) => {
   switch (status) {
     case "active":
@@ -55,6 +54,7 @@ const getStatusInfo = (status) => {
       return { label: "UNKNOWN", className: "room-status--unknown" };
   }
 };
+
 function ToggleSwitch({ checked, onClick }) {
   return (
     <button
@@ -106,26 +106,27 @@ function RoomManagementView({
   const [toast, setToast] = useState({
     show: false,
     type: "",
+    title: "",
     message: "",
   });
 
-  const showToast = (type, message) => {
-    setToast({ show: true, type, message });
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
     if (type !== "loading") {
       setTimeout(() => {
-        setToast({ show: false, type: "", message: "" });
-      }, 2500);
+        setToast({ show: false, type: "", title: "", message: "" });
+      }, 3000);
     }
   };
 
-  // ─── NEW: PDF Export ─────────────────────────────────────────────────
+  // ─── PDF Export ─────────────────────────────────────────────────
   const handleExportPDF = async () => {
     if (rooms.length === 0) {
-      showToast("error", "No rooms to export.");
+      showToast("error", "No Rooms", "No rooms to export.");
       return;
     }
 
-    showToast("loading", "Generating PDF...");
+    showToast("loading", "Generating PDF...", "");
 
     try {
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
@@ -134,7 +135,6 @@ function RoomManagementView({
       const logoSize = 50;
       const centerX = pageWidth / 2;
 
-      // ---- Letterhead ----
       if (SCHOOL_HEADER.universityLogoUrl) {
         pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
       }
@@ -164,7 +164,6 @@ function RoomManagementView({
       pdf.setLineWidth(1.5);
       pdf.line(marginX, 82, pageWidth - marginX, 82);
 
-      // ---- Title & filters ----
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
       pdf.setTextColor(245, 124, 0);
@@ -177,7 +176,6 @@ function RoomManagementView({
         align: "right",
       });
 
-      // ---- Table ----
       const rows = rooms.map((room) => [
         room.id,
         room.capacity,
@@ -203,7 +201,6 @@ function RoomManagementView({
         margin: { left: marginX, right: marginX },
       });
 
-      // ---- Footer ----
       const pageCount = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
@@ -224,10 +221,10 @@ function RoomManagementView({
       }
 
       pdf.save(`rooms_export_${Date.now()}.pdf`);
-      showToast("success", "PDF exported successfully!");
+      showToast("success", "PDF Exported", "PDF exported successfully!");
     } catch (error) {
       console.error("PDF export failed:", error);
-      showToast("error", "Export failed. Try again.");
+      showToast("error", "Export Failed", "Export failed. Try again.");
     }
   };
 
@@ -332,32 +329,30 @@ function RoomManagementView({
     };
   }, []);
 
-  const handleSwitchClick = (room) => {
-    if (room.roomStatus === "active") {
-      modals.openDeactivateFlow(room.id);
-    } else {
-      modals.openActivateFlow(room.id);
-    }
-  };
-
-  const handleDeactivationConfirm = async ({
-    startDate,
-    startTime,
-    endDate,
-    endTime,
-  }) => {
+  // ─── Simplified deactivation (no schedule) ────────────────────────
+  const handleDeactivationConfirm = async () => {
     const room = rooms.find((r) => r.id === modals.roomName);
     if (!room) return;
 
-    try {
-      showToast("loading", "Putting room under maintenance...");
+    showToast("loading", "Processing...", "Putting room under maintenance...");
 
+    try {
       const firebaseUser = auth.currentUser;
       const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
       const currentUser = userSnap.data();
+      const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
 
-      const fullName =
-        `${currentUser.firstName} ${currentUser.lastName}`.trim();
+      const now = new Date();
+      const startDate = now.toISOString().split("T")[0];
+      const startTime = now.toTimeString().slice(0, 5);
+
+      await updateDoc(doc(db, "rooms", room.firestoreId), {
+        roomStatus: "maintenance",
+        maintenanceStartDate: startDate,
+        maintenanceStartTime: startTime,
+        maintenanceEndDate: null,
+        maintenanceEndTime: null,
+      });
 
       await logActivity({
         userId: firebaseUser.uid,
@@ -365,25 +360,13 @@ function RoomManagementView({
         role: currentUser.role,
         action: "Marked Room Under Maintenance",
         actionType: "warning",
-        target: room.roomName,
+        target: room.id,
         details: "Changed room status to Under Maintenance",
         status: "SUCCESS",
       });
 
-      await updateDoc(doc(db, "rooms", room.firestoreId), {
-        roomStatus: "maintenance",
-        maintenanceStartDate: startDate,
-        maintenanceStartTime: startTime,
-        maintenanceEndDate: endDate,
-        maintenanceEndTime: endTime,
-      });
-
-      //---------------------------------------
-      // Notify affected faculty
-      //---------------------------------------
-
+      // ─── Notify affected faculty ──────────────────────────────
       const usersSnap = await getDocs(collection(db, "users"));
-
       const normalizeName = (name) =>
         name
           ?.toLowerCase()
@@ -399,6 +382,7 @@ function RoomManagementView({
         return normalizeName(`${parts[1]} ${parts[0]}`);
       };
 
+      let notifiedCount = 0;
       for (const schedule of room.schedules) {
         if (!schedule.faculty) continue;
         const faculty = usersSnap.docs.find((docUser) => {
@@ -412,37 +396,61 @@ function RoomManagementView({
           userId: faculty.id,
           ownerType: "faculty",
           title: "Room Under Maintenance",
-          message: `Room ${room.id} has been placed under maintenance from ${startDate} ${startTime} until ${endDate} ${endTime}. Your scheduled class may be affected.`,
+          message: `Room ${room.id} is currently under maintenance. Your scheduled class may be affected.`,
           type: "room-maintenance",
           unread: true,
           archived: false,
           badge: "NEW",
           createdAt: serverTimestamp(),
         });
+        notifiedCount++;
       }
 
-      showToast("success", "Room is now under maintenance.");
+      // Notify self (department head)
+      await addDoc(collection(db, "notifications"), {
+        userId: firebaseUser.uid,
+        ownerType: "department-head",
+        title: "Room Under Maintenance",
+        message: `You placed Room ${room.id} under maintenance. ${notifiedCount} faculty schedule(s) affected and notified.`,
+        type: "room-maintenance-status",
+        unread: true,
+        archived: false,
+        badge: "INFO",
+        createdAt: serverTimestamp(),
+      });
+
+      showToast("success", "Maintenance Active", `Room ${room.id} is now under maintenance. ${notifiedCount} faculty notified.`);
     } catch (err) {
       console.error(err);
-      showToast("error", "Failed to put room under maintenance.");
+      showToast("error", "Action Failed", "Failed to put room under maintenance.");
     }
 
     modals.closeAll();
+  };
+
+  const handleSwitchClick = (room) => {
+    if (room.roomStatus === "active") {
+      modals.openDeactivateFlow(room.id);
+    } else {
+      modals.openActivateFlow(room.id);
+    }
   };
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     const room = rooms.find((r) => r.id === deleteTarget);
     if (!room) {
-      showToast("error", "Room not found.");
+      showToast("error", "Not Found", "Room not found.");
       setDeleteTarget(null);
       return;
     }
 
+    showToast("loading", "Deleting...", `Deleting room ${room.id}...`);
+
     try {
       const firebaseUser = auth.currentUser;
       if (!firebaseUser) {
-        showToast("error", "You must be logged in to delete a room.");
+        showToast("error", "Error", "You must be logged in to delete a room.");
         return;
       }
 
@@ -466,10 +474,10 @@ function RoomManagementView({
         status: "SUCCESS",
       });
 
-      showToast("success", `Room "${deleteTarget}" deleted successfully.`);
+      showToast("success", "Deleted", `Room "${deleteTarget}" deleted successfully.`);
     } catch (error) {
       console.error("Delete failed:", error);
-      showToast("error", `Delete failed: ${error.message}`);
+      showToast("error", "Delete Failed", `Delete failed: ${error.message}`);
     } finally {
       setDeleteTarget(null);
     }
@@ -478,13 +486,36 @@ function RoomManagementView({
   const handleActivateConfirm = async () => {
     const room = rooms.find((r) => r.id === modals.roomName);
     if (!room) return;
-    await updateDoc(doc(db, "rooms", room.firestoreId), {
-      roomStatus: "active",
-      maintenanceStartDate: null,
-      maintenanceStartTime: null,
-      maintenanceEndDate: null,
-      maintenanceEndTime: null,
-    });
+    showToast("loading", "Activating...", `Activating room ${room.id}...`);
+    try {
+      await updateDoc(doc(db, "rooms", room.firestoreId), {
+        roomStatus: "active",
+        maintenanceStartDate: null,
+        maintenanceStartTime: null,
+        maintenanceEndDate: null,
+        maintenanceEndTime: null,
+      });
+
+      const firebaseUser = auth.currentUser;
+      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+      const currentUser = userSnap.data();
+      const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
+
+      await logActivity({
+        userId: firebaseUser.uid,
+        user: fullName,
+        role: currentUser.role,
+        action: "Activated Room",
+        actionType: "success",
+        target: room.id,
+        status: "SUCCESS",
+      });
+
+      showToast("success", "Activated", `Room ${room.id} is now active.`);
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Activation Failed", "Failed to activate room.");
+    }
     modals.closeAll();
   };
 
@@ -533,18 +564,14 @@ function RoomManagementView({
       <RoomManagementModals
         roomName={modals.roomName}
         showWarningModal={modals.showWarningModal}
-        showDeactivationModal={modals.showDeactivationModal}
         showActivationModal={modals.showActivationModal}
         showDeleteModal={modals.showDeleteModal}
         closeWarningModal={modals.closeWarningModal}
-        closeDeactivationModal={modals.closeDeactivationModal}
         closeActivationModal={modals.closeActivationModal}
         closeDeleteModal={modals.closeDeleteModal}
-        handleConfirmDeactivation={modals.handleConfirmDeactivation}
         onConfirmDeactivation={handleDeactivationConfirm}
         onActivateConfirm={handleActivateConfirm}
         onDeleteConfirm={handleDeleteConfirm}
-        onViewAffectedSchedules={handleViewAffectedSchedules}
       />
 
       {deleteTarget && (
@@ -791,8 +818,9 @@ function RoomManagementView({
       <Toast
         show={toast.show}
         type={toast.type}
+        title={toast.title}
         message={toast.message}
-        onClose={() => setToast({ show: false, type: "", message: "" })}
+        onClose={() => setToast({ show: false, type: "", title: "", message: "" })}
       />
     </>
   );
