@@ -13,6 +13,7 @@ import BulkScheduleUpload4 from "./LocalRegistrar/LocalRegistrarBulkUpload/bulkU
 import MySubmittedSchedules from "./LocalRegistrar/LocalRegistrarMySubmittedSchedules/MySubmittedSchedules";
 import LocalRegistrarDashboard from "./LocalRegistrar/LocalRegistrarDashboard/LocalRegistrarDashboard";
 import LocalRegistrarProfile from "./LocalRegistrar/LocalRegistrarProfile/LocalRegistrarProfile";
+import LocalRegistrarSettings from "./LocalRegistrar/LocalRegistrarSettings/LocalRegistrarSettings";
 
 
 // Department Head
@@ -38,6 +39,8 @@ import DepartmentHeadViewAcademicSchedule from "./DepartmentHead/DepartmentHeadS
 import DepartmentHeadViewRoomCard from "./DepartmentHead/DepartmentHeadSchedule/DepartmentHeadViewRoomCard";
 import DepartmentHeadRoomUsage from "./DepartmentHead/DepartmentHeadRoomUsageTracking/RoomUsageTracking";
 import DepartmentHeadViewReservationCancelled from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservationCancelled";
+import DepartmentHeadSettings from "./DepartmentHead/DepartmentHeadSettings/DepartmentHeadSettings";
+import DepartmentHeadRoomIssues from "./DepartmentHead/DepartmentHeadRoomIssues/DepartmentHeadRoomIssues";
 
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
@@ -55,6 +58,15 @@ import ClerkViewAcademicSchedule from "./Clerk/ClerkSchedule/ClerkViewAcademicSc
 import ClerkViewRoomCard from "./Clerk/ClerkSchedule/ClerkViewRoomCard";
 import ClerkViewReservationCancelled from "./Clerk/ClerkOnlineReservations/ClerkViewReservationCancelled";
 import ClerkRoomUsage from "./Clerk/ClerkRoomUsageTracking/RoomUsageTracking";
+import ClerkRoomManagement from "./Clerk/ClerkRoomManagement/RoomManagementView";
+import ClerkAddRoom from "./Clerk/ClerkRoomManagement/AddRoom/RoomManagementAddRoom";
+import ClerkEditRoom from "./Clerk/ClerkRoomManagement/EditDetails/RoomManagementEditDetails";
+import ClerkRoomActivity from "./Clerk/ClerkRoomActivity/RoomActivity";
+import ClerkConflicts from "./Clerk/ClerkConflicts/ClerkConflicts";
+import ClerkConflictReassignRoom from "./Clerk/ClerkConflicts/ClerkReassignRoom";
+import ClerkSettings from "./Clerk/ClerkSettings/ClerkSettings";
+import ClerkRoomIssues from "./Clerk/ClerkRoomIssues/ClerkRoomIssues";
+
 //Faculty
 import FacultyLayout from "./Faculty/FacultyLayout/FacultyLayout";
 import FacultyDashboard from "./Faculty/FacultyDashboard/FacultyDashboard";
@@ -71,6 +83,8 @@ import FacultyViewRoom from "./Faculty/FacultyRoom/FacultyViewRoom";
 import FacultyRoomReassignment from "./Faculty/FacultyLayout/FacultyRoomReassignment";
 import FacultyViewDenied from "./Faculty/FacultyReservations/FacultyViewDeniedReservation";
 import FacultySettings from "./Faculty/FacultySettings/FacultySettings";
+import FacultyRoomIssues from "./Faculty/FacultyRoomIssues/FacultyRoomIssues";
+
 //Login
 import Login from "./Login/Login";
 import BroadcastChannel from "./Components/BroadcastChannel/BroadcastChannel";
@@ -104,6 +118,8 @@ function App() {
         <Route path="broadcast-channel" element={<BroadcastChannel />} />
         <Route path="affected-schedules" element={<RoomManagementViewAffectedSchedule />} />
         <Route path="room-usagement" element={<DepartmentHeadRoomUsage />} />
+        <Route path="settings" element={<DepartmentHeadSettings />} />
+        <Route path="room-issues" element={<DepartmentHeadRoomIssues />} />
 
       </Route>
         {/* Local Registrar */}
@@ -120,6 +136,7 @@ function App() {
           <Route path="bulk-upload-3" element={<BulkScheduleUpload3 />}/>
           <Route path="bulk-upload-4" element={<BulkScheduleUpload4 />}/>
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
+          <Route path="settings" element={<LocalRegistrarSettings />} />
 
         </Route>
        
@@ -151,6 +168,14 @@ function App() {
           <Route path="room-details" element={<RoomDetails />} />
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
           <Route path="room-usage" element={<ClerkRoomUsage />} />
+          <Route path="room-management" element={<ClerkRoomManagement />} />
+          <Route path="add-room" element={<ClerkAddRoom />} />
+          <Route path="edit-room/:id" element={<ClerkEditRoom />} />
+          <Route path="room-activity" element={<ClerkRoomActivity />} />
+          <Route path="conflicts" element={<ClerkConflicts />} />
+          <Route path="reassign-room" element={<ClerkConflictReassignRoom />} />
+          <Route path="settings" element={<ClerkSettings />} />
+          <Route path="room-issues" element={<ClerkRoomIssues />} />
         </Route>
 
         {/* Faculty */}
@@ -170,6 +195,7 @@ function App() {
           <Route path="view-cancelled-reservation" element={<FacultyViewCancelledReservation />} />
           <Route path="settings" element={<FacultySettings />} />
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
+          <Route path="room-issues" element={<FacultyRoomIssues />} />
         </Route>
 
       </Routes>

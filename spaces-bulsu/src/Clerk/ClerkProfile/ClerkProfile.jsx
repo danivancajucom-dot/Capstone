@@ -300,21 +300,10 @@ export default function ClerkProfile() {
           </div>
 
           <div className="cp-field">
-            <label>Email</label>
-            <input className="cp-input" value={form.email} readOnly />
-          </div>
-
-          <div className="cp-field">
             <label>Role</label>
             <input className="cp-input" value={form.role} readOnly />
           </div>
 
-          <div className="cp-field">
-            <label>Password</label>
-            <button className="cp-reset-password-btn" onClick={handleResetPassword}>
-              Send Password Reset Email
-            </button>
-          </div>
         </div>
 
       </div>

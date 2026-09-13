@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./local-registrar-layout.css";
 import { auth, db } from "../../firebase";
 import {
@@ -22,7 +22,11 @@ export default function LocalRegistrarLayout() {
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef(null);
+  const [profile, setProfile] = useState({
+    firstName: "", lastName: "", role: "", photoUrl: "", email: "",
+  });
 
   // ── Notification state ────────────────────────────────────────
   const [showNotifications, setShowNotifications] = useState(false);
@@ -48,7 +52,6 @@ export default function LocalRegistrarLayout() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) return;
 
-      // ── Profile listener (real-time) ────────────────────────
       const unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
@@ -57,25 +60,22 @@ export default function LocalRegistrarLayout() {
             lastName: d.lastName || "",
             role: d.role || "",
             photoUrl: d.photoUrl || "",
+            email: d.email || user.email || "",
           });
         }
       });
 
-      // ── Notifications listener (only unarchived) ────────────
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
         where("ownerType", "==", "local-registrar"),
-        where("archived", "==", false), // only fetch unarchived
+        where("archived", "==", false),
         orderBy("createdAt", "desc")
       );
 
       const unsubscribeNotif = onSnapshot(q, (snapshot) => {
         setNotifications(
-          snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
         );
       });
 
@@ -87,6 +87,17 @@ export default function LocalRegistrarLayout() {
 
     return () => unsubscribe();
   }, []);
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showProfileMenu]);
 
   // ── Notification helpers ──────────────────────────────────────
 
@@ -104,12 +115,8 @@ export default function LocalRegistrarLayout() {
   const markAsRead = async (id) => {
     try {
       await updateDoc(doc(db, "notifications", id), { unread: false });
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
-
-  // ─── Archive functions removed ────────────────────────────────
 
   const markAllAsRead = async () => {
     const unread = notifications.filter((n) => n.unread && !n.archived);
@@ -120,18 +127,15 @@ export default function LocalRegistrarLayout() {
         batch.update(doc(db, "notifications", n.id), { unread: false })
       );
       await batch.commit();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
   const allCount = notifications.filter((n) => !n.archived).length;
 
-  // Only two tabs: All and Unread (archived is gone)
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
-    return !item.archived; // "all" – show all unarchived
+    return !item.archived;
   });
 
   const emptyCopy = {
@@ -228,39 +232,89 @@ export default function LocalRegistrarLayout() {
 
           </nav>
 
-          {/* PROFILE CARD — bottom of sidebar */}
-          <NavLink to="/local-registrar/profile" className="lr-sidebar-profile">
-            <div className="lr-sidebar-avatar">
-              {profile.photoUrl ? (
-                <img src={profile.photoUrl} alt="Profile" />
-              ) : (
-                <span>{initials || <i className="fa-solid fa-user" />}</span>
-              )}
-            </div>
-            <div className="lr-sidebar-profile-info">
-              <span className="lr-sidebar-profile-name">{fullName || "My Profile"}</span>
-              <span className="lr-sidebar-profile-role">{profile.role}</span>
-            </div>
-          </NavLink>
+          {/* PROFILE CARD + DROPDOWN */}
+          <div className="lr-sidebar-profile-wrap" ref={profileMenuRef}>
+            {showProfileMenu && (
+              <>
+                <span className="lr-profile-dropdown-arrow" />
+                <div className="lr-profile-dropdown">
+                  <div className="lr-profile-dropdown-header">
+                    <div className="lr-profile-dropdown-avatar">
+                      {profile.photoUrl ? (
+                        <img src={profile.photoUrl} alt="Profile" />
+                      ) : (
+                        <span>{initials || <i className="fa-solid fa-user" />}</span>
+                      )}
+                    </div>
+                    <div className="lr-profile-dropdown-user">
+                      <span className="lr-profile-dropdown-name">{fullName || "My Profile"}</span>
+                      <span className="lr-profile-dropdown-email">{profile.email || "—"}</span>
+                    </div>
+                  </div>
+
+                  <div className="lr-profile-dropdown-divider" />
+
+                  <button
+                    className="lr-profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/local-registrar/profile"); }}
+                  >
+                    <i className="fa-regular fa-user"></i>
+                    <span>Profile</span>
+                  </button>
+                  <button
+                    className="lr-profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/local-registrar/settings"); }}
+                  >
+                    <i className="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                  </button>
+
+                  <div className="lr-profile-dropdown-divider" />
+
+                  <button
+                    className="lr-profile-dropdown-item logout"
+                    onClick={() => { setShowProfileMenu(false); setShowLogoutConfirm(true); }}
+                  >
+                    <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              className={`lr-sidebar-profile ${showProfileMenu ? "menu-open" : ""}`}
+              onClick={() => setShowProfileMenu((v) => !v)}
+            >
+              <div className="lr-sidebar-avatar">
+                {profile.photoUrl ? (
+                  <img src={profile.photoUrl} alt="Profile" />
+                ) : (
+                  <span>{initials || <i className="fa-solid fa-user" />}</span>
+                )}
+              </div>
+              <div className="lr-sidebar-profile-info">
+                <span className="lr-sidebar-profile-name">{fullName || "My Profile"}</span>
+                <span className="lr-sidebar-profile-role">{profile.role || profile.email}</span>
+              </div>
+              <i className={`fa-solid fa-chevron-down lr-profile-chev ${showProfileMenu ? "open" : ""}`} />
+            </button>
+          </div>
 
         </aside>
 
         <div className="registrar-main">
 
           <header className="registrar-header">
-
             <div className="header-actions">
-              {/* ── NOTIFICATION TRIGGER ────────────────────────── */}
+              {/* NOTIFICATION TRIGGER */}
               <div className="notification-container-LR">
                 <button
                   className={`header-btn lr-notif-btn-LR ${showNotifications ? "notif-btn-open-LR" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
                 >
-                  <i
-                    className={`fa-bell ${
-                      unreadCount > 0 ? "fa-solid bell-active-LR" : "fa-regular"
-                    }`}
-                  ></i>
+                  <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active-LR" : "fa-regular"}`}></i>
                   {unreadCount > 0 && (
                     <span className="notif-count-LR">
                       {unreadCount > 9 ? "9+" : unreadCount}
@@ -268,7 +322,6 @@ export default function LocalRegistrarLayout() {
                   )}
                 </button>
 
-                {/* NOTIFICATIONS PANEL */}
                 {showNotifications && (
                   <>
                     <div className="notif-clickaway-LR" onClick={() => setShowNotifications(false)}></div>
@@ -282,10 +335,7 @@ export default function LocalRegistrarLayout() {
                             <span className="notif-top-badge-LR">{unreadCount} new</span>
                           )}
                         </div>
-                        <button
-                          className="notif-close-LR"
-                          onClick={() => setShowNotifications(false)}
-                        >
+                        <button className="notif-close-LR" onClick={() => setShowNotifications(false)}>
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
@@ -303,7 +353,6 @@ export default function LocalRegistrarLayout() {
                         >
                           Unread <span className="notif-tab-count-LR">{unreadCount}</span>
                         </button>
-                        {/* Archived tab removed */}
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
@@ -336,7 +385,6 @@ export default function LocalRegistrarLayout() {
                                 unread={item.unread}
                                 archived={item.archived}
                                 onClick={() => markAsRead(item.id)}
-                                // ❌ No onArchive prop
                               />
                             </div>
                           ))
@@ -347,7 +395,6 @@ export default function LocalRegistrarLayout() {
                 )}
               </div>
 
-              {/* LOGOUT BUTTON */}
               <button className="header-btn lr-logout-btn" onClick={() => setShowLogoutConfirm(true)}>
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>

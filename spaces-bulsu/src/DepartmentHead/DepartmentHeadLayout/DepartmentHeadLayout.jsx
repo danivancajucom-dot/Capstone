@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./department-head-layout.css";
 import { auth, db } from "../../firebase";
 import {
@@ -11,6 +11,7 @@ import {
   doc,
   updateDoc,
   writeBatch,
+  getDoc,
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
@@ -22,7 +23,11 @@ export default function DepartmentHeadLayout() {
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [profile, setProfile] = useState({
+    firstName: "", lastName: "", role: "", photoUrl: "", email: "",
+  });
+  const profileMenuRef = useRef(null);
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -41,8 +46,19 @@ export default function DepartmentHeadLayout() {
     setOpenRoom(isRoomActive);
   }, [isRoomActive]);
 
+  // Close dropdown on outside click
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const handleClickOutside = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showProfileMenu]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
 
       // Real-time profile listener
@@ -54,11 +70,11 @@ export default function DepartmentHeadLayout() {
             lastName:  d.lastName  || "",
             role:      d.role      || "",
             photoUrl:  d.photoUrl  || "",
+            email:     d.email     || user.email || "",
           });
         }
       });
 
-      // ─── Only fetch unarchived notifications ────────────────────
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
@@ -103,8 +119,6 @@ export default function DepartmentHeadLayout() {
     catch (err) { console.error(err); }
   };
 
-  // ─── archiveNotification removed ───────────────────────────────
-
   const markAllAsRead = async () => {
     const unread = notifications.filter((n) => n.unread && !n.archived);
     if (unread.length === 0) return;
@@ -117,13 +131,12 @@ export default function DepartmentHeadLayout() {
     } catch (err) { console.error(err); }
   };
 
-  const unreadCount   = notifications.filter((n) => n.unread && !n.archived).length;
-  const allCount      = notifications.filter((n) => !n.archived).length;
+  const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
+  const allCount    = notifications.filter((n) => !n.archived).length;
 
-  // ─── Only two tabs: All and Unread ──────────────────────────────
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
-    return !item.archived; // "all"
+    return !item.archived;
   });
 
   const emptyCopy = {
@@ -139,7 +152,6 @@ export default function DepartmentHeadLayout() {
     },
   }[activeTab];
 
-  // ✅ Expanded typeIcon to include all relevant types
   const typeIcon = {
     schedule: "fa-regular fa-calendar",
     urgent:   "fa-solid fa-exclamation",
@@ -216,15 +228,12 @@ export default function DepartmentHeadLayout() {
               </button>
 
               <div className={`submenu-card ${openRoom ? "open" : ""}`}>
-                <NavLink to="/department-head/room-management">Room Management</NavLink>
-                <NavLink to="/department-head/room-usagement">Room Usage Tracking</NavLink>
+              <NavLink to="/department-head/room-activity"> Room Activity </NavLink>
+              <NavLink to="/department-head/room-issues"> Room Issues </NavLink>                
+              <NavLink to="/department-head/room-usagement">Room Usage Tracking</NavLink>
               </div>
             </div>
 
-            <NavLink to="/department-head/room-activity">
-              <i className="fa-solid fa-chart-line"></i>
-              <span>Room Activity</span>
-            </NavLink>
             <NavLink to="/department-head/user-management">
               <i className="fa-solid fa-users"></i>
               <span>User Management</span>
@@ -235,27 +244,81 @@ export default function DepartmentHeadLayout() {
             </NavLink>
           </nav>
 
-          {/* PROFILE CARD — bottom of sidebar */}
-          <NavLink to="/department-head/profile" className="dept-sidebar-profile">
-            <div className="dept-sidebar-avatar">
-              {profile.photoUrl
-                ? <img src={profile.photoUrl} alt="Profile" />
-                : <span>{initials || <i className="fa-solid fa-user" />}</span>
-              }
-            </div>
-            <div className="dept-sidebar-profile-info">
-              <span className="dept-sidebar-profile-name">{fullName || "My Profile"}</span>
-              <span className="dept-sidebar-profile-role">{profile.role}</span>
-            </div>
-          </NavLink>
+          {/* PROFILE CARD + DROPDOWN */}
+          <div className="dept-sidebar-profile-wrap" ref={profileMenuRef}>
+            {showProfileMenu && (
+              <>
+                <span className="dept-profile-dropdown-arrow" />
+                <div className="dept-profile-dropdown">
+                  <div className="dept-profile-dropdown-header">
+                    <div className="dept-profile-dropdown-avatar">
+                      {profile.photoUrl ? (
+                        <img src={profile.photoUrl} alt="Profile" />
+                      ) : (
+                        <span>{initials || <i className="fa-solid fa-user" />}</span>
+                      )}
+                    </div>
+                    <div className="dept-profile-dropdown-user">
+                      <span className="dept-profile-dropdown-name">{fullName || "My Profile"}</span>
+                      <span className="dept-profile-dropdown-email">{profile.email || "—"}</span>
+                    </div>
+                  </div>
+
+                  <div className="dept-profile-dropdown-divider" />
+
+                  <button
+                    className="dept-profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/department-head/profile"); }}
+                  >
+                    <i className="fa-regular fa-user"></i>
+                    <span>Profile</span>
+                  </button>
+                  <button
+                    className="dept-profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/department-head/settings"); }}
+                  >
+                    <i className="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                  </button>
+
+                  <div className="dept-profile-dropdown-divider" />
+
+                  <button
+                    className="dept-profile-dropdown-item logout"
+                    onClick={() => { setShowProfileMenu(false); setShowLogoutConfirm(true); }}
+                  >
+                    <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              className={`dept-sidebar-profile ${showProfileMenu ? "menu-open" : ""}`}
+              onClick={() => setShowProfileMenu((v) => !v)}
+            >
+              <div className="dept-sidebar-avatar">
+                {profile.photoUrl ? (
+                  <img src={profile.photoUrl} alt="Profile" />
+                ) : (
+                  <span>{initials || <i className="fa-solid fa-user" />}</span>
+                )}
+              </div>
+              <div className="dept-sidebar-profile-info">
+                <span className="dept-sidebar-profile-name">{fullName || "My Profile"}</span>
+                <span className="dept-sidebar-profile-role">{profile.role || profile.email}</span>
+              </div>
+              <i className={`fa-solid fa-chevron-down dept-profile-chev ${showProfileMenu ? "open" : ""}`} />
+            </button>
+          </div>
 
         </aside>
 
         <div className="dept-main">
 
           <header className="dept-header">
-            
-
             <div className="header-actions">
               {/* NOTIFICATION TRIGGER */}
               <div className="notification-container-DH">
@@ -294,7 +357,6 @@ export default function DepartmentHeadLayout() {
                         <button className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>
                           Unread <span className="notif-tab-count-DH">{unreadCount}</span>
                         </button>
-                        {/* Archived tab removed */}
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
@@ -327,7 +389,6 @@ export default function DepartmentHeadLayout() {
                                 unread={item.unread}
                                 archived={item.archived}
                                 onClick={() => markAsRead(item.id)}
-                                // ❌ No onArchive prop
                               />
                             </div>
                           ))
@@ -338,7 +399,6 @@ export default function DepartmentHeadLayout() {
                 )}
               </div>
 
-              {/* LOGOUT BUTTON */}
               <button className="dept-header-btn dept-logout-btn" onClick={() => setShowLogoutConfirm(true)}>
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>

@@ -478,7 +478,7 @@ function ClerkDashboard() {
               <div className="clerk-side-box-header">
                 <div className="clerk-side-box-title">
                   <i className="fa-regular fa-circle-check clerk-side-icon"></i>
-                  <span>Released Rooms</span>
+                  <span>Scheduled Rooms Marked as Available</span>
                 </div>
                 <button
                   className="clerk-view-all-btn"
@@ -492,7 +492,7 @@ function ClerkDashboard() {
               </div>
               <div className="released-rooms-list">
                 {todaysReleases.length === 0 ? (
-                  <p className="clerk-upcoming-empty">No rooms released today.</p>
+                  <p className="clerk-upcoming-empty">No scheduled rooms marked as available today.</p>
                 ) : (
                   todaysReleases.slice(0, 5).map((release) => (
                     <DashboardReleasedRoomCard

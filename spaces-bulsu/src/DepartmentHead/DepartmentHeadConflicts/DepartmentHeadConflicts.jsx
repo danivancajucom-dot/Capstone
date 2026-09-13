@@ -603,6 +603,8 @@ function DepartmentHeadConflicts() {
                     activeTab === "all" && !conflict.reassignPending
                   }
                   onResolved={handleResolved}
+                  reassignPath="/department-head/reassign-room"
+                  backPath="/department-head/conflicts"
                 />
               ))
             )}

@@ -42,6 +42,25 @@ const formatTime12 = (time) => {
   return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
 };
 
+const formatDurationLabel = (mins) => {
+  const n = Number(mins);
+  if (!n) return "--";
+  if (n < 60) return `${n} mins`;
+  const hrs = Math.floor(n / 60);
+  const rem = n % 60;
+  return rem ? `${hrs} hr ${rem} mins` : `${hrs} Hour${hrs > 1 ? "s" : ""}`;
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 const overlap = (aStart, aEnd, bStart, bEnd) => {
   return (
     convertToMinutes(aStart) < convertToMinutes(bEnd) &&
@@ -55,6 +74,56 @@ const getTodayLocal = () => {
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+};
+
+const toDateStrLocal = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const addDaysLocal = (dateStr, days) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toDateStrLocal(d);
+};
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+// Builds a 6-row calendar grid (42 cells) for the given month, padded with
+// the trailing days of the previous/next month so every row is full.
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+  return cells;
 };
 
 const normalize = (value) => value?.toString().trim().toLowerCase();
@@ -112,6 +181,11 @@ export default function WalkInReservation() {
 
   // ─── NEW: selected date (default to today) ──────────────────────
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date(`${getTodayLocal()}T00:00:00`);
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
 
   const [form, setForm] = useState({
     requesterType: "",
@@ -567,6 +641,16 @@ export default function WalkInReservation() {
     return null;
   };
 
+  // Runs validation, and only opens the review modal if everything checks out
+  const openReview = () => {
+    const error = validate();
+    if (error) {
+      showToast("error", "Validation Error", error);
+      return;
+    }
+    setShowModal(true);
+  };
+
   // ─── Notifications ──────────────────────────────────────────────────
 
   const notifyClerkAndDepartmentHead = async (
@@ -605,15 +689,17 @@ export default function WalkInReservation() {
     const error = validate();
     if (error) {
       showToast("error", "Validation Error", error);
+      setShowModal(false);
       return;
     }
 
     setSavingReservation(true);
     showToast("loading", "Processing", "Creating walk-in reservation...");
 
+    let clerkName = "Clerk";
+
     try {
       const firebaseUser = auth.currentUser;
-      let clerkName = "Clerk";
       if (firebaseUser) {
         const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
         if (userSnap.exists()) {
@@ -910,18 +996,140 @@ export default function WalkInReservation() {
               Room And Schedule
             </div>
 
-            {/* ─── Date picker (editable) ────────────────────────────── */}
+            {/* ─── Date picker (custom calendar popover) ─────────────── */}
             <div className="wir-field">
               <label>Select Date</label>
-              <div className="wir-icon-input">
-                <i className="fa-regular fa-calendar" />
-                <input
-                  type="date"
-                  className="wir-plain-input"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  min={getTodayLocal()}
-                />
+              <div className="wir-datepicker">
+                <button
+                  type="button"
+                  className={`wir-date-trigger ${showDatePicker ? "open" : ""}`}
+                  onClick={() => {
+                    const d = new Date(`${selectedDate}T00:00:00`);
+                    setCalendarCursor({ year: d.getFullYear(), month: d.getMonth() });
+                    setShowDatePicker((v) => !v);
+                  }}
+                >
+                  <i className="fa-regular fa-calendar"></i>
+                  <span>
+                    {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <i className="fa-solid fa-chevron-down wir-date-caret"></i>
+                </button>
+
+                {showDatePicker && (
+                  <>
+                    <div
+                      className="wir-date-clickaway"
+                      onClick={() => setShowDatePicker(false)}
+                    ></div>
+                    <div className="wir-date-popover">
+                      <span className="wir-date-popover-arrow"></span>
+
+                      <div className="wir-date-quick-row">
+                        <button
+                          type="button"
+                          className={selectedDate === getTodayLocal() ? "active" : ""}
+                          onClick={() => {
+                            setSelectedDate(getTodayLocal());
+                            setShowDatePicker(false);
+                          }}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            selectedDate === addDaysLocal(getTodayLocal(), 1) ? "active" : ""
+                          }
+                          onClick={() => {
+                            setSelectedDate(addDaysLocal(getTodayLocal(), 1));
+                            setShowDatePicker(false);
+                          }}
+                        >
+                          Tomorrow
+                        </button>
+                      </div>
+
+                      <div className="wir-cal-header">
+                        <button
+                          type="button"
+                          className="wir-cal-nav"
+                          onClick={() =>
+                            setCalendarCursor((c) => {
+                              const m = c.month - 1;
+                              return m < 0
+                                ? { year: c.year - 1, month: 11 }
+                                : { year: c.year, month: m };
+                            })
+                          }
+                          aria-label="Previous month"
+                        >
+                          <i className="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span className="wir-cal-title">
+                          {MONTH_NAMES[calendarCursor.month]} {calendarCursor.year}
+                        </span>
+                        <button
+                          type="button"
+                          className="wir-cal-nav"
+                          onClick={() =>
+                            setCalendarCursor((c) => {
+                              const m = c.month + 1;
+                              return m > 11
+                                ? { year: c.year + 1, month: 0 }
+                                : { year: c.year, month: m };
+                            })
+                          }
+                          aria-label="Next month"
+                        >
+                          <i className="fa-solid fa-chevron-right"></i>
+                        </button>
+                      </div>
+
+                      <div className="wir-cal-weekdays">
+                        {WEEKDAY_LABELS.map((w) => (
+                          <span key={w}>{w}</span>
+                        ))}
+                      </div>
+
+                      <div className="wir-cal-grid">
+                        {buildCalendarGrid(calendarCursor.year, calendarCursor.month).map(
+                          (cell, i) => {
+                            const cellStr = toDateStrLocal(cell.date);
+                            const isPast = cellStr < getTodayLocal();
+                            const isSelected = cellStr === selectedDate;
+                            return (
+                              <button
+                                type="button"
+                                key={i}
+                                className={[
+                                  "wir-cal-day",
+                                  !cell.inMonth && "is-outside",
+                                  isSelected && "is-selected",
+                                  isPast && "is-disabled",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                disabled={isPast}
+                                onClick={() => {
+                                  setSelectedDate(cellStr);
+                                  setShowDatePicker(false);
+                                }}
+                              >
+                                {cell.day}
+                              </button>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1012,43 +1220,12 @@ export default function WalkInReservation() {
                   </select>
                 </div>
               )}
-
-              <div className="wir-booking-preview">
-                <div className="wir-preview-header">
-                  <i className="fa-solid fa-clock"></i>
-                  <span>Booking Summary</span>
-                </div>
-                <div className="wir-preview-grid">
-                  <div className="wir-preview-box">
-                    <small>START</small>
-                    <h3>
-                      {form.startTime ? formatTime12(form.startTime) : "--"}
-                    </h3>
-                  </div>
-                  <div className="wir-preview-box">
-                    <small>END</small>
-                    <h3>{form.endTime ? formatTime12(form.endTime) : "--"}</h3>
-                  </div>
-                  <div className="wir-preview-box full">
-                    <small>DURATION</small>
-                    <h3>
-                      {form.duration
-                        ? form.duration >= 60
-                          ? `${Math.floor(form.duration / 60)} hr ${
-                              form.duration % 60 || ""
-                            }`
-                          : `${form.duration} mins`
-                        : "--"}
-                    </h3>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="wir-footer">
               <button
                 className="wir-confirm-btn"
-                onClick={() => setShowModal(true)}
+                onClick={openReview}
                 disabled={savingReservation}
               >
                 Confirm Booking
@@ -1189,38 +1366,124 @@ export default function WalkInReservation() {
           </div>
         </div>
 
+        {/* ─── Review & Confirm modal ───────────────────────────────── */}
         {showModal && (
           <div className="wir-modal-overlay">
-            <div className="wir-modal">
+            <div className="wir-modal wir-review-modal">
               <div className="wir-modal-icon">
-                <i className="fa-solid fa-triangle-exclamation" />
+                <i className="fa-solid fa-clipboard-check" />
               </div>
-              <h3 className="wir-modal-title">Are you sure?</h3>
+              <h3 className="wir-modal-title">Review Booking</h3>
               <p className="wir-modal-text">
-                Do you want to proceed
-                <br />
-                with this operation?
+                Please check the details below before confirming.
               </p>
-              <button
-                className="wir-modal-cancel"
-                onClick={() => setShowModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="wir-modal-confirm"
-                disabled={savingReservation}
-                onClick={handleConfirm}
-              >
-                {savingReservation ? (
-                  <>
-                    <span className="small-spinner"></span>
-                    Saving...
-                  </>
-                ) : (
-                  "Confirm"
-                )}
-              </button>
+
+              <div className="wir-review-group">
+                <span className="wir-review-group-title">Requester</span>
+                <div className="wir-review-list">
+                  <div className="wir-review-row">
+                    <span>Type</span>
+                    <strong>
+                      {form.requesterType === "faculty" ? "Faculty" : "Organization"}
+                    </strong>
+                  </div>
+                  <div className="wir-review-row">
+                    <span>
+                      {form.requesterType === "faculty" ? "Faculty Name" : "Requester Name"}
+                    </span>
+                    <strong>{form.requesterName || "—"}</strong>
+                  </div>
+                  <div className="wir-review-row">
+                    <span>
+                      {form.requesterType === "faculty" ? "Faculty ID" : "Org. / Student ID"}
+                    </span>
+                    <strong>{form.requesterId || "—"}</strong>
+                  </div>
+                  {form.requesterType === "organization" && form.organizationName && (
+                    <div className="wir-review-row">
+                      <span>Organization</span>
+                      <strong>{form.organizationName}</strong>
+                    </div>
+                  )}
+                  <div className="wir-review-row">
+                    <span>Purpose</span>
+                    <strong>
+                      {form.purpose === "Other Activity"
+                        ? form.customPurpose || "—"
+                        : form.purpose || "—"}
+                    </strong>
+                  </div>
+                  {form.requesterType === "faculty" && form.purpose === "Class" && (
+                    <>
+                      <div className="wir-review-row">
+                        <span>Course</span>
+                        <strong>{form.course || "—"}</strong>
+                      </div>
+                      <div className="wir-review-row">
+                        <span>Year / Section / Group</span>
+                        <strong>{form.yearSectionGroup || "—"}</strong>
+                      </div>
+                    </>
+                  )}
+                  {form.studentRange && (
+                    <div className="wir-review-row">
+                      <span>Est. Attendees</span>
+                      <strong>{form.studentRange} Persons</strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="wir-review-group">
+                <span className="wir-review-group-title">Room & Schedule</span>
+                <div className="wir-review-list">
+                  <div className="wir-review-row">
+                    <span>Room</span>
+                    <strong>{selectedRoom?.roomName || "—"}</strong>
+                  </div>
+                  <div className="wir-review-row">
+                    <span>Date</span>
+                    <strong>{formatDateLong(selectedDate)}</strong>
+                  </div>
+                  <div className="wir-review-row">
+                    <span>Time</span>
+                    <strong>
+                      {form.startTime ? formatTime12(form.startTime) : "--"} –{" "}
+                      {form.endTime ? formatTime12(form.endTime) : "--"}
+                    </strong>
+                  </div>
+                  <div className="wir-review-row">
+                    <span>Duration</span>
+                    <strong>{formatDurationLabel(form.duration)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="wir-modal-actions">
+                <button
+                  className="wir-modal-cancel"
+                  onClick={() => setShowModal(false)}
+                  disabled={savingReservation}
+                >
+                  <i className="fa-solid fa-pen"></i> Edit Details
+                </button>
+                <button
+                  className="wir-modal-confirm"
+                  disabled={savingReservation}
+                  onClick={handleConfirm}
+                >
+                  {savingReservation ? (
+                    <>
+                      <span className="small-spinner"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-check"></i> Confirm Booking
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

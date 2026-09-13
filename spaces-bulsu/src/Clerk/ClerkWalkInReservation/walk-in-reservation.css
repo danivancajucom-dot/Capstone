@@ -66,14 +66,6 @@ animation:spin .7s linear infinite;
 }
 
 .wir-subtitle {
-  font-size: 13px;
-  color: #9ca3af;
-  font-weight: 400;
-  margin-bottom: 24px;
-  margin-left: 5px;
-}
-
-.wir-subtitle {
   font-size: 15px;
   color: #9ca3af;
   font-weight: 300;
@@ -230,182 +222,91 @@ animation:spin .7s linear infinite;
 .wir-floor-pill i { font-size: 10px; }
 
 .wir-slots{
-
 display:grid;
-
 grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
-
 gap:15px;
-
 margin-top:15px;
-
 }
 
 .wir-room-card{
-
 background:white;
-
 border:2px solid #e5e7eb;
-
 border-radius:15px;
-
 padding:18px;
-
 cursor:pointer;
-
 transition:.25s;
-
 display:flex;
-
 flex-direction:column;
-
 gap:15px;
-
 }
 
 .wir-room-card:hover{
-
 transform:translateY(-3px);
-
 box-shadow:0 10px 20px rgba(0,0,0,.08);
-
 }
 
 .wir-room-card.selected{
-
 border:2px solid #F97316;
-
 background:#FFF7ED;
-
 }
 
 .wir-room-card-top{
-
 display:flex;
-
 justify-content:space-between;
-
 align-items:flex-start;
-
 }
 
 .wir-room-card-top h4{
-
 margin:0;
-
 font-size:18px;
-
 }
 
 .wir-room-card-top p{
-
 margin-top:4px;
-
 font-size:13px;
-
 color:#6b7280;
-
 }
 
 .wir-room-status{
-
 background:#DCFCE7;
-
 color:#15803D;
-
 padding:6px 12px;
-
 border-radius:999px;
-
 font-size:12px;
-
 font-weight:700;
-
 }
 
 .wir-room-card-info{
-
 display:flex;
-
 justify-content:space-between;
-
 }
 
 .wir-room-card-info span{
-
 display:block;
-
 font-size:12px;
-
 color:#9ca3af;
-
 }
 
 .wir-room-card-info strong{
-
 font-size:15px;
-
 margin-top:4px;
-
 display:block;
-
 }
 
 .wir-room-duration{
-
 background:#F0FDF4;
-
 padding:12px;
-
 border-radius:10px;
-
 display:flex;
-
 justify-content:space-between;
-
 align-items:center;
-
 font-size:14px;
-
 font-weight:600;
-
 }
 
 .wir-room-duration strong{
-
 font-size:18px;
-
 color:#15803D;
-
-}
-
-.wir-slot {
-  padding: 8px 20px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  font-family: 'Lexend', sans-serif;
-  cursor: pointer;
-  border: 1.5px solid;
-  transition: all 0.15s;
-}
-
-.wir-slot.available {
-  background: #DCFCE7;
-  border-color: #4ADE80;
-  color: #15803D;
-}
-
-.wir-slot.available:hover, .wir-slot.available.selected {
-  background: #BBF7D0;
-  border-color: #22C55E;
-}
-
-.wir-slot.occupied {
-  background: #FEE2E2;
-  border-color: #FCA5A5;
-  color: #DC2626;
-  cursor: not-allowed;
 }
 
 .wir-right-col {
@@ -488,29 +389,6 @@ color:#15803D;
   gap: 6px;
 }
 
-.wir-avail-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.wir-avail-time {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  width: 40px;
-  flex-shrink: 0;
-}
-
-.wir-avail-label { font-size: 13px; font-weight: 500; }
-
-.wir-avail-item.reserved  { background: #f9fafb; color: #374151; border-left: 3px solid #e5e7eb; }
-.wir-avail-item.booking   { background: #FEF0E7; color: #F97316; border-left: 3px solid #F97316; font-weight: 700; }
-.wir-avail-item.available { background: #F0FDF4; color: #15803D; border-left: 3px solid #4ADE80; }
-
 .wir-view-btn {
   background: #F97316;
   color: #fff;
@@ -548,22 +426,26 @@ color:#15803D;
   transition: background 0.2s;
 }
 
-.wir-confirm-btn:hover { background: #ea6c0a; }
+.wir-confirm-btn:hover:not(:disabled) { background: #ea6c0a; }
+.wir-confirm-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* ── Review / Confirm modal ───────────────────────────────────────────── */
 
 .wir-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.3);
+  background: rgba(17,24,39,0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 999;
+  padding: 20px;
 }
 
 .wir-modal {
   background: #fff;
-  border-radius: 16px;
-  padding: 36px 32px;
+  border-radius: 20px;
+  padding: 32px 30px;
   width: 340px;
   display: flex;
   flex-direction: column;
@@ -592,45 +474,118 @@ color:#15803D;
 }
 
 .wir-modal-text {
-  font-size: 14px;
+  font-size: 13.5px;
   color: #6b7280;
   text-align: center;
   font-weight: 300;
   line-height: 1.5;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+/* Review variant — wider, left-aligned detail sections */
+.wir-modal.wir-review-modal {
+  width: 460px;
+  max-width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  gap: 16px;
+}
+
+.wir-review-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wir-review-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-left: 2px;
+}
+
+.wir-review-list {
+  border: 1px solid #eef0f2;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.wir-review-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  padding: 11px 14px;
+  font-size: 13px;
+  background: #fff;
+  border-bottom: 1px solid #f1f1f1;
+}
+
+.wir-review-row:last-child { border-bottom: none; }
+
+.wir-review-row span {
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.wir-review-row strong {
+  color: #111827;
+  font-weight: 700;
+  text-align: right;
+}
+
+.wir-modal-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
 }
 
 .wir-modal-cancel {
-  width: 100%;
+  flex: 1;
   padding: 13px;
   border-radius: 10px;
   border: 1.5px solid #F97316;
   background: #FEF0E7;
   color: #F97316;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   font-family: 'Lexend', sans-serif;
   cursor: pointer;
   transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-.wir-modal-cancel:hover { background: #fde8d5; }
+.wir-modal-cancel:hover:not(:disabled) { background: #fde8d5; }
+.wir-modal-cancel:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .wir-modal-confirm {
-  width: 100%;
+  flex: 1;
   padding: 13px;
   border-radius: 10px;
   border: none;
   background: #F97316;
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   font-family: 'Lexend', sans-serif;
   cursor: pointer;
   transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-.wir-modal-confirm:hover { background: #ea6c0a; }
+.wir-modal-confirm:hover:not(:disabled) { background: #ea6c0a; }
+.wir-modal-confirm:disabled { opacity: 0.7; cursor: not-allowed; }
 
 @media (max-width: 1024px) {
   .wir-layout {
@@ -646,284 +601,350 @@ color:#15803D;
   }
 }
 
+@media (max-width: 500px) {
+  .wir-modal.wir-review-modal { width: 100%; padding: 26px 20px; }
+  .wir-modal-actions { flex-direction: column; }
+}
+
 .wir-live-room{
-
 background:white;
-
 border:1px solid #e5e7eb;
-
 border-radius:12px;
-
 padding:14px;
-
 display:flex;
-
 flex-direction:column;
-
 gap:10px;
-
 transition:.2s;
-
 }
 
 .wir-live-room:hover{
-
 transform:translateY(-2px);
-
 box-shadow:0 8px 18px rgba(0,0,0,.08);
-
 }
 
 .wir-live-top{
-
 display:flex;
-
 justify-content:space-between;
-
 align-items:center;
-
 }
 
 .wir-live-room-name{
-
 font-size:15px;
-
 font-weight:700;
-
 }
 
 .wir-live-room-type{
-
 font-size:12px;
-
 color:#6b7280;
-
 margin-top:2px;
-
 }
 
 .wir-live-badge{
-
 padding:6px 10px;
-
 border-radius:999px;
-
 font-size:11px;
-
 font-weight:700;
-
 }
 
 .wir-live-badge.green{
-
 background:#DCFCE7;
-
 color:#15803D;
-
 }
 
 .wir-live-badge.red{
-
 background:#FEE2E2;
-
 color:#DC2626;
-
-}
-
-.wir-live-bottom{
-
-font-size:13px;
-
-color:#6b7280;
-
-}
-
-.wir-live-bottom strong{
-
-display:block;
-
-margin-top:4px;
-
-font-size:15px;
-
-color:#111827;
-
-}
-
-.wir-max-duration{
-
-margin-top:15px;
-
-padding:14px;
-
-background:#F0FDF4;
-
-border:1px solid #BBF7D0;
-
-border-radius:12px;
-
-display:flex;
-
-justify-content:space-between;
-
-align-items:center;
-
-font-size:14px;
-
-font-weight:600;
-
-}
-
-.wir-max-duration strong{
-
-color:#15803D;
-
-font-size:18px;
-
-}
-
-.wir-room-timeline{
-
-margin-top:20px;
-
-padding:18px;
-
-background:#fff;
-
-border-radius:12px;
-
-border:1px solid #e5e7eb;
-
-}
-
-.timeline-item{
-
-display:flex;
-
-justify-content:space-between;
-
-padding:10px 0;
-
-border-bottom:1px solid #eee;
-
-}
-
-.timeline-item:last-child{
-
-border-bottom:none;
-
-}
-
-.timeline-time{
-
-font-weight:700;
-
-color:#374151;
-
-}
-
-.timeline-label{
-
-color:#6b7280;
-
-font-size:13px;
-
-}
-
-.wir-booking-preview{
-
-margin-top:20px;
-padding:18px;
-border-radius:16px;
-background:#fff;
-border:1px solid #e5e7eb;
-box-shadow:0 6px 18px rgba(0,0,0,.05);
-
-}
-
-.wir-preview-header{
-
-display:flex;
-align-items:center;
-gap:10px;
-margin-bottom:18px;
-font-weight:700;
-font-size:15px;
-color:#111827;
-
-}
-
-.wir-preview-header i{
-
-color:#F97316;
-font-size:18px;
-
-}
-
-.wir-preview-grid{
-
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:12px;
-
-}
-
-.wir-preview-box{
-
-background:#F9FAFB;
-border:1px solid #E5E7EB;
-border-radius:12px;
-padding:15px;
-text-align:center;
-
-}
-
-.wir-preview-box.full{
-
-grid-column:span 2;
-
-background:#FFF7ED;
-border-color:#FDBA74;
-
-}
-
-.wir-preview-box small{
-
-display:block;
-font-size:11px;
-font-weight:700;
-letter-spacing:.08em;
-color:#9CA3AF;
-margin-bottom:6px;
-
-}
-
-.wir-preview-box h3{
-
-margin:0;
-font-size:22px;
-font-weight:800;
-color:#111827;
-
 }
 
 .wir-live-badge.gray{
-    background:#E5E7EB;
-    color:#4B5563;
+background:#E5E7EB;
+color:#4B5563;
+}
+
+.wir-live-bottom{
+font-size:13px;
+color:#6b7280;
+}
+
+.wir-live-bottom strong{
+display:block;
+margin-top:4px;
+font-size:15px;
+color:#111827;
 }
 
 .live-info-row{
-    display:flex;
-    justify-content:space-between;
-    margin-top:6px;
+display:flex;
+justify-content:space-between;
+margin-top:6px;
 }
 
 .live-info-row span{
-    color:#6B7280;
-    font-size:12px;
+color:#6B7280;
+font-size:12px;
 }
 
 .live-info-row strong{
-    font-size:13px;
-    color:#111827;
+font-size:13px;
+color:#111827;
+}
+
+.wir-max-duration{
+margin-top:15px;
+padding:14px;
+background:#F0FDF4;
+border:1px solid #BBF7D0;
+border-radius:12px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+font-size:14px;
+font-weight:600;
+}
+
+.wir-max-duration strong{
+color:#15803D;
+font-size:18px;
+}
+
+.wir-room-timeline{
+margin-top:20px;
+padding:18px;
+background:#fff;
+border-radius:12px;
+border:1px solid #e5e7eb;
+}
+
+.timeline-item{
+display:flex;
+justify-content:space-between;
+padding:10px 0;
+border-bottom:1px solid #eee;
+}
+
+.timeline-item:last-child{
+border-bottom:none;
+}
+
+.timeline-time{
+font-weight:700;
+color:#374151;
+}
+
+.timeline-label{
+color:#6b7280;
+font-size:13px;
+}
+
+/* ── Custom date picker (trigger + calendar popover) ──────────────────── */
+
+.wir-datepicker {
+  position: relative;
+}
+
+.wir-date-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background: #F8F7F5;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  cursor: pointer;
+  font-family: 'Lexend', sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  transition: border-color 0.2s, background 0.2s;
+  text-align: left;
+}
+
+.wir-date-trigger i:first-child {
+  color: #9ca3af;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.wir-date-trigger span {
+  flex: 1;
+  font-weight: 500;
+}
+
+.wir-date-caret {
+  font-size: 11px;
+  color: #b0b7c3;
+  transition: transform 0.2s, color 0.2s;
+}
+
+.wir-date-trigger:hover,
+.wir-date-trigger.open {
+  border-color: #F97316;
+  background: #fff;
+}
+
+.wir-date-trigger.open .wir-date-caret {
+  color: #F97316;
+  transform: rotate(180deg);
+}
+
+.wir-date-clickaway {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: transparent;
+}
+
+.wir-date-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  width: 320px;
+  max-width: 92vw;
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid #f0ece8;
+  box-shadow: 0 20px 44px rgba(17,24,39,0.14), 0 4px 12px rgba(17,24,39,0.06);
+  padding: 16px;
+  z-index: 1000;
+  animation: wirDatePopIn 0.16s cubic-bezier(.22,1,.36,1);
+}
+
+@keyframes wirDatePopIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.wir-date-popover-arrow {
+  position: absolute;
+  top: -7px;
+  left: 24px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-left: 1px solid #f0ece8;
+  border-top: 1px solid #f0ece8;
+  transform: rotate(45deg);
+  border-radius: 3px 0 0 0;
+}
+
+.wir-date-quick-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.wir-date-quick-row button {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  font-family: 'Lexend', sans-serif;
+  transition: 0.15s;
+}
+
+.wir-date-quick-row button:hover {
+  border-color: #F97316;
+  color: #F97316;
+}
+
+.wir-date-quick-row button.active {
+  background: #F97316;
+  border-color: #F97316;
+  color: #fff;
+}
+
+.wir-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.wir-cal-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.wir-cal-nav {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: #f5f6fa;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: 0.15s;
+}
+
+.wir-cal-nav:hover {
+  background: #FEF0E7;
+  color: #F97316;
+}
+
+.wir-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+
+.wir-cal-weekdays span {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #9ca3af;
+  padding: 4px 0;
+}
+
+.wir-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.wir-cal-day {
+  aspect-ratio: 1 / 1;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  font-family: 'Lexend', sans-serif;
+  transition: 0.12s;
+}
+
+.wir-cal-day:hover:not(:disabled) {
+  background: #FEF0E7;
+  color: #F97316;
+}
+
+.wir-cal-day.is-outside {
+  color: #d1d5db;
+}
+
+.wir-cal-day.is-disabled {
+  color: #e5e7eb;
+  cursor: not-allowed;
+}
+
+.wir-cal-day.is-selected {
+  background: #F97316;
+  color: #fff;
+}
+
+@media (max-width: 500px) {
+  .wir-date-popover { width: 280px; left: 50%; transform: translateX(-50%); }
+  .wir-date-popover-arrow { left: 50%; margin-left: -7px; }
 }
