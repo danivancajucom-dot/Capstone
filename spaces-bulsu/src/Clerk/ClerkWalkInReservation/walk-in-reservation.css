@@ -948,3 +948,333 @@ font-size:13px;
   .wir-date-popover { width: 280px; left: 50%; transform: translateX(-50%); }
   .wir-date-popover-arrow { left: 50%; margin-left: -7px; }
 }
+
+/* ══════════════ ROOM CARD — FREE WINDOWS ══════════════ */
+
+.wir-room-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #f0e4d6;
+}
+
+.wir-windows-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9a6b46;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+}
+
+.wir-windows-label i {
+  font-size: 11px;
+  color: #d97706;
+}
+
+.wir-window-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wir-window-chip {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #EAF6EE;
+  color: #15803d;
+  border: 1px solid #BBF7D0;
+  white-space: nowrap;
+}
+
+/* ══════════════ LIVE PANEL — FREE WINDOWS ══════════════ */
+
+.wir-live-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.wir-live-windows-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6b7280;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wir-live-window-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wir-live-window-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+  white-space: nowrap;
+}
+
+.wir-live-window-chip i {
+  font-size: 10px;
+  color: #16a34a;
+}
+
+/* Give fully-booked rooms a subtle red hint */
+.wir-live-room.occupied {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+.wir-live-room.occupied .wir-live-room-name {
+  color: #991b1b;
+}
+
+/* ══════════════ OPERATING HOURS BANNER ══════════════ */
+
+.wir-hours-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #FFF7E6;
+  border: 1px solid #FCE7B0;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #8a5b00;
+  font-family: 'Lexend', sans-serif;
+  margin-bottom: 16px;
+}
+
+.wir-hours-banner i {
+  font-size: 15px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.wir-hours-banner strong {
+  font-weight: 800;
+  color: #7c4a1f;
+}
+
+/* ══════════════ TIMELINE EMPTY STATE ══════════════ */
+
+.timeline-empty {
+  font-size: 12.5px;
+  color: #9ca3af;
+  font-style: italic;
+  padding: 10px 0;
+  text-align: center;
+}
+
+/* ══════════════ SLOTS HEADER — filter controls ══════════════ */
+
+.wir-slots-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wir-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wir-filter-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.wir-filter-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 12px;
+  color: #9ca3af;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.wir-filter-select {
+  appearance: none;
+  padding: 8px 30px 8px 32px;
+  border-radius: 999px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  font-family: 'Lexend', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 150px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.wir-filter-select:hover {
+  border-color: #F97316;
+}
+
+.wir-filter-select:focus {
+  border-color: #F97316;
+  background: #fff;
+}
+
+.wir-filter-chev {
+  position: absolute;
+  right: 12px;
+  font-size: 10px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.wir-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid #fecaca;
+  background: #fff;
+  color: #dc2626;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 12px;
+}
+
+.wir-filter-clear:hover {
+  background: #fee2e2;
+}
+
+/* ══════════════ ROOM CARD — location chips ══════════════ */
+
+.wir-room-loc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wir-room-loc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.wir-room-loc-chip i {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+/* ══════════════ PAGINATION ══════════════ */
+
+.wir-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+  flex-wrap: wrap;
+}
+
+.wir-page-info {
+  font-size: 12.5px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.wir-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wir-page-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-family: 'Lexend', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.15s;
+}
+
+.wir-page-btn:hover:not(:disabled) {
+  border-color: #F97316;
+  color: #F97316;
+}
+
+.wir-page-btn.active {
+  background: #F97316;
+  border-color: #F97316;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+}
+
+.wir-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .wir-slots-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wir-filter-controls {
+    width: 100%;
+  }
+
+  .wir-filter-group {
+    flex: 1;
+  }
+
+  .wir-filter-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .wir-pagination {
+    flex-direction: column;
+    align-items: center;
+  }
+}

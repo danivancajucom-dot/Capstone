@@ -10,6 +10,7 @@ import {
   doc,
   serverTimestamp,
   getDocs,
+  getDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
@@ -18,8 +19,11 @@ import Toast from "../../Popup/Toast/Toast";
 import { useNavigate } from "react-router-dom";
 
 // ─── Constants ───────────────────────────────────────────────────────
-const MIN_HOUR = 7; // 7:00 AM
-const MAX_HOUR = 20; // 8:00 PM
+const MIN_HOUR = 7;
+const MAX_HOUR = 20;
+const MIN_MINUTES = MIN_HOUR * 60; // 420
+const MAX_MINUTES = MAX_HOUR * 60; // 1200
+const ITEMS_PER_PAGE = 6;
 
 // ─── Helpers ────────────────────────────────────────────────────────
 const convertToMinutes = (time) => {
@@ -29,8 +33,9 @@ const convertToMinutes = (time) => {
 };
 
 const convertToTime = (mins) => {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
+  const clamped = Math.max(0, Math.min(mins, 24 * 60 - 1));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
@@ -60,6 +65,8 @@ const formatDateLong = (dateStr) => {
     year: "numeric",
   });
 };
+
+const roundUpTo30 = (mins) => Math.ceil(mins / 30) * 30;
 
 const overlap = (aStart, aEnd, bStart, bEnd) => {
   return (
@@ -95,11 +102,9 @@ const MONTH_NAMES = [
 ];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-// Builds a 6-row calendar grid (42 cells) for the given month, padded with
-// the trailing days of the previous/next month so every row is full.
 const buildCalendarGrid = (year, month) => {
   const firstOfMonth = new Date(year, month, 1);
-  const startOffset = firstOfMonth.getDay(); // 0=Sun
+  const startOffset = firstOfMonth.getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrevMonth = new Date(year, month, 0).getDate();
 
@@ -138,12 +143,8 @@ export default function WalkInReservation() {
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
 
-  // ─── Toast state ────────────────────────────────────────────────────
   const [toast, setToast] = useState({
-    show: false,
-    type: "success",
-    title: "",
-    message: "",
+    show: false, type: "success", title: "", message: "",
   });
 
   const showToast = (type, title, message) => {
@@ -166,7 +167,6 @@ export default function WalkInReservation() {
     };
   }, []);
 
-  // ─── State ──────────────────────────────────────────────────────
   const [rooms, setRooms] = useState([]);
   const [events, setEvents] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -175,11 +175,14 @@ export default function WalkInReservation() {
   const [roomSchedules, setRoomSchedules] = useState({});
 
   const [selectedRoom, setSelectedRoom] = useState(null);
-  const [floor, setFloor] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
 
-  // ─── NEW: selected date (default to today) ──────────────────────
+  // ─── NEW: filters + pagination ─────────────────────────────────────
+  const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
+  const [selectedFloor, setSelectedFloor] = useState("All Floors");
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calendarCursor, setCalendarCursor] = useState(() => {
@@ -205,17 +208,8 @@ export default function WalkInReservation() {
 
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const currentTime = useMemo(() => {
-    return (
-      String(now.getHours()).padStart(2, "0") +
-      ":" +
-      String(now.getMinutes()).padStart(2, "0")
-    );
-  }, []);
 
-  // ─── Listeners (depend on selectedDate) ───────────────────────────
-
-  // 1. Rooms (always)
+  // ─── Listeners ────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "rooms"), (snap) => {
       const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -225,7 +219,6 @@ export default function WalkInReservation() {
     return unsub;
   }, []);
 
-  // 2. Room schedules (per room)
   useEffect(() => {
     if (rooms.length === 0) return;
     const unsubs = rooms.map((room) =>
@@ -233,28 +226,22 @@ export default function WalkInReservation() {
         const list = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter((s) => !s.initialized);
-        setRoomSchedules((prev) => ({
-          ...prev,
-          [room.id]: list,
-        }));
+        setRoomSchedules((prev) => ({ ...prev, [room.id]: list }));
       }),
     );
     return () => unsubs.forEach((u) => u());
   }, [rooms.map((r) => r.id).join(",")]);
 
-  // ─── 3–6: Listeners for the selected date ─────────────────────────
   useEffect(() => {
     if (!selectedDate) return;
     setLoadingSchedule(true);
 
-    // Events
     const qEvents = query(collection(db, "events"), where("date", "==", selectedDate));
     const unsubEvents = onSnapshot(qEvents, (snap) => {
       setEvents(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       setLoadingSchedule(false);
     });
 
-    // Reservations (approved)
     const qRes = query(
       collection(db, "reservationRequests"),
       where("date", "==", selectedDate)
@@ -266,12 +253,10 @@ export default function WalkInReservation() {
       setReservations(data);
     });
 
-    // Releases
     const unsubReleases = onSnapshot(collection(db, "roomReleases"), (snap) => {
       setReleases(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
-    // Reassignments (approved)
     const unsubReassign = onSnapshot(collection(db, "roomReassignments"), (snap) => {
       const data = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -287,15 +272,16 @@ export default function WalkInReservation() {
     };
   }, [selectedDate]);
 
-  // ─── Build busy items for a room on the selected date ─────────────
-
   const getDayAbbrev = (dateStr) => {
     const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
     return days[new Date(dateStr).getDay()];
   };
 
+  // ═══════════════════════════════════════════════════════════════════
+  //  BUSY ITEMS — clipped to 7:00 AM – 8:00 PM
+  // ═══════════════════════════════════════════════════════════════════
   const getBusyItemsForRoom = (roomId, date, dayAbbrev) => {
-    const items = [];
+    const raw = [];
 
     const schedules = roomSchedules[roomId] || [];
     const releaseKeys = new Set(
@@ -316,7 +302,7 @@ export default function WalkInReservation() {
         return !releaseKeys.has(key) && !reassignAwayKeys.has(key);
       })
       .forEach((s) => {
-        items.push({
+        raw.push({
           startTime: s.startTime,
           endTime: s.endTime,
           label: s.subject || "Class",
@@ -327,7 +313,7 @@ export default function WalkInReservation() {
     events
       .filter((e) => e.roomId === roomId && e.date === date)
       .forEach((e) => {
-        items.push({
+        raw.push({
           startTime: e.startTime,
           endTime: e.endTime,
           label: e.title || e.purpose || "Room Activity",
@@ -338,7 +324,7 @@ export default function WalkInReservation() {
     reservations
       .filter((r) => r.roomId === roomId && r.date === date)
       .forEach((r) => {
-        items.push({
+        raw.push({
           startTime: r.startTime,
           endTime: r.endTime,
           label: r.customPurpose || r.courseTitle || r.purpose || "Reservation",
@@ -349,7 +335,7 @@ export default function WalkInReservation() {
     reassignments
       .filter((r) => r.newRoomId === roomId && r.date === date)
       .forEach((r) => {
-        items.push({
+        raw.push({
           startTime: r.startTime,
           endTime: r.endTime,
           label: `${r.courseTitle || "Class"} (Moved)`,
@@ -357,53 +343,90 @@ export default function WalkInReservation() {
         });
       });
 
-    return items.sort(
-      (a, b) => convertToMinutes(a.startTime) - convertToMinutes(b.startTime),
-    );
+    return raw
+      .map((item) => {
+        const s = convertToMinutes(item.startTime);
+        const e = convertToMinutes(item.endTime);
+        const cs = Math.max(s, MIN_MINUTES);
+        const ce = Math.min(e, MAX_MINUTES);
+        return { ...item, _s: cs, _e: ce };
+      })
+      .filter((item) => item._s < item._e)
+      .sort((a, b) => a._s - b._s);
   };
 
-  // ─── Available Rooms (based on selectedDate) ──────────────────────
+  const getFreeWindowsForRoom = (roomId, date, dayAbbrev) => {
+    const busy = getBusyItemsForRoom(roomId, date, dayAbbrev);
+    const windows = [];
+    let cursor = MIN_MINUTES;
 
+    for (const item of busy) {
+      if (item._s > cursor) {
+        const gap = item._s - cursor;
+        if (gap >= 30) {
+          windows.push({
+            startMin: cursor,
+            endMin: item._s,
+            startTime: convertToTime(cursor),
+            endTime: convertToTime(item._s),
+          });
+        }
+      }
+      cursor = Math.max(cursor, item._e);
+    }
+
+    if (MAX_MINUTES - cursor >= 30) {
+      windows.push({
+        startMin: cursor,
+        endMin: MAX_MINUTES,
+        startTime: convertToTime(cursor),
+        endTime: convertToTime(MAX_MINUTES),
+      });
+    }
+
+    return windows;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  AVAILABLE ROOMS
+  // ═══════════════════════════════════════════════════════════════════
   const availableRooms = useMemo(() => {
     const dayAbbrev = getDayAbbrev(selectedDate);
     const isToday = selectedDate === getTodayLocal();
+    const pastClosing = isToday && currentMinutes >= MAX_MINUTES;
 
-    // For future dates, start from 7:00 AM; for today, start from current time (if after 7, else 7)
-    let start = MIN_HOUR * 60;
-    if (isToday) {
-      start = Math.max(currentMinutes, MIN_HOUR * 60);
-    }
+    if (pastClosing) return [];
+
+    const nowMin = isToday ? currentMinutes : 0;
 
     return rooms
       .map((room) => {
-        if (isRoomUnderMaintenance(room, selectedDate, "07:00", "20:00")) {
-          return null;
+        if (isRoomUnderMaintenance(room, selectedDate, "07:00", "20:00")) return null;
+
+        let windows = getFreeWindowsForRoom(room.id, selectedDate, dayAbbrev);
+
+        if (isToday) {
+          windows = windows
+            .map((w) => {
+              if (w.endMin <= nowMin) return null;
+              const startMin = Math.max(w.startMin, roundUpTo30(nowMin));
+              if (w.endMin - startMin < 30) return null;
+              return { ...w, startMin, startTime: convertToTime(startMin) };
+            })
+            .filter(Boolean);
         }
 
-        const busy = getBusyItemsForRoom(room.id, selectedDate, dayAbbrev);
-        const occupied = busy.find(
-          (item) =>
-            start >= convertToMinutes(item.startTime) &&
-            start < convertToMinutes(item.endTime),
-        );
-        if (occupied) return null;
+        if (windows.length === 0) return null;
 
-        const nextBusy = busy.find(
-          (item) => convertToMinutes(item.startTime) > start,
+        const totalBookable = windows.reduce(
+          (sum, w) => sum + (w.endMin - w.startMin),
+          0,
         );
-        const availableUntil = nextBusy ? nextBusy.startTime : "20:00";
-
-        const maxAllowedEnd = Math.min(
-          convertToMinutes(availableUntil),
-          MAX_HOUR * 60,
-        );
-        const maxMinutes = maxAllowedEnd - start;
-        if (maxMinutes < 30) return null;
 
         return {
           ...room,
-          availableUntil: convertToTime(maxAllowedEnd),
-          maxMinutes,
+          freeWindows: windows,
+          totalBookableMinutes: totalBookable,
         };
       })
       .filter(Boolean);
@@ -418,60 +441,112 @@ export default function WalkInReservation() {
     currentMinutes,
   ]);
 
-  // ─── Live Availability (based on selectedDate, full day 7am‑8pm) ──
+  // ═══════════════════════════════════════════════════════════════════
+  //  NEW: BUILDING + FLOOR OPTIONS
+  // ═══════════════════════════════════════════════════════════════════
+  const buildingOptions = useMemo(() => {
+    const set = new Set();
+    rooms.forEach((r) => {
+      if (r.building) set.add(r.building);
+    });
+    return ["All Buildings", ...Array.from(set).sort()];
+  }, [rooms]);
 
+  const floorOptions = useMemo(() => {
+    const set = new Set();
+    rooms
+      .filter(
+        (r) => selectedBuilding === "All Buildings" || r.building === selectedBuilding,
+      )
+      .forEach((r) => {
+        if (r.floor) set.add(r.floor);
+      });
+    return ["All Floors", ...Array.from(set).sort()];
+  }, [rooms, selectedBuilding]);
+
+  // Reset floor if it's no longer valid under the current building
+  useEffect(() => {
+    if (!floorOptions.includes(selectedFloor)) {
+      setSelectedFloor("All Floors");
+    }
+  }, [floorOptions, selectedFloor]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  NEW: FILTERED + PAGINATED ROOMS
+  // ═══════════════════════════════════════════════════════════════════
+  const filteredAvailableRooms = useMemo(() => {
+    let list = availableRooms;
+
+    if (selectedBuilding !== "All Buildings") {
+      list = list.filter((r) => r.building === selectedBuilding);
+    }
+    if (selectedFloor !== "All Floors") {
+      list = list.filter((r) => r.floor === selectedFloor);
+    }
+    return list;
+  }, [availableRooms, selectedBuilding, selectedFloor]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredAvailableRooms.length / ITEMS_PER_PAGE),
+  );
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
+  const endIndex = Math.min(
+    startIndex + ITEMS_PER_PAGE,
+    filteredAvailableRooms.length,
+  );
+  const paginatedRooms = filteredAvailableRooms.slice(startIndex, endIndex);
+
+  // Reset to page 1 whenever the filters/date change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBuilding, selectedFloor, selectedDate]);
+
+  // If current page became invalid (e.g. fewer items after filter)
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  LIVE AVAILABILITY
+  // ═══════════════════════════════════════════════════════════════════
   const liveAvailability = useMemo(() => {
     const dayAbbrev = getDayAbbrev(selectedDate);
-    const fullDayStart = MIN_HOUR * 60;
-    const fullDayEnd = MAX_HOUR * 60;
+    const isToday = selectedDate === getTodayLocal();
+    const nowMin = isToday ? currentMinutes : 0;
+    const pastClosing = isToday && currentMinutes >= MAX_MINUTES;
 
     return rooms.map((room) => {
       if (isRoomUnderMaintenance(room, selectedDate, "07:00", "20:00")) {
-        return { ...room, maintenance: true, available: false };
+        return { ...room, maintenance: true, available: false, freeWindows: [] };
       }
 
-      const busy = getBusyItemsForRoom(room.id, selectedDate, dayAbbrev);
+      const allWindows = getFreeWindowsForRoom(room.id, selectedDate, dayAbbrev);
 
-      // For the live display, we consider the whole day (7am‑8pm)
-      // Check if currently occupied at any point? For the "live" feel, we check at the current time only if today.
-      // But for future dates, we just show the schedule.
-      const isToday = selectedDate === getTodayLocal();
-      let current = null;
+      let windows = allWindows;
       if (isToday) {
-        current = busy.find(
-          (item) =>
-            currentMinutes >= convertToMinutes(item.startTime) &&
-            currentMinutes < convertToMinutes(item.endTime),
-        );
+        windows = allWindows
+          .map((w) => {
+            if (w.endMin <= nowMin) return null;
+            const startMin = Math.max(w.startMin, roundUpTo30(nowMin));
+            if (w.endMin - startMin < 30) return null;
+            return { ...w, startMin, startTime: convertToTime(startMin) };
+          })
+          .filter(Boolean);
       }
 
-      if (current) {
-        const nextReservation = busy.find(
-          (item) =>
-            convertToMinutes(item.startTime) >
-            convertToMinutes(current.endTime),
-        );
-        return {
-          ...room,
-          maintenance: false,
-          available: false,
-          nextAvailable: current.endTime,
-          nextBusyStart: nextReservation ? nextReservation.startTime : "20:00",
-        };
-      }
+      const available = !pastClosing && windows.length > 0;
 
-      // Not currently occupied (or future date)
-      const upcoming = busy.find(
-        (item) =>
-          convertToMinutes(item.startTime) >
-          (isToday ? currentMinutes : fullDayStart),
-      );
       return {
         ...room,
         maintenance: false,
-        available: true,
-        availableFrom: isToday ? convertToTime(currentMinutes) : "07:00",
-        availableUntil: upcoming ? upcoming.startTime : "20:00",
+        available,
+        closed: pastClosing,
+        freeWindows: windows,
+        allWindows,
       };
     });
   }, [
@@ -485,33 +560,75 @@ export default function WalkInReservation() {
     currentMinutes,
   ]);
 
-  // ─── Available duration slots ─────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════
+  //  START TIME OPTIONS
+  // ═══════════════════════════════════════════════════════════════════
+  const availableStartTimes = useMemo(() => {
+    if (!selectedRoom) return [];
 
-  useEffect(() => {
-    if (!selectedRoom) {
-      setAvailableSlots([]);
-      return;
-    }
-
-    const start = convertToMinutes(form.startTime);
-    if (!start) {
-      setAvailableSlots([]);
-      return;
-    }
-
+    const isToday = selectedDate === getTodayLocal();
+    const nowMin = isToday ? currentMinutes : 0;
     const dayAbbrev = getDayAbbrev(selectedDate);
-    const busy = getBusyItemsForRoom(selectedRoom.id, selectedDate, dayAbbrev);
+    const windows = getFreeWindowsForRoom(selectedRoom.id, selectedDate, dayAbbrev);
 
-    let nextBusy = MAX_HOUR * 60;
-    busy.forEach((item) => {
-      const busyStart = convertToMinutes(item.startTime);
-      if (busyStart > start && busyStart < nextBusy) {
-        nextBusy = busyStart;
+    const times = [];
+    for (const w of windows) {
+      let start = w.startMin;
+      if (isToday && start < nowMin) {
+        start = Math.max(w.startMin, roundUpTo30(nowMin));
       }
-    });
+      if (w.endMin - start < 30) continue;
+      for (let t = start; t <= w.endMin - 30; t += 30) {
+        times.push({
+          value: t,
+          time: convertToTime(t),
+          label: formatTime12(convertToTime(t)),
+          windowEndMin: w.endMin,
+          windowEndTime: w.endTime,
+        });
+      }
+    }
 
-    const maxEnd = Math.min(nextBusy, MAX_HOUR * 60);
-    const maxDuration = maxEnd - start;
+    const seen = new Set();
+    return times.filter((t) => {
+      if (seen.has(t.value)) return false;
+      seen.add(t.value);
+      return true;
+    });
+  }, [
+    selectedRoom,
+    selectedDate,
+    roomSchedules,
+    events,
+    reservations,
+    releases,
+    reassignments,
+    currentMinutes,
+  ]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  AVAILABLE DURATIONS
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!selectedRoom || !form.startTime) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    const startMin = convertToMinutes(form.startTime);
+    const dayAbbrev = getDayAbbrev(selectedDate);
+    const windows = getFreeWindowsForRoom(selectedRoom.id, selectedDate, dayAbbrev);
+
+    const window = windows.find(
+      (w) => startMin >= w.startMin && startMin < w.endMin,
+    );
+
+    if (!window) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    const maxDuration = window.endMin - startMin;
     if (maxDuration < 30) {
       setAvailableSlots([]);
       return;
@@ -521,12 +638,7 @@ export default function WalkInReservation() {
     for (let mins = 30; mins <= maxDuration; mins += 30) {
       slots.push({
         value: mins,
-        label:
-          mins < 60
-            ? `${mins} mins`
-            : mins % 60 === 0
-              ? `${mins / 60} Hour${mins > 60 ? "s" : ""}`
-              : `${Math.floor(mins / 60)} hr ${mins % 60} mins`,
+        label: formatDurationLabel(mins),
       });
     }
     setAvailableSlots(slots);
@@ -542,36 +654,45 @@ export default function WalkInReservation() {
   ]);
 
   // ─── Select Room ──────────────────────────────────────────────────
-
   const selectRoom = (room) => {
     setSelectedRoom(room);
 
     const isToday = selectedDate === getTodayLocal();
-    let startMins = isToday ? Math.max(currentMinutes, MIN_HOUR * 60) : MIN_HOUR * 60;
-    const startTime = convertToTime(startMins);
-
+    const nowMin = isToday ? currentMinutes : 0;
     const dayAbbrev = getDayAbbrev(selectedDate);
-    const busy = getBusyItemsForRoom(room.id, selectedDate, dayAbbrev);
-    let nextBusy = MAX_HOUR * 60;
-    busy.forEach((item) => {
-      const busyStart = convertToMinutes(item.startTime);
-      if (busyStart > startMins && busyStart < nextBusy) {
-        nextBusy = busyStart;
+    const windows = getFreeWindowsForRoom(room.id, selectedDate, dayAbbrev);
+
+    if (windows.length === 0) {
+      setForm((prev) => ({ ...prev, startTime: "", endTime: "", duration: "" }));
+      return;
+    }
+
+    let chosenWindow = windows[0];
+    let startMin = chosenWindow.startMin;
+
+    if (isToday) {
+      startMin = Math.max(chosenWindow.startMin, roundUpTo30(nowMin));
+
+      if (startMin >= chosenWindow.endMin) {
+        const next = windows.find(
+          (w) => w.endMin - Math.max(w.startMin, roundUpTo30(nowMin)) >= 30,
+        );
+        if (!next) return;
+        chosenWindow = next;
+        startMin = Math.max(next.startMin, roundUpTo30(nowMin));
       }
-    });
-    const maxEnd = Math.min(nextBusy, MAX_HOUR * 60);
-    const maxDuration = maxEnd - startMins;
-    const duration = Math.max(30, maxDuration);
+    }
+
+    const maxDur = chosenWindow.endMin - startMin;
+    const duration = Math.min(60, maxDur);
 
     setForm((prev) => ({
       ...prev,
-      startTime: startTime,
-      endTime: convertToTime(startMins + duration),
+      startTime: convertToTime(startMin),
+      endTime: convertToTime(startMin + duration),
       duration,
     }));
   };
-
-  // ─── Handle Input Changes ────────────────────────────────────────
 
   const handleChange = (field) => (e) => {
     const value = e.target.value;
@@ -586,8 +707,8 @@ export default function WalkInReservation() {
         }
       }
 
-      if (field === "startTime" && selectedRoom && updated.duration) {
-        const start = convertToMinutes(updated.startTime);
+      if (field === "startTime" && selectedRoom) {
+        const start = convertToMinutes(value);
         const dur = parseInt(updated.duration, 10);
         if (!isNaN(dur) && dur > 0) {
           updated.endTime = convertToTime(start + dur);
@@ -599,7 +720,6 @@ export default function WalkInReservation() {
   };
 
   // ─── Validate ─────────────────────────────────────────────────────
-
   const validate = () => {
     if (!selectedRoom) return "Please select a room.";
     if (
@@ -622,26 +742,28 @@ export default function WalkInReservation() {
     const start = convertToMinutes(form.startTime);
     const end = convertToMinutes(form.endTime);
 
-    if (start < MIN_HOUR * 60)
-      return "Reservations can only start from 7:00 AM.";
-    if (end > MAX_HOUR * 60) return "Reservations must end before 8:00 PM.";
+    if (start < MIN_MINUTES) return "Reservations can only start from 7:00 AM.";
+    if (end > MAX_MINUTES) return "Reservations must end by 8:00 PM.";
     if (start >= end) return "End time must be after start time.";
 
     const isToday = selectedDate === getTodayLocal();
-    if (isToday && start < currentMinutes)
+    if (isToday && currentMinutes >= MAX_MINUTES) {
+      return "Operating hours for today have ended (8:00 PM). Please select a future date.";
+    }
+    if (isToday && start < currentMinutes) {
       return "You cannot reserve a past time today.";
+    }
 
     const dayAbbrev = getDayAbbrev(selectedDate);
-    const busy = getBusyItemsForRoom(selectedRoom.id, selectedDate, dayAbbrev);
-    const conflict = busy.find((item) =>
-      overlap(form.startTime, form.endTime, item.startTime, item.endTime),
-    );
-    if (conflict) return "Room is no longer available at that time.";
+    const windows = getFreeWindowsForRoom(selectedRoom.id, selectedDate, dayAbbrev);
+    const inside = windows.some((w) => start >= w.startMin && end <= w.endMin);
+    if (!inside) {
+      return "Selected time is not within an available window for this room.";
+    }
 
     return null;
   };
 
-  // Runs validation, and only opens the review modal if everything checks out
   const openReview = () => {
     const error = validate();
     if (error) {
@@ -651,13 +773,8 @@ export default function WalkInReservation() {
     setShowModal(true);
   };
 
-  // ─── Notifications ──────────────────────────────────────────────────
-
-  const notifyClerkAndDepartmentHead = async (
-    title,
-    message,
-    reservationId,
-  ) => {
+  // ─── Notifications ────────────────────────────────────────────────
+  const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
     usersSnap.forEach((userDoc) => {
@@ -683,8 +800,7 @@ export default function WalkInReservation() {
     if (notifications.length > 0) await Promise.all(notifications);
   };
 
-  // ─── Confirm Reservation ──────────────────────────────────────────
-
+  // ─── Confirm ──────────────────────────────────────────────────────
   const handleConfirm = async () => {
     const error = validate();
     if (error) {
@@ -722,7 +838,7 @@ export default function WalkInReservation() {
           roomId: selectedRoom.id,
           roomName: selectedRoom.roomName,
           floor: selectedRoom.floor,
-          date: selectedDate, // ← use selectedDate
+          date: selectedDate,
           startTime: form.startTime,
           endTime: form.endTime,
           duration: Number(form.duration),
@@ -734,14 +850,12 @@ export default function WalkInReservation() {
         },
       );
 
-      // Notify all clerks and department heads
       await notifyClerkAndDepartmentHead(
         "Walk-In Reservation Created",
         `${form.requesterName} created a walk-in reservation for ${selectedRoom.roomName} on ${selectedDate} from ${form.startTime} to ${form.endTime}.`,
         reservationRef.id,
       );
 
-      // Notify the clerk who created it (self)
       if (firebaseUser?.uid) {
         await addDoc(collection(db, "notifications"), {
           userId: firebaseUser.uid,
@@ -757,7 +871,6 @@ export default function WalkInReservation() {
         });
       }
 
-      // Update room status if currently within reservation (only if today)
       if (selectedDate === getTodayLocal()) {
         const start = convertToMinutes(form.startTime);
         const end = convertToMinutes(form.endTime);
@@ -768,7 +881,6 @@ export default function WalkInReservation() {
         }
       }
 
-      // Activity log
       await logActivity({
         userId: firebaseUser?.uid || "",
         user: clerkName,
@@ -787,11 +899,7 @@ export default function WalkInReservation() {
         },
       });
 
-      showToast(
-        "success",
-        "Success",
-        "Walk-in reservation created successfully!",
-      );
+      showToast("success", "Success", "Walk-in reservation created successfully!");
       setShowModal(false);
       setSelectedRoom(null);
       setAvailableSlots([]);
@@ -828,8 +936,6 @@ export default function WalkInReservation() {
     }
   };
 
-  // ─── Loading ──────────────────────────────────────────────────────
-
   useEffect(() => {
     if (!loadingRooms && !loadingSchedule) {
       setPageLoading(false);
@@ -845,13 +951,22 @@ export default function WalkInReservation() {
     );
   }
 
-  // ─── Render ────────────────────────────────────────────────────────
-
+  // ═══════════════════════════════════════════════════════════════════
+  //  RENDER
+  // ═══════════════════════════════════════════════════════════════════
   return (
     <div className="wir-container">
       <div className="wir-page">
         <h1 className="wir-title">Walk-In Reservation</h1>
         <p className="wir-subtitle">Instant Booking</p>
+
+        <div className="wir-hours-banner">
+          <i className="fa-regular fa-clock" />
+          <span>
+            Operating hours: <strong>7:00 AM – 8:00 PM</strong> only.
+            Choose any free window inside this range.
+          </span>
+        </div>
 
         <div className="wir-layout">
           <div className="wir-card">
@@ -860,7 +975,6 @@ export default function WalkInReservation() {
               Requester Information
             </div>
 
-            {/* Requester Type */}
             <div className="wir-field">
               <label>Requester Type</label>
               <select
@@ -960,24 +1074,24 @@ export default function WalkInReservation() {
               </div>
             )}
 
-            {(form.requesterType === "faculty" && form.purpose === "Meeting") ||
-              (form.requesterType === "organization" && (
-                <div className="wir-field">
-                  <label>Estimated Number of Attendees</label>
-                  <select
-                    className="wir-input"
-                    value={form.studentRange}
-                    onChange={handleChange("studentRange")}
-                  >
-                    <option value="">Select Range</option>
-                    <option value="1-30">1 - 30 Persons</option>
-                    <option value="31-50">31 - 50 Persons</option>
-                    <option value="51-80">51 - 80 Persons</option>
-                    <option value="81-100">81 - 100 Persons</option>
-                    <option value="101+">101+ Persons</option>
-                  </select>
-                </div>
-              ))}
+            {((form.requesterType === "faculty" && form.purpose === "Meeting") ||
+              form.requesterType === "organization") && (
+              <div className="wir-field">
+                <label>Estimated Number of Attendees</label>
+                <select
+                  className="wir-input"
+                  value={form.studentRange}
+                  onChange={handleChange("studentRange")}
+                >
+                  <option value="">Select Range</option>
+                  <option value="1-30">1 - 30 Persons</option>
+                  <option value="31-50">31 - 50 Persons</option>
+                  <option value="51-80">51 - 80 Persons</option>
+                  <option value="81-100">81 - 100 Persons</option>
+                  <option value="101+">101+ Persons</option>
+                </select>
+              </div>
+            )}
 
             {form.purpose === "Other Activity" && (
               <div className="wir-field">
@@ -996,7 +1110,6 @@ export default function WalkInReservation() {
               Room And Schedule
             </div>
 
-            {/* ─── Date picker (custom calendar popover) ─────────────── */}
             <div className="wir-field">
               <label>Select Date</label>
               <div className="wir-datepicker">
@@ -1067,7 +1180,6 @@ export default function WalkInReservation() {
                                 : { year: c.year, month: m };
                             })
                           }
-                          aria-label="Previous month"
                         >
                           <i className="fa-solid fa-chevron-left"></i>
                         </button>
@@ -1085,7 +1197,6 @@ export default function WalkInReservation() {
                                 : { year: c.year, month: m };
                             })
                           }
-                          aria-label="Next month"
                         >
                           <i className="fa-solid fa-chevron-right"></i>
                         </button>
@@ -1133,23 +1244,72 @@ export default function WalkInReservation() {
               </div>
             </div>
 
+            {/* ═══════════════════════════════════════════════════════
+                NEW: SLOTS HEADER — label + building + floor filters
+               ═══════════════════════════════════════════════════════ */}
             <div className="wir-slots-header">
               <span className="wir-slots-label">Available Room Slots</span>
-              <div className="wir-floor-pill">
-                {floor}
-                <i className="fa-solid fa-chevron-down" />
+
+              <div className="wir-filter-controls">
+                <div className="wir-filter-group">
+                  <i className="fa-solid fa-building wir-filter-icon"></i>
+                  <select
+                    className="wir-filter-select"
+                    value={selectedBuilding}
+                    onChange={(e) => setSelectedBuilding(e.target.value)}
+                  >
+                    {buildingOptions.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                  <i className="fa-solid fa-angle-down wir-filter-chev"></i>
+                </div>
+
+                <div className="wir-filter-group">
+                  <i className="fa-solid fa-layer-group wir-filter-icon"></i>
+                  <select
+                    className="wir-filter-select"
+                    value={selectedFloor}
+                    onChange={(e) => setSelectedFloor(e.target.value)}
+                  >
+                    {floorOptions.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                  <i className="fa-solid fa-angle-down wir-filter-chev"></i>
+                </div>
+
+                {(selectedBuilding !== "All Buildings" ||
+                  selectedFloor !== "All Floors") && (
+                  <button
+                    type="button"
+                    className="wir-filter-clear"
+                    onClick={() => {
+                      setSelectedBuilding("All Buildings");
+                      setSelectedFloor("All Floors");
+                    }}
+                    title="Clear filters"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                )}
               </div>
             </div>
 
+            {/* Room grid */}
             <div className="wir-slots">
               {loadingRooms ? (
                 <div className="wir-inline-loading">Loading rooms...</div>
               ) : availableRooms.length === 0 ? (
                 <div className="wir-inline-loading">
-                  No rooms available on {selectedDate}.
+                  No rooms available on {selectedDate} within operating hours.
+                </div>
+              ) : filteredAvailableRooms.length === 0 ? (
+                <div className="wir-inline-loading">
+                  No rooms match the selected building/floor filter.
                 </div>
               ) : (
-                availableRooms.map((room) => (
+                paginatedRooms.map((room) => (
                   <button
                     key={room.id}
                     className={`wir-room-card ${
@@ -1164,26 +1324,37 @@ export default function WalkInReservation() {
                       </div>
                       <span className="wir-room-status">AVAILABLE</span>
                     </div>
-                    <div className="wir-room-card-info">
-                      <div>
-                        <span>Start</span>
-                        <strong>
-                          {selectedDate === getTodayLocal()
-                            ? formatTime12(currentTime)
-                            : "07:00 AM"}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Until</span>
-                        <strong>{formatTime12(room.availableUntil)}</strong>
+
+                    <div className="wir-room-loc">
+                      <span className="wir-room-loc-chip">
+                        <i className="fa-solid fa-building"></i>
+                        {room.building || "—"}
+                      </span>
+                      <span className="wir-room-loc-chip">
+                        <i className="fa-solid fa-layer-group"></i>
+                        {room.floor || "—"}
+                      </span>
+                    </div>
+
+                    <div className="wir-room-windows">
+                      <span className="wir-windows-label">
+                        <i className="fa-regular fa-clock"></i> Free windows
+                      </span>
+                      <div className="wir-window-chips">
+                        {room.freeWindows.map((w, i) => (
+                          <span key={i} className="wir-window-chip">
+                            {formatTime12(w.startTime)} – {formatTime12(w.endTime)}
+                          </span>
+                        ))}
                       </div>
                     </div>
+
                     <div className="wir-room-duration">
-                      Maximum Booking
+                      Total bookable
                       <strong>
-                        {Math.floor(room.maxMinutes / 60) > 0 &&
-                          `${Math.floor(room.maxMinutes / 60)} hr `}
-                        {room.maxMinutes % 60} mins
+                        {Math.floor(room.totalBookableMinutes / 60) > 0 &&
+                          `${Math.floor(room.totalBookableMinutes / 60)} hr `}
+                        {room.totalBookableMinutes % 60} mins
                       </strong>
                     </div>
                   </button>
@@ -1191,36 +1362,94 @@ export default function WalkInReservation() {
               )}
             </div>
 
-            <div className="wir-row" style={{ marginTop: 20 }}>
-              {/* Date removed from here (moved above) */}
+            {/* ═══════════════════════════════════════════════════════
+                NEW: PAGINATION
+               ═══════════════════════════════════════════════════════ */}
+            {!loadingRooms && filteredAvailableRooms.length > 0 && totalPages > 1 && (
+              <div className="wir-pagination">
+                <span className="wir-page-info">
+                  Showing {startIndex + 1}–{endIndex} of {filteredAvailableRooms.length} rooms
+                </span>
 
-              {selectedRoom && availableSlots.length > 0 && (
-                <div className="wir-max-duration">
-                  <i className="fa-solid fa-clock" />
-                  Maximum Booking
-                  <strong>
-                    {availableSlots[availableSlots.length - 1].label}
-                  </strong>
+                <div className="wir-page-controls">
+                  <button
+                    type="button"
+                    className="wir-page-btn"
+                    disabled={safePage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  >
+                    <i className="fa-solid fa-chevron-left"></i>
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`wir-page-btn ${safePage === p ? "active" : ""}`}
+                      onClick={() => setCurrentPage(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="wir-page-btn"
+                    disabled={safePage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    <i className="fa-solid fa-chevron-right"></i>
+                  </button>
                 </div>
-              )}
+              </div>
+            )}
 
-              {selectedRoom && availableSlots.length > 0 && (
+            {/* Start Time + Duration */}
+            {selectedRoom && availableStartTimes.length > 0 && (
+              <div className="wir-row" style={{ marginTop: 20 }}>
                 <div className="wir-field" style={{ flex: 1 }}>
-                  <label>Duration</label>
+                  <label>Start Time</label>
                   <select
                     className="wir-input"
-                    value={form.duration}
-                    onChange={handleChange("duration")}
+                    value={form.startTime}
+                    onChange={handleChange("startTime")}
                   >
-                    {availableSlots.map((slot) => (
-                      <option key={slot.value} value={slot.value}>
-                        {slot.label}
+                    {availableStartTimes.map((t) => (
+                      <option key={t.value} value={t.time}>
+                        {t.label}
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
-            </div>
+
+                {availableSlots.length > 0 && (
+                  <div className="wir-field" style={{ flex: 1 }}>
+                    <label>Duration</label>
+                    <select
+                      className="wir-input"
+                      value={form.duration}
+                      onChange={handleChange("duration")}
+                    >
+                      {availableSlots.map((slot) => (
+                        <option key={slot.value} value={slot.value}>
+                          {slot.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedRoom && (
+              <div className="wir-max-duration" style={{ marginTop: 12 }}>
+                <i className="fa-solid fa-clock" />
+                Ending at
+                <strong>
+                  {form.endTime ? formatTime12(form.endTime) : "--"}
+                </strong>
+              </div>
+            )}
 
             <div className="wir-footer">
               <button
@@ -1237,47 +1466,59 @@ export default function WalkInReservation() {
             <div className="wir-quick-note">
               <i className="fa-solid fa-circle-info" />
               <div>
-                <div className="wir-note-title">Quick Note</div>
+                <div className="wir-note-title">Operating Window</div>
                 <div className="wir-note-text">
-                  Reservations must be within 7:00 AM – 8:00 PM. Duration is
-                  limited by the next booking or closing time.
+                  Rooms are only usable <strong>7:00 AM – 8:00 PM</strong>. Each
+                  room may have <strong>multiple free windows</strong> — pick any of
+                  them when booking.
                 </div>
               </div>
             </div>
 
-            {/* ─── Live Availability Panel (now shows selected date) ── */}
             <div className="wir-availability-card">
               <div className="wir-avail-header">
                 <span className="wir-avail-title">
-                  Availability for {selectedDate}
+                  Availability · 7:00 AM – 8:00 PM
                 </span>
                 <span className="wir-live-dot" />
               </div>
 
               {selectedRoom && (
                 <div className="wir-room-timeline">
-                  <h4>Today's Schedule</h4>
+                  <h4>
+                    Schedule for{" "}
+                    {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </h4>
                   {getBusyItemsForRoom(
                     selectedRoom.id,
                     selectedDate,
                     getDayAbbrev(selectedDate),
-                  ).map((item) => (
-                    <div
-                      key={item.source + item.startTime}
-                      className="timeline-item"
-                    >
-                      <div className="timeline-time">
-                        {formatTime12(item.startTime)} -{" "}
-                        {formatTime12(item.endTime)}
-                      </div>
-                      <div className="timeline-label">{item.label}</div>
+                  ).length === 0 ? (
+                    <div className="timeline-empty">
+                      No bookings within operating hours.
                     </div>
-                  ))}
+                  ) : (
+                    getBusyItemsForRoom(
+                      selectedRoom.id,
+                      selectedDate,
+                      getDayAbbrev(selectedDate),
+                    ).map((item) => (
+                      <div key={item.source + item.startTime} className="timeline-item">
+                        <div className="timeline-time">
+                          {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
+                        </div>
+                        <div className="timeline-label">{item.label}</div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
 
               <div className="wir-avail-date">
-                {new Date(selectedDate).toLocaleDateString("en-US", {
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-US", {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
@@ -1295,12 +1536,8 @@ export default function WalkInReservation() {
                   >
                     <div className="wir-live-top">
                       <div>
-                        <div className="wir-live-room-name">
-                          {room.roomName}
-                        </div>
-                        <div className="wir-live-room-type">
-                          {room.roomType}
-                        </div>
+                        <div className="wir-live-room-name">{room.roomName}</div>
+                        <div className="wir-live-room-type">{room.roomType}</div>
                       </div>
                       <span
                         className={`wir-live-badge ${
@@ -1315,39 +1552,33 @@ export default function WalkInReservation() {
                           ? "MAINTENANCE"
                           : room.available
                             ? "AVAILABLE"
-                            : "OCCUPIED"}
+                            : "FULLY BOOKED"}
                       </span>
                     </div>
+
                     <div className="wir-live-bottom">
                       {room.maintenance ? (
-                        <strong>Room is currently under maintenance</strong>
-                      ) : room.available ? (
-                        <div className="live-info-row">
-                          <span>Available</span>
-                          <strong>
-                            {formatTime12(room.availableFrom)} until{" "}
-                            {formatTime12(room.availableUntil)}
-                          </strong>
-                        </div>
+                        <strong>Room is under maintenance</strong>
+                      ) : room.closed ? (
+                        <strong>Operating hours ended (8:00 PM)</strong>
+                      ) : room.freeWindows.length === 0 ? (
+                        <strong>No free windows remaining today</strong>
                       ) : (
-                        <>
-                          <div className="live-info-row">
-                            <span>Occupied</span>
-                            <strong>
-                              Until {formatTime12(room.nextAvailable)}
-                            </strong>
+                        <div className="wir-live-windows">
+                          <span className="wir-live-windows-label">
+                            {room.freeWindows.length} free window
+                            {room.freeWindows.length > 1 ? "s" : ""}
+                          </span>
+                          <div className="wir-live-window-chips">
+                            {room.freeWindows.map((w, i) => (
+                              <span key={i} className="wir-live-window-chip">
+                                <i className="fa-regular fa-clock"></i>
+                                {formatTime12(w.startTime)} –{" "}
+                                {formatTime12(w.endTime)}
+                              </span>
+                            ))}
                           </div>
-                          <div className="live-info-row">
-                            <span>Available Again</span>
-                            <strong>
-                              {room.nextBusyStart === "20:00"
-                                ? `${formatTime12(room.nextAvailable)} onwards`
-                                : `${formatTime12(room.nextAvailable)} - ${formatTime12(
-                                    room.nextBusyStart,
-                                  )}`}
-                            </strong>
-                          </div>
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1356,9 +1587,7 @@ export default function WalkInReservation() {
 
               <button
                 className="wir-view-btn"
-                onClick={() =>
-                  navigate("/clerk/schedule-view-academic-schedule")
-                }
+                onClick={() => navigate("/clerk/schedule-view-academic-schedule")}
               >
                 View Full Schedule
               </button>
@@ -1366,7 +1595,6 @@ export default function WalkInReservation() {
           </div>
         </div>
 
-        {/* ─── Review & Confirm modal ───────────────────────────────── */}
         {showModal && (
           <div className="wir-modal-overlay">
             <div className="wir-modal wir-review-modal">
@@ -1389,13 +1617,17 @@ export default function WalkInReservation() {
                   </div>
                   <div className="wir-review-row">
                     <span>
-                      {form.requesterType === "faculty" ? "Faculty Name" : "Requester Name"}
+                      {form.requesterType === "faculty"
+                        ? "Faculty Name"
+                        : "Requester Name"}
                     </span>
                     <strong>{form.requesterName || "—"}</strong>
                   </div>
                   <div className="wir-review-row">
                     <span>
-                      {form.requesterType === "faculty" ? "Faculty ID" : "Org. / Student ID"}
+                      {form.requesterType === "faculty"
+                        ? "Faculty ID"
+                        : "Org. / Student ID"}
                     </span>
                     <strong>{form.requesterId || "—"}</strong>
                   </div>
