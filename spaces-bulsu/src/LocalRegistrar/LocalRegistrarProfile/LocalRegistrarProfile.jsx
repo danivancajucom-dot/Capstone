@@ -249,22 +249,12 @@ export default function LocalRegistrarProfile() {
             <label>Last Name</label>
             <input className="lrp-input" value={form.lastName} onChange={handleChange("lastName")} readOnly={!editing} />
           </div>
-          <div className="lrp-field">
-            <label>Email</label>
-            <input className="lrp-input" value={form.email} readOnly />
-          </div>
+          
           <div className="lrp-field">
             <label>Role</label>
             <input className="lrp-input" value={form.role} readOnly />
           </div>
-          <div className="lrp-field">
-            <label>Password</label>
-            <button className="lrp-reset-password-btn" onClick={handleResetPassword}>
-              Send Password Reset Email
-            </button>
-          </div>
         </div>
-
       </div>
 
       {editing && (

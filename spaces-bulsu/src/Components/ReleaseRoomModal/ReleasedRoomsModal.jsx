@@ -33,19 +33,6 @@ const formatReleasedAt = (ts) => {
   });
 };
 
-/**
- * ReleasedRoomsModal
- *
- * Overlay modal that shows ALL room-release records. Clicking a record
- * switches the same modal into a "detail" view. Can also be opened
- * directly into the detail view via `initialSelected`.
- *
- * Props:
- *  - show: boolean
- *  - onClose: () => void
- *  - releases: array of release records (already merged with roomName/roomImage)
- *  - initialSelected: optional release record to open straight into detail view
- */
 export default function ReleasedRoomsModal({ show, onClose, releases = [], initialSelected = null }) {
   const [selected, setSelected] = useState(initialSelected);
 
@@ -116,7 +103,7 @@ export default function ReleasedRoomsModal({ show, onClose, releases = [], initi
         ) : (
           <>
             <div className="rr-modal-header">
-              <h3 className="rr-modal-title">All Released Rooms</h3>
+              <h3 className="rr-modal-title">All Marked as Available Rooms</h3>
               <button className="rr-close-btn" onClick={onClose} aria-label="Close">
                 <i className="fa-solid fa-xmark"></i>
               </button>
@@ -126,7 +113,7 @@ export default function ReleasedRoomsModal({ show, onClose, releases = [], initi
               {releases.length === 0 ? (
                 <div className="rr-empty">
                   <i className="fa-regular fa-circle-check"></i>
-                  <p>No released rooms yet.</p>
+                  <p>No marked as available rooms yet.</p>
                 </div>
               ) : (
                 releases.map((r) => (

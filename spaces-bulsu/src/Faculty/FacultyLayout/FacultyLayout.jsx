@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import "./faculty-layout.css";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { auth, db } from "../../firebase";
 import {
   collection,
@@ -20,10 +20,14 @@ export default function FacultyLayout() {
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
   const [loggingOut, setLoggingOut] = useState(false);
-  const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
+  const [profile, setProfile] = useState({
+    firstName: "", lastName: "", role: "", photoUrl: "", email: "",
+  });
+  const profileMenuRef = useRef(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
@@ -37,14 +41,17 @@ export default function FacultyLayout() {
           lastName: d.lastName || "",
           role: d.role || "",
           photoUrl: d.photoUrl || "",
+          email: d.email || user.email || "",
         });
+      } else {
+        setProfile((p) => ({ ...p, email: user.email || "" }));
       }
 
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
         where("ownerType", "==", "faculty"),
-        where("archived", "==", false), // only fetch unarchived
+        where("archived", "==", false),
         orderBy("createdAt", "desc")
       );
 
@@ -52,15 +59,10 @@ export default function FacultyLayout() {
         q,
         (snapshot) => {
           setNotifications(
-            snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }))
+            snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
           );
         },
-        (error) => {
-          console.error("❌ Notifications query failed:", error.code, error.message);
-        }
+        (error) => console.error("❌ Notifications query failed:", error.code, error.message)
       );
 
       return unsubscribeNotif;
@@ -69,8 +71,18 @@ export default function FacultyLayout() {
     return () => unsubscribeAuth();
   }, []);
 
-  // ── Notification helpers ────────────────────────────────────────────────
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showProfileMenu]);
 
+  // ── Notification helpers ────────────────────────────────────────────────
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const now = new Date();
@@ -83,11 +95,8 @@ export default function FacultyLayout() {
   };
 
   const markAsRead = async (id) => {
-    try {
-      await updateDoc(doc(db, "notifications", id), { unread: false });
-    } catch (err) {
-      console.error(err);
-    }
+    try { await updateDoc(doc(db, "notifications", id), { unread: false }); }
+    catch (err) { console.error(err); }
   };
 
   const markAllAsRead = async () => {
@@ -95,35 +104,22 @@ export default function FacultyLayout() {
     if (unread.length === 0) return;
     try {
       const batch = writeBatch(db);
-      unread.forEach((n) =>
-        batch.update(doc(db, "notifications", n.id), { unread: false })
-      );
+      unread.forEach((n) => batch.update(doc(db, "notifications", n.id), { unread: false }));
       await batch.commit();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
   const allCount = notifications.filter((n) => !n.archived).length;
 
-  // Filter: only "all" and "unread" since archived is removed
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
-    return !item.archived; // "all" – show all unarchived
+    return !item.archived;
   });
 
   const emptyCopy = {
-    all: {
-      icon: "fa-bell-slash",
-      title: "No notifications",
-      text: "Updates about schedules, reservations, and conflicts will appear here.",
-    },
-    unread: {
-      icon: "fa-check-double",
-      title: "All caught up!",
-      text: "You've read all your notifications.",
-    },
+    all: { icon: "fa-bell-slash", title: "No notifications", text: "Updates about schedules, reservations, and conflicts will appear here." },
+    unread: { icon: "fa-check-double", title: "All caught up!", text: "You've read all your notifications." },
   }[activeTab];
 
   const typeIcon = {
@@ -139,7 +135,6 @@ export default function FacultyLayout() {
   };
 
   // ── Logout ──────────────────────────────────────────────────────────────
-
   const handleLogout = async () => {
     try {
       setShowLogoutConfirm(false);
@@ -156,8 +151,6 @@ export default function FacultyLayout() {
 
   const fullName = `${profile.firstName} ${profile.lastName}`.trim();
   const initials = `${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase();
-
-  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -186,34 +179,89 @@ export default function FacultyLayout() {
             <NavLink to="/faculty/reservations" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
               <i className="fa-solid fa-bookmark"></i><span>Reservations</span>
             </NavLink>
+            <NavLink to="/faculty/room-issues" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
+              <i className="fa-solid fa-clipboard-list"></i><span>Room Issues</span>
+            </NavLink>
             <NavLink to="/faculty/broadcast-channel" className={({ isActive }) => (isActive ? "faculty-active" : "")}>
               <i className="fa-solid fa-bell"></i><span>Announcement Channel</span>
             </NavLink>
           </nav>
 
-          <NavLink
-            to="/faculty/profile"
-            className={({ isActive }) => `sidebar-profile ${isActive ? "faculty-active" : ""}`}
-          >
-            <div className="sidebar-avatar">
-              {profile.photoUrl ? (
-                <img src={profile.photoUrl} alt="Profile" />
-              ) : (
-                <span>{initials || <i className="fa-solid fa-user" />}</span>
-              )}
-            </div>
-            <div className="sidebar-profile-info">
-              <span className="sidebar-profile-name">{fullName || "My Profile"}</span>
-              <span className="sidebar-profile-role">{profile.role}</span>
-            </div>
-          </NavLink>
+          {/* PROFILE CARD + DROPDOWN */}
+          <div className="sidebar-profile-wrap" ref={profileMenuRef}>
+            {showProfileMenu && (
+              <>
+                <span className="profile-dropdown-arrow" />
+                <div className="profile-dropdown">
+                  {/* User header */}
+                  <div className="profile-dropdown-header">
+                    <div className="profile-dropdown-avatar">
+                      {profile.photoUrl ? (
+                        <img src={profile.photoUrl} alt="Profile" />
+                      ) : (
+                        <span>{initials || <i className="fa-solid fa-user" />}</span>
+                      )}
+                    </div>
+                    <div className="profile-dropdown-user">
+                      <span className="profile-dropdown-name">{fullName || "My Profile"}</span>
+                      <span className="profile-dropdown-email">{profile.email || "—"}</span>
+                    </div>
+                  </div>
+
+                  <div className="profile-dropdown-divider" />
+
+                  <button
+                    className="profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/faculty/profile"); }}
+                  >
+                    <i className="fa-regular fa-user"></i>
+                    <span>Profile</span>
+                  </button>
+                  <button
+                    className="profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/faculty/settings"); }}
+                  >
+                    <i className="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                  </button>
+
+                  <div className="profile-dropdown-divider" />
+
+                  <button
+                    className="profile-dropdown-item logout"
+                    onClick={() => { setShowProfileMenu(false); setShowLogoutConfirm(true); }}
+                  >
+                    <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              className={`sidebar-profile ${showProfileMenu ? "menu-open" : ""}`}
+              onClick={() => setShowProfileMenu((v) => !v)}
+            >
+              <div className="sidebar-avatar">
+                {profile.photoUrl ? (
+                  <img src={profile.photoUrl} alt="Profile" />
+                ) : (
+                  <span>{initials || <i className="fa-solid fa-user" />}</span>
+                )}
+              </div>
+              <div className="sidebar-profile-info">
+                <span className="sidebar-profile-name">{fullName || "My Profile"}</span>
+                <span className="sidebar-profile-role">{profile.role || profile.email}</span>
+              </div>
+              <i className={`fa-solid fa-chevron-down profile-chev ${showProfileMenu ? "open" : ""}`} />
+            </button>
+          </div>
         </aside>
 
         {/* MAIN */}
         <div className="faculty-main">
-
           <header className="faculty-header">
-
             <div className="header-actions">
               {/* NOTIFICATION TRIGGER */}
               <div className="notification-container">
@@ -221,31 +269,21 @@ export default function FacultyLayout() {
                   className={`header-btn ${showNotifications ? "notif-btn-open" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
                 >
-                  <i
-                    className={`fa-bell ${
-                      unreadCount > 0 ? "fa-solid bell-active" : "fa-regular"
-                    }`}
-                  ></i>
+                  <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active" : "fa-regular"}`}></i>
                   {unreadCount > 0 && (
-                    <span className="notif-count">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
+                    <span className="notif-count">{unreadCount > 9 ? "9+" : unreadCount}</span>
                   )}
                 </button>
 
-                {/* NOTIFICATIONS PANEL */}
                 {showNotifications && (
                   <>
                     <div className="notif-clickaway" onClick={() => setShowNotifications(false)}></div>
                     <div className="notif-panel">
                       <span className="notif-panel-arrow"></span>
-
                       <div className="notif-top">
                         <div className="notif-top-title">
                           <h2>Notifications</h2>
-                          {unreadCount > 0 && (
-                            <span className="notif-top-badge">{unreadCount} new</span>
-                          )}
+                          {unreadCount > 0 && (<span className="notif-top-badge">{unreadCount} new</span>)}
                         </div>
                         <button className="notif-close" onClick={() => setShowNotifications(false)}>
                           <i className="fa-solid fa-xmark"></i>
@@ -253,19 +291,12 @@ export default function FacultyLayout() {
                       </div>
 
                       <div className="notif-tabs">
-                        <button
-                          className={activeTab === "all" ? "active" : ""}
-                          onClick={() => setActiveTab("all")}
-                        >
+                        <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>
                           All <span className="notif-tab-count">{allCount}</span>
                         </button>
-                        <button
-                          className={activeTab === "unread" ? "active" : ""}
-                          onClick={() => setActiveTab("unread")}
-                        >
+                        <button className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>
                           Unread <span className="notif-tab-count">{unreadCount}</span>
                         </button>
-                        {/* Archived tab removed */}
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
@@ -279,9 +310,7 @@ export default function FacultyLayout() {
                       <div className="notif-list">
                         {filteredNotifications.length === 0 ? (
                           <div className="notif-empty">
-                            <div className="notif-empty-icon">
-                              <i className={`fa-solid ${emptyCopy.icon}`}></i>
-                            </div>
+                            <div className="notif-empty-icon"><i className={`fa-solid ${emptyCopy.icon}`}></i></div>
                             <h4>{emptyCopy.title}</h4>
                             <p>{emptyCopy.text}</p>
                           </div>
@@ -298,10 +327,7 @@ export default function FacultyLayout() {
                                 unread={item.unread}
                                 archived={item.archived}
                                 assignmentId={item.assignmentId}
-                                onClick={() => {
-                                  if (item.unread) markAsRead(item.id);
-                                }}
-                                // ❌ No onArchive prop
+                                onClick={() => { if (item.unread) markAsRead(item.id); }}
                               />
                             </div>
                           ))
@@ -312,11 +338,7 @@ export default function FacultyLayout() {
                 )}
               </div>
 
-              {/* LOGOUT BUTTON */}
-              <button
-                className="header-btn logout"
-                onClick={() => setShowLogoutConfirm(true)}
-              >
+              <button className="header-btn logout" onClick={() => setShowLogoutConfirm(true)}>
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
             </div>
@@ -325,7 +347,6 @@ export default function FacultyLayout() {
           <main className="faculty-content">
             <Outlet />
           </main>
-
         </div>
       </div>
 
@@ -333,17 +354,11 @@ export default function FacultyLayout() {
       {showLogoutConfirm && (
         <div className="modal-overlay">
           <div className="logout-modal">
-            <div className="modal-icon">
-              <i className="fa-solid fa-triangle-exclamation"></i>
-            </div>
+            <div className="modal-icon"><i className="fa-solid fa-triangle-exclamation"></i></div>
             <h2>Are you sure you want to log out?</h2>
             <div className="modal-actions">
-              <button className="modal-btn cancel" onClick={() => setShowLogoutConfirm(false)}>
-                Cancel
-              </button>
-              <button className="modal-btn confirm" onClick={handleLogout}>
-                Confirm
-              </button>
+              <button className="modal-btn cancel" onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
+              <button className="modal-btn confirm" onClick={handleLogout}>Confirm</button>
             </div>
           </div>
         </div>

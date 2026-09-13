@@ -1,0 +1,235 @@
+/* ══════════════ ROOM ISSUES PAGE ══════════════ */
+
+.ri-page {
+  width: 100%;
+  min-height: 100%;
+  padding: 32px 30px 60px;
+  background: #F8F7F5;
+  font-family: 'Lexend', sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Header */
+.ri-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ri-header h1 {
+  margin: 0 0 6px;
+  font-size: 30px;
+  font-weight: 800;
+  color: #16213e;
+  letter-spacing: -0.02em;
+}
+
+.ri-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 400;
+  max-width: 560px;
+}
+
+.ri-report-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 12px;
+  background: #f57c00;
+  color: #fff;
+  border: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(245, 124, 0, 0.28);
+  transition: 0.15s;
+}
+
+.ri-report-btn:hover { background: #d96a00; transform: translateY(-1px); }
+
+/* Toolbar */
+.ri-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ri-tabs {
+  display: flex;
+  gap: 6px;
+  background: #fff;
+  padding: 6px;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.ri-tabs-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: none;
+}
+
+.ri-tabs-scroll::-webkit-scrollbar { display: none; }
+
+.ri-tabs button {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b7280;
+  cursor: pointer;
+  transition: 0.15s;
+  white-space: nowrap;
+}
+
+.ri-tabs button:hover { background: #f5f6fa; color: #f57c00; }
+
+.ri-tabs button.active {
+  background: #FEF0E7;
+  color: #f57c00;
+}
+
+.ri-tab-count {
+  background: #e5e7eb;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.ri-tabs button.active .ri-tab-count {
+  background: #f57c00;
+  color: #fff;
+}
+
+.ri-tab-count-urgent {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+}
+
+.ri-tabs button.active .ri-tab-count-urgent {
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+
+/* Search */
+.ri-search {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  max-width: 360px;
+}
+
+.ri-search i {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.ri-search input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 38px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: #1f2937;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ri-search input:focus { border-color: #f57c00; }
+
+/* List */
+.ri-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 16px;
+}
+
+/* Empty */
+.ri-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 80px 24px;
+  gap: 8px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.ri-empty > i {
+  font-size: 42px;
+  color: #d1d5db;
+  margin-bottom: 8px;
+}
+
+.ri-empty h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #16213e;
+}
+
+.ri-empty p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #9ca3af;
+  max-width: 380px;
+  line-height: 1.6;
+}
+
+.ri-empty-btn {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: #f57c00;
+  color: #fff;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.ri-empty-btn:hover { background: #d96a00; }
+
+@media (max-width: 700px) {
+  .ri-page { padding: 20px 16px 40px; }
+  .ri-header h1 { font-size: 22px; }
+  .ri-report-btn { width: 100%; justify-content: center; }
+  .ri-list { grid-template-columns: 1fr; }
+  .ri-search { max-width: 100%; }
+}

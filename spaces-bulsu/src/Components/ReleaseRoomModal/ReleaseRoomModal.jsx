@@ -50,8 +50,8 @@ export default function ReleaseRoomModal({ target, onClose, onConfirm, submittin
       <div className="rr-panel" onClick={(e) => e.stopPropagation()}>
         <div className="rr-header">
           <div>
-            <h2>Release Room</h2>
-            <p className="rr-header-sub">Confirm that you are releasing this room.</p>
+            <h2>Mark Room Available</h2>
+            <p className="rr-header-sub">Confirm that you are marking this room as available.</p>
           </div>
           <button className="rr-close" onClick={onClose} aria-label="Close">
             <i className="fa-solid fa-xmark"></i>
@@ -193,11 +193,11 @@ export default function ReleaseRoomModal({ target, onClose, onConfirm, submittin
         >
           {submitting ? (
             <>
-              <i className="fa-solid fa-spinner fa-spin"></i> Releasing…
+              <i className="fa-solid fa-spinner fa-spin"></i> Marking…
             </>
           ) : (
             <>
-              <i className="fa-solid fa-door-open"></i> Release Room
+              <i className="fa-solid fa-door-open"></i> Mark Room Available
             </>
           )}
         </button>

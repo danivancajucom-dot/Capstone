@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./clerk-layout.css";
 import { auth, db } from "../../firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
@@ -15,14 +15,19 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import NotificationCard from "../../Components/NotificationCard/Notification";
-import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup"; // ← added
+import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
 
 export default function ClerkLayout() {
   const navigate = useNavigate();
   const [showLogout, setShowLogout] = useState(false);
   const [openReservations, setOpenReservations] = useState(false);
+  const [openRoom, setOpenRoom] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [profile, setProfile] = useState({ firstName: "", lastName: "", role: "", photoUrl: "" });
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef(null);
+  const [profile, setProfile] = useState({
+    firstName: "", lastName: "", role: "", photoUrl: "", email: "",
+  });
 
   // Notification state
   const [showNotifications, setShowNotifications] = useState(false);
@@ -41,6 +46,7 @@ export default function ClerkLayout() {
             lastName: d.lastName || "",
             role: d.role || "",
             photoUrl: d.photoUrl || "",
+            email: d.email || user.email || "",
           });
         }
       });
@@ -55,10 +61,7 @@ export default function ClerkLayout() {
 
       const unsubscribeNotif = onSnapshot(q, (snapshot) => {
         setNotifications(
-          snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
         );
       });
 
@@ -67,6 +70,17 @@ export default function ClerkLayout() {
 
     return () => unsubscribeAuth();
   }, []);
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showProfileMenu]);
 
   // ── Notification helpers ──────────────────────────────────────
 
@@ -84,9 +98,7 @@ export default function ClerkLayout() {
   const markAsRead = async (id) => {
     try {
       await updateDoc(doc(db, "notifications", id), { unread: false });
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const markAllAsRead = async () => {
@@ -98,9 +110,7 @@ export default function ClerkLayout() {
         batch.update(doc(db, "notifications", n.id), { unread: false })
       );
       await batch.commit();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
@@ -108,7 +118,7 @@ export default function ClerkLayout() {
 
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
-    return !item.archived; // "all"
+    return !item.archived;
   });
 
   const emptyCopy = {
@@ -171,24 +181,14 @@ export default function ClerkLayout() {
           </div>
 
           <nav className="clerk-nav">
-            <NavLink
-              end
-              to="/clerk"
-              className={({ isActive }) => (isActive ? "clerk-active" : "")}
-            >
-              <i className="fa-solid fa-house"></i>
-              <span>Dashboard</span>
+            <NavLink end to="/clerk" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+              <i className="fa-solid fa-house"></i><span>Dashboard</span>
             </NavLink>
 
-            <NavLink
-              to="/clerk/schedule-view-academic-schedule"
-              className={({ isActive }) => (isActive ? "clerk-active" : "")}
-            >
-              <i className="fa-solid fa-calendar"></i>
-              <span>Schedule</span>
+            <NavLink to="/clerk/schedule-view-academic-schedule" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+              <i className="fa-solid fa-calendar"></i><span>Schedule</span>
             </NavLink>
 
-            {/* RESERVATIONS DROPDOWN */}
             <div className="clerk-nav-group">
               <button
                 className="clerk-nav-parent"
@@ -200,56 +200,119 @@ export default function ClerkLayout() {
               </button>
 
               <div className={`clerk-submenu ${openReservations ? "clerk-open" : ""}`}>
-                <NavLink
-                  to="/clerk/online-reservations"
-                  className={({ isActive }) => (isActive ? "clerk-active" : "")}
-                >
+                <NavLink to="/clerk/online-reservations" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
                   Online Reservations
                 </NavLink>
-                <NavLink
-                  to="/clerk/walk-in-reservation"
-                  className={({ isActive }) => (isActive ? "clerk-active" : "")}
-                >
+                <NavLink to="/clerk/walk-in-reservation" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
                   Walk-in Reservations
                 </NavLink>
               </div>
             </div>
 
-            <NavLink
-              to="/clerk/room-usage"
-              className={({ isActive }) => (isActive ? "clerk-active" : "")}
-            >
-              <i className="fa-solid fa-chart-simple"></i>
-              <span>Room Usage</span>
-            </NavLink>
+            <div className="clerk-nav-group">
+              <button
+                className="clerk-nav-parent"
+                onClick={() => setOpenRoom(!openRoom)}
+              >
+                <i className="fa-solid fa-door-open"></i>
+                <span>Rooms</span>
+                <i className={`fa-solid fa-chevron-down clerk-arrow ${openRoom ? "clerk-open" : ""}`}></i>
+              </button>
 
-            <NavLink
-              to="/clerk/broadcast-channel"
-              className={({ isActive }) => (isActive ? "clerk-active" : "")}
-            >
-              <i className="fa-solid fa-bullhorn"></i>
-              <span>Announcement Channel</span>
+              <div className={`clerk-submenu ${openRoom ? "clerk-open" : ""}`}>
+                <NavLink to="/clerk/room-activity" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+                  <i className="fa-solid fa-clock"></i><span>Room Activity</span>
+                </NavLink>
+                <NavLink to="/clerk/room-issues" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+                  <i className="fa-solid fa-clipboard-list"></i><span>Room Issues</span>
+                </NavLink>
+                <NavLink to="/clerk/room-management" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+                  <i className="fa-solid fa-door-open"></i><span>Room Management</span>
+                </NavLink>
+                <NavLink to="/clerk/room-usage" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+                  <i className="fa-solid fa-chart-simple"></i><span>Room Usage</span>
+                </NavLink>
+              </div>
+            </div>
+ 
+            <NavLink to="/clerk/conflicts" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+              <i className="fa-solid fa-exclamation-triangle"></i><span>Conflicts</span>
             </NavLink>
-
+            
+            <NavLink to="/clerk/broadcast-channel" className={({ isActive }) => (isActive ? "clerk-active" : "")}>
+              <i className="fa-solid fa-bullhorn"></i><span>Announcement Channel</span>
+            </NavLink>
           </nav>
 
-          {/* PROFILE CARD — bottom of sidebar */}
-          <NavLink
-            to="/clerk/profile"
-            className={({ isActive }) => `clerk-sidebar-profile ${isActive ? "clerk-active" : ""}`}
-          >
-            <div className="clerk-sidebar-avatar">
-              {profile.photoUrl ? (
-                <img src={profile.photoUrl} alt="Profile" />
-              ) : (
-                <span>{initials || <i className="fa-solid fa-user" />}</span>
-              )}
-            </div>
-            <div className="clerk-sidebar-profile-info">
-              <span className="clerk-sidebar-profile-name">{fullName || "My Profile"}</span>
-              <span className="clerk-sidebar-profile-role">{profile.role}</span>
-            </div>
-          </NavLink>
+          {/* PROFILE CARD + DROPDOWN */}
+          <div className="clerk-sidebar-profile-wrap" ref={profileMenuRef}>
+            {showProfileMenu && (
+              <>
+                <span className="clerk-profile-dropdown-arrow" />
+                <div className="clerk-profile-dropdown">
+                  <div className="clerk-profile-dropdown-header">
+                    <div className="clerk-profile-dropdown-avatar">
+                      {profile.photoUrl ? (
+                        <img src={profile.photoUrl} alt="Profile" />
+                      ) : (
+                        <span>{initials || <i className="fa-solid fa-user" />}</span>
+                      )}
+                    </div>
+                    <div className="clerk-profile-dropdown-user">
+                      <span className="clerk-profile-dropdown-name">{fullName || "My Profile"}</span>
+                      <span className="clerk-profile-dropdown-email">{profile.email || "—"}</span>
+                    </div>
+                  </div>
+
+                  <div className="clerk-profile-dropdown-divider" />
+
+                  <button
+                    className="clerk-profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/clerk/profile"); }}
+                  >
+                    <i className="fa-regular fa-user"></i>
+                    <span>Profile</span>
+                  </button>
+                  <button
+                    className="clerk-profile-dropdown-item"
+                    onClick={() => { setShowProfileMenu(false); navigate("/clerk/settings"); }}
+                  >
+                    <i className="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                  </button>
+
+                  <div className="clerk-profile-dropdown-divider" />
+
+                  <button
+                    className="clerk-profile-dropdown-item logout"
+                    onClick={() => { setShowProfileMenu(false); setShowLogout(true); }}
+                  >
+                    <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              className={`clerk-sidebar-profile ${showProfileMenu ? "menu-open" : ""}`}
+              onClick={() => setShowProfileMenu((v) => !v)}
+            >
+              <div className="clerk-sidebar-avatar">
+                {profile.photoUrl ? (
+                  <img src={profile.photoUrl} alt="Profile" />
+                ) : (
+                  <span>{initials || <i className="fa-solid fa-user" />}</span>
+                )}
+              </div>
+              <div className="clerk-sidebar-profile-info">
+                <span className="clerk-sidebar-profile-name">{fullName || "My Profile"}</span>
+                <span className="clerk-sidebar-profile-role">{profile.role || profile.email}</span>
+              </div>
+              <i className={`fa-solid fa-chevron-down clerk-profile-chev ${showProfileMenu ? "open" : ""}`} />
+            </button>
+          </div>
 
         </aside>
 
@@ -257,8 +320,6 @@ export default function ClerkLayout() {
         <div className="clerk-main">
 
           <header className="clerk-header">
-            {/* ─── Search bar removed ─────────────────────────────────── */}
-
             <div className="clerk-header-actions">
               {/* NOTIFICATION TRIGGER */}
               <div className="clerk-notification-container">
@@ -266,11 +327,7 @@ export default function ClerkLayout() {
                   className={`clerk-header-btn ${showNotifications ? "clerk-notif-btn-open" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
                 >
-                  <i
-                    className={`fa-bell ${
-                      unreadCount > 0 ? "fa-solid clerk-bell-active" : "fa-regular"
-                    }`}
-                  ></i>
+                  <i className={`fa-bell ${unreadCount > 0 ? "fa-solid clerk-bell-active" : "fa-regular"}`}></i>
                   {unreadCount > 0 && (
                     <span className="clerk-notif-count">
                       {unreadCount > 9 ? "9+" : unreadCount}
@@ -278,7 +335,6 @@ export default function ClerkLayout() {
                   )}
                 </button>
 
-                {/* NOTIFICATIONS PANEL */}
                 {showNotifications && (
                   <>
                     <div className="clerk-notif-clickaway" onClick={() => setShowNotifications(false)}></div>
@@ -292,10 +348,7 @@ export default function ClerkLayout() {
                             <span className="clerk-notif-top-badge">{unreadCount} new</span>
                           )}
                         </div>
-                        <button
-                          className="clerk-notif-close"
-                          onClick={() => setShowNotifications(false)}
-                        >
+                        <button className="clerk-notif-close" onClick={() => setShowNotifications(false)}>
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
@@ -355,7 +408,6 @@ export default function ClerkLayout() {
                 )}
               </div>
 
-              {/* LOGOUT BUTTON */}
               <button className="clerk-header-btn clerk-logout" onClick={() => setShowLogout(true)}>
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
@@ -368,7 +420,6 @@ export default function ClerkLayout() {
         </div>
       </div>
 
-      {/* ─── USE LOGOUT POPUP COMPONENT ────────────────────────── */}
       {showLogout && (
         <LogoutPopup
           onCancel={() => setShowLogout(false)}
@@ -376,7 +427,6 @@ export default function ClerkLayout() {
         />
       )}
 
-      {/* LOGOUT LOADING */}
       {loggingOut && (
         <div className="clerk-logout-loading-screen">
           <div className="clerk-logout-loading-card">

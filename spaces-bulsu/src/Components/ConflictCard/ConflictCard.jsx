@@ -33,7 +33,14 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 };
 
-function ConflictCard({ conflict, showReassign = true }) {
+function ConflictCard({
+  conflict,
+  showReassign = true,
+  // ─── Navigation paths (per-role) ──────────────────────────────
+  // Pass these from the parent so the card stays role-agnostic.
+  reassignPath = "/department-head/reassign-room",
+  backPath = "/department-head/conflicts",
+}) {
   const navigate = useNavigate();
 
   const formatTime = (time) => {
@@ -49,10 +56,18 @@ function ConflictCard({ conflict, showReassign = true }) {
   const overlapDuration = formatDuration(conflict.conflictStartTime, conflict.conflictEndTime);
   const dateLabel = formatDate(conflict.date);
 
-  // ─── Resolution info ────────────────────────────────────────────────
   const isResolved = conflict.status === "resolved";
   const isApproved = conflict.resolution === "approved";
-  const isDenied = conflict.resolution === "rejected";
+
+  // ─── Handles the click when reassign is available ─────────────
+  const handleReassignClick = () => {
+    navigate(reassignPath, {
+      state: {
+        conflict,
+        from: backPath,
+      },
+    });
+  };
 
   return (
     <div className={`conflict-card ${status.className}`}>
@@ -150,17 +165,7 @@ function ConflictCard({ conflict, showReassign = true }) {
             Reassignment Pending
           </div>
         ) : showReassign ? (
-          <button
-            className="reassign-btn"
-            onClick={() =>
-              navigate("/department-head/reassign-room", {
-                state: {
-                  conflict,
-                  from: "/department-head/conflicts",
-                },
-              })
-            }
-          >
+          <button className="reassign-btn" onClick={handleReassignClick}>
             <i className="fa-solid fa-right-left"></i>
             Reassign Room
           </button>

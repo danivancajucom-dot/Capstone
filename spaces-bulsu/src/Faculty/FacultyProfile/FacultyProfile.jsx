@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "./faculty-profile.css";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc, collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth"; // ← added sendPasswordResetEmail
+import { onAuthStateChanged } from "firebase/auth";
 import { logActivity } from "../../utils/logActivity";
 import Toast from "../../Popup/Toast/Toast";
 
@@ -238,17 +238,6 @@ export default function FacultyProfile() {
   const handleChange = (field) => (e) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  // ── Password Reset ─────────────────────────────────────────────────────────
-  const handleResetPassword = async () => {
-    try {
-      await sendPasswordResetEmail(auth, form.email);
-      showToast("success", "Password Reset Email Sent", "Check your inbox for the reset link.");
-    } catch (err) {
-      console.error(err);
-      showToast("error", "Password Reset Failed", err.message);
-    }
-  };
-
   // ── Avatar: preview → saved photo → initials fallback ──────────────────────
   const displayPhoto = previewUrl || form.photoUrl;
   const initials = `${form.firstName.charAt(0)}${form.lastName.charAt(0)}`.toUpperCase();
@@ -395,24 +384,8 @@ export default function FacultyProfile() {
               </div>
 
               <div className="up-field">
-                <label>Email</label>
-                <input className="up-input" value={form.email} readOnly />
-              </div>
-
-              <div className="up-field">
                 <label>Role</label>
                 <input className="up-input" value={form.role} readOnly />
-              </div>
-
-              {/* ─── NEW: Password Reset ───────────────────────────── */}
-              <div className="up-field">
-                <label>Password</label>
-                <button
-                  className="up-reset-password-btn"
-                  onClick={handleResetPassword}
-                >
-                  Send Password Reset Email
-                </button>
               </div>
             </div>
 

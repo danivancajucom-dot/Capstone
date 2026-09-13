@@ -1,5 +1,5 @@
 // ============================================================
-// FILE: FacultySubmitReservation.jsx (real‑time validation clearing)
+// FILE: FacultySubmitReservation.jsx (improved date & time UI)
 // ============================================================
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -35,6 +35,82 @@ const formatDateLong = (dateStr) => {
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 };
 
+// ─── Quick date helpers ─────────────────────────────────────
+const toDateInputValue = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const addDaysLocal = (dateStr, days) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toDateInputValue(d);
+};
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+// Builds a 6-row calendar grid (42 cells) for the given month, padded with
+// the trailing days of the previous/next month so every row is full.
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+  return cells;
+};
+
+// ─── Time options (30-min steps from 7:00 AM to 8:00 PM) ────
+const buildTimeOptions = () => {
+  const options = [];
+  for (let m = 7 * 60; m <= 20 * 60; m += 30) {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    const value = `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    options.push({ value, label: format12Hour(value) });
+  }
+  return options;
+};
+const TIME_OPTIONS = buildTimeOptions();
+
+// ─── Preset 1.5-hour class slots ────────────────────────────
+const PRESET_SLOTS = [
+  { label: "7:00 – 8:30 AM",   start: "07:00", end: "08:30" },
+  { label: "8:30 – 10:00 AM",  start: "08:30", end: "10:00" },
+  { label: "10:00 – 11:30 AM", start: "10:00", end: "11:30" },
+  { label: "11:30 – 1:00 PM",  start: "11:30", end: "13:00" },
+  { label: "1:00 – 2:30 PM",   start: "13:00", end: "14:30" },
+  { label: "2:30 – 4:00 PM",   start: "14:30", end: "16:00" },
+  { label: "4:00 – 5:30 PM",   start: "16:00", end: "17:30" },
+  { label: "5:30 – 7:00 PM",   start: "17:30", end: "19:00" },
+];
+
 function FacultySubmitReservation() {
   const navigate = useNavigate();
 
@@ -44,6 +120,18 @@ function FacultySubmitReservation() {
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [showCustomTime, setShowCustomTime] = useState(false);
+
+  // ─── Date picker popover state ─────────────────────────────
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
+  // ─── Time picker popover state ─────────────────────────────
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   const [selectedFloor, setSelectedFloor] = useState("");
 
@@ -62,11 +150,9 @@ function FacultySubmitReservation() {
 
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // ─── Validation feedback state ─────────────────────────────
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  // ─── Success dialog state ───────────────────────────────────
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedReservation, setSubmittedReservation] = useState(null);
 
@@ -79,12 +165,19 @@ function FacultySubmitReservation() {
 
   const [releasedKeys, setReleasedKeys] = useState(new Set());
 
+  // ─── Live clock tick — refreshes every 30s so "past time" checks
+  // for today's date stay accurate without needing a page reload ───
+  const [nowTick, setNowTick] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(new Date()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
     if (type !== "loading") {
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, show: false }));
-      }, 4000);
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
     }
   };
 
@@ -102,7 +195,7 @@ function FacultySubmitReservation() {
     );
   };
 
-  // ─── Helper to check if user already has a reservation at the same time ───
+  // ─── Check if user already has a reservation at same time ───
   const checkUserConflict = async () => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) return null;
@@ -117,10 +210,7 @@ function FacultySubmitReservation() {
     );
 
     const snapshot = await getDocs(q);
-    const userReservations = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const userReservations = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
     for (const res of userReservations) {
       if (res.status === "Rejected") continue;
@@ -141,21 +231,12 @@ function FacultySubmitReservation() {
         };
       }
     }
-
     return { conflict: false };
   };
 
   useEffect(() => {
     loadAvailableRooms();
-  }, [
-    date,
-    startTime,
-    endTime,
-    selectedFloor,
-    purpose,
-    selectedEquipment,
-    studentRange,
-  ]);
+  }, [date, startTime, endTime, selectedFloor, purpose, selectedEquipment, studentRange]);
 
   const convertToMinutes = (time) => {
     if (!time) return 0;
@@ -214,9 +295,7 @@ function FacultySubmitReservation() {
     try {
       const roomSnapshot = await getDocs(collection(db, "rooms"));
       const activitySnapshot = await getDocs(collection(db, "events"));
-      const requestSnapshot = await getDocs(
-        collection(db, "reservationRequests")
-      );
+      const requestSnapshot = await getDocs(collection(db, "reservationRequests"));
 
       const releaseSnap = await getDocs(collection(db, "roomReleases"));
       const releaseMap = new Map();
@@ -225,28 +304,21 @@ function FacultySubmitReservation() {
         const r = d.data();
         if (r.date !== date) return;
         const key = `${r.scheduleId}_${r.date}`;
-        if (!releaseMap.has(r.roomId)) {
-          releaseMap.set(r.roomId, new Set());
-        }
+        if (!releaseMap.has(r.roomId)) releaseMap.set(r.roomId, new Set());
         releaseMap.get(r.roomId).add(key);
       });
 
       const roomList = [];
 
       for (const roomDoc of roomSnapshot.docs) {
-        const room = {
-          id: roomDoc.id,
-          ...roomDoc.data(),
-        };
+        const room = { id: roomDoc.id, ...roomDoc.data() };
 
-        // Floor filter
         if (selectedFloor) {
           const roomFloor = String(room.floor).toLowerCase();
           const selected = selectedFloor.toLowerCase();
           if (!roomFloor.includes(selected)) continue;
         }
 
-        // Equipment filter (only for Hands-on)
         if (purpose === "Hands-on" && selectedEquipment.length > 0) {
           const roomEquipment = Object.entries(room.equipment || {})
             .filter(([key, value]) => value === true)
@@ -255,23 +327,15 @@ function FacultySubmitReservation() {
           const hasAllEquipment = selectedEquipment.every((eq) =>
             roomEquipment.includes(eq.toLowerCase())
           );
-
           if (!hasAllEquipment) continue;
         }
 
-        // Capacity filter (only for Lecture & Examination)
         if ((purpose === "Lecture" || purpose === "Examination") && studentRange) {
           const requiredCapacity = getMinimumCapacity(studentRange);
           if (Number(room.capacity || 0) < requiredCapacity) continue;
         }
 
-        // Maintenance check
-        const underMaintenance = isRoomUnderMaintenance(
-          room,
-          date,
-          startTime,
-          endTime
-        );
+        const underMaintenance = isRoomUnderMaintenance(room, date, startTime, endTime);
 
         if (underMaintenance) {
           roomList.push({
@@ -286,7 +350,6 @@ function FacultySubmitReservation() {
         let occupied = false;
         let reservedByUser = false;
 
-        // ─── Class schedules (skip released) ──────────────────────
         const scheduleSnapshot = await getDocs(
           collection(db, "rooms", room.id, "schedules")
         );
@@ -296,42 +359,24 @@ function FacultySubmitReservation() {
           const sched = doc.data();
           if (sched.initialized) return false;
           if (sched.day !== getDay(date)) return false;
-
           const releaseKey = `${doc.id}_${date}`;
           if (releasesForRoom.has(releaseKey)) return false;
-
-          return isOverlapping(
-            startTime,
-            endTime,
-            sched.startTime,
-            sched.endTime
-          );
+          return isOverlapping(startTime, endTime, sched.startTime, sched.endTime);
         });
+        if (hasScheduleConflict) occupied = true;
 
-        if (hasScheduleConflict) {
-          occupied = true;
-        }
-
-        // ─── Room activities ──────────────────────────────────────
         if (!occupied) {
           const hasEventConflict = activitySnapshot.docs.some((doc) => {
             const event = doc.data();
             if (event.roomId !== room.id) return false;
             if (event.date !== date) return false;
             if (event.status === "Cancelled") return false;
-            return isOverlapping(
-              startTime,
-              endTime,
-              event.startTime,
-              event.endTime
-            );
+            return isOverlapping(startTime, endTime, event.startTime, event.endTime);
           });
           if (hasEventConflict) occupied = true;
         }
 
-        // ─── RESERVATIONS ──────────────────────────────────────────
         if (!occupied) {
-          // Find all conflicting reservations for this room & date (excluding Rejected)
           const conflictingReservations = [];
           requestSnapshot.docs.forEach((doc) => {
             const req = doc.data();
@@ -343,18 +388,14 @@ function FacultySubmitReservation() {
             }
           });
 
-          // Check each conflict
           for (const req of conflictingReservations) {
             if (req.userId === currentUserId) {
-              // User's own reservation (pending or approved)
               reservedByUser = true;
               break;
             } else if (req.status === "Approved") {
-              // Other user's approved reservation → occupied
               occupied = true;
               break;
             }
-            // else: other user's pending reservation → ignore (room remains available)
           }
         }
 
@@ -362,7 +403,7 @@ function FacultySubmitReservation() {
           ...room,
           available: !occupied && !reservedByUser,
           maintenance: false,
-          reservedByUser: reservedByUser,
+          reservedByUser,
         });
       }
 
@@ -375,7 +416,6 @@ function FacultySubmitReservation() {
     setLoading(false);
   };
 
-  // ─── VALIDATE (returns error object) ────────────────────────────
   const validateFields = () => {
     const errors = {};
 
@@ -408,15 +448,12 @@ function FacultySubmitReservation() {
       if (!studentRange) errors.studentRange = "Select the estimated number of attendees.";
     }
 
-    // Time validation
     if (date) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const selectedDate = new Date(date);
       selectedDate.setHours(0, 0, 0, 0);
-      if (selectedDate < today) {
-        errors.date = "You cannot reserve a past date.";
-      }
+      if (selectedDate < today) errors.date = "You cannot reserve a past date.";
     }
 
     if (!startTime) errors.startTime = "Select a start time.";
@@ -441,15 +478,12 @@ function FacultySubmitReservation() {
     return errors;
   };
 
-  // ─── Re‑validate and update errors (called on every change) ────
   const revalidate = () => {
     if (validationAttempted) {
       const newErrors = validateFields();
       setFieldErrors(newErrors);
     }
   };
-
-  // ─── NOTIFICATION HELPER ──────────────────────────────────────────
 
   const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
@@ -483,10 +517,7 @@ function FacultySubmitReservation() {
     await Promise.all(notifications);
   };
 
-  // ─── MAIN SUBMIT ────────────────────────────────────────────────────
-
   const handleSubmit = async () => {
-    // ─── Validate first ──────────────────────────────────────────
     const errors = validateFields();
     if (Object.keys(errors).length > 0) {
       setValidationAttempted(true);
@@ -496,7 +527,6 @@ function FacultySubmitReservation() {
       return;
     }
 
-    // ─── Check user conflict ──────────────────────────────────────
     const conflictCheck = await checkUserConflict();
     if (conflictCheck?.conflict) {
       showToast(
@@ -526,49 +556,30 @@ function FacultySubmitReservation() {
     }
 
     try {
-      // 1. Create reservation request
-      const reservationRef = await addDoc(
-        collection(db, "reservationRequests"),
-        {
-          userId: auth.currentUser.uid,
-          facultyName,
+      const reservationRef = await addDoc(collection(db, "reservationRequests"), {
+        userId: auth.currentUser.uid,
+        facultyName,
+        roomId: selectedRoom.id,
+        roomName: selectedRoom.roomName,
+        audienceType,
+        attendees: { course, yearSectionGroup, organization, customPurpose: customPurposeText },
+        courseTitle,
+        purpose: finalPurpose,
+        requiredEquipment: selectedEquipment,
+        studentRange,
+        date,
+        startTime,
+        endTime,
+        status: "Pending",
+        createdAt: serverTimestamp(),
+      });
 
-          roomId: selectedRoom.id,
-          roomName: selectedRoom.roomName,
-
-          audienceType,
-
-          attendees: {
-            course,
-            yearSectionGroup,
-            organization,
-            customPurpose: customPurposeText,
-          },
-
-          courseTitle,
-          purpose: finalPurpose,
-
-          requiredEquipment: selectedEquipment,
-          studentRange,
-
-          date,
-          startTime,
-          endTime,
-
-          status: "Pending",
-
-          createdAt: serverTimestamp(),
-        }
-      );
-
-      // 2. Notify clerks & department heads
       await notifyClerkAndDepartmentHead(
         "New Reservation Request",
         `${facultyName} submitted a reservation request for "${courseTitle}" in ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
         reservationRef.id
       );
 
-      // 3. Notify faculty (self)
       await addDoc(collection(db, "notifications"), {
         userId: auth.currentUser.uid,
         ownerType: "faculty",
@@ -582,7 +593,6 @@ function FacultySubmitReservation() {
         createdAt: serverTimestamp(),
       });
 
-      // 4. ACTIVITY LOG
       await addDoc(collection(db, "activityLogs"), {
         timestamp: serverTimestamp(),
         action: "Submitted Reservation Request",
@@ -605,7 +615,6 @@ function FacultySubmitReservation() {
 
       setShowConfirm(false);
 
-      // Capture the just-submitted details for the success dialog
       setSubmittedReservation({
         courseTitle,
         roomName: selectedRoom.roomName,
@@ -623,7 +632,6 @@ function FacultySubmitReservation() {
       setToast((prev) => ({ ...prev, show: false }));
       setShowSuccessModal(true);
 
-      // Reset form
       setCourseTitle("");
       setAudienceType("");
       setCourse("");
@@ -638,6 +646,7 @@ function FacultySubmitReservation() {
       setRooms([]);
       setSelectedEquipment([]);
       setStudentRange("");
+      setShowCustomTime(false);
       setValidationAttempted(false);
       setFieldErrors({});
     } catch (err) {
@@ -647,8 +656,6 @@ function FacultySubmitReservation() {
       setSubmitting(false);
     }
   };
-
-  // ─── Handle submit button click ──────────────────────────────────
 
   const handleSubmitClick = () => {
     if (submitting) return;
@@ -663,11 +670,54 @@ function FacultySubmitReservation() {
     setShowConfirm(true);
   };
 
-  // ─── Check if there are any validation errors ────────────────────
-
   const hasErrors = Object.keys(fieldErrors).length > 0;
 
-  // ─── Render ──────────────────────────────────────────────────────────
+  // ─── Preset slot helpers ──────────────────────────────────
+  const isPresetActive = (slot) =>
+    slot.start === startTime && slot.end === endTime;
+
+  const handlePresetClick = (slot) => {
+    setStartTime(slot.start);
+    setEndTime(slot.end);
+    setShowCustomTime(false);
+    revalidate();
+  };
+
+  const handleCustomStartChange = (value) => {
+    setStartTime(value);
+    revalidate();
+  };
+  const handleCustomEndChange = (value) => {
+    setEndTime(value);
+    revalidate();
+  };
+
+  // ─── Real-time "past time" checks (only relevant when the
+  // selected date is today) ────────────────────────────────────
+  const isDateToday = date === toDateInputValue(nowTick);
+  const liveCurrentMinutes = nowTick.getHours() * 60 + nowTick.getMinutes();
+
+  const isPastStartValue = (value) =>
+    isDateToday && convertToMinutes(value) <= liveCurrentMinutes;
+
+  const isPastPreset = (slot) =>
+    isDateToday && convertToMinutes(slot.start) <= liveCurrentMinutes;
+
+  // If the clock catches up to a previously-selected start time
+  // while the user still has today selected, clear it so they have
+  // to pick a valid, still-upcoming time.
+  useEffect(() => {
+    if (isDateToday && startTime && convertToMinutes(startTime) <= liveCurrentMinutes) {
+      setStartTime("");
+      setEndTime("");
+      revalidate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nowTick]);
+
+  // ═══════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════
 
   return (
     <>
@@ -727,7 +777,6 @@ function FacultySubmitReservation() {
                   <span className="field-error-message">{fieldErrors.audienceType}</span>
                 )}
 
-                {/* CLASS FIELDS */}
                 {audienceType === "Class" && (
                   <>
                     <div className="faculty-submit-form-group">
@@ -763,7 +812,6 @@ function FacultySubmitReservation() {
                   </>
                 )}
 
-                {/* ORGANIZATION FIELDS */}
                 {audienceType === "Organization" && (
                   <div className="faculty-submit-form-group">
                     <label>Organization Name</label>
@@ -822,7 +870,7 @@ function FacultySubmitReservation() {
                 )}
               </div>
 
-              {/* CLASS SUB‑OPTIONS */}
+              {/* CLASS SUB-OPTIONS */}
               {audienceType === "Class" && purpose === "Hands-on" && (
                 <div className="faculty-submit-form-group">
                   <label>Required Equipment</label>
@@ -850,7 +898,6 @@ function FacultySubmitReservation() {
                 </div>
               )}
 
-              {/* CLASS: Lecture / Examination -> studentRange */}
               {audienceType === "Class" &&
                 (purpose === "Lecture" || purpose === "Examination") && (
                   <div className="faculty-submit-form-group">
@@ -878,7 +925,6 @@ function FacultySubmitReservation() {
                   </div>
                 )}
 
-              {/* ORGANIZATION: all purposes -> studentRange */}
               {audienceType === "Organization" && purpose && (
                 <div className="faculty-submit-form-group">
                   <label>Estimated Number of Attendees</label>
@@ -906,7 +952,6 @@ function FacultySubmitReservation() {
                 </div>
               )}
 
-              {/* ORGANIZATION: "Other Activity" -> custom text */}
               {audienceType === "Organization" && purpose === "Other Activity" && (
                 <div className="faculty-submit-form-group">
                   <label>Specify Activity</label>
@@ -925,92 +970,311 @@ function FacultySubmitReservation() {
                 </div>
               )}
 
-              {/* DATE */}
+              {/* ═════════ DATE (calendar popover) ═════════ */}
               <div className="faculty-submit-form-group">
-                <label>Date</label>
-                <div className="faculty-submit-icon-wrapper">
-                  <i
-                    className="fa-regular fa-calendar faculty-submit-icon"
-                    onClick={() =>
-                      document.getElementById("date-input").showPicker()
-                    }
-                  ></i>
-                  <input
-                    id="date-input"
-                    type="date"
-                    className={`faculty-submit-input ${validationAttempted && fieldErrors.date ? "error" : ""}`}
-                    min={new Date().toISOString().split("T")[0]}
-                    value={date}
-                    onChange={(e) => {
-                      setDate(e.target.value);
-                      revalidate();
-                    }}
-                  />
+                <div className="dt-section-header">
+                  <label>Date</label>
                 </div>
+
+                <div className="fsr-datepicker">
+                  <button
+                    type="button"
+                    className={`fsr-date-trigger ${validationAttempted && fieldErrors.date ? "error" : ""} ${showDatePicker ? "open" : ""}`}
+                    onClick={() => {
+                      const base = date ? new Date(`${date}T00:00:00`) : new Date();
+                      setCalendarCursor({ year: base.getFullYear(), month: base.getMonth() });
+                      setShowDatePicker((v) => !v);
+                    }}
+                  >
+                    <i className="fa-regular fa-calendar"></i>
+                    <span>{date ? formatDateLong(date) : "Select a date"}</span>
+                    <i className={`fa-solid fa-chevron-down fsr-date-caret ${showDatePicker ? "open" : ""}`}></i>
+                  </button>
+
+                  {showDatePicker && (
+                    <>
+                      <div
+                        className="fsr-date-clickaway"
+                        onClick={() => setShowDatePicker(false)}
+                      ></div>
+                      <div className="fsr-date-popover">
+                        <span className="fsr-date-popover-arrow"></span>
+
+                        <div className="fsr-date-quick-row">
+                          <button
+                            type="button"
+                            className={date === toDateInputValue(new Date()) ? "active" : ""}
+                            onClick={() => {
+                              setDate(toDateInputValue(new Date()));
+                              setShowDatePicker(false);
+                              revalidate();
+                            }}
+                          >
+                            Today
+                          </button>
+                          <button
+                            type="button"
+                            className={
+                              date === addDaysLocal(toDateInputValue(new Date()), 1) ? "active" : ""
+                            }
+                            onClick={() => {
+                              setDate(addDaysLocal(toDateInputValue(new Date()), 1));
+                              setShowDatePicker(false);
+                              revalidate();
+                            }}
+                          >
+                            Tomorrow
+                          </button>
+                        </div>
+
+                        <div className="fsr-cal-header">
+                          <button
+                            type="button"
+                            className="fsr-cal-nav"
+                            onClick={() =>
+                              setCalendarCursor((c) => {
+                                const m = c.month - 1;
+                                return m < 0
+                                  ? { year: c.year - 1, month: 11 }
+                                  : { year: c.year, month: m };
+                              })
+                            }
+                            aria-label="Previous month"
+                          >
+                            <i className="fa-solid fa-chevron-left"></i>
+                          </button>
+                          <span className="fsr-cal-title">
+                            {MONTH_NAMES[calendarCursor.month]} {calendarCursor.year}
+                          </span>
+                          <button
+                            type="button"
+                            className="fsr-cal-nav"
+                            onClick={() =>
+                              setCalendarCursor((c) => {
+                                const m = c.month + 1;
+                                return m > 11
+                                  ? { year: c.year + 1, month: 0 }
+                                  : { year: c.year, month: m };
+                              })
+                            }
+                            aria-label="Next month"
+                          >
+                            <i className="fa-solid fa-chevron-right"></i>
+                          </button>
+                        </div>
+
+                        <div className="fsr-cal-weekdays">
+                          {WEEKDAY_LABELS.map((w) => (
+                            <span key={w}>{w}</span>
+                          ))}
+                        </div>
+
+                        <div className="fsr-cal-grid">
+                          {buildCalendarGrid(calendarCursor.year, calendarCursor.month).map(
+                            (cell, i) => {
+                              const cellStr = toDateInputValue(cell.date);
+                              const isPast = cellStr < toDateInputValue(new Date());
+                              const isSelected = cellStr === date;
+                              return (
+                                <button
+                                  type="button"
+                                  key={i}
+                                  className={[
+                                    "fsr-cal-day",
+                                    !cell.inMonth && "is-outside",
+                                    isSelected && "is-selected",
+                                    isPast && "is-disabled",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" ")}
+                                  disabled={isPast}
+                                  onClick={() => {
+                                    setDate(cellStr);
+                                    setShowDatePicker(false);
+                                    revalidate();
+                                  }}
+                                >
+                                  {cell.day}
+                                </button>
+                              );
+                            }
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 {validationAttempted && fieldErrors.date && (
                   <span className="field-error-message">{fieldErrors.date}</span>
                 )}
               </div>
 
-              {/* TIME */}
-              <div className="faculty-submit-time-fields">
-                <div className="faculty-submit-form-group">
-                  <label>Start Time</label>
-                  <div className="faculty-submit-time-wrapper">
-                    <i
-                      className="fa-regular fa-clock faculty-submit-time-icon"
-                      onClick={() =>
-                        document.getElementById("start-input").showPicker()
-                      }
-                    ></i>
-                    <input
-                      id="start-input"
-                      type="time"
-                      className={`faculty-submit-input faculty-submit-time-input ${validationAttempted && fieldErrors.startTime ? "error" : ""}`}
-                      min="07:00"
-                      max="20:00"
-                      value={startTime}
-                      onChange={(e) => {
-                        setStartTime(e.target.value);
-                        revalidate();
-                      }}
-                    />
-                  </div>
-                  {validationAttempted && fieldErrors.startTime && (
-                    <span className="field-error-message">{fieldErrors.startTime}</span>
+              {/* ═════════ TIME (presets + popover pickers) ═════════ */}
+              <div className="faculty-submit-form-group">
+                <div className="dt-section-header">
+                  <label>Time</label>
+                  {startTime && endTime && (
+                    <span className="dt-selected-pill">
+                      <i className="fa-regular fa-clock"></i>
+                      {format12Hour(startTime)} – {format12Hour(endTime)}
+                    </span>
                   )}
                 </div>
 
-                <div className="faculty-submit-form-group">
-                  <label>End Time</label>
-                  <div className="faculty-submit-time-wrapper">
-                    <i
-                      className="fa-regular fa-clock faculty-submit-time-icon"
-                      onClick={() =>
-                        document.getElementById("end-input").showPicker()
-                      }
-                    ></i>
-                    <input
-                      id="end-input"
-                      type="time"
-                      className={`faculty-submit-input faculty-submit-time-input ${validationAttempted && fieldErrors.endTime ? "error" : ""}`}
-                      min="07:00"
-                      max="20:00"
-                      value={endTime}
-                      onChange={(e) => {
-                        setEndTime(e.target.value);
-                        revalidate();
-                      }}
-                    />
-                  </div>
-                  {validationAttempted && fieldErrors.endTime && (
-                    <span className="field-error-message">{fieldErrors.endTime}</span>
-                  )}
+                {/* Preset slots */}
+                <div className="time-preset-grid">
+                  {PRESET_SLOTS.map((slot) => {
+                    const disabled = isPastPreset(slot);
+                    return (
+                      <button
+                        key={slot.label}
+                        type="button"
+                        className={`time-preset-chip ${isPresetActive(slot) ? "active" : ""} ${disabled ? "disabled" : ""}`}
+                        onClick={() => {
+                          if (disabled) return;
+                          handlePresetClick(slot);
+                        }}
+                        disabled={disabled}
+                        title={disabled ? "This time slot has already passed today" : undefined}
+                      >
+                        {slot.label}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {/* Custom toggle */}
+                <button
+                  type="button"
+                  className={`time-custom-toggle ${showCustomTime ? "open" : ""}`}
+                  onClick={() => setShowCustomTime((v) => !v)}
+                >
+                  <i className="fa-solid fa-sliders"></i>
+                  {showCustomTime ? "Hide custom time" : "Set a custom time instead"}
+                  <i className={`fa-solid fa-chevron-down time-custom-chev ${showCustomTime ? "open" : ""}`}></i>
+                </button>
+
+                {/* Custom start/end */}
+                {showCustomTime && (
+                  <div className="time-custom-grid">
+                    <div className="time-custom-field">
+                      <span className="time-custom-label">Start Time</span>
+                      <div className="fsr-timepicker">
+                        <button
+                          type="button"
+                          className={`fsr-time-trigger ${validationAttempted && fieldErrors.startTime ? "error" : ""} ${showStartTimePicker ? "open" : ""}`}
+                          onClick={() => {
+                            setShowStartTimePicker((v) => !v);
+                            setShowEndTimePicker(false);
+                          }}
+                        >
+                          <i className="fa-regular fa-clock"></i>
+                          <span>{startTime ? format12Hour(startTime) : "Select time"}</span>
+                          <i className={`fa-solid fa-chevron-down fsr-time-caret ${showStartTimePicker ? "open" : ""}`}></i>
+                        </button>
+
+                        {showStartTimePicker && (
+                          <>
+                            <div
+                              className="fsr-time-clickaway"
+                              onClick={() => setShowStartTimePicker(false)}
+                            ></div>
+                            <div className="fsr-time-popover">
+                              <span className="fsr-date-popover-arrow"></span>
+                              <div className="fsr-time-list">
+                                {TIME_OPTIONS.map((t) => {
+                                  const disabled = isPastStartValue(t.value);
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={t.value}
+                                      className={`fsr-time-option ${startTime === t.value ? "is-selected" : ""} ${disabled ? "is-disabled" : ""}`}
+                                      disabled={disabled}
+                                      onClick={() => {
+                                        handleCustomStartChange(t.value);
+                                        setShowStartTimePicker(false);
+                                      }}
+                                    >
+                                      {t.label}
+                                      {disabled && <span className="fsr-time-passed-tag">Passed</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="time-custom-arrow">
+                      <i className="fa-solid fa-arrow-right"></i>
+                    </div>
+
+                    <div className="time-custom-field">
+                      <span className="time-custom-label">End Time</span>
+                      <div className="fsr-timepicker">
+                        <button
+                          type="button"
+                          className={`fsr-time-trigger ${validationAttempted && fieldErrors.endTime ? "error" : ""} ${showEndTimePicker ? "open" : ""}`}
+                          onClick={() => {
+                            setShowEndTimePicker((v) => !v);
+                            setShowStartTimePicker(false);
+                          }}
+                        >
+                          <i className="fa-regular fa-clock"></i>
+                          <span>{endTime ? format12Hour(endTime) : "Select time"}</span>
+                          <i className={`fa-solid fa-chevron-down fsr-time-caret ${showEndTimePicker ? "open" : ""}`}></i>
+                        </button>
+
+                        {showEndTimePicker && (
+                          <>
+                            <div
+                              className="fsr-time-clickaway"
+                              onClick={() => setShowEndTimePicker(false)}
+                            ></div>
+                            <div className="fsr-time-popover">
+                              <span className="fsr-date-popover-arrow"></span>
+                              <div className="fsr-time-list">
+                                {TIME_OPTIONS.map((t) => {
+                                  const disabled = startTime
+                                    ? convertToMinutes(t.value) <= convertToMinutes(startTime)
+                                    : false;
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={t.value}
+                                      className={`fsr-time-option ${endTime === t.value ? "is-selected" : ""} ${disabled ? "is-disabled" : ""}`}
+                                      disabled={disabled}
+                                      onClick={() => {
+                                        handleCustomEndChange(t.value);
+                                        setShowEndTimePicker(false);
+                                      }}
+                                    >
+                                      {t.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {validationAttempted && fieldErrors.startTime && (
+                  <span className="field-error-message">{fieldErrors.startTime}</span>
+                )}
+                {validationAttempted && fieldErrors.endTime && (
+                  <span className="field-error-message">{fieldErrors.endTime}</span>
+                )}
               </div>
             </div>
 
-            {/* RIGHT SIDE */}
+            {/* RIGHT SIDE — ROOMS */}
             <div className="faculty-submit-section">
               <div className="faculty-submit-venue-header">
                 <span className="faculty-submit-venue-title">Available Rooms</span>
@@ -1042,9 +1306,7 @@ function FacultySubmitReservation() {
               ) : rooms.length === 0 ? (
                 <div className="faculty-empty">
                   <i className="fa-solid fa-circle-xmark"></i>
-                  <p>
-                    No rooms match your selected schedule, purpose, equipment, capacity, or floor.
-                  </p>
+                  <p>No rooms match your selected schedule, purpose, equipment, capacity, or floor.</p>
                 </div>
               ) : (
                 <div className="room-grid">
@@ -1100,7 +1362,9 @@ function FacultySubmitReservation() {
                 </div>
               )}
               {validationAttempted && fieldErrors.selectedRoom && (
-                <span className="field-error-message" style={{ marginTop: "10px" }}>{fieldErrors.selectedRoom}</span>
+                <span className="field-error-message" style={{ marginTop: "10px" }}>
+                  {fieldErrors.selectedRoom}
+                </span>
               )}
             </div>
           </div>
@@ -1125,17 +1389,8 @@ function FacultySubmitReservation() {
             <div className="ra-modal">
               <h3>Submit Reservation Request?</h3>
               <p>Your reservation will be sent for approval.</p>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  justifyContent: "center",
-                  marginTop: "20px",
-                }}
-              >
-                <button className="ra-modal-cancel" onClick={() => setShowConfirm(false)}>
-                  Cancel
-                </button>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "20px" }}>
+                <button className="ra-modal-cancel" onClick={() => setShowConfirm(false)}>Cancel</button>
                 <button
                   className={`ra-modal-confirm ${submitting ? "disabled" : ""}`}
                   onClick={handleSubmit}
@@ -1148,7 +1403,7 @@ function FacultySubmitReservation() {
           </div>
         )}
 
-        {/* ─── SUCCESS DIALOG ────────────────────────────────────────── */}
+        {/* SUCCESS DIALOG */}
         {showSuccessModal && submittedReservation && (
           <div className="rs-success-overlay">
             <div className="rs-success-modal">
@@ -1166,7 +1421,6 @@ function FacultySubmitReservation() {
                   <span className="rs-success-label">Course Title</span>
                   <span className="rs-success-value">{submittedReservation.courseTitle}</span>
                 </div>
-
                 <div className="rs-success-row">
                   <span className="rs-success-label">Room</span>
                   <span className="rs-success-value">
@@ -1174,24 +1428,20 @@ function FacultySubmitReservation() {
                     {submittedReservation.floor ? ` (${submittedReservation.floor} Floor)` : ""}
                   </span>
                 </div>
-
                 <div className="rs-success-row">
                   <span className="rs-success-label">Date</span>
                   <span className="rs-success-value">{formatDateLong(submittedReservation.date)}</span>
                 </div>
-
                 <div className="rs-success-row">
                   <span className="rs-success-label">Time</span>
                   <span className="rs-success-value">
                     {format12Hour(submittedReservation.startTime)} - {format12Hour(submittedReservation.endTime)}
                   </span>
                 </div>
-
                 <div className="rs-success-row">
                   <span className="rs-success-label">Purpose</span>
                   <span className="rs-success-value">{submittedReservation.purpose}</span>
                 </div>
-
                 <div className="rs-success-row">
                   <span className="rs-success-label">Audience</span>
                   <span className="rs-success-value">
@@ -1204,7 +1454,6 @@ function FacultySubmitReservation() {
                       : ""}
                   </span>
                 </div>
-
                 <div className="rs-success-row">
                   <span className="rs-success-label">Status</span>
                   <span className="rs-status-pill">
@@ -1223,10 +1472,7 @@ function FacultySubmitReservation() {
                 >
                   Submit Another
                 </button>
-                <button
-                  className="rs-success-primary"
-                  onClick={() => navigate("/faculty")}
-                >
+                <button className="rs-success-primary" onClick={() => navigate("/faculty")}>
                   Back to Dashboard
                 </button>
               </div>
@@ -1239,12 +1485,7 @@ function FacultySubmitReservation() {
           type={toast.type}
           title={toast.title}
           message={toast.message}
-          onClose={() =>
-            setToast((prev) => ({
-              ...prev,
-              show: false,
-            }))
-          }
+          onClose={() => setToast((prev) => ({ ...prev, show: false }))}
         />
       </div>
     </>

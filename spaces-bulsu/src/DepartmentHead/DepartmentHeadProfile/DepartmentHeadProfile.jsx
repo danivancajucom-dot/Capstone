@@ -250,18 +250,8 @@ export default function DepartmentHeadProfile() {
             <input className="dhp-input" value={form.lastName} onChange={handleChange("lastName")} readOnly={!editing} />
           </div>
           <div className="dhp-field">
-            <label>Email</label>
-            <input className="dhp-input" value={form.email} readOnly />
-          </div>
-          <div className="dhp-field">
             <label>Role</label>
             <input className="dhp-input" value={form.role} readOnly />
-          </div>
-          <div className="dhp-field">
-            <label>Password</label>
-            <button className="dhp-reset-password-btn" onClick={handleResetPassword}>
-              Send Password Reset Email
-            </button>
           </div>
         </div>
 
