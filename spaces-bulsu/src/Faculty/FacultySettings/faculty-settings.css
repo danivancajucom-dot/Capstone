@@ -8,7 +8,7 @@
   background: #F8F7F5;
 }
 
-/* ── Page header ───────────────────────────────────────────────────────── */
+/* ── Page header ───────────────────────────────────────────────── */
 
 .fs-page-header {
   max-width: 1200px;
@@ -39,7 +39,7 @@
   color: #6b7280;
 }
 
-/* ── Grid ──────────────────────────────────────────────────────────────── */
+/* ── Grid ─────────────────────────────────────────────────────── */
 
 .fs-grid {
   display: grid;
@@ -55,7 +55,7 @@
   gap: 12px;
 }
 
-/* ── Section title ─────────────────────────────────────────────────────── */
+/* ── Section title ─────────────────────────────────────────────── */
 
 .fs-section-title {
   display: flex;
@@ -73,7 +73,7 @@
   font-size: 14px;
 }
 
-/* ── Card ──────────────────────────────────────────────────────────────── */
+/* ── Card ─────────────────────────────────────────────────────── */
 
 .fs-card {
   background: #fff;
@@ -111,7 +111,7 @@
   color: #9ca3af;
 }
 
-/* ── Field ─────────────────────────────────────────────────────────────── */
+/* ── Field ─────────────────────────────────────────────────────── */
 
 .fs-field {
   display: flex;
@@ -177,14 +177,13 @@
   color: #f57c00;
 }
 
-/* Two-column row */
 .fs-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
-/* ── Password rules ────────────────────────────────────────────────────── */
+/* ── Password rules ────────────────────────────────────────────── */
 
 .fs-pw-rules {
   list-style: none;
@@ -222,7 +221,7 @@
   font-size: 12px;
 }
 
-/* ── Primary button ────────────────────────────────────────────────────── */
+/* ── Primary button ───────────────────────────────────────────── */
 
 .fs-primary-btn {
   padding: 15px 20px;
@@ -255,7 +254,7 @@
   cursor: not-allowed;
 }
 
-/* ── List rows (right column) ──────────────────────────────────────────── */
+/* ── List rows (right column) ────────────────────────────────── */
 
 .fs-list-row {
   display: flex;
@@ -325,7 +324,7 @@
 
 .fs-row-chev.danger { color: #dc2626; }
 
-/* ── Switch (Push Notifications) ───────────────────────────────────────── */
+/* ── Switch ───────────────────────────────────────────────────── */
 
 .fs-switch {
   position: relative;
@@ -371,7 +370,7 @@
   transform: translateX(20px);
 }
 
-/* ── Modal ─────────────────────────────────────────────────────────────── */
+/* ── Modal ─────────────────────────────────────────────────────── */
 
 .fs-modal-overlay {
   position: fixed;
@@ -475,7 +474,7 @@
   letter-spacing: 0.05em;
 }
 
-/* ── Responsive ────────────────────────────────────────────────────────── */
+/* ── Responsive ───────────────────────────────────────────────── */
 
 @media (max-width: 992px) {
   .fs-grid {
@@ -650,7 +649,7 @@
   color: #1f2937;
 }
 
-/* ── FAQ accordion ──────────────────────────────────────────────── */
+/* ── FAQ accordion ────────────────────────────────────────────── */
 
 .faq-list {
   display: flex;
@@ -759,4 +758,259 @@
   .info-modal-card {
     padding: 28px 22px;
   }
+}
+
+/* ================================================================== */
+/* =========  OTP + STEP HEAD (verification code flow)  ============= */
+/* ================================================================== */
+
+.otp-wrap {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.otp-input {
+  width: 46px;
+  height: 54px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafaf9;
+  font-size: 21px;
+  font-weight: 800;
+  font-family: 'Courier New', Courier, monospace;
+  color: #111827;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+
+.otp-input:focus {
+  border-color: #f57c00;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.15);
+}
+
+.otp-input:disabled { opacity: 0.6; }
+
+.fs-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.fs-step-head > i {
+  font-size: 20px;
+  color: #f57c00;
+  background: #fff3e7;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fs-step-head h4 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  color: #16213e;
+}
+
+.fs-step-head p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.55;
+}
+
+.fs-step-head p strong { color: #374151; }
+
+.fs-step-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.fs-step-actions .fs-modal-btn { flex: 0 0 auto; min-width: 100px; }
+
+.fs-resend-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f57c00;
+  cursor: pointer;
+  text-align: center;
+  margin: 0;
+  transition: color 0.15s;
+}
+
+.fs-resend-link:hover { color: #d96a00; text-decoration: underline; }
+
+@media (max-width: 480px) {
+  .otp-input { width: 40px; height: 48px; font-size: 18px; }
+  .otp-wrap { gap: 6px; }
+}
+
+/* ═══════════ DELETE ACCOUNT — 2-step warning modal ═══════════ */
+.fs-modal-delete-warning {
+  max-width: 460px;
+}
+
+.fs-modal-icon-pulse {
+  animation: fs-icon-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes fs-icon-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50%      { transform: scale(1.05); box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
+}
+
+/* Warning box (step 1) */
+.fs-delete-warning-box {
+  background: #fef2f2;
+  border: 1.5px solid #fecaca;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 16px 0 18px;
+  text-align: left;
+}
+
+.fs-delete-warning-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #b91c1c;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.fs-delete-warning-title i {
+  color: #dc2626;
+  font-size: 15px;
+}
+
+.fs-delete-warning-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fs-delete-warning-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  color: #7f1d1d;
+  line-height: 1.45;
+}
+
+.fs-delete-warning-list li i {
+  color: #dc2626;
+  font-size: 11px;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+/* Acknowledgment checkbox */
+.fs-delete-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1.5px solid #fed7aa;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: #7c2d12;
+  line-height: 1.5;
+  text-align: left;
+  margin-bottom: 16px;
+  transition: 0.15s;
+}
+
+.fs-delete-ack:hover {
+  background: #ffedd5;
+}
+
+.fs-delete-ack input {
+  margin-top: 2px;
+  accent-color: #dc2626;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.fs-delete-ack span strong {
+  color: #991b1b;
+}
+
+/* Danger banner (step 2) */
+.fs-delete-danger-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: linear-gradient(90deg, #dc2626, #991b1b);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.fs-delete-danger-banner i {
+  font-size: 14px;
+}
+
+/* Phrase matching feedback */
+.fs-phrase-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.fs-phrase-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.fs-phrase-ok i,
+.fs-phrase-bad i {
+  font-size: 11px;
+}
+
+/* Disabled danger button style */
+.fs-modal-btn.danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+/* Small tweak: modal buttons inline icon spacing */
+.fs-modal-btn i {
+  margin-right: 6px;
 }

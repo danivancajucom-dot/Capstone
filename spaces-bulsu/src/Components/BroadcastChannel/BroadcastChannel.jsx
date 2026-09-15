@@ -663,7 +663,7 @@ export default function BroadcastChannel() {
             <i className="fa-solid fa-bullhorn"></i>
           </div>
           <div>
-            <h2>Broadcast Channel</h2>
+            <h2>Announcement Channel</h2>
             <span>
               {userRole === "Department Head" ? "Send announcements" : "Department announcements"}
             </span>

@@ -6,9 +6,16 @@ import {
   collection,
   collectionGroup,
   onSnapshot,
+  addDoc,
+  deleteDoc,
+  doc,
+  query,
+  where,
+  serverTimestamp,
 } from "firebase/firestore";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
+import Toast from "../../Popup/Toast/Toast";
 
 // ─── Helpers ────────────────────────────────────────────────────
 const convertToMinutes = (time) => {
@@ -54,7 +61,7 @@ const STATUS_OPTIONS = [
 export default function FacultyRoom() {
   const navigate = useNavigate();
 
-  // ─── Building + Floor (top) ──────────────────────────────────
+  // ─── Building + Floor ────────────────────────────────────────
   const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
   const [selectedFloor, setSelectedFloor] = useState("All Floors");
 
@@ -73,6 +80,22 @@ export default function FacultyRoom() {
   const [releasesData, setReleasesData] = useState([]);
   const [reassignmentsData, setReassignmentsData] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ─── Notify Me watches ───────────────────────────────────────
+  const [myWatches, setMyWatches] = useState([]);
+  const [watchBusyRoomId, setWatchBusyRoomId] = useState(null);
+
+  // ─── Toast ───────────────────────────────────────────────────
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    setTimeout(() => setToast((p) => ({ ...p, show: false })), 3500);
+  };
 
   // ─── Live ticker ─────────────────────────────────────────────
   const [nowTick, setNowTick] = useState(Date.now());
@@ -127,12 +150,13 @@ export default function FacultyRoom() {
     unsubs.push(
       onSnapshot(
         collection(db, "reservationRequests"),
-        (snap) =>
+        (snap) => {
           setReservationsData(
             snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
               .filter((r) => String(r.status || "").toLowerCase() === "approved")
-          ),
+          );
+        },
         (err) => console.error("reservations listener:", err)
       )
     );
@@ -149,17 +173,39 @@ export default function FacultyRoom() {
     unsubs.push(
       onSnapshot(
         collection(db, "roomReassignments"),
-        (snap) =>
+        (snap) => {
           setReassignmentsData(
             snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
               .filter((r) => String(r.status || "").toLowerCase() === "approved")
-          ),
+          );
+        },
         (err) => console.error("reassignments listener:", err)
       )
     );
 
     return () => unsubs.forEach((u) => u());
+  }, []);
+
+  // ─── Subscribe to user's own watches ─────────────────────────
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    const q = query(
+      collection(db, "roomAvailabilityWatches"),
+      where("userId", "==", uid)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setMyWatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (err) => console.error("watches listener:", err)
+    );
+
+    return () => unsub();
   }, []);
 
   // ─── Group schedules by room ─────────────────────────────────
@@ -180,7 +226,7 @@ export default function FacultyRoom() {
     return ["All Buildings", ...Array.from(set).sort()];
   }, [roomsData]);
 
-  // ─── Floor options (depend on building) ──────────────────────
+  // ─── Floor options ───────────────────────────────────────────
   const floorOptions = useMemo(() => {
     const set = new Set();
     roomsData
@@ -198,13 +244,149 @@ export default function FacultyRoom() {
     }
   }, [floorOptions, selectedFloor]);
 
-  // ─── Processed rooms (realtime) ──────────────────────────────
+  // ════════════════════════════════════════════════════════════════
+  // Availability check — used by watches
+  // ════════════════════════════════════════════════════════════════
+  const isRoomAvailableAt = (roomId, date, sTime, eTime) => {
+    const roomData = roomsData.find((r) => r.id === roomId);
+    if (!roomData) return false;
+
+    const day = getDayFromDate(date);
+    let wStart = convertToMinutes(sTime);
+    let wEnd = convertToMinutes(eTime);
+    if (wStart > wEnd) [wStart, wEnd] = [wEnd, wStart];
+
+    if (isRoomUnderMaintenance(roomData, date, sTime, eTime)) return false;
+    if (
+      String(roomData?.roomStatus || "").trim().toLowerCase() === "maintenance"
+    ) {
+      return false;
+    }
+
+    const overlaps = (s, e) => s <= wEnd && e >= wStart;
+
+    const releaseSet = new Set(
+      releasesData
+        .filter((r) => r.date === date)
+        .map((r) => `${r.scheduleId}_${r.date}`)
+    );
+    const awaySet = new Set(
+      reassignmentsData
+        .filter((r) => r.date === date && r.oldRoomId === roomId)
+        .map((r) => `${r.scheduleId}_${r.date}`)
+    );
+
+    // Schedules
+    const schedules = schedulesByRoom.get(roomId) || [];
+    for (const s of schedules) {
+      if (s.initialized) continue;
+      if (s.day?.toUpperCase() !== day) continue;
+      const key = `${s.id}_${date}`;
+      if (releaseSet.has(key)) continue;
+      if (awaySet.has(key)) continue;
+      if (overlaps(convertToMinutes(s.startTime), convertToMinutes(s.endTime))) {
+        return false;
+      }
+    }
+
+    // Events
+    for (const e of eventsData) {
+      if (e.roomId !== roomId || e.date !== date) continue;
+      if (e.status === "Cancelled") continue;
+      if (overlaps(convertToMinutes(e.startTime), convertToMinutes(e.endTime))) {
+        return false;
+      }
+    }
+
+    // Reservations
+    for (const r of reservationsData) {
+      if (r.roomId !== roomId || r.date !== date) continue;
+      if (overlaps(convertToMinutes(r.startTime), convertToMinutes(r.endTime))) {
+        return false;
+      }
+    }
+
+    // Reassigned-in
+    for (const r of reassignmentsData) {
+      if (r.date !== date || r.newRoomId !== roomId) continue;
+      if (overlaps(convertToMinutes(r.startTime), convertToMinutes(r.endTime))) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // Auto-notify when watched room becomes available
+  // ════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    const activeWatches = myWatches.filter((w) => !w.notified);
+    if (activeWatches.length === 0) return;
+
+    activeWatches.forEach(async (watch) => {
+      try {
+        const available = isRoomAvailableAt(
+          watch.roomId,
+          watch.date,
+          watch.startTime,
+          watch.endTime
+        );
+
+        if (!available) return;
+
+        // Send in-app notification
+        await addDoc(collection(db, "notifications"), {
+          userId: uid,
+          ownerType: "faculty",
+          title: "Room Now Available",
+          message: `${watch.roomName} is now available for your watched slot on ${watch.date} (${watch.startTime} – ${watch.endTime}). Book it before it's taken!`,
+          type: "room-available",
+          roomId: watch.roomId,
+          roomName: watch.roomName,
+          date: watch.date,
+          startTime: watch.startTime,
+          endTime: watch.endTime,
+          unread: true,
+          archived: false,
+          badge: "NEW",
+          createdAt: serverTimestamp(),
+        });
+
+        // Delete the watch (served its purpose)
+        await deleteDoc(doc(db, "roomAvailabilityWatches", watch.id));
+
+        showToast(
+          "success",
+          "Room Available!",
+          `${watch.roomName} is now available. Check your notifications.`
+        );
+      } catch (err) {
+        console.error("Auto-notify error:", err);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    myWatches,
+    roomsData,
+    schedulesByRoom,
+    eventsData,
+    reservationsData,
+    releasesData,
+    reassignmentsData,
+    nowTick,
+  ]);
+
+  // ─── Processed rooms ─────────────────────────────────────────
   const processedRooms = useMemo(() => {
     if (roomsData.length === 0) return [];
 
     const selectedDay = getDayFromDate(selectedDate);
-
     const nowMinutes = convertToMinutes(getCurrentTime());
+
     let windowStart = startTime
       ? convertToMinutes(startTime)
       : endTime
@@ -215,14 +397,11 @@ export default function FacultyRoom() {
       : startTime
       ? convertToMinutes(startTime)
       : nowMinutes;
-    if (windowStart > windowEnd) {
-      [windowStart, windowEnd] = [windowEnd, windowStart];
-    }
+    if (windowStart > windowEnd) [windowStart, windowEnd] = [windowEnd, windowStart];
 
     const overlaps = (startMin, endMin) =>
       startMin <= windowEnd && endMin >= windowStart;
 
-    // Releases
     const releaseMap = new Map();
     releasesData.forEach((data) => {
       if (data.date !== selectedDate) return;
@@ -231,7 +410,6 @@ export default function FacultyRoom() {
       releaseMap.get(data.roomId).add(key);
     });
 
-    // Reassignments
     const reassignAwayMap = new Map();
     const reassignIntoMap = new Map();
     reassignmentsData.forEach((data) => {
@@ -277,11 +455,9 @@ export default function FacultyRoom() {
       const releasesForRoom = releaseMap.get(roomId) || new Set();
       const reassignAwayForRoom = reassignAwayMap.get(roomId) || new Set();
 
-      // 1. Schedules
       schedules.forEach((sched) => {
         if (sched.initialized) return;
         if (sched.day?.toUpperCase() !== selectedDay) return;
-
         const key = `${sched.id}_${selectedDate}`;
         if (releasesForRoom.has(key)) return;
         if (reassignAwayForRoom.has(key)) return;
@@ -294,7 +470,6 @@ export default function FacultyRoom() {
         }
       });
 
-      // 2. Events
       if (!occupied) {
         eventsData
           .filter((e) => e.roomId === roomId && e.date === selectedDate)
@@ -308,7 +483,6 @@ export default function FacultyRoom() {
           });
       }
 
-      // 3. Reservations
       if (!occupied) {
         reservationsData
           .filter((r) => r.roomId === roomId && r.date === selectedDate)
@@ -322,7 +496,6 @@ export default function FacultyRoom() {
           });
       }
 
-      // 4. Reassigned-in
       if (!occupied) {
         const reassignIntoForRoom = reassignIntoMap.get(roomId) || [];
         reassignIntoForRoom.forEach((item) => {
@@ -389,212 +562,297 @@ export default function FacultyRoom() {
     selectedFloor !== "All Floors" ||
     selectedStatus !== "All Status";
 
+  // ════════════════════════════════════════════════════════════════
+  // Toggle watch
+  // ════════════════════════════════════════════════════════════════
+  const handleToggleWatch = async (room) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      showToast("error", "Not Signed In", "Please log in again.");
+      return;
+    }
+    if (watchBusyRoomId) return;
+
+    if (room.status === "Available") {
+      showToast("error", "Room Already Available", "This room is already free.");
+      return;
+    }
+    if (room.status === "Under Maintenance") {
+      showToast("error", "Under Maintenance", "You can't watch a room under maintenance.");
+      return;
+    }
+
+    const existing = myWatches.find(
+      (w) => w.roomId === room.id && w.date === selectedDate
+    );
+
+    setWatchBusyRoomId(room.id);
+    try {
+      if (existing) {
+        await deleteDoc(doc(db, "roomAvailabilityWatches", existing.id));
+        showToast(
+          "success",
+          "Watch Removed",
+          `You won't be notified about ${room.roomName}.`
+        );
+      } else {
+        await addDoc(collection(db, "roomAvailabilityWatches"), {
+          userId: uid,
+          roomId: room.id,
+          roomName: room.roomName,
+          building: room.building || "",
+          floor: room.floor || "",
+          date: selectedDate,
+          startTime,
+          endTime,
+          roomStatusAtWatch: room.status,
+          notified: false,
+          createdAt: serverTimestamp(),
+        });
+        showToast(
+          "success",
+          "Watch Added",
+          `You'll be notified when ${room.roomName} becomes available on ${selectedDate}.`
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Failed", err.message);
+    } finally {
+      setWatchBusyRoomId(null);
+    }
+  };
+
   // ─── Render ──────────────────────────────────────────────────
   return (
-    <div className="faculty-room-container">
-      <div className="faculty-room-header">
-        <h1>Rooms</h1>
-        <p>
-          Browse all classrooms and check their real-time availability by
-          building, floor, date, and time.
-        </p>
-      </div>
+    <>
+      <div className="faculty-room-container">
+        <div className="faculty-room-header">
+          <h1>Rooms</h1>
+          <p>
+            Browse all classrooms and check their real-time availability by
+            building, floor, date, and time.
+          </p>
+        </div>
 
-      <div className="white-box-rooms">
-        {/* ─── BUILDING + FLOORS ──────────────────────────────── */}
-        <div className="building-floor-filter">
-          <div className="filter-group building-group">
-            <label className="filter-label">Building</label>
-            <div className="dropdown-container">
-              <select
-                className="dropdown"
-                value={selectedBuilding}
-                onChange={(e) => {
-                  setSelectedBuilding(e.target.value);
-                  setSelectedFloor("All Floors");
-                }}
-              >
-                {buildingOptions.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-              <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
+        <div className="white-box-rooms">
+          {/* ─── BUILDING + FLOORS ──────────────────────────────── */}
+          <div className="building-floor-filter">
+            <div className="filter-group building-group">
+              <label className="filter-label">Building</label>
+              <div className="dropdown-container">
+                <select
+                  className="dropdown"
+                  value={selectedBuilding}
+                  onChange={(e) => {
+                    setSelectedBuilding(e.target.value);
+                    setSelectedFloor("All Floors");
+                  }}
+                >
+                  {buildingOptions.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+                <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
+              </div>
+            </div>
+
+            <div className="floor-buttons-lr">
+              {floorOptions.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={`floor-btn-lr ${selectedFloor === f ? "active" : ""}`}
+                  onClick={() => setSelectedFloor(f)}
+                >
+                  {f}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="floor-buttons-lr">
-            {floorOptions.map((f) => (
-              <button
-                key={f}
-                type="button"
-                className={`floor-btn-lr ${selectedFloor === f ? "active" : ""}`}
-                onClick={() => setSelectedFloor(f)}
-              >
-                {f}
-              </button>
-            ))}
+          {/* ─── ACTIVE FILTER CHIPS ─────────────────────────────── */}
+          <div className="active-filter-chips">
+            <span className="filter-chip">
+              <i className="fa-regular fa-calendar"></i>
+              {selectedDate}
+            </span>
+            <span className="filter-chip">
+              <i className="fa-regular fa-clock"></i>
+              {startTime || "--:--"} – {endTime || "--:--"}
+            </span>
+            <span className="filter-chip">
+              <i className="fa-solid fa-circle-info"></i>
+              {selectedStatus}
+            </span>
+            {myWatches.length > 0 && (
+              <span className="filter-chip is-watching">
+                <i className="fa-solid fa-bell"></i>
+                {myWatches.length} watching
+              </span>
+            )}
           </div>
+
+          {/* ─── ROOM CARDS ──────────────────────────────────────── */}
+          {loading ? (
+            <div className="room-empty">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+              <h2>Loading Rooms</h2>
+              <p>Please wait while we retrieve available rooms.</p>
+            </div>
+          ) : filteredRooms.length === 0 ? (
+            <div className="room-empty">
+              <i className="fa-regular fa-building"></i>
+              <h2>No Rooms Found</h2>
+              <p>There are no rooms available under the selected filter.</p>
+            </div>
+          ) : (
+            <div className="faculty-room-grid">
+              {filteredRooms.map((room) => {
+                const isWatched = myWatches.some(
+                  (w) => w.roomId === room.id && w.date === selectedDate
+                );
+                return (
+                  <RoomCard
+                    key={room.id}
+                    room={room}
+                    isWatched={isWatched}
+                    watchBusy={watchBusyRoomId === room.id}
+                    onToggleWatch={() => handleToggleWatch(room)}
+                    onViewSchedule={() =>
+                      navigate("/faculty/view-room", { state: { room } })
+                    }
+                    onReserve={() => {
+                      if (room.status === "Under Maintenance") return;
+                      navigate("/faculty/submit-reservation", { state: { room } });
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* ─── ACTIVE FILTER CHIPS ─────────────────────────────── */}
-        <div className="active-filter-chips">
-          <span className="filter-chip">
-            <i className="fa-regular fa-calendar"></i>
-            {selectedDate}
-          </span>
-          <span className="filter-chip">
-            <i className="fa-regular fa-clock"></i>
-            {startTime || "--:--"} – {endTime || "--:--"}
-          </span>
-          <span className="filter-chip">
-            <i className="fa-solid fa-circle-info"></i>
-            {selectedStatus}
-          </span>
-        </div>
+        {/* ─── FLOATING FILTER BUTTON ────────────────────────────── */}
+        <button
+          type="button"
+          className={`fab-filter-btn ${hasActiveFilters ? "has-active" : ""}`}
+          onClick={() => setShowFilterPanel((v) => !v)}
+          aria-label="Open filters"
+        >
+          <i className="fa-solid fa-sliders"></i>
+          {hasActiveFilters && <span className="fab-dot" />}
+        </button>
 
-        {/* ─── ROOM CARDS ──────────────────────────────────────── */}
-        {loading ? (
-          <div className="room-empty">
-            <i className="fa-solid fa-spinner fa-spin"></i>
-            <h2>Loading Rooms</h2>
-            <p>Please wait while we retrieve available rooms.</p>
-          </div>
-        ) : filteredRooms.length === 0 ? (
-          <div className="room-empty">
-            <i className="fa-regular fa-building"></i>
-            <h2>No Rooms Found</h2>
-            <p>There are no rooms available under the selected filter.</p>
-          </div>
-        ) : (
-          <div className="faculty-room-grid">
-            {filteredRooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                room={room}
-                onViewSchedule={() =>
-                  navigate("/faculty/view-room", { state: { room } })
-                }
-                onReserve={() => {
-                  if (room.status === "Under Maintenance") return;
-                  navigate("/faculty/submit-reservation", { state: { room } });
-                }}
-              />
-            ))}
-          </div>
+        {/* ─── FLOATING FILTER PANEL ─────────────────────────────── */}
+        {showFilterPanel && (
+          <>
+            <div
+              className="filter-panel-overlay"
+              onClick={() => setShowFilterPanel(false)}
+            />
+            <div className="filter-panel">
+              <div className="filter-panel-header">
+                <h3>
+                  <i className="fa-solid fa-sliders"></i> Filters
+                </h3>
+                <button
+                  type="button"
+                  className="filter-panel-close"
+                  onClick={() => setShowFilterPanel(false)}
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div className="filter-panel-body">
+                <div className="filter-group">
+                  <label className="filter-label">Date</label>
+                  <div className="dropdown-container">
+                    <input
+                      type="date"
+                      className="dropdown date-input"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-row">
+                  <div className="filter-group">
+                    <label className="filter-label">Start Time</label>
+                    <div className="dropdown-container">
+                      <input
+                        type="time"
+                        className="dropdown time-input"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="filter-group">
+                    <label className="filter-label">End Time</label>
+                    <div className="dropdown-container">
+                      <input
+                        type="time"
+                        className="dropdown time-input"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Status</label>
+                  <div className="status-pills">
+                    {STATUS_OPTIONS.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`status-pill ${
+                          selectedStatus === s ? "active" : ""
+                        }`}
+                        onClick={() => setSelectedStatus(s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="filter-panel-footer">
+                <button
+                  type="button"
+                  className="panel-clear-btn"
+                  onClick={clearFilters}
+                >
+                  <i className="fa-solid fa-rotate-left"></i> Clear
+                </button>
+                <button
+                  type="button"
+                  className="panel-apply-btn"
+                  onClick={() => setShowFilterPanel(false)}
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      {/* ─── FLOATING FILTER BUTTON ────────────────────────────── */}
-      <button
-        type="button"
-        className={`fab-filter-btn ${hasActiveFilters ? "has-active" : ""}`}
-        onClick={() => setShowFilterPanel((v) => !v)}
-        aria-label="Open filters"
-      >
-        <i className="fa-solid fa-sliders"></i>
-        {hasActiveFilters && <span className="fab-dot" />}
-      </button>
-
-      {/* ─── FLOATING FILTER PANEL ─────────────────────────────── */}
-      {showFilterPanel && (
-        <>
-          <div
-            className="filter-panel-overlay"
-            onClick={() => setShowFilterPanel(false)}
-          />
-          <div className="filter-panel">
-            <div className="filter-panel-header">
-              <h3>
-                <i className="fa-solid fa-sliders"></i> Filters
-              </h3>
-              <button
-                type="button"
-                className="filter-panel-close"
-                onClick={() => setShowFilterPanel(false)}
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-
-            <div className="filter-panel-body">
-              <div className="filter-group">
-                <label className="filter-label">Date</label>
-                <div className="dropdown-container">
-                  <input
-                    type="date"
-                    className="dropdown date-input"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="filter-row">
-                <div className="filter-group">
-                  <label className="filter-label">Start Time</label>
-                  <div className="dropdown-container">
-                    <input
-                      type="time"
-                      className="dropdown time-input"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="filter-group">
-                  <label className="filter-label">End Time</label>
-                  <div className="dropdown-container">
-                    <input
-                      type="time"
-                      className="dropdown time-input"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="filter-group">
-                <label className="filter-label">Status</label>
-                <div className="status-pills">
-                  {STATUS_OPTIONS.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className={`status-pill ${
-                        selectedStatus === s ? "active" : ""
-                      }`}
-                      onClick={() => setSelectedStatus(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="filter-panel-footer">
-              <button
-                type="button"
-                className="panel-clear-btn"
-                onClick={clearFilters}
-              >
-                <i className="fa-solid fa-rotate-left"></i> Clear
-              </button>
-              <button
-                type="button"
-                className="panel-apply-btn"
-                onClick={() => setShowFilterPanel(false)}
-              >
-                Apply Filters
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((p) => ({ ...p, show: false }))}
+      />
+    </>
   );
 }

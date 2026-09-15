@@ -306,3 +306,51 @@
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Pending-reassignment variants
+   Para pantay ang itsura ng cards sa LAHAT ng tabs:
+   Active · In Progress · Unresolved · Resolved
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Left-border colors */
+.conflict-card.status-pending {
+  --cc-status-color: #d97706;
+  --cc-status-soft: #fef3c7;
+}
+.conflict-card.status-info {
+  --cc-status-color: #2563eb;
+  --cc-status-soft: #dbeafe;
+}
+.conflict-card.status-danger {
+  --cc-status-color: #dc2626;
+  --cc-status-soft: #fee2e2;
+}
+
+/* Status badge colors */
+.conflict-status-badge.status-pending { background: #fef3c7; color: #b45309; }
+.conflict-status-badge.status-info    { background: #dbeafe; color: #1d4ed8; }
+.conflict-status-badge.status-danger  { background: #fee2e2; color: #b91c1c; }
+
+/* Footer note colors */
+.conflict-footer-note.status-pending { background: #fef3c7; color: #b45309; }
+.conflict-footer-note.status-info    { background: #dbeafe; color: #1d4ed8; }
+.conflict-footer-note.status-danger  { background: #fee2e2; color: #b91c1c; }
+
+/* Admin note (shown inside pending reassign cards) */
+.conflict-admin-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+.conflict-admin-note i {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: #ea580c;
+}

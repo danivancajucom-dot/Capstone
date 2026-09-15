@@ -8,13 +8,30 @@ body {
   background-color: #F8F7F5;
 }
 
-.clerk-container{
+.clerk-container {
   margin: 0 auto 0 0;
+  padding: 0 20px 20px;
 }
 
-.clerk-dashboard-title{
+.clerk-dashboard-header {
   margin-top: 24px;
-  margin-bottom:20px;
+  margin-bottom: 20px;
+}
+
+.clerk-dashboard-title {
+  font-size: 35px;
+  font-weight: 800;
+  color: #1F2937;
+  margin: 0;
+}
+
+.clerk-dashboard-subtitle {
+  margin: 6px 0 0;
+  color: #6B7280;
+  font-size: 15px;
+  font-weight: 300;
+  max-width: 720px;
+  line-height: 1.5;
 }
 
 h1 {
@@ -22,10 +39,19 @@ h1 {
   font-weight: 800;
 }
 
+@media (max-width: 640px) {
+  .clerk-dashboard-title {
+    font-size: 26px;
+  }
+  .clerk-dashboard-subtitle {
+    font-size: 13.5px;
+  }
+}
+
 .clerk-dashboard-boxes {
   display: flex;
   gap: 20px;
-  margin-top: 50px;
+  margin-top: 30px;
   align-items: flex-start;
 }
 
@@ -38,7 +64,6 @@ h1 {
   flex: 2;
   display: flex;
   flex-direction: column;
-  margin-top: -20px;
 }
 
 .clerk-dashboard-side-box {
@@ -50,21 +75,34 @@ h1 {
   min-height: 200px;
 }
 
-
-.clerk-room-nav {
+/* ═══════════ COMPACT TOOLBAR (tabs + filters) ═══════════ */
+.clerk-toolbar {
   display: flex;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
   flex-wrap: wrap;
-  margin: 10px;
-  justify-content: center;
+  padding: 0 4px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 8px;
 }
 
-.clerk-room-nav-item {
-  padding: 8px 20px;
-  border-radius: 50px;
-  font-size: 14px;
+.clerk-toolbar .clerk-room-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.clerk-toolbar .clerk-room-nav-item {
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  transition: 0.15s;
 }
 
 .all-rooms {
@@ -72,7 +110,6 @@ h1 {
   background-color: #FEF0E7;
   color: #f57c00;
 }
-
 .all-rooms.active {
   background-color: #f57c00;
   color: #ffffff;
@@ -84,7 +121,6 @@ h1 {
   border: 1.5px solid #16A34A;
   color: #16A34A;
 }
-
 .available.active {
   background-color: #16A34A;
   color: #ffffff;
@@ -95,7 +131,6 @@ h1 {
   border: 1.5px solid #DC2626;
   color: #DC2626;
 }
-
 .occupied.active {
   background-color: #DC2626;
   color: #ffffff;
@@ -106,22 +141,90 @@ h1 {
   border: 1.5px solid #64748B;
   color: #64748B;
 }
-
 .maintenance.active {
   background-color: #64748B;
   color: #ffffff;
 }
 
-.reserved {
-  background-color: #D0DEFB;
-  border: 1.5px solid #2563EB;
-  color: #2563EB;
+/* Compact inline filters */
+.clerk-filters-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-.reserved.active {
-  background-color: #2563EB;
-  color: #ffffff;
+.clerk-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0 32px 0 34px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  flex-shrink: 0;
 }
+.clerk-select:focus-within {
+  border-color: #f57c00;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.12);
+}
+.clerk-select > i:first-child {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 12px;
+  pointer-events: none;
+}
+.clerk-select-chev {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 9px;
+  pointer-events: none;
+}
+.clerk-select select {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1a1a1a;
+  cursor: pointer;
+  appearance: none;
+  padding: 0;
+  min-width: 100px;
+}
+
+/* ─── Room grid ─────────────────────────────────────────── */
+.status-rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 12px 4px 0;
+}
+
+.clerk-empty-rooms {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  color: #94A3B8;
+  text-align: center;
+}
+.clerk-empty-rooms i { font-size: 32px; color: #CBD5E1; }
+.clerk-empty-rooms p { margin: 0; font-size: 13.5px; }
 
 .clerk-load-more {
   display: flex;
@@ -141,6 +244,7 @@ h1 {
   margin-top: 20px;
 }
 
+/* ─── Side boxes ───────────────────────────────────────── */
 .clerk-side-box-header {
   display: flex;
   justify-content: space-between;
@@ -207,6 +311,22 @@ h1 {
   font-size: 16px;
 }
 
+.clerk-upcoming-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  margin: 10px 0 2px;
+  border-radius: 999px;
+  background: #fff3e8;
+  color: #f57c00;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  align-self: flex-start;
+}
+.clerk-upcoming-date i { font-size: 11px; }
+
 .clerk-upcoming-empty {
   padding: 24px 4px;
   text-align: center;
@@ -224,7 +344,7 @@ h1 {
   padding: 10px 20px;
   border-radius: 6px;
   border: none;
-  background-color:#f57c00;
+  background-color: #f57c00;
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
@@ -239,47 +359,43 @@ h1 {
   align-self: flex-start;
 }
 
-.status-rooms-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  padding: 20px;
-}
-
-.clerk-empty-rooms {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 60px 20px;
-  color: #94A3B8;
-  text-align: center;
-}
-
-.clerk-empty-rooms i {
-  font-size: 32px;
-  color: #CBD5E1;
-}
-
-.clerk-empty-rooms p {
-  margin: 0;
-  font-size: 13.5px;
-}
-
+/* ─── Responsive ───────────────────────────────────────── */
 @media (max-width: 1100px) {
   .status-rooms-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
+@media (max-width: 900px) {
+  .clerk-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .clerk-filters-inline {
+    width: 100%;
+  }
+  .clerk-select {
+    flex: 1;
+    min-width: 0;
+  }
+  .clerk-select select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 640px) {
+  .clerk-container {
+    padding: 0 14px 14px;
+  }
   .clerk-dashboard-boxes {
     flex-direction: column;
   }
-
   .status-rooms-grid {
     grid-template-columns: 1fr;
+  }
+  .clerk-toolbar .clerk-room-nav-item {
+    padding: 6px 12px;
+    font-size: 12px;
   }
 }

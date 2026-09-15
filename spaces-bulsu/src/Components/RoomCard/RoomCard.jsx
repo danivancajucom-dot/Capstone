@@ -70,7 +70,14 @@ function normalizeEquipment(equipment) {
   return [];
 }
 
-function RoomCard({ room, onViewSchedule, onReserve }) {
+function RoomCard({
+  room,
+  onViewSchedule,
+  onReserve,
+  onToggleWatch,
+  isWatched = false,
+  watchBusy = false,
+}) {
   const status = room.status || "Available";
   const isAvailable = status === "Available";
   const isMaintenance = status === "Under Maintenance";
@@ -85,6 +92,14 @@ function RoomCard({ room, onViewSchedule, onReserve }) {
         <span></span>
         {status}
       </div>
+
+      {/* Watching indicator */}
+      {isWatched && (
+        <div className="room-watch-badge" title="You'll be notified when this room is free">
+          <i className="fa-solid fa-bell"></i>
+          Watching
+        </div>
+      )}
 
       <div className="room-card-image">
         {room.image ? (
@@ -156,12 +171,41 @@ function RoomCard({ room, onViewSchedule, onReserve }) {
             <button className="view-btn" onClick={onViewSchedule}>
               View Schedule
             </button>
+
             {isAvailable ? (
               <button className="reserve-btn" onClick={onReserve}>
                 Reserve
               </button>
             ) : (
-              <button className="notify-btn">Notify Me</button>
+              !isMaintenance && (
+                <button
+                  className={`notify-btn ${isWatched ? "is-watched" : ""}`}
+                  onClick={onToggleWatch}
+                  disabled={watchBusy}
+                  title={
+                    isWatched
+                      ? "Stop watching this room"
+                      : "Notify me when this room becomes available"
+                  }
+                >
+                  {watchBusy ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin"></i>
+                      Wait…
+                    </>
+                  ) : isWatched ? (
+                    <>
+                      <i className="fa-solid fa-bell"></i>
+                      Watching
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-regular fa-bell"></i>
+                      Notify Me
+                    </>
+                  )}
+                </button>
+              )
             )}
           </div>
         </div>

@@ -1,5 +1,8 @@
 // ============================================================
-// FILE: WeeklyCalendar.jsx (with correct release modal)
+// FILE: WeeklyCalendar.jsx
+// - Realtime via onSnapshot
+// - Compact 12-hour time format ("7:00 – 8:30 AM")
+// - Reassignment block shows section, no "(Moved)" text
 // ============================================================
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
@@ -17,7 +20,9 @@ import {
   query,
   where,
   serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { logActivity } from "../../utils/logActivity";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -77,10 +82,7 @@ const isWithinWeek = (dateStr, start, end) => {
 
 const parseTimeParts = (time) => {
   const [h, m] = (time || "0:0").split(":").map(Number);
-  return [
-    Number.isNaN(h) ? 0 : h,
-    Number.isNaN(m) ? 0 : m,
-  ];
+  return [Number.isNaN(h) ? 0 : h, Number.isNaN(m) ? 0 : m];
 };
 
 const toDateStr = (date) => {
@@ -93,23 +95,34 @@ const toDateStr = (date) => {
 const todayStr = () => toDateStr(new Date());
 
 function fmtHour(h) {
-  if (h < 12) return `${String(h).padStart(2,"0")} AM`;
+  if (h < 12) return `${String(h).padStart(2, "0")} AM`;
   if (h === 12) return `12 PM`;
-  return `${String(h-12).padStart(2,"0")} PM`;
+  return `${String(h - 12).padStart(2, "0")} PM`;
 }
 
-function fmtTime(h, m) {
-  const hh = h < 10 ? `0${h}` : `${h}`;
-  const mm = m < 10 ? `0${m}` : `${m}`;
-  return `${hh}:${mm}`;
-}
+// ═══ COMPACT 12-HOUR RANGE ═══
+// Same suffix:  "7:00 – 8:30 AM"
+// Cross suffix: "11:30 AM – 1:00 PM"
+const fmtTimeRange = (startH, startM, endH, endM) => {
+  const startSuffix = startH >= 12 ? "PM" : "AM";
+  const endSuffix = endH >= 12 ? "PM" : "AM";
+  const startHh = startH % 12 || 12;
+  const endHh = endH % 12 || 12;
+  const startStr = `${startHh}:${String(startM).padStart(2, "0")}`;
+  const endStr = `${endHh}:${String(endM).padStart(2, "0")}`;
+  if (startSuffix === endSuffix) {
+    return `${startStr} – ${endStr} ${startSuffix}`;
+  }
+  return `${startStr} ${startSuffix} – ${endStr} ${endSuffix}`;
+};
 
-function fmt12Hour(time) {
+// 12-hour standalone (para sa modal labels)
+const fmtTime12Compact = (time) => {
   const [h, m] = parseTimeParts(time);
   const suffix = h >= 12 ? "PM" : "AM";
   const hh = h % 12 || 12;
-  return `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")} ${suffix}`;
-}
+  return `${hh}:${String(m).padStart(2, "0")} ${suffix}`;
+};
 
 const computeStatus = (dateStr, startTime, endTime) => {
   const today = todayStr();
@@ -132,7 +145,6 @@ const computeStatus = (dateStr, startTime, endTime) => {
   return { status: "COMPLETED", remainingMinutes: 0 };
 };
 
-// ─── Event overlap detection ────────────────────────────────
 const eventsOverlap = (event1, event2) => {
   const getMin = (h, m) => h * 60 + m;
   const start1 = getMin(event1.startH, event1.startM);
@@ -142,9 +154,15 @@ const eventsOverlap = (event1, event2) => {
   return start1 < end2 && end1 > start2;
 };
 
-// ─── Notification helper ──────────────────────────────────────────
-
-const notifyReleaseRoom = async ({ facultyId, facultyName, roomName, subject, date, startTime, endTime }) => {
+const notifyReleaseRoom = async ({
+  facultyId,
+  facultyName,
+  roomName,
+  subject,
+  date,
+  startTime,
+  endTime,
+}) => {
   try {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
@@ -165,7 +183,7 @@ const notifyReleaseRoom = async ({ facultyId, facultyName, roomName, subject, da
       notifications.push(
         addDoc(collection(db, "notifications"), {
           userId: userDoc.id,
-          ownerType: ownerType,
+          ownerType,
           title: "Room Released",
           message: `${facultyName} released ${roomName} for ${subject} on ${date} (${startTime} - ${endTime}).`,
           type: "room-release",
@@ -209,7 +227,6 @@ const notifyReleaseRoom = async ({ facultyId, facultyName, roomName, subject, da
 };
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────
-
 export default function WeeklyCalendar() {
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -238,6 +255,10 @@ export default function WeeklyCalendar() {
   });
   const toastTimeoutRef = useRef(null);
 
+  const unsubsRef = useRef([]);
+  const myRoomIdsRef = useRef([]);
+  const myNameRef = useRef("");
+
   const showToast = (type, title, message) => {
     if (toastTimeoutRef.current) {
       clearTimeout(toastTimeoutRef.current);
@@ -258,198 +279,226 @@ export default function WeeklyCalendar() {
     };
   }, []);
 
+  // ════════════════════════════════════════════════════════════════
+  // MAIN SETUP — base fetch + realtime listeners
+  // ════════════════════════════════════════════════════════════════
   useEffect(() => {
-    loadFacultySchedule();
-  }, []);
+    let isCancelled = false;
 
-  // ─── LOAD FUNCTION ──────────────────────────────────────────────
+    const cleanup = () => {
+      unsubsRef.current.forEach((u) => {
+        try { u(); } catch (e) { /* ignore */ }
+      });
+      unsubsRef.current = [];
+    };
 
-  const loadFacultySchedule = async () => {
-    setLoading(true);
+    const setup = async (user) => {
+      if (isCancelled || !user) return;
+      cleanup();
+      setLoading(true);
 
-    try {
-      const firebaseUser = auth.currentUser;
-      if (!firebaseUser) {
-        setLoading(false);
-        return;
-      }
-
-      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-      if (!userSnap.exists()) {
-        setLoading(false);
-        return;
-      }
-
-      const me = userSnap.data();
-
-      const myName = normalizeName(
-        `${me.lastName}, ${me.firstName}${me.middleInitial ? ` ${me.middleInitial}` : ""}`
-      );
-
-      // ─── 1. Load room schedules ──────────────────────────────────
-      const roomsSnap = await getDocs(collection(db, "rooms"));
-      const matchedSchedules = [];
-
-      for (const roomDoc of roomsSnap.docs) {
-        const room = { id: roomDoc.id, ...roomDoc.data() };
-
-        const scheduleSnap = await getDocs(
-          collection(db, "rooms", roomDoc.id, "schedules")
-        );
-
-        scheduleSnap.docs.forEach((d) => {
-          const s = d.data();
-          if (s.initialized) return;
-          if (!s.faculty) return;
-
-          if (normalizeName(s.faculty) === myName) {
-            matchedSchedules.push({
-              id: d.id,
-              ...s,
-              roomId: room.id,
-              roomName: room.roomName,
-              floor: room.floor,
-              image: room.image || null,
-            });
-          }
-        });
-      }
-
-      let hasSchedules = false;
-      let myRoomIds = [];
-
-      if (matchedSchedules.length > 0) {
-        const rank = (s) => [
-          schoolYearStart(s.schoolYear),
-          semesterRank(s.semester),
-        ];
-
-        const latest = matchedSchedules.reduce((best, cur) => {
-          const [by, bs] = rank(best);
-          const [cy, cs] = rank(cur);
-          if (cy > by || (cy === by && cs > bs)) return cur;
-          return best;
-        }, matchedSchedules[0]);
-
-        const latestSchedules = matchedSchedules.filter(
-          (s) =>
-            (s.schoolYear || "") === (latest.schoolYear || "") &&
-            (s.semester || "") === (latest.semester || "")
-        );
-
-        setScheduleEvents(latestSchedules);
-        setActiveTerm({
-          semester: latest.semester,
-          schoolYear: latest.schoolYear,
-        });
-        setNoSchedule(false);
-        hasSchedules = true;
-        myRoomIds = [...new Set(latestSchedules.map((s) => s.roomId))];
-      } else {
-        setScheduleEvents([]);
-        setActiveTerm(null);
-        setNoSchedule(true);
-      }
-
-      // ─── 2. Load faculty online schedules ──────────────────────
       try {
-        const facultySchedulesSnap = await getDocs(
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        if (!userSnap.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const me = userSnap.data();
+        const myName = normalizeName(
+          `${me.lastName}, ${me.firstName}${me.middleInitial ? ` ${me.middleInitial}` : ""}`
+        );
+        myNameRef.current = myName;
+
+        // ─── BASE: rooms + schedules (static) ───────────────────
+        const roomsSnap = await getDocs(collection(db, "rooms"));
+        const matchedSchedules = [];
+
+        for (const roomDoc of roomsSnap.docs) {
+          const room = { id: roomDoc.id, ...roomDoc.data() };
+          const scheduleSnap = await getDocs(
+            collection(db, "rooms", roomDoc.id, "schedules")
+          );
+
+          scheduleSnap.docs.forEach((d) => {
+            const s = d.data();
+            if (s.initialized) return;
+            if (!s.faculty) return;
+            if (normalizeName(s.faculty) === myName) {
+              matchedSchedules.push({
+                id: d.id,
+                ...s,
+                roomId: room.id,
+                roomName: room.roomName,
+                floor: room.floor,
+                image: room.image || null,
+              });
+            }
+          });
+        }
+
+        if (isCancelled) return;
+
+        let roomIds = [];
+
+        if (matchedSchedules.length > 0) {
+          const rank = (s) => [
+            schoolYearStart(s.schoolYear),
+            semesterRank(s.semester),
+          ];
+
+          const latest = matchedSchedules.reduce((best, cur) => {
+            const [by, bs] = rank(best);
+            const [cy, cs] = rank(cur);
+            if (cy > by || (cy === by && cs > bs)) return cur;
+            return best;
+          }, matchedSchedules[0]);
+
+          const latestSchedules = matchedSchedules.filter(
+            (s) =>
+              (s.schoolYear || "") === (latest.schoolYear || "") &&
+              (s.semester || "") === (latest.semester || "")
+          );
+
+          setScheduleEvents(latestSchedules);
+          setActiveTerm({
+            semester: latest.semester,
+            schoolYear: latest.schoolYear,
+          });
+          setNoSchedule(false);
+          roomIds = [...new Set(latestSchedules.map((s) => s.roomId))];
+          myRoomIdsRef.current = roomIds;
+        } else {
+          setScheduleEvents([]);
+          setActiveTerm(null);
+          setNoSchedule(true);
+          myRoomIdsRef.current = [];
+        }
+
+        setLoading(false);
+
+        // ─── REALTIME: Faculty online schedules ─────────────────
+        const unsubOnline = onSnapshot(
           query(
             collection(db, "facultySchedules"),
-            where("userId", "==", firebaseUser.uid)
-          )
+            where("userId", "==", user.uid)
+          ),
+          (snap) => {
+            setFacultyOnlineEvents(
+              snap.docs.map((d) => ({ id: d.id, ...d.data(), isOnline: true }))
+            );
+          },
+          (err) => {
+            console.warn("Online schedules listener:", err);
+            setFacultyOnlineEvents([]);
+          }
         );
+        unsubsRef.current.push(unsubOnline);
 
-        const onlineSchedules = [];
-        facultySchedulesSnap.forEach((d) => {
-          const data = d.data();
-          onlineSchedules.push({
-            id: d.id,
-            ...data,
-            isOnline: true,
-          });
-        });
-        setFacultyOnlineEvents(onlineSchedules);
-      } catch (err) {
-        console.warn("Failed to load faculty online schedules:", err);
-        setFacultyOnlineEvents([]);
-      }
-
-      // ─── 3. Load events (room activities) ──────────────────────
-      if (hasSchedules) {
-        try {
-          const eventSnap = await getDocs(collection(db, "events"));
-          const myEvents = eventSnap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((e) => myRoomIds.includes(e.roomId) && e.status !== "Cancelled");
-          setOverrideEvents(myEvents);
-        } catch (err) {
-          console.warn("Failed to load events:", err);
-          setOverrideEvents([]);
-        }
-      } else {
-        setOverrideEvents([]);
-      }
-
-      // ─── 4. Approved reservations ───────────────────────────────
-      try {
-        const reservationSnap = await getDocs(collection(db, "reservationRequests"));
-        const myReservations = reservationSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((r) => {
-            const isOwnerById = r.userId === firebaseUser.uid || r.createdBy === firebaseUser.uid;
-            const isOwnerByName = normalizeName(r.requesterName || r.facultyName || "") === myName;
-            const isApproved = String(r.status || "").toLowerCase() === "approved";
-            return (isOwnerById || isOwnerByName) && isApproved;
-          });
-        setReservationEvents(myReservations);
-      } catch (err) {
-        console.warn("Failed to load reservations:", err);
-        setReservationEvents([]);
-      }
-
-      // ─── 5. Releases ─────────────────────────────────────────────
-      try {
-        const releaseQ = query(collection(db, "roomReleases"), where("releasedBy", "==", firebaseUser.uid));
-        const releaseSnap = await getDocs(releaseQ);
-        const keys = new Set(
-          releaseSnap.docs.map((d) => {
-            const r = d.data();
-            return `${r.scheduleId}_${r.date}`;
-          })
+        // ─── REALTIME: Events (room activities) ─────────────────
+        const unsubEvents = onSnapshot(
+          collection(db, "events"),
+          (snap) => {
+            const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const mine = all.filter(
+              (e) =>
+                roomIds.includes(e.roomId) && e.status !== "Cancelled"
+            );
+            setOverrideEvents(mine);
+          },
+          (err) => {
+            console.warn("Events listener:", err);
+            setOverrideEvents([]);
+          }
         );
-        setReleasedKeys(keys);
-      } catch (err) {
-        console.warn("Failed to load releases:", err);
-        setReleasedKeys(new Set());
-      }
+        unsubsRef.current.push(unsubEvents);
 
-      // ─── 6. Reassignments ──────────────────────────────────────
-      try {
-        const reassignQ = query(
-          collection(db, "roomReassignments"),
-          where("facultyId", "==", firebaseUser.uid)
+        // ─── REALTIME: Approved reservations ────────────────────
+        const unsubReservations = onSnapshot(
+          collection(db, "reservationRequests"),
+          (snap) => {
+            const mine = snap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter((r) => {
+                const isOwnerById =
+                  r.userId === user.uid || r.createdBy === user.uid;
+                const isOwnerByName =
+                  normalizeName(r.requesterName || r.facultyName || "") ===
+                  myName;
+                const isApproved =
+                  String(r.status || "").toLowerCase() === "approved";
+                return (isOwnerById || isOwnerByName) && isApproved;
+              });
+            setReservationEvents(mine);
+          },
+          (err) => {
+            console.warn("Reservations listener:", err);
+            setReservationEvents([]);
+          }
         );
-        const reassignSnap = await getDocs(reassignQ);
-        const myReassignments = reassignSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((r) => String(r.status || "").toLowerCase() === "approved");
-        setReassignedEvents(myReassignments);
-      } catch (err) {
-        console.warn("Failed to load reassignments:", err);
-        setReassignedEvents([]);
-      }
+        unsubsRef.current.push(unsubReservations);
 
-    } catch (err) {
-      console.error("loadFacultySchedule error:", err);
-      showToast("error", "Error", "Failed to load your schedule.");
-    } finally {
-      setLoading(false);
-    }
-  };
+        // ─── REALTIME: Releases ─────────────────────────────────
+        const unsubReleases = onSnapshot(
+          query(
+            collection(db, "roomReleases"),
+            where("releasedBy", "==", user.uid)
+          ),
+          (snap) => {
+            const keys = new Set(
+              snap.docs.map((d) => {
+                const r = d.data();
+                return `${r.scheduleId}_${r.date}`;
+              })
+            );
+            setReleasedKeys(keys);
+          },
+          (err) => {
+            console.warn("Releases listener:", err);
+            setReleasedKeys(new Set());
+          }
+        );
+        unsubsRef.current.push(unsubReleases);
+
+        // ─── REALTIME: Reassignments ────────────────────────────
+        const unsubReassign = onSnapshot(
+          query(
+            collection(db, "roomReassignments"),
+            where("facultyId", "==", user.uid)
+          ),
+          (snap) => {
+            const myReassignments = snap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter(
+                (r) => String(r.status || "").toLowerCase() === "approved"
+              );
+            setReassignedEvents(myReassignments);
+          },
+          (err) => {
+            console.warn("Reassignments listener:", err);
+            setReassignedEvents([]);
+          }
+        );
+        unsubsRef.current.push(unsubReassign);
+
+      } catch (err) {
+        console.error("setup error:", err);
+        setLoading(false);
+      }
+    };
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) setup(user);
+    });
+
+    return () => {
+      isCancelled = true;
+      unsubAuth();
+      cleanup();
+    };
+  }, []);
 
   // ─── Week computation ──────────────────────────────────────────
-
   const getStartOfWeek = (date) => {
     const d = new Date(date);
     const day = d.getDay();
@@ -465,7 +514,10 @@ export default function WeeklyCalendar() {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
 
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
   const weekLabel = `${months[weekStart.getMonth()]} ${weekStart.getDate()} - ${weekEnd.getDate()}, ${weekStart.getFullYear()}`;
 
   const dayDates = Array.from({ length: 7 }, (_, i) => {
@@ -484,14 +536,13 @@ export default function WeeklyCalendar() {
   const totalH = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
 
   // ─── CALENDAR EVENTS ────────────────────────────────────────────
-
   const calendarEvents = useMemo(() => {
     const items = [];
     const reassignedKeys = new Set(
       reassignedEvents.map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    // ── 1. Create schedule items ──
+    // ── 1. Schedule items ──
     const scheduleItems = [];
     scheduleEvents.forEach((s) => {
       const dayIdx = DAYS.indexOf(s.day) + 1;
@@ -532,7 +583,7 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 2. Create activity items (room activities) ──
+    // ── 2. Activity items (room activities) ──
     const activityItems = [];
     overrideEvents.forEach((e) => {
       if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
@@ -540,12 +591,14 @@ export default function WeeklyCalendar() {
       const [startH, startM] = parseTimeParts(e.startTime);
       const [endH, endM] = parseTimeParts(e.endTime);
 
-      // Check if this activity conflicts with a schedule
       let conflictsWithSchedule = false;
       let conflictingSchedule = null;
 
       for (const s of scheduleItems) {
-        if (s.dayIdx === dayIdx && eventsOverlap(s, { startH, startM, endH, endM, dayIdx })) {
+        if (
+          s.dayIdx === dayIdx &&
+          eventsOverlap(s, { startH, startM, endH, endM, dayIdx })
+        ) {
           conflictsWithSchedule = true;
           conflictingSchedule = s;
           break;
@@ -571,7 +624,7 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 3. Filter out schedules that are overridden by activities ──
+    // ── 3. Overridden schedules (filtered out) ──
     const overriddenScheduleIds = new Set();
     for (const activity of activityItems) {
       if (activity.conflictsWithSchedule && activity.conflictingSchedule) {
@@ -579,17 +632,13 @@ export default function WeeklyCalendar() {
       }
     }
 
-    // ── 4. Add schedules (excluding overridden ones) ──
+    // ── 4. Add non-overridden schedules ──
     for (const s of scheduleItems) {
-      if (!overriddenScheduleIds.has(s.id)) {
-        items.push(s);
-      }
+      if (!overriddenScheduleIds.has(s.id)) items.push(s);
     }
 
-    // ── 5. Add activities (all of them) ──
-    for (const activity of activityItems) {
-      items.push(activity);
-    }
+    // ── 5. Add all activities ──
+    for (const activity of activityItems) items.push(activity);
 
     // ── 6. Faculty online schedules ──
     facultyOnlineEvents.forEach((s) => {
@@ -615,7 +664,7 @@ export default function WeeklyCalendar() {
         date: occurrenceDateStr,
         rawStartTime: s.startTime,
         rawEndTime: s.endTime,
-        title: `${s.subject || "Online Class"}${s.section ? ` (${s.section})` : ""}`,
+        title: s.subject || "Online Class",
         location: "Online Class",
         faculty: s.facultyName || "Faculty",
         dayIdx,
@@ -637,6 +686,7 @@ export default function WeeklyCalendar() {
         id: `resv-${r.id}`,
         kind: "reservation",
         title: r.customPurpose || r.courseTitle || r.purpose || "Reservation",
+        section: r.section || "",
         location: `${r.roomName || "-"} | Reservation`,
         roomName: r.roomName || "-",
         dayIdx,
@@ -650,7 +700,7 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 8. Reassignments ──
+    // ── 8. Reassignments (NO "(Moved)" suffix, section shown) ──
     reassignedEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
       const dayIdx = mondayIndexFromDate(r.date);
@@ -659,7 +709,10 @@ export default function WeeklyCalendar() {
       items.push({
         id: `reassign-${r.id}`,
         kind: "reassignment",
-        title: `${r.courseTitle || "Class"} (Moved)`,
+        // ✅ WALANG "(Moved)" — plain course title
+        title: r.courseTitle || "Class",
+        // ✅ Ibinabalik ang section
+        section: r.section || "",
         location: `${r.newRoomName || "-"} | Reassigned Room`,
         roomName: r.newRoomName || "-",
         dayIdx,
@@ -687,7 +740,6 @@ export default function WeeklyCalendar() {
   ]);
 
   // ─── Click handler ──────────────────────────────────────────────
-
   const handleEventClick = (ev) => {
     let status = "SCHEDULED";
     if (ev.date && ev.rawStartTime && ev.rawEndTime) {
@@ -705,7 +757,6 @@ export default function WeeklyCalendar() {
   };
 
   // ─── Release modal helpers ──────────────────────────────────────
-
   const openReleaseModal = (ev) => {
     const { status, remainingMinutes } = computeStatus(
       ev.date,
@@ -724,17 +775,16 @@ export default function WeeklyCalendar() {
       date: ev.date,
       startTime: ev.rawStartTime,
       endTime: ev.rawEndTime,
-      startTimeLabel: fmt12Hour(ev.rawStartTime),
-      endTimeLabel: fmt12Hour(ev.rawEndTime),
+      startTimeLabel: fmtTime12Compact(ev.rawStartTime),
+      endTimeLabel: fmtTime12Compact(ev.rawEndTime),
       status,
       remainingMinutes,
-      // ✅ Pass all fields needed by ReleaseRoomModal
       kind: ev.kind,
       faculty: ev.faculty,
       rawStartTime: ev.rawStartTime,
       rawEndTime: ev.rawEndTime,
       title: ev.title || ev.subject,
-      originalRoom: ev.originalRoom, // for reassignments
+      originalRoom: ev.originalRoom,
     });
   };
 
@@ -753,7 +803,6 @@ export default function WeeklyCalendar() {
 
       const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
       const me = userSnap.exists() ? userSnap.data() : {};
-
       const fullName = `${me.firstName || ""} ${me.lastName || ""}`.trim();
 
       await addDoc(collection(db, "roomReleases"), {
@@ -816,24 +865,21 @@ export default function WeeklyCalendar() {
     }
   };
 
-  // ─── Import Success Handler ────────────────────────────────────
-
   const handleImportSuccess = () => {
     showToast("success", "Schedule Updated", "Your schedule has been updated.");
-    loadFacultySchedule();
+    window.location.reload();
   };
 
   // ─── RENDER ──────────────────────────────────────────────────────
-
   return (
     <>
       <div className="wc-page">
-        {/* ─── PAGE TITLE ─── */}
         <div className="wc-page-header">
           <div className="wc-page-header-text">
             <h1>My Schedule</h1>
             <p className="wc-page-subtitle">
-              View your weekly class schedule, keep track of your room assignments, and release a room for classes you won't be holding.
+              View your weekly class schedule, keep track of your room assignments,
+              and release a room for classes you won't be holding.
             </p>
           </div>
 
@@ -845,10 +891,9 @@ export default function WeeklyCalendar() {
           </div>
         </div>
 
-        {/* ─── LEGEND ROW ─── */}
         <div className="wc-legend-row">
           <div className="wc-legend">
-            {LEGEND.map(l => (
+            {LEGEND.map((l) => (
               <div className="wc-legend-item" key={l.label}>
                 <span className="wc-legend-dot" style={{ background: l.color }} />
                 <span className="wc-legend-label">{l.label}</span>
@@ -864,9 +909,9 @@ export default function WeeklyCalendar() {
 
         <div className="wc-card">
           <div className="wc-week-nav">
-            <i className="fa-solid fa-chevron-left" onClick={() => setWeekOffset(w => w - 1)} />
+            <i className="fa-solid fa-chevron-left" onClick={() => setWeekOffset((w) => w - 1)} />
             <span className="wc-week-label">{weekLabel}</span>
-            <i className="fa-solid fa-chevron-right" onClick={() => setWeekOffset(w => w + 1)} />
+            <i className="fa-solid fa-chevron-right" onClick={() => setWeekOffset((w) => w + 1)} />
           </div>
 
           <div className="wc-days-header">
@@ -916,19 +961,28 @@ export default function WeeklyCalendar() {
                     </div>
                   ))}
 
-                  {calendarEvents.map(ev => {
+                  {calendarEvents.map((ev) => {
                     const color = CARD_COLORS[ev.colorIdx];
-                    const topPx = ((ev.startH - START_HOUR) + ev.startM / 60) * HOUR_HEIGHT;
-                    const heightPx = ((ev.endH - ev.startH) + (ev.endM - ev.startM) / 60) * HOUR_HEIGHT - 4;
+                    const topPx =
+                      (ev.startH - START_HOUR + ev.startM / 60) * HOUR_HEIGHT;
+                    const heightPx =
+                      (ev.endH - ev.startH + (ev.endM - ev.startM) / 60) *
+                        HOUR_HEIGHT -
+                      4;
                     const leftPct = ((ev.dayIdx - 1) / 7) * 100;
                     const widthPct = (ev.daySpan / 7) * 100;
-                    const isClickable = ev.kind === "schedule" && computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime).status !== "COMPLETED";
+                    const isClickable =
+                      ev.kind === "schedule" &&
+                      computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime)
+                        .status !== "COMPLETED";
                     const isOnline = ev.isOnline || false;
 
                     return (
                       <div
                         key={ev.id}
-                        className={`wc-event ${isClickable ? "wc-event--clickable" : "wc-event--viewable"} ${isOnline ? "wc-event--online" : ""}`}
+                        className={`wc-event ${
+                          isClickable ? "wc-event--clickable" : "wc-event--viewable"
+                        } ${isOnline ? "wc-event--online" : ""}`}
                         onClick={() => handleEventClick(ev)}
                         style={{
                           top: topPx,
@@ -943,14 +997,23 @@ export default function WeeklyCalendar() {
                         <div className="wc-event-top">
                           <span className="wc-event-title" style={{ color: color.text }}>
                             {ev.title}
-                            {ev.section && <span className="wc-event-section"> ({ev.section})</span>}
+                            {ev.section && (
+                              <span className="wc-event-section"> ({ev.section})</span>
+                            )}
                             {isOnline && <span className="wc-online-badge">Online</span>}
                           </span>
-                          <span className="wc-event-time" style={{ background: color.timeBg, color: color.text }}>
-                            {fmtTime(ev.startH, ev.startM)}-{fmtTime(ev.endH, ev.endM)}
+
+                          {/* ✅ COMPACT 12-HOUR: "7:00 – 8:30 AM" */}
+                          <span
+                            className="wc-event-time"
+                            style={{ background: color.timeBg, color: color.text }}
+                          >
+                            {fmtTimeRange(ev.startH, ev.startM, ev.endH, ev.endM)}
                           </span>
                         </div>
-                        <span className="wc-event-loc" style={{ color: color.text }}>{ev.location}</span>
+                        <span className="wc-event-loc" style={{ color: color.text }}>
+                          {ev.location}
+                        </span>
                       </div>
                     );
                   })}
@@ -960,8 +1023,6 @@ export default function WeeklyCalendar() {
           )}
         </div>
       </div>
-
-      {/* ─── Modals ────────────────────────────────────────────────── */}
 
       <ReleaseRoomModal
         target={releaseTarget}

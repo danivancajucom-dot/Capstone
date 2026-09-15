@@ -2,10 +2,10 @@ import { useState } from "react";
 import "./issue-report-card.css";
 
 const STATUS_META = {
-  Pending:      { label: "Pending",      cls: "pending",      icon: "fa-clock" },
-  Acknowledged: { label: "Acknowledged", cls: "acknowledged", icon: "fa-eye" },
-  "In Progress":{ label: "In Progress",  cls: "progress",     icon: "fa-tools" },
-  Resolved:     { label: "Resolved",     cls: "resolved",     icon: "fa-circle-check" },
+  Pending:       { label: "Pending",      cls: "pending",      icon: "fa-clock" },
+  Acknowledged:  { label: "Acknowledged", cls: "acknowledged", icon: "fa-eye" },
+  "In Progress": { label: "In Progress",  cls: "progress",     icon: "fa-tools" },
+  Resolved:      { label: "Resolved",     cls: "resolved",     icon: "fa-circle-check" },
 };
 
 const CATEGORY_ICON = {
@@ -36,20 +36,27 @@ const formatTime = (ts) => {
 export default function IssueReportCard({
   issue,
   role = "faculty",
-  onAcknowledge,
-  onSetStatus,
   onMarkMaintenance,
   onRestore,
+  onMarkResolved,
   roomIsUnderMaintenance = false,
   busy = false,
 }) {
   const [previewPhoto, setPreviewPhoto] = useState(false);
   const status = STATUS_META[issue.status] || STATUS_META.Pending;
-  const canManage = role === "clerk";
+  const isClerk = role === "clerk";
+  const isAdmin = role === "admin";
+  const isFaculty = role === "faculty";
+  const isResolved = issue.status === "Resolved";
+
+  const canMarkMaintenance = isClerk && !isResolved && !roomIsUnderMaintenance;
+  const canRestore = isClerk && !isResolved && roomIsUnderMaintenance;
+  const canResolve = isClerk && !isResolved;
 
   return (
     <>
       <div className={`irc ${status.cls}`}>
+        {/* ── TOP ROW ─────────────────────────────────────── */}
         <div className="irc-top">
           <div className="irc-icon-wrap">
             <i className={`fa-solid ${CATEGORY_ICON[issue.category] || "fa-circle-question"}`} />
@@ -58,7 +65,7 @@ export default function IssueReportCard({
           <div className="irc-headline">
             <div className="irc-title-row">
               <h4 className="irc-room">{issue.roomName}</h4>
-              <span className="irc-floor">{issue.floor}</span>
+              {issue.floor && <span className="irc-floor">{issue.floor}</span>}
             </div>
             <div className="irc-category">{issue.category}</div>
           </div>
@@ -68,7 +75,7 @@ export default function IssueReportCard({
               className="irc-sev"
               style={{ "--sev": SEVERITY_COLOR[issue.severity] || "#9ca3af" }}
             >
-              {issue.severity}
+              {issue.severity || "Low"}
             </span>
             <span className={`irc-status ${status.cls}`}>
               <i className={`fa-solid ${status.icon}`} /> {status.label}
@@ -76,30 +83,48 @@ export default function IssueReportCard({
           </div>
         </div>
 
-        <p className="irc-description">{issue.description}</p>
-
-        {issue.photoUrl && (
-          <button
-            type="button"
-            className="irc-photo-thumb"
-            onClick={() => setPreviewPhoto(true)}
-          >
-            <img src={issue.photoUrl} alt="Issue" />
-            <span className="irc-photo-label"><i className="fa-solid fa-expand" /> View photo</span>
-          </button>
-        )}
-
-        <div className="irc-meta">
-          <span><i className="fa-regular fa-user" /> {issue.reporterName}</span>
-          <span><i className="fa-regular fa-clock" /> {formatTime(issue.createdAt)}</span>
-          {issue.acknowledgedBy && (
-            <span><i className="fa-solid fa-eye" /> Ack by {issue.acknowledgedBy}</span>
+        {/* ── MEDIA (always present, fixed ratio) ─────────── */}
+        <div className="irc-media">
+          {issue.photoUrl ? (
+            <button
+              type="button"
+              className="irc-photo-thumb"
+              onClick={() => setPreviewPhoto(true)}
+            >
+              <img src={issue.photoUrl} alt="Issue" />
+              <span className="irc-photo-label">
+                <i className="fa-solid fa-expand" /> View photo
+              </span>
+            </button>
+          ) : (
+            <div className="irc-photo-placeholder">
+              <i className="fa-regular fa-image" />
+              <span>No photo attached</span>
+            </div>
           )}
-          {issue.resolvedBy && (
-            <span className="irc-meta-ok"><i className="fa-solid fa-check" /> Resolved by {issue.resolvedBy}</span>
+
+          {roomIsUnderMaintenance && !isResolved && (
+            <span className="irc-maint-ribbon">
+              <i className="fa-solid fa-wrench" /> Under Maintenance
+            </span>
           )}
         </div>
 
+        {/* ── DESCRIPTION ─────────────────────────────────── */}
+        <p className="irc-description">{issue.description}</p>
+
+        {/* ── META ────────────────────────────────────────── */}
+        <div className="irc-meta">
+          <span><i className="fa-regular fa-user" /> {issue.reporterName || "Anonymous"}</span>
+          <span><i className="fa-regular fa-clock" /> {formatTime(issue.createdAt)}</span>
+          {issue.resolvedBy && (
+            <span className="irc-meta-ok">
+              <i className="fa-solid fa-check" /> Resolved by {issue.resolvedBy}
+            </span>
+          )}
+        </div>
+
+        {/* ── NOTES ───────────────────────────────────────── */}
         {issue.clerkNotes && (
           <div className="irc-notes">
             <i className="fa-solid fa-note-sticky" />
@@ -107,72 +132,40 @@ export default function IssueReportCard({
           </div>
         )}
 
-        {/* Actions */}
+        {/* ── ACTIONS ─────────────────────────────────────── */}
         <div className="irc-actions">
-          {/* Faculty — view only */}
-          {role === "faculty" && (
+          {/* FACULTY — view only */}
+          {isFaculty && (
             <span className="irc-hint">
-              {issue.status === "Resolved"
+              {isResolved
                 ? "Issue resolved — thank you for reporting."
                 : "Your report is being reviewed by the Clerk."}
             </span>
           )}
 
-          {/* Admin — acknowledge only */}
-          {role === "admin" && issue.status === "Pending" && (
-            <button
-              className="irc-btn primary"
-              onClick={() => onAcknowledge?.(issue)}
-              disabled={busy}
-            >
-              <i className="fa-solid fa-check" /> Acknowledge
-            </button>
+          {/* ADMIN — view only (monitoring) */}
+          {isAdmin && (
+            <span className="irc-hint">
+              {isResolved
+                ? "This issue has been resolved."
+                : "Awaiting action from the Clerk."}
+            </span>
           )}
 
-          {/* Clerk — full management */}
-          {canManage && (
+          {/* CLERK — Mark Under Maintenance + Mark as Resolved + Restore */}
+          {isClerk && (
             <>
-              {issue.status === "Pending" && (
-                <button
-                  className="irc-btn primary"
-                  onClick={() => onAcknowledge?.(issue)}
-                  disabled={busy}
-                >
-                  <i className="fa-solid fa-eye" /> Acknowledge
-                </button>
-              )}
-
-              {issue.status !== "Resolved" && issue.status !== "In Progress" && (
-                <button
-                  className="irc-btn outline"
-                  onClick={() => onSetStatus?.(issue, "In Progress")}
-                  disabled={busy}
-                >
-                  <i className="fa-solid fa-tools" /> Mark In Progress
-                </button>
-              )}
-
-              {issue.status !== "Resolved" && (
-                <button
-                  className="irc-btn success"
-                  onClick={() => onSetStatus?.(issue, "Resolved")}
-                  disabled={busy}
-                >
-                  <i className="fa-solid fa-circle-check" /> Resolve
-                </button>
-              )}
-
-              {issue.status !== "Resolved" && !roomIsUnderMaintenance && (
+              {canMarkMaintenance && (
                 <button
                   className="irc-btn danger"
                   onClick={() => onMarkMaintenance?.(issue)}
                   disabled={busy}
                 >
-                  <i className="fa-solid fa-triangle-exclamation" /> Mark Under Maintenance
+                  <i className="fa-solid fa-wrench" /> Mark Under Maintenance
                 </button>
               )}
 
-              {roomIsUnderMaintenance && issue.status !== "Resolved" && (
+              {canRestore && (
                 <button
                   className="irc-btn outline"
                   onClick={() => onRestore?.(issue)}
@@ -181,16 +174,34 @@ export default function IssueReportCard({
                   <i className="fa-solid fa-rotate-left" /> Restore Room
                 </button>
               )}
+
+              {canResolve && (
+                <button
+                  className="irc-btn success"
+                  onClick={() => onMarkResolved?.(issue)}
+                  disabled={busy}
+                >
+                  <i className="fa-solid fa-circle-check" /> Mark as Resolved
+                </button>
+              )}
             </>
           )}
         </div>
       </div>
 
-      {/* Photo preview */}
+      {/* ── Lightbox ─────────────────────────────────────── */}
       {previewPhoto && issue.photoUrl && (
         <div className="irc-lightbox" onClick={() => setPreviewPhoto(false)}>
-          <img src={issue.photoUrl} alt="Issue preview" onClick={e => e.stopPropagation()} />
-          <button className="irc-lightbox-close" onClick={() => setPreviewPhoto(false)}>
+          <img
+            src={issue.photoUrl}
+            alt="Issue preview"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            className="irc-lightbox-close"
+            onClick={() => setPreviewPhoto(false)}
+            aria-label="Close"
+          >
             <i className="fa-solid fa-xmark" />
           </button>
         </div>

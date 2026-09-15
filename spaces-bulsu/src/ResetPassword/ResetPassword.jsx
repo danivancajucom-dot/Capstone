@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import {
   collection,
   query,
@@ -11,159 +10,197 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import "./reset-password.css";
-import { sendPasswordResetEmail } from "firebase/auth";
+import OtpInput from "../components/OtpInput/OtpInput";
+import {
+  createAndSendCode,
+  verifyCode,
+  CODE_LENGTH,
+  CODE_TTL_MIN,
+} from "../utils/verification";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
-  const [stage, setStage] = useState("loading"); // loading | form | success | error
-  const [oobCode, setOobCode] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [showCf, setShowCf] = useState(false);
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+
+  // stages: request | verify | form | success
+  const [stage, setStage] = useState("request");
+
   const [resetEmail, setResetEmail] = useState("");
+  const [userEmail, setUserEmail]   = useState("");
+  const [userName, setUserName]     = useState("");
 
+  const [code, setCode] = useState(Array(CODE_LENGTH).fill(""));
+  const [resendIn, setResendIn] = useState(0);
+
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm]   = useState("");
+  const [showPw, setShowPw]     = useState(false);
+  const [showCf, setShowCf]     = useState(false);
+
+  const [error, setError]           = useState("");
+  const [sending, setSending]       = useState(false);
+  const [verifying, setVerifying]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Resend countdown
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    if (resendIn <= 0) return;
+    const t = setInterval(() => setResendIn((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [resendIn]);
 
-    const code = params.get("oobCode");
+  // Password strength
+  const getStrength = (pw) => {
+    let s = 0;
+    if (pw.length >= 8) s++;
+    if (/[A-Z]/.test(pw)) s++;
+    if (/[0-9]/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    return s;
+  };
+  const strengthLabel = ["", "Weak", "Fair", "Good", "Strong"];
+  const strengthColor = ["", "#ef4444", "#f97316", "#eab308", "#22c55e"];
+  const strength = getStrength(password);
 
-    // Normal visit -> Forgot Password screen
-    if (!code) {
-      setStage("request");
-      return;
-    }
+  // ── STEP 1: send code ────────────────────────────────────────────
+  const handleSendCode = async () => {
+    setError("");
+    if (!resetEmail.trim()) return setError("Please enter your email address.");
 
-    // Firebase reset link validation
-    verifyPasswordResetCode(auth, code)
-      .then((userEmail) => {
-        setOobCode(code);
-        setEmail(userEmail);
-        setStage("form");
-      })
-      .catch((err) => {
-        console.error("VERIFY ERROR:", err);
-
-        if (
-          err.code === "auth/expired-action-code" ||
-          err.code === "auth/invalid-action-code"
-        ) {
-          setError(
-            "This password reset link has expired or has already been used.",
-          );
-        }
-
-        setStage("error");
-      });
-  }, []);
-
-  const handleSendResetLink = async () => {
+    setSending(true);
     try {
-      setError("");
-
-      if (!resetEmail.trim()) {
-        setError("Please enter your email address.");
-        return;
-      }
-
       const q = query(
         collection(db, "users"),
-        where("email", "==", resetEmail.trim()),
+        where("email", "==", resetEmail.trim())
       );
-
       const snap = await getDocs(q);
-
       if (snap.empty) {
         setError("No account found with that email address.");
         return;
       }
 
-      await sendPasswordResetEmail(auth, resetEmail.trim(), {
-        url: `${window.location.origin}/reset-password`,
-        handleCodeInApp: true,
+      const data = snap.docs[0].data();
+      const name = `${data.firstName || ""} ${data.lastName || ""}`.trim();
+
+      setUserEmail(resetEmail.trim());
+      setUserName(name);
+
+      await createAndSendCode({
+        email: resetEmail.trim(),
+        purpose: "password-reset",
+        name,
       });
 
-      setStage("email-sent");
+      setCode(Array(CODE_LENGTH).fill(""));
+      setStage("verify");
+      setResendIn(30);
     } catch (err) {
       console.error(err);
-
-      const errors = {
-        "auth/user-not-found": "No account found with that email.",
-        "auth/invalid-email": "Invalid email address.",
-        "auth/too-many-requests": "Too many attempts. Please try again later.",
-      };
-
-      setError(errors[err.code] || "Unable to send reset email.");
+      setError(err?.text || err?.message || "Unable to send verification code.");
+    } finally {
+      setSending(false);
     }
   };
 
-  const getStrength = (pw) => {
-    let score = 0;
-    if (pw.length >= 8) score++;
-    if (/[A-Z]/.test(pw)) score++;
-    if (/[0-9]/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-    return score; // 0–4
+  // ── STEP 2: verify code ──────────────────────────────────────────
+  const handleVerifyCode = async () => {
+    setError("");
+    const entered = code.join("");
+    if (entered.length !== CODE_LENGTH)
+      return setError(`Please enter the ${CODE_LENGTH}-digit code.`);
+
+    setVerifying(true);
+    try {
+      await verifyCode({
+        email: userEmail,
+        purpose: "password-reset",
+        entered,
+      });
+      setStage("form");
+    } catch (err) {
+      setError(err.message || "Verification failed.");
+    } finally {
+      setVerifying(false);
+    }
   };
 
-  const strengthLabel = ["", "Weak", "Fair", "Good", "Strong"];
-  const strengthColor = ["", "#ef4444", "#f97316", "#eab308", "#22c55e"];
-  const strength = getStrength(password);
+  const handleResend = async () => {
+    if (resendIn > 0) return;
+    setError("");
+    try {
+      await createAndSendCode({
+        email: userEmail,
+        purpose: "password-reset",
+        name: userName,
+      });
+      setCode(Array(CODE_LENGTH).fill(""));
+      setResendIn(30);
+    } catch (err) {
+      setError(err?.text || err?.message || "Unable to resend code.");
+    }
+  };
 
+  // ── STEP 3: set new password ─────────────────────────────────────
   const handleSubmit = async () => {
     setError("");
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
+    if (password.length < 8)
+      return setError("Password must be at least 8 characters.");
+    if (!/[A-Z]/.test(password))
+      return setError("Password must contain an uppercase letter.");
+    if (!/[0-9]/.test(password))
+      return setError("Password must contain a number.");
+    if (password !== confirm) return setError("Passwords do not match.");
 
     setSubmitting(true);
     try {
-      // 1. Confirm the Firebase password reset
-      await confirmPasswordReset(auth, oobCode, password);
+      // Backend endpoint (firebase-admin) — updates Firebase Auth password
+      const res = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail, newPassword: password }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message || "Failed to update password.");
+      }
 
-      // 2. Find the Firestore user doc by email and clear the temp password
-      const q = query(collection(db, "users"), where("email", "==", email));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        await updateDoc(doc(db, "users", snap.docs[0].id), {
-          passwordReset: true,
-          tempPassword: null,
-        });
+      // Best-effort Firestore cleanup
+      try {
+        const q = query(
+          collection(db, "users"),
+          where("email", "==", userEmail)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          await updateDoc(doc(db, "users", snap.docs[0].id), {
+            passwordReset: true,
+            tempPassword: null,
+          });
+        }
+      } catch (e) {
+        console.warn("Firestore cleanup skipped:", e);
       }
 
       setStage("success");
     } catch (err) {
-      const MSG = {
-        "auth/expired-action-code":
-          "This reset link has expired. Please request a new one.",
-        "auth/invalid-action-code":
-          "This reset link is invalid or has already been used.",
-        "auth/weak-password":
-          "Password is too weak. Use at least 8 characters.",
-      };
-      setError(MSG[err.code] ?? "Something went wrong. Please try again.");
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Back button shown top-left on every stage
+  // ── Back button ──────────────────────────────────────────────────
   const BackButton = () => (
-    <button type="button" className="rp-back-btn" onClick={() => navigate("/")}>
-      <i className="fa-solid fa-arrow-left"></i>
+    <button
+      type="button"
+      className="rp-back-btn"
+      onClick={() => navigate("/")}
+    >
+      <i className="fa-solid fa-arrow-left" />
       <span>Back</span>
     </button>
   );
 
-  // ── Forgot Password (request reset link) ────────────────────────────────
+  // ── Stage: request ───────────────────────────────────────────────
   if (stage === "request") {
     return (
       <div className="rp-shell">
@@ -176,7 +213,8 @@ export default function ResetPassword() {
           <h1 className="rp-title">Forgot Password</h1>
 
           <p className="rp-subtitle">
-            Enter your email address and we'll send you a password reset link.
+            Enter your email address and we'll send you a 6-digit verification
+            code.
           </p>
 
           <input
@@ -191,9 +229,16 @@ export default function ResetPassword() {
 
           <button
             className="rp-btn rp-btn-primary"
-            onClick={handleSendResetLink}
+            onClick={handleSendCode}
+            disabled={sending}
           >
-            Send Reset Link
+            {sending ? (
+              <>
+                <i className="fa-solid fa-circle-notch fa-spin" /> Sending…
+              </>
+            ) : (
+              "Send Verification Code"
+            )}
           </button>
 
           <p className="rp-back-link" onClick={() => navigate("/")}>
@@ -204,83 +249,61 @@ export default function ResetPassword() {
     );
   }
 
-  // ── Loading ────────────────────────────────────────────────────────────────
-  if (stage === "loading") {
+  // ── Stage: verify ────────────────────────────────────────────────
+  if (stage === "verify") {
     return (
       <div className="rp-shell">
         <BackButton />
         <div className="rp-card">
-          <div className="rp-spinner">
-            <i className="fa-solid fa-circle-notch fa-spin" />
-          </div>
-          <p className="rp-loading-text">Verifying your reset link…</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Error (invalid / expired link) ────────────────────────────────────────
-  if (stage === "error") {
-    return (
-      <div className="rp-shell">
-        <BackButton />
-        <div className="rp-card">
-          <div className="rp-icon-wrap rp-icon-error">
-            <i className="fa-solid fa-triangle-exclamation" />
+          <div className="rp-icon-wrap rp-icon-brand">
+            <i className="fa-solid fa-shield-halved" />
           </div>
 
-          <h1 className="rp-title">Invalid Reset Link</h1>
+          <h1 className="rp-title">Enter Verification Code</h1>
 
           <p className="rp-subtitle">
-            {error || "This password reset link is invalid or has expired."}
+            We sent a 6-digit code to <strong>{userEmail}</strong>. It expires
+            in {CODE_TTL_MIN} minutes.
           </p>
+
+          <OtpInput
+            value={code}
+            onChange={setCode}
+            length={CODE_LENGTH}
+            disabled={verifying}
+          />
+
+          {error && <div className="rp-error-box">{error}</div>}
 
           <button
             className="rp-btn rp-btn-primary"
-            onClick={() => {
-              setError("");
-              setStage("request");
-            }}
+            onClick={handleVerifyCode}
+            disabled={verifying}
           >
-            Request New Link
+            {verifying ? (
+              <>
+                <i className="fa-solid fa-circle-notch fa-spin" /> Verifying…
+              </>
+            ) : (
+              "Verify Code"
+            )}
           </button>
 
-          <p className="rp-back-link" onClick={() => navigate("/")}>
-            Back to Login
+          <p
+            className="rp-back-link"
+            onClick={handleResend}
+            style={{ opacity: resendIn > 0 ? 0.6 : 1 }}
+          >
+            {resendIn > 0
+              ? `Resend code in ${resendIn}s`
+              : "Didn't get the code? Resend"}
           </p>
         </div>
       </div>
     );
   }
 
-  // ── Email sent ───────────────────────────────────────────────────────────
-  if (stage === "email-sent") {
-    return (
-      <div className="rp-shell">
-        <BackButton />
-        <div className="rp-card">
-          <div className="rp-icon-wrap rp-icon-success">
-            <i className="fa-solid fa-envelope-circle-check" />
-          </div>
-
-          <h1 className="rp-title">Email Sent</h1>
-
-          <p className="rp-subtitle">
-            Check your inbox and click the password reset link to continue.
-          </p>
-
-          <button
-            className="rp-btn rp-btn-primary"
-            onClick={() => navigate("/")}
-          >
-            Back to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Success ──────────────────────────────────────────────────────────────
+  // ── Stage: success ───────────────────────────────────────────────
   if (stage === "success") {
     return (
       <div className="rp-shell">
@@ -289,11 +312,14 @@ export default function ResetPassword() {
           <div className="rp-icon-wrap rp-icon-success">
             <i className="fa-solid fa-circle-check" />
           </div>
+
           <h1 className="rp-title">Password Updated</h1>
+
           <p className="rp-subtitle">
-            Your password has been successfully set. You may now sign in to the
-            SPACES University Portal using your new credentials.
+            Your password has been successfully set. You may now sign in to
+            the SPACES University Portal using your new credentials.
           </p>
+
           <button
             className="rp-btn rp-btn-primary"
             onClick={() => navigate("/")}
@@ -305,19 +331,18 @@ export default function ResetPassword() {
     );
   }
 
-  // ── Form (Set Password) — themed to match the Forgot Password step ───────
+  // ── Stage: form (set new password) ───────────────────────────────
   return (
     <div className="rp-shell">
       <BackButton />
       <div className="rp-card rp-card-form">
-        {/* Centered header, same language as the other steps */}
         <div className="rp-form-header">
           <div className="rp-icon-wrap rp-icon-brand">
             <i className="fa-solid fa-lock" />
           </div>
           <h1 className="rp-title">Set Your Password</h1>
           <p className="rp-subtitle">
-            You are setting a password for <strong>{email}</strong>
+            You are setting a password for <strong>{userEmail}</strong>
           </p>
         </div>
 
@@ -340,11 +365,12 @@ export default function ResetPassword() {
               type="button"
               onClick={() => setShowPw((v) => !v)}
             >
-              <i className={`fa-solid ${showPw ? "fa-eye-slash" : "fa-eye"}`} />
+              <i
+                className={`fa-solid ${showPw ? "fa-eye-slash" : "fa-eye"}`}
+              />
             </button>
           </div>
 
-          {/* Strength bar */}
           {password.length > 0 && (
             <div className="rp-strength">
               <div className="rp-strength-bars">
@@ -386,9 +412,12 @@ export default function ResetPassword() {
               type="button"
               onClick={() => setShowCf((v) => !v)}
             >
-              <i className={`fa-solid ${showCf ? "fa-eye-slash" : "fa-eye"}`} />
+              <i
+                className={`fa-solid ${showCf ? "fa-eye-slash" : "fa-eye"}`}
+              />
             </button>
           </div>
+
           {confirm.length > 0 && password !== confirm && (
             <p className="rp-match-error">
               <i className="fa-solid fa-circle-xmark" /> Passwords do not match
@@ -405,19 +434,25 @@ export default function ResetPassword() {
         <ul className="rp-requirements">
           <li className={password.length >= 8 ? "met" : ""}>
             <i
-              className={`fa-solid ${password.length >= 8 ? "fa-circle-check" : "fa-circle"}`}
+              className={`fa-solid ${
+                password.length >= 8 ? "fa-circle-check" : "fa-circle"
+              }`}
             />
             At least 8 characters
           </li>
           <li className={/[A-Z]/.test(password) ? "met" : ""}>
             <i
-              className={`fa-solid ${/[A-Z]/.test(password) ? "fa-circle-check" : "fa-circle"}`}
+              className={`fa-solid ${
+                /[A-Z]/.test(password) ? "fa-circle-check" : "fa-circle"
+              }`}
             />
             One uppercase letter
           </li>
           <li className={/[0-9]/.test(password) ? "met" : ""}>
             <i
-              className={`fa-solid ${/[0-9]/.test(password) ? "fa-circle-check" : "fa-circle"}`}
+              className={`fa-solid ${
+                /[0-9]/.test(password) ? "fa-circle-check" : "fa-circle"
+              }`}
             />
             One number
           </li>

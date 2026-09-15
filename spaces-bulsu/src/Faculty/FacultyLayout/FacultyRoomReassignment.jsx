@@ -54,37 +54,60 @@ export default function FacultyRoomReassignment() {
     if (!currentUser) return;
 
     const facultySnap = await getDoc(doc(db, "users", currentUser.uid));
-    const faculty = facultySnap.data();
-    const facultyName = `${faculty.firstName} ${faculty.lastName}`;
+    const faculty = facultySnap.data() || {};
+    const facultyName = `${faculty.firstName || ""} ${faculty.lastName || ""}`.trim();
 
-    // Faculty notification
+    const isAccepted = decision === "accepted";
+    const verb = isAccepted ? "accepted" : "declined";
+
+    // Faculty's own log
     await addDoc(collection(db, "notifications"), {
       userId: currentUser.uid,
       ownerType: "faculty",
+      assignmentId: assignment.id,
+      reassignmentId: assignment.id,
       title: "Room Reassignment",
-      message: `You ${decision} the room reassignment for ${assignment.courseTitle}.`,
+      message: `You ${verb} the room reassignment for ${assignment.courseTitle}.`,
       type: "approved",
       badge: decision.toUpperCase(),
       unread: true,
       archived: false,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
     });
 
-    // Department Head notification
+    // Department Heads
     const headQuery = query(collection(db, "users"), where("role", "==", "Department Head"));
     const headSnap = await getDocs(headQuery);
     for (const head of headSnap.docs) {
       await addDoc(collection(db, "notifications"), {
         userId: head.id,
         ownerType: "department-head",
+        assignmentId: assignment.id,
+        reassignmentId: assignment.id,
         title: "Faculty Response",
-        message: `${facultyName} ${decision} the room reassignment request for ${assignment.courseTitle}.`,
-        type: "room-reassignment",
-        badge: decision.toUpperCase(),
+        message: `${facultyName} ${verb} the room reassignment request for ${assignment.courseTitle}.`,
+        type: "room-reassignment-status",
+        badge: isAccepted ? "ACCEPTED" : "DECLINED",
         unread: true,
         archived: false,
+        createdAt: serverTimestamp(),
+      });
+    }
+
+    // ── Clerk who requested ──
+    if (assignment.requestedById) {
+      await addDoc(collection(db, "notifications"), {
+        userId: assignment.requestedById,
+        ownerType: "clerk",
         assignmentId: assignment.id,
-        createdAt: serverTimestamp()
+        reassignmentId: assignment.id,
+        title: isAccepted ? "Faculty Accepted Reassignment" : "Faculty Declined Reassignment",
+        message: `${facultyName} ${verb} the reassignment for ${assignment.courseTitle} (${assignment.oldRoomName} → ${assignment.newRoomName}).`,
+        type: "room-reassignment-status",
+        badge: isAccepted ? "ACCEPTED" : "DECLINED",
+        unread: true,
+        archived: false,
+        createdAt: serverTimestamp(),
       });
     }
   };
@@ -98,8 +121,9 @@ export default function FacultyRoomReassignment() {
       }
 
       await updateDoc(doc(db, "roomReassignments", assignment.id), {
-        status: "approved",
-        approvedAt: serverTimestamp(),
+        status: "accepted",
+        acceptedAt: serverTimestamp(),   // para tugma sa terminology
+        updatedAt: serverTimestamp(),
       });
 
       if (assignment.eventId) {
@@ -123,7 +147,7 @@ export default function FacultyRoomReassignment() {
         actionType: "success",
         target: `${assignment.courseTitle} | ${assignment.oldRoomName} → ${assignment.newRoomName}`,
         status: "Success",
-        details: { decision: "approved" },
+        details: { decision: "accepted" },   // palitan din para consistent
       });
 
       alert("Room reassignment accepted.");
@@ -144,21 +168,22 @@ export default function FacultyRoomReassignment() {
       const reason = rejectReason.trim() || "No reason provided";
 
       await updateDoc(doc(db, "roomReassignments", assignment.id), {
-        status: "rejected",
-        rejectedAt: serverTimestamp(),
+        status: "declined",
+        declinedAt: serverTimestamp(),   // palitan din
         denialReason: reason,
+        updatedAt: serverTimestamp(),
       });
 
       if (assignment.eventId) {
         await updateDoc(doc(db, "events", assignment.eventId), {
           conflictResolved: true,
-          resolution: "rejected",
+          resolution: "rejected",       // ito okay lang — event side ito, hindi tab
           resolutionReason: reason,
           resolvedAt: serverTimestamp(),
         });
       }
 
-      await sendDecisionNotifications("rejected");
+      await sendDecisionNotifications("declined");   // ⬅️ ipasa ang tamang salita
 
       const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
       const userData = userSnap.data();
@@ -166,14 +191,14 @@ export default function FacultyRoomReassignment() {
       await logActivity({
         user: `${userData.firstName} ${userData.lastName}`,
         role: userData.role,
-        action: "Rejected room reassignment",
+        action: "Declined room reassignment",   // palitan para tama
         actionType: "denied",
         target: `${assignment.courseTitle} | ${assignment.oldRoomName} → ${assignment.newRoomName}`,
-        status: "Rejected",
+        status: "Declined",
         details: { reason },
       });
 
-      alert("Room reassignment rejected.");
+      alert("Room reassignment declined.");
       setShowRejectModal(false);
       navigate("/faculty");
     } catch (err) {

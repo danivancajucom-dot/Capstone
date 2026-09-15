@@ -7,13 +7,13 @@ import {
   doc,
   updateDoc,
   setDoc,
-  deleteDoc,
   query,
   orderBy,
 } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth, db } from "../../firebase";
 import { logActivity } from "../../utils/logActivity";
 import "./user-management.css";
@@ -33,6 +33,10 @@ const firebaseConfig = {
   appId: "1:268419005346:web:6c2bb5f113f46ff28890fb",
 };
 
+// Cloud Function — deletes Auth + Firestore + related data
+const functions = getFunctions();
+const deleteUserFn = httpsCallable(functions, "deleteUser");
+
 const ROLE_COLORS = {
   Faculty: { bg: "#EDE9FE", text: "#5B21B6" },
   "Local Registrar": { bg: "#FEF3C7", text: "#92400E" },
@@ -51,8 +55,7 @@ const SORT_OPTIONS = [
 
 const steps = [{ number: 1, label: "DETAILS" }, { number: 2, label: "CONFIRM" }];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
+// ── Helpers ────────────────────────────────────────────────────────────────
 async function createUserSecondaryApp(email, password) {
   const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
@@ -69,29 +72,17 @@ function generateTempPassword() {
   return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
-// ── Excel Template Downloader ─────────────────────────────────────────────────
 function downloadUserTemplate() {
   const headers = ["First Name", "Last Name", "Email", "Role"];
-
   const sampleRows = [
     ["Juan", "Dela Cruz", "juan.delacruz@bulsu.edu.ph", "Faculty"],
     ["Maria", "Santos", "maria.santos@bulsu.edu.ph", "Local Registrar"],
     ["Pedro", "Reyes", "pedro.reyes@bulsu.edu.ph", "Clerk"],
   ];
-
   const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
-
-  // Set column widths for readability
-  worksheet["!cols"] = [
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 38 },
-    { wch: 22 },
-  ];
-
+  worksheet["!cols"] = [{ wch: 18 }, { wch: 18 }, { wch: 38 }, { wch: 22 }];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
-
   XLSX.writeFile(workbook, "SpaceS_CICT_User_Template.xlsx");
 }
 
@@ -117,32 +108,7 @@ function Stepper({ current }) {
   );
 }
 
-// ── Password Cell (no longer used in table, kept for reference) ──────────
-
-function PasswordCell({ tempPassword, passwordReset }) {
-  const [visible, setVisible] = useState(false);
-
-  if (passwordReset) {
-    return (
-      <span className="um-pw-reset-badge">
-        <i className="fa-solid fa-shield-halved" /> Password set by user
-      </span>
-    );
-  }
-  if (!tempPassword) return <span className="um-pw-na">—</span>;
-
-  return (
-    <div className="um-pw-cell">
-      <span className="um-pw-value">{visible ? tempPassword : "••••••••••••"}</span>
-      <button className="um-pw-toggle" onClick={() => setVisible((v) => !v)} title={visible ? "Hide" : "Show"}>
-        <i className={`fa-solid ${visible ? "fa-eye-slash" : "fa-eye"}`} />
-      </button>
-    </div>
-  );
-}
-
-// ── Sort dropdown ─────────────────────────────────────────────────────────────
-
+// ── Sort dropdown ──────────────────────────────────────────────────────────
 function SortMenu({ sortBy, setSortBy }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -186,8 +152,7 @@ function SortMenu({ sortBy, setSortBy }) {
   );
 }
 
-// ── User List ─────────────────────────────────────────────────────────────────
-
+// ── User List ──────────────────────────────────────────────────────────────
 function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState([]);
@@ -197,29 +162,61 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
   const [resetTarget, setResetTarget] = useState(null);
   const [sortBy, setSortBy] = useState("name-asc");
   const [roleFilter, setRoleFilter] = useState("All");
+  const [deleting, setDeleting] = useState(false);
 
   const handleDeleteUser = (user) => setDeleteTarget(user);
 
+  // ══════════════════════════════════════════════════════════════
+  // DELETE — Cloud Function (Auth + Firestore + cleanup)
+  // ══════════════════════════════════════════════════════════════
   const confirmDeleteUser = async () => {
     if (!deleteTarget) return;
+    setDeleting(true);
+
+    const targetUser = deleteTarget;
 
     try {
-      await deleteDoc(doc(db, "users", deleteTarget.id));
+      const result = await deleteUserFn({ userId: targetUser.id });
 
-      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      if (!result.data?.success) {
+        throw new Error("Cloud function did not return success.");
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== targetUser.id));
+
       await logActivity({
-        userId: deleteTarget.id,
-        user: getFullName(deleteTarget),
-        role: deleteTarget.role,
-        action: "Deleted User",
+        userId: targetUser.id,
+        user: getFullName(targetUser),
+        role: targetUser.role,
+        action: "Deleted User (Auth + Firestore)",
         actionType: "failed",
-        target: deleteTarget.email,
+        target: targetUser.email,
         status: "SUCCESS",
       });
-      showToast("success", "User Deleted", `${deleteTarget.email} was removed.`);
+
+      showToast(
+        "success",
+        "User Deleted",
+        `${targetUser.email} was removed. The email can now be reused.`
+      );
     } catch (e) {
-      showToast("error", "Delete Failed", e.message);
+      console.error("Delete error:", e);
+
+      if (e?.code === "functions/not-found" || e?.code === "functions/unavailable") {
+        showToast(
+          "error",
+          "Function Not Deployed",
+          "The deleteUser Cloud Function is not deployed yet. Run: firebase deploy --only functions"
+        );
+      } else if (e?.code === "functions/permission-denied") {
+        showToast("error", "Permission Denied", e.message || "You cannot delete this user.");
+      } else if (e?.code === "functions/failed-precondition") {
+        showToast("error", "Not Allowed", e.message || "Action blocked by server.");
+      } else {
+        showToast("error", "Delete Failed", e?.message || "Could not delete the user.");
+      }
     } finally {
+      setDeleting(false);
       setDeleteTarget(null);
     }
   };
@@ -540,16 +537,35 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
               <strong>{deleteTarget.email}</strong>?
               <br />
               <br />
-              This action cannot be undone.
+              This will <strong>remove the account from Authentication</strong> so the
+              email can be reused for a new account. All associated watches and
+              notifications will also be deleted.
+              <br />
+              <br />
+              This action <strong>cannot be undone</strong>.
             </p>
 
             <div className="um-modal-actions">
-              <button className="um-modal-cancel" onClick={() => setDeleteTarget(null)}>
+              <button
+                className="um-modal-cancel"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
                 Cancel
               </button>
 
-              <button className="um-modal-confirm is-danger" onClick={confirmDeleteUser}>
-                Yes, Delete
+              <button
+                className="um-modal-confirm is-danger"
+                onClick={confirmDeleteUser}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin" /> Deleting…
+                  </>
+                ) : (
+                  "Yes, Delete Permanently"
+                )}
               </button>
             </div>
           </div>
@@ -820,7 +836,7 @@ function CreateAccountStep2({ form, entryMode, excelFile, onBack, onConfirm }) {
   );
 }
 
-// ── Root ──────────────────────────────────────────────────────────────────────
+// ── Root ──────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = { firstName: "", lastName: "", email: "", role: "" };
 
@@ -908,9 +924,6 @@ export default function UserManagement() {
     showToast("loading", "Creating", "Creating account(s)...");
 
     try {
-      // ==========================
-      // MANUAL ACCOUNT CREATION
-      // ==========================
       if (entryMode === "manual") {
         const tempPassword = generateTempPassword();
         const uid = await createUserSecondaryApp(form.email, tempPassword);
@@ -955,12 +968,7 @@ export default function UserManagement() {
         });
 
         showToast("success", "Account Created", `Account created for ${form.email}.`);
-      }
-
-      // ==========================
-      // BULK EXCEL CREATION
-      // ==========================
-      else {
+      } else {
         const rows = await parseExcelFile(excelFile);
 
         const normalizedRows = rows.map((row) => ({
@@ -1042,7 +1050,16 @@ export default function UserManagement() {
       reset();
     } catch (err) {
       console.error(err);
-      showToast("error", "Failed", err.message || String(err.code));
+
+      if (err.code === "auth/email-already-in-use") {
+        showToast(
+          "error",
+          "Email Already In Use",
+          "This email already exists in Firebase Authentication. Delete the existing user first to reuse the email."
+        );
+      } else {
+        showToast("error", "Failed", err.message || String(err.code));
+      }
     } finally {
       setCreating(false);
     }

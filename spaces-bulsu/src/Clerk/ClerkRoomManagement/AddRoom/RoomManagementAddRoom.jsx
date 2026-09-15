@@ -76,7 +76,9 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
   const [roomType, setRoomType]       = useState('');
   const [equipment, setEquipment]     = useState(INITIAL_EQUIPMENT);
   const [floor, setFloor]             = useState('');
-  const [building, setBuilding]       = useState('');
+
+  // ⬅️ DEFAULT BUILDING: "Pimentel Hall"
+  const [building, setBuilding]       = useState('Pimentel Hall');
   const [buildingCustom, setBuildingCustom] = useState('');
   const [isOtherBuilding, setIsOtherBuilding] = useState(false);
 
@@ -200,7 +202,9 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
     setSuccessModalOpen(false);
     setFloor(''); setRoomName(''); setCapacity(1);
     setRoomType(''); setEquipment(INITIAL_EQUIPMENT);
-    setBuilding(''); setBuildingCustom(''); setIsOtherBuilding(false);
+    setBuilding('Pimentel Hall');  // ⬅️ reset to default
+    setBuildingCustom('');
+    setIsOtherBuilding(false);
     navigate("/clerk/room-management");
   };
 
@@ -376,7 +380,7 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
         </div>
       </form>
 
-      {/* FOOTER ACTIONS — outside the box */}
+      {/* FOOTER ACTIONS */}
       {errors.submit && (
         <span className="field-error add-room-submit-error">{errors.submit}</span>
       )}

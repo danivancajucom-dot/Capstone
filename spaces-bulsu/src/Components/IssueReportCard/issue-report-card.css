@@ -1,4 +1,8 @@
-/* ══════════════ ISSUE REPORT CARD ══════════════ */
+/* ══════════════════════════════════════════════════════════════
+   ISSUE REPORT CARD
+   - Fixed media aspect ratio → pantay lahat ng cards
+   - Actions gated by role
+   ══════════════════════════════════════════════════════════════ */
 
 .irc {
   background: #fff;
@@ -22,7 +26,7 @@
 .irc.progress     { border-left: 4px solid #f97316; }
 .irc.resolved     { border-left: 4px solid #16a34a; opacity: 0.92; }
 
-/* Header */
+/* ── HEADER ─────────────────────────────────────────────────── */
 .irc-top {
   display: flex;
   align-items: center;
@@ -114,36 +118,43 @@
 .irc-status.progress     { background: #FFEDD5; color: #C2410C; }
 .irc-status.resolved     { background: #DCFCE7; color: #15803D; }
 
-/* Description */
-.irc-description {
-  margin: 0;
-  font-size: 13.5px;
-  color: #374151;
-  line-height: 1.65;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Photo thumb */
-.irc-photo-thumb {
+/* ══════════════════════════════════════════════════════════════
+   MEDIA — always present, FIXED aspect ratio
+   → pantay ang lahat ng cards kahit may/walang image
+   ══════════════════════════════════════════════════════════════ */
+.irc-media {
   position: relative;
-  border: 1.5px solid #e5e7eb;
+  width: 100%;
+  aspect-ratio: 16 / 9;   /* ✅ fixed ratio — same height lagi */
   border-radius: 12px;
   overflow: hidden;
-  cursor: pointer;
+  background: #f3f4f6;
+  flex-shrink: 0;
+}
+
+/* When there IS a photo */
+.irc-photo-thumb {
+  position: absolute;
+  inset: 0;
+  border: none;
   padding: 0;
   background: none;
-  transition: 0.15s;
-}
-
-.irc-photo-thumb img {
+  cursor: pointer;
   display: block;
   width: 100%;
-  max-height: 160px;
-  object-fit: cover;
+  height: 100%;
+  transition: 0.15s;
 }
-
-.irc-photo-thumb:hover { border-color: #f57c00; }
+.irc-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.irc-photo-thumb:hover {
+  outline: 2px solid #f57c00;
+  outline-offset: -2px;
+}
 
 .irc-photo-label {
   position: absolute;
@@ -161,7 +172,68 @@
   backdrop-filter: blur(3px);
 }
 
-/* Meta */
+/* When there is NO photo */
+.irc-photo-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #9ca3af;
+  font-size: 12.5px;
+  font-weight: 600;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #fafafa,
+      #fafafa 10px,
+      #f3f4f6 10px,
+      #f3f4f6 20px
+    );
+}
+.irc-photo-placeholder i {
+  font-size: 30px;
+  color: #cbd5e1;
+}
+
+/* Under-maintenance ribbon (overlays media) */
+.irc-maint-ribbon {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f57c00;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+}
+.irc-maint-ribbon i { font-size: 10px; }
+
+/* ── DESCRIPTION ─────────────────────────────────────────────── */
+.irc-description {
+  margin: 0;
+  font-size: 13.5px;
+  color: #374151;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;              /* limit to 3 lines for consistent height */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── META ────────────────────────────────────────────────────── */
 .irc-meta {
   display: flex;
   flex-wrap: wrap;
@@ -181,7 +253,7 @@
 
 .irc-meta-ok { color: #16a34a; }
 
-/* Notes */
+/* ── NOTES ───────────────────────────────────────────────────── */
 .irc-notes {
   display: flex;
   gap: 8px;
@@ -192,15 +264,14 @@
   color: #7c4a1f;
   border: 1px solid #FCE7D2;
 }
-
 .irc-notes i { color: #f57c00; margin-top: 2px; }
 
-/* Actions */
+/* ── ACTIONS ─────────────────────────────────────────────────── */
 .irc-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: auto;
   padding-top: 12px;
   border-top: 1px dashed #f0f0f0;
 }
@@ -215,6 +286,7 @@
 .irc-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   padding: 9px 14px;
   border-radius: 10px;
@@ -224,6 +296,8 @@
   font-weight: 700;
   cursor: pointer;
   transition: 0.15s;
+  flex: 1 1 auto;
+  min-width: 150px;
 }
 
 .irc-btn.primary {
@@ -256,7 +330,7 @@
 
 .irc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Lightbox */
+/* ── LIGHTBOX ────────────────────────────────────────────────── */
 .irc-lightbox {
   position: fixed;
   inset: 0;
@@ -295,13 +369,18 @@
   justify-content: center;
   transition: 0.15s;
 }
-
 .irc-lightbox-close:hover { background: rgba(255, 255, 255, 0.28); }
 
+/* ── RESPONSIVE ──────────────────────────────────────────────── */
 @media (max-width: 560px) {
   .irc { padding: 16px; }
   .irc-top { flex-wrap: wrap; }
-  .irc-badges { flex-direction: row; width: 100%; justify-content: flex-start; }
+  .irc-badges {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-start;
+  }
   .irc-actions { flex-direction: column; }
-  .irc-btn { justify-content: center; width: 100%; }
+  .irc-btn { width: 100%; min-width: 0; }
+  .irc-media { aspect-ratio: 4 / 3; }
 }

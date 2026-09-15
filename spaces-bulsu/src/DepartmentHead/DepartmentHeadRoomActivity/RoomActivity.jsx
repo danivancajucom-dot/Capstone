@@ -1,735 +1,584 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import "./room-activity.css";
-import { useNavigate } from "react-router-dom";
-import { db } from "../../firebase";
+import { db, auth } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 import {
-  collection,
-  onSnapshot,
-  addDoc,
-  getDocs,
-  serverTimestamp,
-  query,
-  where,
-  doc,
-  getDoc,
+  collection, getDocs, doc, getDoc, updateDoc, addDoc,
+  serverTimestamp, onSnapshot,
 } from "firebase/firestore";
-
-import { auth } from "../../firebase";
 import { logActivity } from "../../utils/logActivity";
-import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
-import { findFacultyUserByName, findFacultyUser } from "../../utils/findFacultyUser";
-import { parseFacultyName, formatFacultyName } from "../../utils/parseFacultyName";
+import { findFacultyUserByName } from "../../utils/findFacultyUser";
 
-function parseTime(t) {
-  if (!t) return null;
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
+const ITEMS_PER_PAGE = 5;
 
-function overlap(aStart, aEnd, bStart, bEnd) {
-  return aStart < bEnd && aEnd > bStart;
-}
+const TABS = [
+  { key: "all",           label: "All Requests" },
+  { key: "pending_admin", label: "Needs Review" },
+  { key: "approved",      label: "Approved" },
+  { key: "denied",        label: "Denied" },
+  { key: "cancelled",     label: "Cancelled" },
+];
 
-// ---------------- DISPLAY HELPERS ----------------
-function formatTime12(t) {
+const SORT_OPTIONS = [
+  { key: "newest",    label: "Newest First" },
+  { key: "oldest",    label: "Oldest First" },
+  { key: "date_asc",  label: "Schedule Date ↑" },
+  { key: "date_desc", label: "Schedule Date ↓" },
+];
+
+const fmt12 = (t) => {
   if (!t) return "";
   const [h, m] = t.split(":").map(Number);
-  const period = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 === 0 ? 12 : h % 12;
-  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
-}
-
-function formatDuration(start, end) {
-  const s = parseTime(start);
-  const e = parseTime(end);
-  if (s == null || e == null || e <= s) return "";
-  const mins = e - s;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h) return `${h}h`;
-  return `${m}m`;
-}
-
-function formatDateLong(dateStr) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
+  const p = h >= 12 ? "PM" : "AM";
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${String(m).padStart(2, "0")} ${p}`;
+};
+const fmtDate = (d) => {
+  if (!d) return "";
+  return new Date(d).toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
-}
+};
 
-export default function RoomActivity() {
-  const navigate = useNavigate();
-  const [toast, setToast] = useState({
-    show: false,
-    type: "success",
-    title: "",
-    message: "",
-  });
+function RoomActivity() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  // ⬅️ DEFAULT TAB: "all"
+  const [activeTab, setActiveTab] = useState("all");
 
+  // ── Filters ──────────────────────────────────────────────────
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [reviewing, setReviewing] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState({});
+  const [denyReason, setDenyReason] = useState("");
+  const [processing, setProcessing] = useState(false);
+
+  const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
   const showToast = (type, title, message) => {
-    setToast({
-      show: true,
-      type,
-      title,
-      message,
-    });
-
-    if (type !== "loading") {
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, show: false }));
-      }, 4000);
-    }
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") setTimeout(() => setToast((p) => ({ ...p, show: false })), 4000);
   };
 
-  const [rooms, setRooms] = useState([]);
-  const [conflicts, setConflicts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [checkingConflicts, setCheckingConflicts] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  const [form, setForm] = useState({
-    title: "",
-    room: "",
-    date: "",
-    startTime: "",
-    endTime: "",
-    reason: "",
-  });
-
-  const [showModal, setShowModal] = useState(false);
-  const [error, setError] = useState("");
-  const [maintenanceBlocked, setMaintenanceBlocked] = useState(false);
-
-  // ---------------- FIREBASE ROOMS ----------------
+  // ── REALTIME listener ────────────────────────────────────────
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "rooms"), (snap) => {
-      const data = snap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-
-      setRooms(data);
-      setLoading(false);
-    });
-
+    setLoading(true);
+    const unsub = onSnapshot(
+      collection(db, "roomActivityRequests"),
+      (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setItems(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error(err);
+        showToast("error", "Load Failed", "Could not load room activity requests.");
+        setLoading(false);
+      }
+    );
     return () => unsub();
   }, []);
 
-  // ---------------- CONFLICT DETECTION ----------------
-  useEffect(() => {
-    const checkConflict = async () => {
-      setError("");
+  const counts = useMemo(() => ({
+    pending_admin: items.filter((i) => i.status === "pending_admin").length,
+    approved:      items.filter((i) => i.status === "approved").length,
+    denied:        items.filter((i) => i.status === "denied").length,
+    cancelled:     items.filter((i) => i.status === "cancelled").length,
+    all:           items.length,
+  }), [items]);
 
-      if (!form.room || !form.date || !form.startTime || !form.endTime) {
-        setConflicts([]);
-        return;
-      }
+  // ── Unique rooms for filter ──────────────────────────────────
+  const roomOptions = useMemo(() => {
+    const set = new Set();
+    items.forEach((i) => { if (i.roomName) set.add(i.roomName); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [items]);
 
-      const room = rooms.find((r) => r.roomName === form.room);
+  // ── FILTER + SEARCH + ROOM + SORT ────────────────────────────
+  const filtered = useMemo(() => {
+    let list = activeTab === "all" ? items : items.filter((i) => i.status === activeTab);
 
-      if (!room) return;
+    if (roomFilter) list = list.filter((i) => i.roomName === roomFilter);
 
-      setCheckingConflicts(true);
-
-      const schedulesRef = collection(db, "rooms", room.id, "schedules");
-
-      const snap = await getDocs(schedulesRef);
-
-      const reqStart = parseTime(form.startTime);
-      const reqEnd = parseTime(form.endTime);
-
-      const day = new Date(form.date)
-        .toLocaleDateString("en-US", {
-          weekday: "short",
-        })
-        .toUpperCase();
-
-      const found = snap.docs
-        .map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }))
-        .filter((s) => {
-          if (s.day !== day) return false;
-          return overlap(reqStart, reqEnd, parseTime(s.startTime), parseTime(s.endTime));
-        });
-
-      setConflicts(found);
-      setCheckingConflicts(false);
-    };
-
-    checkConflict();
-  }, [form, rooms]);
-
-  // ---------------- MAINTENANCE CHECK ----------------
-  useEffect(() => {
-    if (!form.room || !form.date || !form.startTime || !form.endTime) {
-      setMaintenanceBlocked(false);
-      return;
+    if (searchTerm.trim()) {
+      const s = searchTerm.toLowerCase();
+      list = list.filter((i) =>
+        (i.title || "").toLowerCase().includes(s) ||
+        (i.roomName || "").toLowerCase().includes(s) ||
+        (i.requestedByName || "").toLowerCase().includes(s) ||
+        (i.reason || "").toLowerCase().includes(s)
+      );
     }
 
-    const room = rooms.find((r) => r.roomName === form.room);
-
-    if (!room) {
-      setMaintenanceBlocked(false);
-      return;
+    const sorted = [...list];
+    if (sortOrder === "newest") {
+      sorted.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    } else if (sortOrder === "oldest") {
+      sorted.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    } else if (sortOrder === "date_asc") {
+      sorted.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    } else if (sortOrder === "date_desc") {
+      sorted.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     }
+    return sorted;
+  }, [items, activeTab, searchTerm, roomFilter, sortOrder]);
 
-    setMaintenanceBlocked(
-      isRoomUnderMaintenance(room, form.date, form.startTime, form.endTime)
-    );
-  }, [form.room, form.date, form.startTime, form.endTime, rooms]);
+  useEffect(() => { setCurrentPage(1); }, [activeTab, searchTerm, roomFilter, sortOrder]);
 
-  // ---------------- INPUT ----------------
-  const handleChange = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * ITEMS_PER_PAGE;
+  const paginated = filtered.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+  const hasActiveFilters = searchTerm || roomFilter || sortOrder !== "newest";
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setRoomFilter("");
+    setSortOrder("newest");
   };
 
-  // ---------------- VALIDATION ----------------
-  const validate = () => {
-    if (!form.title) return "Title is required";
-    if (!form.room) return "Please select a room";
-    if (!form.date) return "Date is required";
-    if (!form.startTime || !form.endTime) return "Time is required";
-    if (parseTime(form.startTime) >= parseTime(form.endTime))
-      return "Invalid time range";
-    if (maintenanceBlocked)
-      return "This room is under maintenance during the selected date/time.";
-    return null;
+  // ── Approve ──────────────────────────────────────────────────
+  const startReview = (item, mode) => {
+    setReviewing({ item, mode });
+    setEditMode(false);
+    setDraft({
+      title: item.title || "",
+      roomName: item.roomName || "",
+      roomId: item.roomId || "",
+      date: item.date || "",
+      startTime: item.startTime || "",
+      endTime: item.endTime || "",
+      reason: item.reason || "",
+    });
+    setDenyReason("");
   };
 
-  const canSubmit =
-    form.title && form.room && form.date && form.startTime && form.endTime;
-
-  // ---------------- OVERRIDE ----------------
-  const handleConfirm = async () => {
+  const handleApprove = async () => {
+    if (!reviewing) return;
+    const { item } = reviewing;
+    setProcessing(true);
     try {
-      const err = validate();
+      const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+      const me = userDoc.data();
+      const myName = `${me.firstName} ${me.lastName}`;
 
-      if (err) {
-        setError(err);
-        return;
-      }
-
-      const roomDoc = rooms.find((r) => r.roomName === form.room);
-
-      if (!roomDoc) {
-        showToast("error", "Error", "Room not found");
-        return;
-      }
-
-      if (isRoomUnderMaintenance(roomDoc, form.date, form.startTime, form.endTime)) {
-        showToast(
-          "error",
-          "Room Unavailable",
-          "This room is under maintenance during the selected date/time."
-        );
-        return;
-      }
-
-      const firebaseUser = auth.currentUser;
-
-      if (!firebaseUser) {
-        showToast("error", "Error", "No authenticated user.");
-        return;
-      }
-
-      setSubmitting(true);
-
-      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-
-      const currentUser = userSnap.data();
-
-      const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
-      
-      // create room activity
-      const activityRef = await addDoc(collection(db, "events"), {
-        roomId: roomDoc.id,
-        roomName: roomDoc.roomName,
-
-        title: form.title,
-        reason: form.reason,
-
-        date: form.date,
-
-        startTime: form.startTime,
-        endTime: form.endTime,
-
-        status: "active",
-
-        createdAt: serverTimestamp(),
+      await updateDoc(doc(db, "roomActivityRequests", item.id), {
+        title: draft.title.trim(),
+        roomName: draft.roomName,
+        roomId: draft.roomId,
+        date: draft.date,
+        startTime: draft.startTime,
+        endTime: draft.endTime,
+        reason: draft.reason.trim(),
+        status: "approved",
+        approvedById: auth.currentUser.uid,
+        approvedByName: myName,
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
 
-      await logActivity({
-        userId: firebaseUser.uid,
-        user: fullName,
-        role: currentUser.role,
-
-        action: "Created Room Activity",
-        actionType: "success",
-
-        target: `${form.title} (${roomDoc.roomName})`,
-        status: "SUCCESS",
-
-        details: {
-          room: roomDoc.roomName,
-          title: form.title,
-          date: form.date,
-          startTime: form.startTime,
-          endTime: form.endTime,
-          reason: form.reason,
-        },
-      });
-      
-
-      // -----------------------------
-      // SEND NOTIFICATION TO AFFECTED FACULTIES
-      // -----------------------------
+      let eventId = item.eventId;
+      if (!eventId) {
+        const eventRef = await addDoc(collection(db, "events"), {
+          roomId: draft.roomId,
+          roomName: draft.roomName,
+          title: draft.title.trim(),
+          reason: draft.reason.trim(),
+          date: draft.date,
+          startTime: draft.startTime,
+          endTime: draft.endTime,
+          status: "active",
+          createdById: item.requestedById,
+          createdByName: item.requestedByName,
+          approvedById: auth.currentUser.uid,
+          createdAt: serverTimestamp(),
+        });
+        eventId = eventRef.id;
+        await updateDoc(doc(db, "roomActivityRequests", item.id), { eventId });
+      }
 
       const usersSnap = await getDocs(collection(db, "users"));
-      let notifiedCount = 0;
-
-      for (const conflict of conflicts) {
-        if (!conflict.faculty || conflict.faculty === "TBA") continue;
-
-        // Try to find the faculty using the stored facultyLastName/facultyFirstName first
+      let notified = 0;
+      for (const conflict of item.conflicts || []) {
         let facultyDoc = null;
-        
-        if (conflict.facultyLastName && conflict.facultyFirstName) {
-          facultyDoc = findFacultyUser(
-            usersSnap, 
-            conflict.facultyLastName, 
-            conflict.facultyFirstName
-          );
+        if (conflict.facultyId) {
+          facultyDoc = usersSnap.docs.find((d) => d.id === conflict.facultyId) || null;
         }
-        
-        // If not found, try by parsing the full name
-        if (!facultyDoc) {
+        if (!facultyDoc && conflict.faculty) {
           facultyDoc = findFacultyUserByName(usersSnap, conflict.faculty);
         }
+        if (!facultyDoc) continue;
 
-        if (facultyDoc) {
-          console.log("Conflict faculty (raw):", conflict.faculty);
-console.log("Matched facultyDoc:", facultyDoc?.id, facultyDoc?.data());
-
-          await addDoc(collection(db, "notifications"), {
-            userId: facultyDoc.id,
-            ownerType: "faculty",
-
-            activityId: activityRef.id,
-
-            title: "Room Activity Override",
-
-            message: `${form.title} will use ${roomDoc.roomName} on ${form.date} (${formatTime12(
-              form.startTime
-            )} - ${formatTime12(
-              form.endTime
-            )}). Your scheduled class (${conflict.subject || conflict.title || "Untitled"}) may be affected.`,
-
-            type: "room-activity",
-
-            unread: true,
-            archived: false,
-
-            badge: "NEW",
-
-            roomId: roomDoc.id,
-            roomName: roomDoc.roomName,
-
-            activityTitle: form.title,
-            activityReason: form.reason,
-
-            activityDate: form.date,
-            activityStart: form.startTime,
-            activityEnd: form.endTime,
-
-            affectedScheduleId: conflict.id,
-            affectedSubject: conflict.subject || conflict.title || "",
-            affectedFaculty: conflict.faculty || "",
-
-            createdAt: serverTimestamp(),
-          });
-          notifiedCount++;
-        }
+        await addDoc(collection(db, "notifications"), {
+          userId: facultyDoc.id,
+          ownerType: "faculty",
+          activityId: eventId,
+          title: "Room Activity Override",
+          message: `${draft.title} will use ${draft.roomName} on ${draft.date} (${fmt12(draft.startTime)} - ${fmt12(draft.endTime)}). Your scheduled class may be affected.`,
+          type: "room-activity",
+          unread: true, archived: false, badge: "NEW",
+          roomId: draft.roomId, roomName: draft.roomName,
+          activityTitle: draft.title, activityReason: draft.reason,
+          activityDate: draft.date, activityStart: draft.startTime, activityEnd: draft.endTime,
+          affectedScheduleId: conflict.scheduleId,
+          affectedSubject: conflict.subject,
+          affectedFaculty: conflict.faculty,
+          createdAt: serverTimestamp(),
+        });
+        notified++;
       }
 
-      // Notify department head (self) that notification was sent
-      await addDoc(collection(db, "notifications"), {
-        userId: firebaseUser.uid,
-        ownerType: "department-head",
+      if (item.requestedById) {
+        await addDoc(collection(db, "notifications"), {
+          userId: item.requestedById,
+          ownerType: "clerk",
+          activityRequestId: item.id,
+          title: "Room Activity Approved",
+          message: `"${draft.title}" was approved for ${draft.roomName} on ${draft.date}. ${notified} faculty notified.`,
+          type: "room-activity-status",
+          unread: true, archived: false, badge: "INFO",
+          createdAt: serverTimestamp(),
+        });
+      }
 
-        activityId: activityRef.id,
-
-        title: "Room Activity Created",
-
-        message:
-          notifiedCount > 0
-            ? `${form.title} has been created. ${notifiedCount} faculty schedule(s) were affected and notified.`
-            : `${form.title} has been created successfully. No faculty schedules were affected.`,
-
-        type: "room-activity-status",
-
-        unread: true,
-        archived: false,
-        badge: "INFO",
-
-        createdAt: serverTimestamp(),
+      await logActivity({
+        user: myName, role: me.role,
+        action: "Approved room activity request",
+        actionType: "approve",
+        target: `${draft.title} (${draft.roomName})`,
+        status: "SUCCESS",
       });
 
-      
-      showToast(
-        "success", 
-        "Success", 
-        `Room Activity Created! ${notifiedCount} faculty notified.`
-      );
-
-      setShowModal(false);
-      setForm({
-        title: "",
-        room: "",
-        date: "",
-        startTime: "",
-        endTime: "",
-        reason: "",
-      });
-      setConflicts([]);
-    } catch (error) {
-      console.error(error);
-
-      showToast("error", "Firestore Error", error.message);
+      showToast("success", "Approved", `Activity approved. ${notified} faculty notified.`);
+      setReviewing(null);
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Failed", "Could not approve request.");
     } finally {
-      setSubmitting(false);
+      setProcessing(false);
     }
   };
 
-  const selectedRoom = rooms.find((r) => r.roomName === form.room);
-  const duration = formatDuration(form.startTime, form.endTime);
+  const handleDeny = async () => {
+    if (!reviewing) return;
+    const { item } = reviewing;
+    if (!denyReason.trim()) { showToast("error", "Reason Required", "Please provide a reason."); return; }
+    setProcessing(true);
+    try {
+      const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+      const me = userDoc.data();
+      const myName = `${me.firstName} ${me.lastName}`;
+
+      await updateDoc(doc(db, "roomActivityRequests", item.id), {
+        status: "denied",
+        deniedReason: denyReason.trim(),
+        deniedById: auth.currentUser.uid,
+        deniedByName: myName,
+        deniedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      if (item.requestedById) {
+        await addDoc(collection(db, "notifications"), {
+          userId: item.requestedById,
+          ownerType: "clerk",
+          activityRequestId: item.id,
+          title: "Room Activity Denied",
+          message: `"${item.title}" was denied. Reason: ${denyReason.trim()}`,
+          type: "room-activity-status",
+          unread: true, archived: false, badge: "INFO",
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      await logActivity({
+        user: myName, role: me.role,
+        action: "Denied room activity request",
+        actionType: "deny",
+        target: `${item.title} (${item.roomName})`,
+        status: "SUCCESS",
+      });
+
+      showToast("success", "Denied", "The clerk has been notified.");
+      setReviewing(null);
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Failed", "Could not deny request.");
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
-    <div className="ra-page">
-      <div className="ra-header">
-        <div>
-          <h1 className="ra-title">Room Activity</h1>
-          <p className="ra-subtitle">
-            Create a room activity request and override existing reservations
-            when authorized.
-          </p>
+    <>
+      <div className="ra-review-page">
+        <div className="ra-review-header">
+          <div>
+            <h1 className="ra-review-title">Room Activity Requests</h1>
+            <p className="ra-review-subtitle">
+              Review requests submitted by the Clerk. Approve (with optional edits), or deny with a reason.
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* ERROR */}
-      {error && (
-        <div className="ra-banner ra-banner-error">
-          <i className="fa-solid fa-circle-exclamation"></i>
-          <span>{error}</span>
+        {/* TABS */}
+        <div className="ra-review-tabs">
+          {TABS.map((t) => (
+            <button key={t.key}
+              className={`ra-review-tab ${activeTab === t.key ? "active" : ""}`}
+              onClick={() => setActiveTab(t.key)}>
+              {t.label}
+              <span className="ra-review-tab-count">{counts[t.key] ?? 0}</span>
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* MAINTENANCE WARNING */}
-      {maintenanceBlocked && !error && (
-        <div className="ra-banner ra-banner-warning">
-          <i className="fa-solid fa-triangle-exclamation"></i>
-          <span>
-            This room is under maintenance during the selected date/time.
-            Please choose another room or time.
+        {/* TOOLBAR: Search + Room Filter + Sort */}
+        <div className="ra-review-toolbar">
+          <div className="ra-review-search">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              placeholder="Search title, room, requester, or reason…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="ra-review-search-clear"
+                onClick={() => setSearchTerm("")} aria-label="Clear">
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            )}
+          </div>
+
+          <div className="ra-review-filters">
+            <div className="ra-review-select">
+              <i className="fa-solid fa-door-open"></i>
+              <select value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)}>
+                <option value="">All Rooms</option>
+                {roomOptions.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              <i className="fa-solid fa-angle-down ra-review-select-chev"></i>
+            </div>
+
+            <div className="ra-review-select">
+              <i className="fa-solid fa-arrow-down-short-wide"></i>
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
+                {SORT_OPTIONS.map((s) => (
+                  <option key={s.key} value={s.key}>{s.label}</option>
+                ))}
+              </select>
+              <i className="fa-solid fa-angle-down ra-review-select-chev"></i>
+            </div>
+
+            {hasActiveFilters && (
+              <button className="ra-review-clear-all" onClick={clearAllFilters}>
+                <i className="fa-solid fa-filter-circle-xmark"></i> Clear
+              </button>
+            )}
+          </div>
+
+          <span className="ra-review-result-count">
+            {filtered.length} result{filtered.length === 1 ? "" : "s"}
           </span>
         </div>
-      )}
 
-      <div className="ra-layout">
-        {/* FORM */}
-        <div className="ra-card">
-          <div className="ra-card-title">
-            <span className="ra-card-bar"></span>
-            Activity Details
-          </div>
-
-          <div className="ra-form">
-            <div className="ra-field">
-              <label htmlFor="ra-title">Activity Title</label>
-              <div className="ra-icon-input">
-                <i className="fa-solid fa-bookmark"></i>
-                <input
-                  id="ra-title"
-                  className="ra-plain-input"
-                  placeholder="e.g. Freshmen Orientation"
-                  value={form.title}
-                  onChange={handleChange("title")}
-                />
-              </div>
+        {/* BODY */}
+        <div className="ra-review-body">
+          {loading ? (
+            <div className="ra-review-empty">
+              <i className="fa-solid fa-spinner fa-spin"></i><p>Loading requests…</p>
             </div>
-
-            <div className="ra-field">
-              <label htmlFor="ra-room">Room</label>
-              <div className="ra-select-wrap">
-                <i className="fa-solid fa-door-closed"></i>
-                <select
-                  id="ra-room"
-                  value={form.room}
-                  onChange={handleChange("room")}
-                  className="ra-select"
-                  disabled={loading}
-                >
-                  <option value="">
-                    {loading ? "Loading rooms…" : "Select room"}
-                  </option>
-                  {rooms.map((r) => {
-                    const underMaintenance =
-                      String(r.roomStatus || "").toLowerCase() === "maintenance";
-                    return (
-                      <option key={r.id} value={r.roomName}>
-                        {r.roomName}
-                        {underMaintenance ? " (Under Maintenance)" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-                <i className="fa-solid fa-chevron-down ra-chevron"></i>
-              </div>
-            </div>
-
-            <div className="ra-field">
-              <label htmlFor="ra-date">Date</label>
-              <div className="ra-icon-input">
-                <i className="fa-solid fa-calendar-days"></i>
-                <input
-                  id="ra-date"
-                  type="date"
-                  className="ra-plain-input"
-                  value={form.date}
-                  onChange={handleChange("date")}
-                />
-              </div>
-              {form.date && (
-                <span className="ra-hint">{formatDateLong(form.date)}</span>
-              )}
-            </div>
-
-            <div className="ra-row">
-              <div className="ra-field">
-                <label htmlFor="ra-start">Start Time</label>
-                <div className="ra-icon-input">
-                  <i className="fa-solid fa-clock"></i>
-                  <input
-                    id="ra-start"
-                    type="time"
-                    className="ra-plain-input"
-                    value={form.startTime}
-                    onChange={handleChange("startTime")}
-                  />
-                </div>
-              </div>
-
-              <div className="ra-field">
-                <label htmlFor="ra-end">End Time</label>
-                <div className="ra-icon-input">
-                  <i className="fa-solid fa-clock"></i>
-                  <input
-                    id="ra-end"
-                    type="time"
-                    className="ra-plain-input"
-                    value={form.endTime}
-                    onChange={handleChange("endTime")}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {duration && (
-              <div className="ra-duration-chip">
-                <i className="fa-solid fa-hourglass-half"></i>
-                Duration: {duration}
-              </div>
-            )}
-
-            <div className="ra-field">
-              <label htmlFor="ra-reason">Reason</label>
-              <textarea
-                id="ra-reason"
-                value={form.reason}
-                onChange={handleChange("reason")}
-                className="ra-textarea"
-                placeholder="Briefly explain why this activity needs the room…"
-              />
-            </div>
-          </div>
-
-          <div className="ra-footer">
-            <button
-              className="ra-confirm-btn"
-              onClick={() => setShowModal(true)}
-              disabled={maintenanceBlocked || !canSubmit}
-            >
-              <i className="fa-solid fa-right-to-bracket"></i>
-              Confirm Override
-            </button>
-          </div>
-        </div>
-
-        {/* CONFLICT */}
-        <div className="ra-side">
-          {selectedRoom && (
-            <div className="ra-room-summary">
-              <div className="ra-room-summary-header">
-                <i className="fa-solid fa-building"></i>
-                <span>{selectedRoom.roomName}</span>
-              </div>
-              <div
-                className={`ra-status-pill ${
-                  String(selectedRoom.roomStatus || "").toLowerCase() ===
-                  "maintenance"
-                    ? "is-maintenance"
-                    : "is-available"
-                }`}
-              >
-                {String(selectedRoom.roomStatus || "").toLowerCase() ===
-                "maintenance"
-                  ? "Under Maintenance"
-                  : "Available"}
-              </div>
-            </div>
-          )}
-
-          {checkingConflicts && (
-            <div className="ra-checking">
-              <span className="ra-spinner" />
-              Checking existing schedules…
-            </div>
-          )}
-
-          {!checkingConflicts && conflicts.length > 0 && (
-            <div className="ra-conflict-card">
-              <div className="ra-conflict-title">
-                <i className="fa-solid fa-triangle-exclamation"></i>
-                {conflicts.length} Conflict{conflicts.length > 1 ? "s" : ""}{" "}
-                Detected
-              </div>
-              <p className="ra-conflict-desc">
-                These existing schedules overlap with your requested time.
-                Confirming will notify the affected faculty.
+          ) : paginated.length === 0 ? (
+            <div className="ra-review-empty">
+              <i className="fa-regular fa-folder-open"></i>
+              <p>
+                {searchTerm || roomFilter
+                  ? "No matches for your filters."
+                  : "No requests in this view."}
               </p>
-
-              <div className="ra-conflict-list">
-                {conflicts.map((c) => (
-                  <div key={c.id} className="ra-conflict-item">
-                    <div>
-                      <div className="ra-conflict-code">
-                        {c.subject || c.title || "Untitled Schedule"}
-                        {c.section ? ` (${c.section})` : ""}
-                      </div>
-                      <div className="ra-conflict-time">
-                        {formatTime12(c.startTime)} – {formatTime12(c.endTime)}
-                        {c.faculty ? ` · ${c.faculty}` : ""}
-                      </div>
-                    </div>
-
-                    <button
-                      className="ra-reassign-btn"
-                      onClick={() => navigate("/department-head/reassign-room")}
-                    >
-                      Reassign
-                    </button>
-                  </div>
-                ))}
-              </div>
             </div>
+          ) : (
+            paginated.map((item) => (
+              <ReviewCard key={item.id} item={item}
+                onReview={(mode) => startReview(item, mode)} />
+            ))
           )}
-
-          {!checkingConflicts &&
-            conflicts.length === 0 &&
-            form.room &&
-            form.date &&
-            form.startTime &&
-            form.endTime &&
-            !maintenanceBlocked && (
-              <div className="ra-clear-card">
-                <i className="fa-solid fa-circle-check"></i>
-                No conflicts for this room and time.
-              </div>
-            )}
         </div>
+
+        {/* PAGINATION */}
+        {!loading && totalPages > 1 && (
+          <div className="ra-review-pagination">
+            <span className="ra-review-page-info">
+              Showing {startIdx + 1}–{Math.min(startIdx + ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="ra-review-page-controls">
+              <button disabled={safePage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} aria-label="Previous">
+                <i className="fa-solid fa-chevron-left"></i>
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <button key={p} className={safePage === p ? "active" : ""}
+                  onClick={() => setCurrentPage(p)}>
+                  {p}
+                </button>
+              ))}
+              <button disabled={safePage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} aria-label="Next">
+                <i className="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* MODAL */}
-      {showModal && (
-        <div className="ra-modal-overlay" role="dialog" aria-modal="true">
-          <div className="ra-modal">
-            <div className="ra-modal-icon">
-              <i className="fa-solid fa-right-to-bracket"></i>
+      {reviewing && (
+        <div className="ra-modal-overlay">
+          <div className="ra-modal ra-modal-wide">
+            <div className={`ra-modal-icon ${reviewing.mode === "deny" ? "is-deny" : ""}`}>
+              <i className={`fa-solid ${reviewing.mode === "deny" ? "fa-circle-xmark" : "fa-circle-check"}`}></i>
             </div>
-
-            <h3 className="ra-modal-title">Confirm Override?</h3>
+            <h3 className="ra-modal-title">
+              {reviewing.mode === "deny" ? "Deny Request" : (editMode ? "Edit & Approve" : "Approve Request")}
+            </h3>
             <p className="ra-modal-text">
-              {conflicts.length > 0
-                ? `This will override ${conflicts.length} existing schedule${
-                    conflicts.length > 1 ? "s" : ""
-                  } and notify the affected faculty.`
-                : "This room activity will be created."}
+              {reviewing.mode === "deny"
+                ? "Provide a reason. The clerk will be notified."
+                : "You can adjust details before approving. Only affected faculty will be notified."}
             </p>
 
-            <div className="ra-modal-summary">
-              <div className="ra-modal-summary-row">
-                <i className="fa-solid fa-bookmark"></i>
-                <span>{form.title || "Untitled activity"}</span>
-              </div>
-              <div className="ra-modal-summary-row">
-                <i className="fa-solid fa-door-open"></i>
-                <span>{form.room}</span>
-              </div>
-              <div className="ra-modal-summary-row">
-                <i className="fa-solid fa-calendar-days"></i>
-                <span>{formatDateLong(form.date)}</span>
-              </div>
-              <div className="ra-modal-summary-row">
-                <i className="fa-solid fa-clock"></i>
-                <span>
-                  {formatTime12(form.startTime)} – {formatTime12(form.endTime)}
-                  {duration ? ` (${duration})` : ""}
-                </span>
-              </div>
-            </div>
+            {reviewing.mode === "approve" && (
+              <>
+                <button className="ra-edit-toggle" onClick={() => setEditMode((v) => !v)}>
+                  <i className={`fa-solid ${editMode ? "fa-eye" : "fa-pen-to-square"}`}></i>
+                  {editMode ? "Preview only" : "Edit before approving"}
+                </button>
+
+                {editMode ? (
+                  <div className="ra-edit-grid">
+                    <label>Title<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
+                    <label>Room<input value={draft.roomName} onChange={(e) => setDraft({ ...draft, roomName: e.target.value })} /></label>
+                    <label>Date<input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} /></label>
+                    <div className="ra-row-2">
+                      <label>Start<input type="time" value={draft.startTime} onChange={(e) => setDraft({ ...draft, startTime: e.target.value })} /></label>
+                      <label>End<input type="time" value={draft.endTime} onChange={(e) => setDraft({ ...draft, endTime: e.target.value })} /></label>
+                    </div>
+                    <label>Reason<textarea rows={3} value={draft.reason} onChange={(e) => setDraft({ ...draft, reason: e.target.value })} /></label>
+                  </div>
+                ) : (
+                  <div className="ra-modal-summary">
+                    <div className="ra-modal-summary-row"><i className="fa-solid fa-bookmark"></i><span>{draft.title || "Untitled"}</span></div>
+                    <div className="ra-modal-summary-row"><i className="fa-solid fa-door-open"></i><span>{draft.roomName}</span></div>
+                    <div className="ra-modal-summary-row"><i className="fa-regular fa-calendar"></i><span>{fmtDate(draft.date)}</span></div>
+                    <div className="ra-modal-summary-row"><i className="fa-regular fa-clock"></i><span>{fmt12(draft.startTime)} – {fmt12(draft.endTime)}</span></div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {reviewing.mode === "deny" && (
+              <textarea
+                className="ra-modal-note"
+                rows={3}
+                placeholder="Reason for denial…"
+                value={denyReason}
+                onChange={(e) => setDenyReason(e.target.value)}
+              />
+            )}
 
             <div className="ra-modal-actions">
-              <button
-                className="ra-modal-cancel"
-                onClick={() => setShowModal(false)}
-                disabled={submitting}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="ra-modal-confirm"
-                onClick={handleConfirm}
-                disabled={maintenanceBlocked || submitting}
-              >
-                {submitting ? (
-                  <>
-                    <span className="ra-spinner ra-spinner-light" />
-                    Creating…
-                  </>
-                ) : (
-                  "Confirm"
-                )}
-              </button>
+              <button className="ra-modal-cancel" onClick={() => setReviewing(null)} disabled={processing}>Cancel</button>
+              {reviewing.mode === "deny" ? (
+                <button className="ra-modal-confirm is-deny" onClick={handleDeny} disabled={processing}>
+                  {processing ? "Denying…" : "Deny Request"}
+                </button>
+              ) : (
+                <button className="ra-modal-confirm" onClick={handleApprove} disabled={processing}>
+                  {processing ? "Approving…" : "Approve Request"}
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      <Toast
-        show={toast.show}
-        type={toast.type}
-        title={toast.title}
-        message={toast.message}
-        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
-      />
+      <Toast show={toast.show} type={toast.type} title={toast.title} message={toast.message}
+        onClose={() => setToast((p) => ({ ...p, show: false }))} />
+    </>
+  );
+}
+
+function ReviewCard({ item, onReview }) {
+  const statusMeta = {
+    pending_admin:   { label: "Needs Review", cls: "is-pending" },
+    pending_faculty: { label: "With Faculty", cls: "is-pending-faculty" },
+    approved:        { label: "Approved",     cls: "is-approved" },
+    denied:          { label: "Denied",       cls: "is-denied" },
+    cancelled:       { label: "Cancelled",    cls: "is-cancelled" },
+  }[item.status] || {
+    label: String(item.status || "Unknown").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    cls: "",
+  };
+
+  return (
+    <div className={`ra-review-card ${statusMeta.cls}`}>
+      <div className="ra-review-card-top">
+        <div className="ra-review-card-title-block">
+          <div className="ra-review-card-title">{item.title}</div>
+          <div className="ra-review-card-sub">
+            <span><i className="fa-solid fa-door-open"></i> {item.roomName}</span>
+            <span><i className="fa-regular fa-calendar"></i> {fmtDate(item.date)}</span>
+            <span><i className="fa-regular fa-clock"></i> {fmt12(item.startTime)} – {fmt12(item.endTime)}</span>
+          </div>
+        </div>
+        <span className={`ra-review-status ${statusMeta.cls}`}>{statusMeta.label}</span>
+      </div>
+
+      <div className="ra-review-card-meta">
+        <span className="ra-review-requester">
+          <i className="fa-regular fa-user"></i> {item.requestedByName}
+          <span className="ra-role-pill">{item.requestedByRole}</span>
+        </span>
+        {(item.conflicts?.length || 0) > 0 && (
+          <span className="ra-review-conflict-chip">
+            <i className="fa-solid fa-triangle-exclamation"></i> {item.conflicts.length} conflict{item.conflicts.length > 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
+      {item.reason && (
+        <div className="ra-review-reason">
+          <i className="fa-solid fa-note-sticky"></i>
+          <span>{item.reason}</span>
+        </div>
+      )}
+
+      {item.deniedReason && (
+        <div className="ra-review-reason is-denied">
+          <i className="fa-solid fa-circle-xmark"></i>
+          <span>Denied: {item.deniedReason}</span>
+        </div>
+      )}
+
+      {item.status === "pending_admin" && (
+        <div className="ra-review-actions">
+          <button className="ra-review-btn is-approve" onClick={() => onReview("approve")}>
+            <i className="fa-solid fa-circle-check"></i> Review & Approve
+          </button>
+          <button className="ra-review-btn is-deny" onClick={() => onReview("deny")}>
+            <i className="fa-solid fa-circle-xmark"></i> Deny
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+export default RoomActivity;
