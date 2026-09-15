@@ -1,11 +1,33 @@
 .lrp-page {
   width: 100%;
-  margin-top: 130px;
+  margin-top: 80px;
   padding: 20px;
   background-color: #F8F7F5;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+/* ═══════════ PAGE HEADER ═══════════ */
+.lrp-page-header {
+  width: 100%;
+  max-width: 580px;
+  margin-bottom: 24px;
+  margin-top: 4px;
+}
+
+.lrp-page-header h1 {
+  font-size: 35px;
+  font-weight: 800;
+  color: #1F2937;
+  margin: 0;
+}
+
+.lrp-page-header p {
+  margin: 6px 0 0;
+  color: #6B7280;
+  font-size: 15px;
+  font-weight: 300;
 }
 
 .lrp-card {
@@ -20,7 +42,7 @@
   flex-direction: column;
   align-items: center;
   gap: 24px;
-  margin-top: -20px;
+  margin-top: 0;
 }
 
 .lrp-edit-btn {
@@ -305,4 +327,12 @@
 @keyframes lrpToastIn {
   from { opacity: 0; transform: translateY(-10px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  .lrp-page-header h1 {
+    font-size: 26px;
+  }
+  .lrp-page-header p {
+    font-size: 13.5px;
+  }
 }

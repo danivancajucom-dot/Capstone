@@ -19,7 +19,6 @@ import LocalRegistrarSettings from "./LocalRegistrar/LocalRegistrarSettings/Loca
 // Department Head
 import DepartmentHeadConflicts from "./DepartmentHead/DepartmentHeadConflicts/DepartmentHeadConflicts";
 import DepartmentHeadLayout from "./DepartmentHead/DepartmentHeadLayout/DepartmentHeadLayout";
-import DepartmentHeadReassignRoom from "./DepartmentHead/DepartmentHeadConflicts/DepartmentHeadReassignRoom";
 import DepartmentHeadReservations from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadReservations";
 import DepartmentHeadViewReservation from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservation";
 import DepartmentHeadViewReservationApproved from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservationApproved";
@@ -41,6 +40,7 @@ import DepartmentHeadRoomUsage from "./DepartmentHead/DepartmentHeadRoomUsageTra
 import DepartmentHeadViewReservationCancelled from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservationCancelled";
 import DepartmentHeadSettings from "./DepartmentHead/DepartmentHeadSettings/DepartmentHeadSettings";
 import DepartmentHeadRoomIssues from "./DepartmentHead/DepartmentHeadRoomIssues/DepartmentHeadRoomIssues";
+import DepartmentHeadReassignment from "./DepartmentHead/DepartmentHeadReassignments/DepartmentHeadReassignments";
 
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
@@ -63,7 +63,7 @@ import ClerkAddRoom from "./Clerk/ClerkRoomManagement/AddRoom/RoomManagementAddR
 import ClerkEditRoom from "./Clerk/ClerkRoomManagement/EditDetails/RoomManagementEditDetails";
 import ClerkRoomActivity from "./Clerk/ClerkRoomActivity/RoomActivity";
 import ClerkConflicts from "./Clerk/ClerkConflicts/ClerkConflicts";
-import ClerkConflictReassignRoom from "./Clerk/ClerkConflicts/ClerkReassignRoom";
+import ClerkReassignRoom from "./Clerk/ClerkConflicts/ClerkReassignRoom";
 import ClerkSettings from "./Clerk/ClerkSettings/ClerkSettings";
 import ClerkRoomIssues from "./Clerk/ClerkRoomIssues/ClerkRoomIssues";
 
@@ -101,7 +101,6 @@ function App() {
         <Route path="profile" element={<DepartmentHeadProfile />} />
         <Route path="activity-log" element={<DepartmentHeadActivityLog />} />
         <Route path="conflicts" element={<DepartmentHeadConflicts />}  />
-        <Route path="reassign-room" element={<DepartmentHeadReassignRoom />}/>
         <Route path="reservations" element={<DepartmentHeadReservations />} />
         <Route path="view-reservation" element={<DepartmentHeadViewReservation />}/>
         <Route path="view-reservation-approved" element={<DepartmentHeadViewReservationApproved />}/>
@@ -120,7 +119,7 @@ function App() {
         <Route path="room-usagement" element={<DepartmentHeadRoomUsage />} />
         <Route path="settings" element={<DepartmentHeadSettings />} />
         <Route path="room-issues" element={<DepartmentHeadRoomIssues />} />
-
+        <Route path="reassign-room" element={<DepartmentHeadReassignment />} />
       </Route>
         {/* Local Registrar */}
         <Route path="/local-registrar" element={<LocalRegistrarLayout />}>
@@ -173,7 +172,7 @@ function App() {
           <Route path="edit-room/:id" element={<ClerkEditRoom />} />
           <Route path="room-activity" element={<ClerkRoomActivity />} />
           <Route path="conflicts" element={<ClerkConflicts />} />
-          <Route path="reassign-room" element={<ClerkConflictReassignRoom />} />
+          <Route path="reassign-room" element={<ClerkReassignRoom />} />
           <Route path="settings" element={<ClerkSettings />} />
           <Route path="room-issues" element={<ClerkRoomIssues />} />
         </Route>

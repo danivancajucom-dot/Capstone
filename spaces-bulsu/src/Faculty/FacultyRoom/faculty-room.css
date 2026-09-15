@@ -441,3 +441,13 @@ html, body {
     bottom: 84px;
   }
 }
+
+/* ═══════════ Watching chip sa filter bar ═══════════ */
+.filter-chip.is-watching {
+  background: #eef2ff;
+  color: #4f46e5;
+  border-color: #c7d2fe;
+}
+.filter-chip.is-watching i {
+  color: #6366f1;
+}

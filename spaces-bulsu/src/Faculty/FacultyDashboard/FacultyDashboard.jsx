@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import './faculty-dashboard.css';
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../../firebase";
@@ -14,16 +14,16 @@ import {
   where,
   orderBy,
   limit,
-  onSnapshot, // 👈 NEW
+  onSnapshot,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 const DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const DAY_TO_INDEX = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
 
-// -----------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────
 // Helpers
-// -----------------------------------------------------------------
-
+// ─────────────────────────────────────────────────────────────────
 const normalizeName = (name = "") =>
   name
     .toLowerCase()
@@ -46,10 +46,12 @@ const schoolYearStart = (sy = "") => {
 
 const parseTimeParts = (time) => {
   const [h, m] = (time || "0:0").split(":").map(Number);
-  return [
-    Number.isNaN(h) ? 0 : h,
-    Number.isNaN(m) ? 0 : m,
-  ];
+  return [Number.isNaN(h) ? 0 : h, Number.isNaN(m) ? 0 : m];
+};
+
+const toMinutes = (time) => {
+  const [h, m] = parseTimeParts(time);
+  return h * 60 + m;
 };
 
 const formatTime = (time) => {
@@ -108,7 +110,16 @@ const toDateStr = (date) => {
   return `${y}-${m}-${d}`;
 };
 
-// ─── Announcement helpers ───────────────────────────────────────────
+// ─── Overlap detection ─────────────────────────────────────────────
+const timesOverlap = (s1, e1, s2, e2) => {
+  const a1 = toMinutes(s1);
+  const b1 = toMinutes(e1);
+  const a2 = toMinutes(s2);
+  const b2 = toMinutes(e2);
+  return a1 < b2 && b1 > a2;
+};
+
+// ─── Announcement helpers ──────────────────────────────────────────
 const getInitials = (name = "") => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -138,39 +149,25 @@ const announcementPreview = (a) => {
   return "New announcement";
 };
 
-// ─── Kind metadata (color/icon/label per class type) ───────────────
 const getKindMeta = (item) => {
   if (item.isOnline) {
-    return {
-      key: "online",
-      label: "Online",
-      icon: "fa-solid fa-wifi",
-    };
+    return { key: "online", label: "Online", icon: "fa-solid fa-wifi" };
   }
   if (item.kind === "reservation") {
-    return {
-      key: "reservation",
-      label: "Reservation",
-      icon: "fa-solid fa-bookmark",
-    };
+    return { key: "reservation", label: "Reservation", icon: "fa-solid fa-bookmark" };
   }
   if (item.kind === "reassignment") {
-    return {
-      key: "reassignment",
-      label: "Moved",
-      icon: "fa-solid fa-right-left",
-    };
+    return { key: "reassignment", label: "Moved", icon: "fa-solid fa-right-left" };
   }
-  return {
-    key: "schedule",
-    label: "Class",
-    icon: "fa-solid fa-chalkboard-user",
-  };
+  if (item.kind === "event") {
+    return { key: "event", label: "Room Activity", icon: "fa-solid fa-calendar-plus" };
+  }
+  return { key: "schedule", label: "Class", icon: "fa-solid fa-chalkboard-user" };
 };
 
-// -----------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────
 // Main Component
-// -----------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────
 export default function FacultyDashboard({ onLogout }) {
   const navigate = useNavigate();
 
@@ -178,39 +175,254 @@ export default function FacultyDashboard({ onLogout }) {
   const [activeTerm, setActiveTerm] = useState(null);
   const [latestSchedules, setLatestSchedules] = useState([]);
   const [facultyName, setFacultyName] = useState("");
+  const [myUid, setMyUid] = useState(null);
+  const [myRoomIds, setMyRoomIds] = useState([]);
 
-  // ─── Online classes ──────────────────────────────────────────────
+  // ─── Realtime override states ────────────────────────────────────
   const [onlineSchedules, setOnlineSchedules] = useState([]);
-
   const [releasedKeys, setReleasedKeys] = useState(new Set());
   const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
   const [reassignedInto, setReassignedInto] = useState([]);
   const [approvedReservations, setApprovedReservations] = useState([]);
+  const [myRoomEvents, setMyRoomEvents] = useState([]); // for override detection
 
-  // ─── Department Head announcements ──────────────────────────────
+  // ─── Announcements ──────────────────────────────────────────────
   const [deptAnnouncements, setDeptAnnouncements] = useState([]);
   const [announcementLoading, setAnnouncementLoading] = useState(true);
   const [likeBusyId, setLikeBusyId] = useState(null);
 
   const [bannerIndex, setBannerIndex] = useState(0);
-
   const [, forceTick] = useState(0);
+
+  const unsubsRef = useRef([]);
+  const baseLoadedRef = useRef(false);
+
+  // ─── 60-second tick for countdowns ──────────────────────────────
   useEffect(() => {
     const id = setInterval(() => forceTick((t) => t + 1), 60000);
     return () => clearInterval(id);
   }, []);
 
+  // ════════════════════════════════════════════════════════════════
+  // MAIN SETUP — Base load + realtime listeners
+  // ════════════════════════════════════════════════════════════════
   useEffect(() => {
-    loadMySchedule();
+    let isCancelled = false;
+
+    const cleanup = () => {
+      unsubsRef.current.forEach((u) => {
+        try { u(); } catch (e) { /* ignore */ }
+      });
+      unsubsRef.current = [];
+    };
+
+    const setup = async (user) => {
+      if (isCancelled || !user) return;
+
+      cleanup();
+      setLoading(true);
+      setMyUid(user.uid);
+
+      try {
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        if (!userSnap.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const me = userSnap.data();
+        setFacultyName(me.firstName || "");
+
+        const myName = normalizeName(
+          `${me.lastName}, ${me.firstName}${me.middleInitial ? ` ${me.middleInitial}` : ""}`
+        );
+
+        // ─── 1. BASE: Load rooms + schedules (static) ────────────
+        const roomsSnap = await getDocs(collection(db, "rooms"));
+        const matchedSchedules = [];
+
+        for (const roomDoc of roomsSnap.docs) {
+          const room = { id: roomDoc.id, ...roomDoc.data() };
+          const scheduleSnap = await getDocs(
+            collection(db, "rooms", roomDoc.id, "schedules")
+          );
+
+          scheduleSnap.docs.forEach((d) => {
+            const s = d.data();
+            if (s.initialized) return;
+            if (!s.faculty) return;
+            if (normalizeName(s.faculty) === myName) {
+              matchedSchedules.push({
+                id: d.id,
+                ...s,
+                roomId: room.id,
+                roomName: room.roomName,
+              });
+            }
+          });
+        }
+
+        if (isCancelled) return;
+
+        let roomIds = [];
+
+        if (matchedSchedules.length > 0) {
+          const rank = (s) => [
+            schoolYearStart(s.schoolYear),
+            semesterRank(s.semester),
+          ];
+
+          const latest = matchedSchedules.reduce((best, cur) => {
+            const [by, bs] = rank(best);
+            const [cy, cs] = rank(cur);
+            if (cy > by || (cy === by && cs > bs)) return cur;
+            return best;
+          }, matchedSchedules[0]);
+
+          const filtered = matchedSchedules.filter(
+            (s) =>
+              (s.schoolYear || "") === (latest.schoolYear || "") &&
+              (s.semester || "") === (latest.semester || "")
+          );
+
+          setLatestSchedules(filtered);
+          setActiveTerm({
+            semester: latest.semester,
+            schoolYear: latest.schoolYear,
+          });
+          roomIds = [...new Set(filtered.map((s) => s.roomId))];
+        } else {
+          setLatestSchedules([]);
+          setActiveTerm(null);
+        }
+
+        setMyRoomIds(roomIds);
+        baseLoadedRef.current = true;
+        setLoading(false);
+
+        // ─── 2. REALTIME: Online classes ─────────────────────────
+        const unsubOnline = onSnapshot(
+          query(
+            collection(db, "facultySchedules"),
+            where("userId", "==", user.uid)
+          ),
+          (snap) => {
+            setOnlineSchedules(
+              snap.docs.map((d) => ({ id: d.id, ...d.data(), isOnline: true }))
+            );
+          },
+          (err) => {
+            console.warn("Online schedules listener:", err);
+            setOnlineSchedules([]);
+          }
+        );
+        unsubsRef.current.push(unsubOnline);
+
+        // ─── 3. REALTIME: Releases ───────────────────────────────
+        const unsubReleases = onSnapshot(
+          query(
+            collection(db, "roomReleases"),
+            where("releasedBy", "==", user.uid)
+          ),
+          (snap) => {
+            const keys = new Set(
+              snap.docs.map((d) => {
+                const r = d.data();
+                return `${r.scheduleId}_${r.date}`;
+              })
+            );
+            setReleasedKeys(keys);
+          },
+          (err) => console.warn("Releases listener:", err)
+        );
+        unsubsRef.current.push(unsubReleases);
+
+        // ─── 4. REALTIME: Reassignments ──────────────────────────
+        const unsubReassign = onSnapshot(
+          query(
+            collection(db, "roomReassignments"),
+            where("facultyId", "==", user.uid)
+          ),
+          (snap) => {
+            const all = snap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter(
+                (r) => String(r.status || "").toLowerCase() === "approved"
+              );
+
+            const away = new Set(
+              all
+                .filter((r) => r.oldRoomId)
+                .map((r) => `${r.scheduleId}_${r.date}`)
+            );
+            setReassignedAwayKeys(away);
+            setReassignedInto(all);
+          },
+          (err) => console.warn("Reassignments listener:", err)
+        );
+        unsubsRef.current.push(unsubReassign);
+
+        // ─── 5. REALTIME: Approved Reservations ─────────────────
+        const unsubReservations = onSnapshot(
+          collection(db, "reservationRequests"),
+          (snap) => {
+            const mine = snap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter((r) => {
+                const isOwnerById =
+                  r.userId === user.uid || r.createdBy === user.uid;
+                const isOwnerByName =
+                  normalizeName(r.requesterName || r.facultyName || "") ===
+                  myName;
+                const isApproved =
+                  String(r.status || "").toLowerCase() === "approved";
+                return (isOwnerById || isOwnerByName) && isApproved;
+              });
+            setApprovedReservations(mine);
+          },
+          (err) => console.warn("Reservations listener:", err)
+        );
+        unsubsRef.current.push(unsubReservations);
+
+        // ─── 6. REALTIME: Room Events (for override detection) ──
+        // Listen to ALL events, filter client-side by myRoomIds
+        const unsubEvents = onSnapshot(
+          collection(db, "events"),
+          (snap) => {
+            const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const mine = all.filter(
+              (e) =>
+                roomIds.includes(e.roomId) && e.status !== "Cancelled"
+            );
+            setMyRoomEvents(mine);
+          },
+          (err) => console.warn("Events listener:", err)
+        );
+        unsubsRef.current.push(unsubEvents);
+      } catch (err) {
+        console.error("Setup error:", err);
+        setLoading(false);
+      }
+    };
+
+    // Listen for auth state — safer than relying on currentUser
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) setup(user);
+    });
+
+    return () => {
+      isCancelled = true;
+      unsubAuth();
+      cleanup();
+    };
   }, []);
 
-  // ─── 🔴 REAL-TIME ANNOUNCEMENT LISTENER ────────────────────────
+  // ════════════════════════════════════════════════════════════════
+  // ANNOUNCEMENTS — realtime
+  // ════════════════════════════════════════════════════════════════
   useEffect(() => {
     setAnnouncementLoading(true);
 
-    // We listen to the newest 15 announcements and then filter client-side.
-    // Firestore will keep this in sync — new docs, edits, and like changes
-    // will all stream in automatically.
     const annQuery = query(
       collection(db, "broadcastChannels"),
       orderBy("createdAt", "desc"),
@@ -241,161 +453,9 @@ export default function FacultyDashboard({ onLogout }) {
     return () => unsubscribe();
   }, []);
 
-  // ─── MAIN LOAD FUNCTION ──────────────────────────────────────────
-  const loadMySchedule = async () => {
-    setLoading(true);
-
-    try {
-      const firebaseUser = auth.currentUser;
-      if (!firebaseUser) {
-        setLoading(false);
-        return;
-      }
-
-      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-      if (!userSnap.exists()) {
-        setLoading(false);
-        return;
-      }
-
-      const me = userSnap.data();
-      setFacultyName(me.firstName || "");
-
-      const myName = normalizeName(
-        `${me.lastName}, ${me.firstName}${me.middleInitial ? ` ${me.middleInitial}` : ""}`
-      );
-
-      // ─── 1. LOAD ACADEMIC SCHEDULES ──────────────────────────
-      const roomsSnap = await getDocs(collection(db, "rooms"));
-      const matchedSchedules = [];
-
-      for (const roomDoc of roomsSnap.docs) {
-        const room = { id: roomDoc.id, ...roomDoc.data() };
-
-        const scheduleSnap = await getDocs(
-          collection(db, "rooms", roomDoc.id, "schedules")
-        );
-
-        scheduleSnap.docs.forEach((d) => {
-          const s = d.data();
-          if (s.initialized) return;
-          if (!s.faculty) return;
-
-          if (normalizeName(s.faculty) === myName) {
-            matchedSchedules.push({
-              id: d.id,
-              ...s,
-              roomId: room.id,
-              roomName: room.roomName,
-            });
-          }
-        });
-      }
-
-      // Set schedules & active term (if any)
-      if (matchedSchedules.length > 0) {
-        const rank = (s) => [
-          schoolYearStart(s.schoolYear),
-          semesterRank(s.semester),
-        ];
-
-        const latest = matchedSchedules.reduce((best, cur) => {
-          const [by, bs] = rank(best);
-          const [cy, cs] = rank(cur);
-          if (cy > by || (cy === by && cs > bs)) return cur;
-          return best;
-        }, matchedSchedules[0]);
-
-        const filtered = matchedSchedules.filter(
-          (s) =>
-            (s.schoolYear || "") === (latest.schoolYear || "") &&
-            (s.semester || "") === (latest.semester || "")
-        );
-
-        setLatestSchedules(filtered);
-        setActiveTerm({
-          semester: latest.semester,
-          schoolYear: latest.schoolYear,
-        });
-      } else {
-        setLatestSchedules([]);
-        setActiveTerm(null);
-      }
-
-      // ─── 2. LOAD ONLINE CLASSES ──────────────────────────────
-      try {
-        const onlineQuery = query(
-          collection(db, "facultySchedules"),
-          where("userId", "==", firebaseUser.uid)
-        );
-        const onlineSnap = await getDocs(onlineQuery);
-        const onlineList = onlineSnap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-          isOnline: true,
-        }));
-        setOnlineSchedules(onlineList);
-      } catch (err) {
-        console.warn("Failed to load online schedules:", err);
-        setOnlineSchedules([]);
-      }
-
-      // ─── 3. LOAD RELEASES ──────────────────────────────────
-      const releaseSnap = await getDocs(collection(db, "roomReleases"));
-      const keys = new Set(
-        releaseSnap.docs
-          .map((d) => d.data())
-          .filter((r) => r.releasedBy === firebaseUser.uid)
-          .map((r) => `${r.scheduleId}_${r.date}`)
-      );
-      setReleasedKeys(keys);
-
-      // ─── 4. LOAD REASSIGNMENTS ─────────────────────────────
-      const reassignSnap = await getDocs(collection(db, "roomReassignments"));
-      const allReassignments = reassignSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter(
-          (r) =>
-            String(r.status || "").toLowerCase() === "approved" &&
-            r.facultyId === firebaseUser.uid
-        );
-
-      const awayKeys = new Set(
-        allReassignments
-          .filter((r) => r.oldRoomId)
-          .map((r) => `${r.scheduleId}_${r.date}`)
-      );
-      setReassignedAwayKeys(awayKeys);
-      setReassignedInto(allReassignments);
-
-      // ─── 5. LOAD APPROVED RESERVATIONS ────────────────────
-      const reservationSnap = await getDocs(
-        collection(db, "reservationRequests")
-      );
-
-      const myReservations = reservationSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((r) => {
-          const isOwnerById =
-            r.userId === firebaseUser.uid ||
-            r.createdBy === firebaseUser.uid;
-          const isOwnerByName =
-            normalizeName(r.requesterName || r.facultyName || "") === myName;
-          const isApproved =
-            String(r.status || "").toLowerCase() === "approved";
-          return (isOwnerById || isOwnerByName) && isApproved;
-        });
-
-      setApprovedReservations(myReservations);
-
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─── Like / unlike an announcement ───────────────────────────────
+  // ════════════════════════════════════════════════════════════════
+  // Like / unlike an announcement
+  // ════════════════════════════════════════════════════════════════
   const toggleAnnouncementLike = async (announcementId) => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser || likeBusyId) return;
@@ -406,7 +466,6 @@ export default function FacultyDashboard({ onLogout }) {
     const currentLikes = target.reactions?.like || [];
     const hasLiked = currentLikes.includes(firebaseUser.uid);
 
-    // Optimistic UI update — instant feedback
     setLikeBusyId(announcementId);
     setDeptAnnouncements((prev) =>
       prev.map((a) => {
@@ -425,10 +484,8 @@ export default function FacultyDashboard({ onLogout }) {
           ? arrayRemove(firebaseUser.uid)
           : arrayUnion(firebaseUser.uid),
       });
-      // onSnapshot will also sync — the optimistic update just makes it feel instant
     } catch (err) {
       console.error("Failed to toggle like:", err);
-      // Roll back on failure
       setDeptAnnouncements((prev) =>
         prev.map((a) => (a.id === announcementId ? target : a))
       );
@@ -437,7 +494,9 @@ export default function FacultyDashboard({ onLogout }) {
     }
   };
 
-  // ─── Compute all items ──────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════
+  // COMPUTE DERIVED ITEMS
+  // ════════════════════════════════════════════════════════════════
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const todayAbbrev = DAY_LABELS[now.getDay()];
@@ -446,14 +505,30 @@ export default function FacultyDashboard({ onLogout }) {
   const allItems = useMemo(() => {
     const items = [];
 
+    // ── Helper: is a schedule overridden by a room event? ──
+    const isOverridden = (schedule, dateStr) => {
+      return myRoomEvents.some((ev) => {
+        if (ev.roomId !== schedule.roomId) return false;
+        if (ev.date !== dateStr) return false;
+        return timesOverlap(
+          schedule.startTime,
+          schedule.endTime,
+          ev.startTime,
+          ev.endTime
+        );
+      });
+    };
+
     // ── Academic schedules ──
     latestSchedules.forEach((s) => {
       const occurrenceDate = getNextOccurrenceDate(s.day, s.startTime, now);
       if (!occurrenceDate) return;
       const dateStr = toDateStr(occurrenceDate);
       const key = `${s.id}_${dateStr}`;
+
       if (releasedKeys.has(key)) return;
       if (reassignedAwayKeys.has(key)) return;
+      if (isOverridden(s, dateStr)) return; // ✨ override filter
 
       items.push({
         id: s.id,
@@ -547,6 +622,7 @@ export default function FacultyDashboard({ onLogout }) {
     reassignedAwayKeys,
     reassignedInto,
     approvedReservations,
+    myRoomEvents,
     now,
     todayStr,
   ]);
@@ -605,12 +681,14 @@ export default function FacultyDashboard({ onLogout }) {
   const latestAnnouncement = deptAnnouncements[0] || null;
   const currentUid = auth.currentUser?.uid;
 
-  // ─── Render ────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════════════
   return (
     <div className="dashboard-shell">
       <div className="container">
         <main className="dashboard-main">
-          {/* ─── DEPARTMENT HEAD ANNOUNCEMENT (TOP) ────────────────── */}
+          {/* ─── ANNOUNCEMENT ───────────────────────────────────── */}
           {announcementLoading ? (
             <div className="announce-card is-skeleton">
               <div className="announce-skeleton-avatar"></div>
@@ -624,7 +702,6 @@ export default function FacultyDashboard({ onLogout }) {
             <div className="announce-card">
               <div className="announce-card-glow" aria-hidden="true" />
 
-              {/* top strip */}
               <div className="announce-strip">
                 <span className="announce-strip-label">
                   <i className="fa-solid fa-bullhorn"></i>
@@ -637,12 +714,10 @@ export default function FacultyDashboard({ onLogout }) {
                 </span>
               </div>
 
-              {/* author row */}
               <div className="announce-top">
                 <div className="announce-avatar">
                   {getInitials(latestAnnouncement.senderName)}
                 </div>
-
                 <div className="announce-meta">
                   <div className="announce-meta-row">
                     <strong>{latestAnnouncement.senderName || "Department Head"}</strong>
@@ -654,7 +729,6 @@ export default function FacultyDashboard({ onLogout }) {
                 </div>
               </div>
 
-              {/* body */}
               <p className="announce-text">
                 {announcementPreview(latestAnnouncement)}
               </p>
@@ -669,7 +743,6 @@ export default function FacultyDashboard({ onLogout }) {
                 </div>
               )}
 
-              {/* actions */}
               <div className="announce-actions">
                 <button
                   className={`announce-like-btn ${
@@ -710,7 +783,7 @@ export default function FacultyDashboard({ onLogout }) {
             </div>
           ) : null}
 
-          {/* ─── PAGE HEADER ──────────────────────────────────────── */}
+          {/* ─── HEADER ─────────────────────────────────────────── */}
           <div className="dash-header">
             <div className="dash-greeting">
               <div className="dash-greeting-icon">
@@ -739,7 +812,7 @@ export default function FacultyDashboard({ onLogout }) {
             </button>
           </div>
 
-          {/* ─── STAT CHIPS ───────────────────────────────────────── */}
+          {/* ─── STAT CHIPS ─────────────────────────────────────── */}
           {loading ? (
             <div className="dash-stats-row">
               <div className="stat-skeleton"></div>
@@ -785,7 +858,7 @@ export default function FacultyDashboard({ onLogout }) {
             </div>
           ) : null}
 
-          {/* ─── TODAY'S SCHEDULE ─────────────────────────────────── */}
+          {/* ─── TODAY'S SCHEDULE ───────────────────────────────── */}
           <section className="today-card">
             <div className="card-header">
               <div>
@@ -814,7 +887,9 @@ export default function FacultyDashboard({ onLogout }) {
               <div className="schedule-empty">
                 <i className="fa-regular fa-calendar-check"></i>
                 <p>No classes scheduled for today.</p>
-                <span className="schedule-empty-hint">Enjoy the free day, or check your upcoming classes below.</span>
+                <span className="schedule-empty-hint">
+                  Enjoy the free day, or check your upcoming classes below.
+                </span>
               </div>
             ) : (
               <>
@@ -885,7 +960,10 @@ export default function FacultyDashboard({ onLogout }) {
 
                       {ongoingProgress !== null && (
                         <div className="banner-progress-track">
-                          <div className="banner-progress-fill" style={{ width: `${ongoingProgress}%` }} />
+                          <div
+                            className="banner-progress-fill"
+                            style={{ width: `${ongoingProgress}%` }}
+                          />
                         </div>
                       )}
                     </div>
@@ -952,7 +1030,9 @@ export default function FacultyDashboard({ onLogout }) {
                             {item.isToday && <span className="today-chip">Today</span>}
                           </div>
 
-                          {item.section && <span className="upcoming-section-label">{item.section}</span>}
+                          {item.section && (
+                            <span className="upcoming-section-label">{item.section}</span>
+                          )}
 
                           <div className="class-info">
                             <span>

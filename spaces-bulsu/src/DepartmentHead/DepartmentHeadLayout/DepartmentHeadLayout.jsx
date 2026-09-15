@@ -202,10 +202,6 @@ export default function DepartmentHeadLayout() {
               <i className="fa-solid fa-house"></i>
               <span>Dashboard</span>
             </NavLink>
-            <NavLink to="/department-head/conflicts">
-              <i className="fa-solid fa-triangle-exclamation"></i>
-              <span>Conflicts</span>
-            </NavLink>
             <NavLink to="/department-head/reservations">
               <i className="fa-solid fa-bookmark"></i>
               <span>Reservations</span>
@@ -228,9 +224,9 @@ export default function DepartmentHeadLayout() {
               </button>
 
               <div className={`submenu-card ${openRoom ? "open" : ""}`}>
-              <NavLink to="/department-head/room-activity"> Room Activity </NavLink>
-              <NavLink to="/department-head/room-issues"> Room Issues </NavLink>                
-              <NavLink to="/department-head/room-usagement">Room Usage Tracking</NavLink>
+              <NavLink to="/department-head/room-activity">Room Activity </NavLink>
+              <NavLink to="/department-head/room-issues">Room Issues </NavLink>                
+              <NavLink to="/department-head/reassign-room">Room Reassignments</NavLink>
               </div>
             </div>
 

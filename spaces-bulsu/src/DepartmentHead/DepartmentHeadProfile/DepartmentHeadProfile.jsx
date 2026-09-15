@@ -168,6 +168,10 @@ export default function DepartmentHeadProfile() {
   if (loading) {
     return (
       <div className="dhp-page">
+        <div className="dhp-page-header">
+          <h1>My Profile</h1>
+          <p>View and manage your personal information and account details.</p>
+        </div>
         <div className="dhp-card">
           <p style={{ color: "#6b7280" }}>Loading profile...</p>
         </div>
@@ -177,6 +181,12 @@ export default function DepartmentHeadProfile() {
 
   return (
     <div className="dhp-page">
+
+      {/* ── PAGE HEADER ── */}
+      <div className="dhp-page-header">
+        <h1>My Profile</h1>
+        <p>View and manage your personal information and account details.</p>
+      </div>
 
       {toast && (
         <div className={`dhp-toast ${toast.type}`}>

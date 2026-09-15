@@ -1,5 +1,4 @@
 import "./conflict-card.css";
-import { useNavigate } from "react-router-dom";
 
 const STATUS_META = {
   active: { label: "Active", className: "status-active" },
@@ -15,12 +14,10 @@ const toMinutes = (time) => {
 };
 
 const formatDuration = (startTime, endTime) => {
-  const start = toMinutes(startTime);
-  const end = toMinutes(endTime);
-  if (start == null || end == null || end <= start) return "";
-  const mins = end - start;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
+  const s = toMinutes(startTime), e = toMinutes(endTime);
+  if (s == null || e == null || e <= s) return "";
+  const mins = e - s;
+  const h = Math.floor(mins / 60), m = mins % 60;
   if (h && m) return `${h}h ${m}m`;
   if (h) return `${h}h`;
   return `${m}m`;
@@ -36,20 +33,14 @@ const formatDate = (dateStr) => {
 function ConflictCard({
   conflict,
   showReassign = true,
-  // ─── Navigation paths (per-role) ──────────────────────────────
-  // Pass these from the parent so the card stays role-agnostic.
-  reassignPath = "/department-head/reassign-room",
-  backPath = "/department-head/conflicts",
+  onReassignClick,   // called when Reassign pressed — parent opens chooser modal
 }) {
-  const navigate = useNavigate();
-
   const formatTime = (time) => {
     if (!time) return "";
     const [hour, minute] = time.split(":");
-    return new Date(0, 0, 0, hour, minute).toLocaleTimeString(
-      "en-US",
-      { hour: "numeric", minute: "2-digit", hour12: true }
-    );
+    return new Date(0, 0, 0, hour, minute).toLocaleTimeString("en-US", {
+      hour: "numeric", minute: "2-digit", hour12: true,
+    });
   };
 
   const status = STATUS_META[conflict.status] || STATUS_META.active;
@@ -59,16 +50,6 @@ function ConflictCard({
   const isResolved = conflict.status === "resolved";
   const isApproved = conflict.resolution === "approved";
 
-  // ─── Handles the click when reassign is available ─────────────
-  const handleReassignClick = () => {
-    navigate(reassignPath, {
-      state: {
-        conflict,
-        from: backPath,
-      },
-    });
-  };
-
   return (
     <div className={`conflict-card ${status.className}`}>
       <div className="conflict-card-top">
@@ -76,12 +57,10 @@ function ConflictCard({
           <div className="conflict-card-icon">
             <i className="fa-solid fa-triangle-exclamation"></i>
           </div>
-
           <div className="conflict-card-info">
             <span className="conflict-card-title">
               {conflict.roomName} — Schedule Conflict
             </span>
-
             <span className="conflict-card-subtitle">
               {conflict.floor ? `Floor ${conflict.floor}` : ""}
               {conflict.floor && dateLabel ? " • " : ""}
@@ -89,27 +68,21 @@ function ConflictCard({
             </span>
           </div>
         </div>
-
         <span className={`conflict-status-badge ${status.className}`}>{status.label}</span>
       </div>
 
       <div className="conflict-detail-grid">
         <div className="conflict-detail-block">
           <div className="conflict-detail-label">
-            <i className="fa-solid fa-chalkboard-user"></i>
-            Original Class
+            <i className="fa-solid fa-chalkboard-user"></i> Original Class
           </div>
-
           <div className="conflict-detail-main">{conflict.courseTitle || "Untitled Course"}</div>
           {conflict.section && <div className="conflict-detail-sub">{conflict.section}</div>}
-
           {conflict.faculty && (
             <div className="conflict-detail-meta">
-              <i className="fa-regular fa-user"></i>
-              {conflict.faculty}
+              <i className="fa-regular fa-user"></i> {conflict.faculty}
             </div>
           )}
-
           <div className="conflict-detail-meta">
             <i className="fa-regular fa-clock"></i>
             {conflict.day} • {formatTime(conflict.startTime)} - {formatTime(conflict.endTime)}
@@ -122,15 +95,12 @@ function ConflictCard({
 
         <div className="conflict-detail-block is-activity">
           <div className="conflict-detail-label">
-            <i className="fa-solid fa-calendar-plus"></i>
-            Conflicting Activity
+            <i className="fa-solid fa-calendar-plus"></i> Conflicting Activity
           </div>
-
           <div className="conflict-detail-main">{conflict.activityTitle || "Untitled Activity"}</div>
           {conflict.activityReason && (
             <div className="conflict-detail-sub">{conflict.activityReason}</div>
           )}
-
           <div className="conflict-detail-meta">
             <i className="fa-regular fa-clock"></i>
             {formatTime(conflict.conflictStartTime)} - {formatTime(conflict.conflictEndTime)}
@@ -140,12 +110,10 @@ function ConflictCard({
 
       {overlapDuration && (
         <div className="conflict-overlap-chip">
-          <i className="fa-solid fa-circle-exclamation"></i>
-          Overlaps for {overlapDuration}
+          <i className="fa-solid fa-circle-exclamation"></i> Overlaps for {overlapDuration}
         </div>
       )}
 
-      {/* ─── Resolution info ──────────────────────────────────────────── */}
       {isResolved && conflict.resolutionReason && (
         <div className="conflict-resolution-box">
           <span className={`resolution-badge ${isApproved ? "approved" : "denied"}`}>
@@ -157,23 +125,22 @@ function ConflictCard({
         </div>
       )}
 
-      {/* ─── Footer ────────────────────────────────────────────────────── */}
       {conflict.status === "active" ? (
         conflict.reassignPending ? (
           <div className="reassign-pending-badge">
-            <i className="fa-solid fa-hourglass-half"></i>
-            Reassignment Pending
+            <i className="fa-solid fa-hourglass-half"></i> Reassignment Pending
           </div>
         ) : showReassign ? (
-          <button className="reassign-btn" onClick={handleReassignClick}>
-            <i className="fa-solid fa-right-left"></i>
-            Reassign Room
+          <button className="reassign-btn" onClick={onReassignClick}>
+            <i className="fa-solid fa-right-left"></i> Reassign Room
           </button>
         ) : null
       ) : (
         <div className={`conflict-footer-note ${status.className}`}>
           <i className={`fa-solid ${conflict.status === "resolved" ? "fa-circle-check" : "fa-clock-rotate-left"}`}></i>
-          {conflict.status === "resolved" ? "This conflict has been resolved." : "This conflict was left unresolved."}
+          {conflict.status === "resolved"
+            ? "This conflict has been resolved."
+            : "This conflict was left unresolved."}
         </div>
       )}
     </div>

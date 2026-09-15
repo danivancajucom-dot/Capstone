@@ -1,11 +1,33 @@
 .cp-page {
   width: 100%;
-  margin-top: 40px;
+  margin-top: 0;
   padding: 20px;
   background-color: #F8F7F5;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+/* ═══════════ PAGE HEADER ═══════════ */
+.cp-page-header {
+  width: 100%;
+  max-width: 580px;
+  margin-bottom: 24px;
+  margin-top: 4px;
+}
+
+.cp-page-header h1 {
+  font-size: 35px;
+  font-weight: 800;
+  color: #1F2937;
+  margin: 0;
+}
+
+.cp-page-header p {
+  margin: 6px 0 0;
+  color: #6B7280;
+  font-size: 15px;
+  font-weight: 300;
 }
 
 .cp-card {
@@ -20,7 +42,7 @@
   flex-direction: column;
   align-items: center;
   gap: 24px;
-  margin-top: -20px;
+  margin-top: 0;
 }
 
 .cp-edit-btn {
@@ -303,4 +325,13 @@
 @keyframes cpToastIn {
   from { opacity: 0; transform: translateY(-10px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .cp-page-header h1 {
+    font-size: 26px;
+  }
+  .cp-page-header p {
+    font-size: 13.5px;
+  }
 }

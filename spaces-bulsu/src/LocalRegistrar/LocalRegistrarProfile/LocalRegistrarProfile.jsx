@@ -122,7 +122,7 @@ export default function LocalRegistrarProfile() {
         role: form.role,
         action: "Updated profile",
         actionType: "edit",
-        target: "Faculty Profile",
+        target: "Local Registrar Profile",
         status: "Success",
       });
 
@@ -168,6 +168,10 @@ export default function LocalRegistrarProfile() {
   if (loading) {
     return (
       <div className="lrp-page">
+        <div className="lrp-page-header">
+          <h1>My Profile</h1>
+          <p>View and manage your personal information and account details.</p>
+        </div>
         <div className="lrp-card">
           <p style={{ color: "#6b7280" }}>Loading profile...</p>
         </div>
@@ -177,6 +181,12 @@ export default function LocalRegistrarProfile() {
 
   return (
     <div className="lrp-page">
+
+      {/* ── PAGE HEADER ── */}
+      <div className="lrp-page-header">
+        <h1>My Profile</h1>
+        <p>View and manage your personal information and account details.</p>
+      </div>
 
       {toast && (
         <div className={`lrp-toast ${toast.type}`}>
@@ -225,19 +235,19 @@ export default function LocalRegistrarProfile() {
         {editing && uploading && (
           <p className="lrp-upload-progress"><i className="fa-solid fa-circle-notch fa-spin" /> Uploading photo…</p>
         )}
-              {editing && form.photoUrl && !uploading && (
-        <button
-          className="lrp-remove-photo-btn"
-          type="button"
-          onClick={() => {
-            setPhotoFile(null);
-            if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
-            setForm(prev => ({ ...prev, photoUrl: "" }));
-          }}
-        >
-          <i className="fa-solid fa-trash" /> Remove Photo
-        </button>
-      )}
+        {editing && form.photoUrl && !uploading && (
+          <button
+            className="lrp-remove-photo-btn"
+            type="button"
+            onClick={() => {
+              setPhotoFile(null);
+              if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
+              setForm(prev => ({ ...prev, photoUrl: "" }));
+            }}
+          >
+            <i className="fa-solid fa-trash" /> Remove Photo
+          </button>
+        )}
 
         {/* Fields */}
         <div className="lrp-fields">
@@ -249,7 +259,7 @@ export default function LocalRegistrarProfile() {
             <label>Last Name</label>
             <input className="lrp-input" value={form.lastName} onChange={handleChange("lastName")} readOnly={!editing} />
           </div>
-          
+
           <div className="lrp-field">
             <label>Role</label>
             <input className="lrp-input" value={form.role} readOnly />

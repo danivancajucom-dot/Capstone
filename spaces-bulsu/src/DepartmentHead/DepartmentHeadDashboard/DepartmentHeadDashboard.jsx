@@ -1,21 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./department-head-dashboard.css";
 import { useNavigate } from "react-router-dom";
-import {
-  collection,
-  onSnapshot,
-  query,
-  orderBy,
-  limit,
-} from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../../firebase";
 import classroomImg from "../../assets/Classroom.jpeg";
 
-const floors = ["All Floors", "1st Floor", "3rd Floor", "4th Floor"];
 const ROOMS_PER_PAGE = 8;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
-
 const getCurrentDay = () => {
   const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   return days[new Date().getDay()];
@@ -70,22 +62,23 @@ const formatTimestamp = (timestamp) => {
 };
 
 // ─── Main Component ──────────────────────────────────────────────────────
-
 export default function DepartmentHeadDashboard() {
   const navigate = useNavigate();
+
+  const [activeBuilding, setActiveBuilding] = useState("All Buildings");
   const [activeFloor, setActiveFloor] = useState("All Floors");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [roomsData, setRoomsData] = useState([]);
   const [eventsData, setEventsData] = useState([]);
-  const [allReservations, setAllReservations] = useState([]); // <-- all reservations
+  const [allReservations, setAllReservations] = useState([]);
   const [releasesData, setReleasesData] = useState([]);
   const [reassignmentsData, setReassignmentsData] = useState([]);
 
   const [recentActivity, setRecentActivity] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
-  const [tick, setTick] = useState(0);
-  const [visibleCount, setVisibleCount] = useState(ROOMS_PER_PAGE);
+  const [, setTick] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const today = getTodayLocal();
@@ -94,8 +87,6 @@ export default function DepartmentHeadDashboard() {
   const todayAbbrev = getCurrentDay();
 
   // ─── Listeners ─────────────────────────────────────────────────────────
-
-  // 1. Rooms + schedules
   useEffect(() => {
     setLoading(true);
     const roomUnsubs = [];
@@ -118,6 +109,7 @@ export default function DepartmentHeadDashboard() {
               docId: roomDoc.id,
               roomName: room.roomName,
               roomType: room.roomType,
+              building: room.building || room.bldg || "",
               floor: room.floor,
               statusField: room.roomStatus,
               image: room.image || null,
@@ -138,7 +130,6 @@ export default function DepartmentHeadDashboard() {
     };
   }, []);
 
-  // 2. Events (room activities)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "events"), (snap) => {
       setEventsData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -146,16 +137,13 @@ export default function DepartmentHeadDashboard() {
     return unsub;
   }, []);
 
-  // 3. All reservations (including pending)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "reservationRequests"), (snap) => {
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setAllReservations(data);
+      setAllReservations(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return unsub;
   }, []);
 
-  // 4. Room releases
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "roomReleases"), (snap) => {
       setReleasesData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -163,7 +151,6 @@ export default function DepartmentHeadDashboard() {
     return unsub;
   }, []);
 
-  // 5. Room reassignments (approved only)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "roomReassignments"), (snap) => {
       const data = snap.docs
@@ -174,7 +161,6 @@ export default function DepartmentHeadDashboard() {
     return unsub;
   }, []);
 
-  // 6. 1‑minute tick
   useEffect(() => {
     const interval = setInterval(() => {
       setTick((t) => t + 1);
@@ -183,7 +169,6 @@ export default function DepartmentHeadDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // 7. Recent activity
   useEffect(() => {
     const q = query(
       collection(db, "activityLogs"),
@@ -206,8 +191,7 @@ export default function DepartmentHeadDashboard() {
     return () => unsub();
   }, []);
 
-  // ─── Build lookup maps for releases & reassignments ──────────────────
-
+  // ─── Lookups ──────────────────────────────────────────────────────────
   const releaseKeysToday = useMemo(() => {
     return new Set(
       releasesData
@@ -235,16 +219,15 @@ export default function DepartmentHeadDashboard() {
     return map;
   }, [reassignmentsData, today]);
 
-  // ─── Compute room status with full availability windows ──────────────
-
+  // ─── Compute rooms ────────────────────────────────────────────────────
   const rooms = useMemo(() => {
     return roomsData.map((r) => {
-      // Maintenance check
       if (normalize(r.statusField) === "maintenance") {
         return {
           id: r.docId,
           roomName: r.roomName,
           roomType: r.roomType,
+          building: r.building,
           floor: r.floor,
           image: r.image,
           status: "maintenance",
@@ -253,13 +236,11 @@ export default function DepartmentHeadDashboard() {
         };
       }
 
-      // ── Filter schedules: skip released & reassigned‑away ──
       const filteredSchedules = r.schedules.filter((s) => {
         const key = `${s.id}_${today}`;
         return !releaseKeysToday.has(key) && !reassignAwayKeysToday.has(key);
       });
 
-      // ── Build busy items ──
       const busyItems = [];
 
       filteredSchedules
@@ -284,7 +265,6 @@ export default function DepartmentHeadDashboard() {
           });
         });
 
-      // Approved reservations only (for occupancy)
       const approvedReservations = allReservations.filter(
         (res) =>
           res.roomId === r.docId &&
@@ -312,7 +292,6 @@ export default function DepartmentHeadDashboard() {
 
       busyItems.sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
 
-      // ── Determine status with full availability window ──
       let status = "free";
       let message = "Available all day";
       let currentSubject = "";
@@ -360,6 +339,7 @@ export default function DepartmentHeadDashboard() {
         id: r.docId,
         roomName: r.roomName,
         roomType: r.roomType,
+        building: r.building,
         floor: r.floor,
         image: r.image,
         status,
@@ -382,26 +362,19 @@ export default function DepartmentHeadDashboard() {
   ]);
 
   // ─── Stats ─────────────────────────────────────────────────────────────
-
   const stats = useMemo(() => {
-    let occupied = 0,
-      available = 0,
-      maintenance = 0;
+    let occupied = 0, available = 0, maintenance = 0;
     rooms.forEach((r) => {
       if (r.status === "occupied") occupied++;
       else if (r.status === "maintenance") maintenance++;
       else available++;
     });
 
-    // Pending reservations (status "pending")
     const pending = allReservations.filter(
       (r) => normalize(r.status) === "pending"
     ).length;
 
-    // Room activities for today (all events, not just ongoing)
-    const roomActivitiesToday = eventsData.filter(
-      (e) => e.date === today
-    ).length;
+    const roomActivitiesToday = eventsData.filter((e) => e.date === today).length;
 
     return {
       totalRooms: rooms.length,
@@ -413,26 +386,54 @@ export default function DepartmentHeadDashboard() {
     };
   }, [rooms, allReservations, eventsData, today]);
 
-  // ─── Floor filter & pagination ────────────────────────────────────────
+  // ─── Dynamic filter options ────────────────────────────────────────────
+  const buildingOptions = useMemo(() => {
+    const set = new Set(
+      roomsData.map((r) => (r.building || "").trim()).filter(Boolean)
+    );
+    return ["All Buildings", ...Array.from(set).sort()];
+  }, [roomsData]);
 
+  const floorOptions = useMemo(() => {
+    const set = new Set(
+      roomsData.map((r) => (r.floor || "").trim()).filter(Boolean)
+    );
+    const sorted = Array.from(set).sort((a, b) => {
+      const na = parseInt(a, 10) || 0;
+      const nb = parseInt(b, 10) || 0;
+      return na - nb;
+    });
+    return ["All Floors", ...sorted];
+  }, [roomsData]);
+
+  // Filter rooms
   const filteredRooms = useMemo(() => {
-    const base =
-      activeFloor === "All Floors"
-        ? rooms
-        : rooms.filter((room) => normalize(room.floor) === normalize(activeFloor));
+    let base = rooms;
+    if (activeBuilding !== "All Buildings") {
+      base = base.filter(
+        (room) => normalize(room.building) === normalize(activeBuilding)
+      );
+    }
+    if (activeFloor !== "All Floors") {
+      base = base.filter(
+        (room) => normalize(room.floor) === normalize(activeFloor)
+      );
+    }
     return [...base].sort((a, b) =>
       a.roomName.localeCompare(b.roomName, undefined, { numeric: true })
     );
-  }, [rooms, activeFloor]);
+  }, [rooms, activeBuilding, activeFloor]);
 
   useEffect(() => {
-    setVisibleCount(ROOMS_PER_PAGE);
-  }, [activeFloor]);
+    setCurrentPage(1);
+  }, [activeBuilding, activeFloor]);
 
-  const visibleRooms = filteredRooms.slice(0, visibleCount);
-  const hasMoreRooms = filteredRooms.length > visibleCount;
-
-  // ─── Tooltip descriptions for stats ───────────────────────────────────
+  // ─── Pagination ───────────────────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(filteredRooms.length / ROOMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * ROOMS_PER_PAGE;
+  const visibleRooms = filteredRooms.slice(startIdx, startIdx + ROOMS_PER_PAGE);
+  const goToPage = (p) => setCurrentPage(Math.max(1, Math.min(totalPages, p)));
 
   const statTooltips = {
     totalRooms: "Total number of rooms in the system.",
@@ -444,17 +445,18 @@ export default function DepartmentHeadDashboard() {
   };
 
   // ─── Render ────────────────────────────────────────────────────────────
-
   return (
     <div className="dept-db-dashboard">
-
-            <div className="dept-db-header">
+      <div className="dept-db-header">
         <div>
           <h1 className="dept-db-title">Admin Dashboard</h1>
-          <p className="dept-db-subtitle">Monitor room status and system activity in real-time.</p>
+          <p className="dept-db-subtitle">
+            Monitor room status and system activity in real-time.
+          </p>
         </div>
       </div>
-      {/* STATS ROW */}
+
+      {/* STATS */}
       <div className="dept-db-stats-row">
         {[
           { key: "totalRooms", icon: "fa-solid fa-building", label: "Total Rooms", value: stats.totalRooms, color: "orange" },
@@ -464,11 +466,7 @@ export default function DepartmentHeadDashboard() {
           { key: "pending", icon: "fa-solid fa-clock", label: "Pending", value: stats.pending, color: "orange" },
           { key: "roomActivitiesToday", icon: "fa-solid fa-calendar-plus", label: "Room Activity", value: stats.roomActivitiesToday, color: "orange" },
         ].map((s) => (
-          <div
-            className="dept-db-stat-card"
-            key={s.key}
-            title={statTooltips[s.key] || ""}  // <-- hover tooltip
-          >
+          <div className="dept-db-stat-card" key={s.key} title={statTooltips[s.key] || ""}>
             <div className={`dept-db-stat-icon ${s.color}`}>
               <i className={s.icon}></i>
             </div>
@@ -480,6 +478,7 @@ export default function DepartmentHeadDashboard() {
 
       {/* BOTTOM GRID */}
       <div className="dept-db-bottom-grid">
+        {/* ─── LIVE ROOM STATUS PANEL ─── */}
         <div className="dept-db-panel dept-db-room-status-panel">
           <div className="dept-db-panel-header">
             <div className="dept-db-panel-title">
@@ -498,17 +497,54 @@ export default function DepartmentHeadDashboard() {
             </div>
           </div>
 
-          <div className="dept-db-floor-tabs">
-            {floors.map((f) => (
-              <button
-                key={f}
-                className={`dept-db-floor-tab ${activeFloor === f ? "active" : ""}`}
-                onClick={() => setActiveFloor(f)}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
+          {/* Compact filters */}
+          {(buildingOptions.length > 1 || floorOptions.length > 1) && (
+            <div className="dept-db-filter-inline">
+              {buildingOptions.length > 1 && (
+                <div className="dept-db-select">
+                  <i className="fa-solid fa-building"></i>
+                  <select
+                    value={activeBuilding}
+                    onChange={(e) => setActiveBuilding(e.target.value)}
+                    aria-label="Filter by building"
+                  >
+                    {buildingOptions.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                  <i className="fa-solid fa-angle-down dept-db-select-chev"></i>
+                </div>
+              )}
+
+              {floorOptions.length > 1 && (
+                <div className="dept-db-select">
+                  <i className="fa-solid fa-layer-group"></i>
+                  <select
+                    value={activeFloor}
+                    onChange={(e) => setActiveFloor(e.target.value)}
+                    aria-label="Filter by floor"
+                  >
+                    {floorOptions.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                  <i className="fa-solid fa-angle-down dept-db-select-chev"></i>
+                </div>
+              )}
+
+              {(activeBuilding !== "All Buildings" || activeFloor !== "All Floors") && (
+                <button
+                  className="dept-db-filter-clear"
+                  onClick={() => {
+                    setActiveBuilding("All Buildings");
+                    setActiveFloor("All Floors");
+                  }}
+                >
+                  <i className="fa-solid fa-xmark"></i> Clear
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="dept-db-rooms-grid">
             {loading ? (
@@ -527,27 +563,21 @@ export default function DepartmentHeadDashboard() {
                   </div>
 
                   <div className="dept-db-room-card-img">
-                    <img src={room.image || classroomImg} alt={room.roomName} className="dept-db-room-img" />
-                    {room.status === "occupied"}
-                    {room.status === "maintenance"}
+                    <img
+                      src={room.image || classroomImg}
+                      alt={room.roomName}
+                      className="dept-db-room-img"
+                    />
                   </div>
 
-                  <p style={{ marginBottom: 4, fontWeight: 700, fontSize: 13, color: "#374151" }}>
-                    {room.roomType}
+                  <p className="dept-db-room-type">{room.roomType}</p>
+
+                  <p className={`dept-db-room-label ${room.status}`}>
+                    {room.liveMessage}
                   </p>
 
-                  <p className={`dept-db-room-label ${room.status}`}>{room.liveMessage}</p>
-
                   {room.currentSubject && (
-                    <small
-                      style={{
-                        display: "block",
-                        marginTop: 8,
-                        color: "#6b7280",
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
+                    <small className="dept-db-room-subject">
                       {room.currentSubject}
                     </small>
                   )}
@@ -556,39 +586,70 @@ export default function DepartmentHeadDashboard() {
             )}
           </div>
 
-          <p className="dept-db-last-updated">Last Updated: {lastUpdated.toLocaleTimeString()}</p>
+          <p className="dept-db-last-updated">
+            Last Updated: {lastUpdated.toLocaleTimeString()}
+          </p>
 
-          {hasMoreRooms && (
-            <div className="dept-db-load-more">
-              <button
-                className="dept-db-load-more-btn"
-                onClick={() => setVisibleCount((c) => c + ROOMS_PER_PAGE)}
-              >
-                Load More
-              </button>
+          {totalPages > 1 && (
+            <div className="dept-db-pagination">
+              <span className="dept-db-page-info">
+                Showing {startIdx + 1}–
+                {Math.min(startIdx + ROOMS_PER_PAGE, filteredRooms.length)} of{" "}
+                {filteredRooms.length} rooms
+              </span>
+              <div className="dept-db-page-controls">
+                <button
+                  disabled={safePage === 1}
+                  onClick={() => goToPage(safePage - 1)}
+                  aria-label="Previous page"
+                >
+                  <i className="fa-solid fa-chevron-left"></i>
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    className={safePage === p ? "active" : ""}
+                    onClick={() => goToPage(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  disabled={safePage === totalPages}
+                  onClick={() => goToPage(safePage + 1)}
+                  aria-label="Next page"
+                >
+                  <i className="fa-solid fa-chevron-right"></i>
+                </button>
+              </div>
             </div>
           )}
         </div>
 
+        {/* ─── RECENT ACTIVITY PANEL (independent styles) ─── */}
         <div className="dept-db-panel dept-db-activity-panel">
-          <div className="dept-db-panel-title">
+          <div className="dept-db-activity-header">
             <i className="fa-solid fa-calendar-days"></i>
             <h3>Recent Activity</h3>
           </div>
 
           <div className="dept-db-activity-list">
-            {recentActivity.map((a, i) => (
-              <div className="dept-db-activity-item" key={i}>
-                <div className={`dept-db-activity-icon ${a.color}`}>
-                  <i className={a.icon}></i>
+            {recentActivity.length === 0 ? (
+              <p className="dept-db-activity-empty">No recent activity.</p>
+            ) : (
+              recentActivity.map((a, i) => (
+                <div className="dept-db-activity-item" key={i}>
+                  <div className={`dept-db-activity-icon ${a.color}`}>
+                    <i className={a.icon}></i>
+                  </div>
+                  <div className="dept-db-activity-content">
+                    <p className="dept-db-activity-title">{a.title}</p>
+                    <p className="dept-db-activity-sub">{a.sub}</p>
+                    <span className="dept-db-activity-time">{a.time}</span>
+                  </div>
                 </div>
-                <div className="dept-db-activity-content">
-                  <p className="dept-db-activity-title">{a.title}</p>
-                  <p className="dept-db-activity-sub">{a.sub}</p>
-                  <span className="dept-db-activity-time">{a.time}</span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <button
             className="dept-db-view-all-btn"

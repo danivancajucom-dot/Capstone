@@ -50,7 +50,6 @@ export default function ClerkProfile() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ── Load profile ────────────────────────────────────────────────────────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -85,7 +84,6 @@ export default function ClerkProfile() {
     return () => unsubscribe();
   }, []);
 
-  // ── Photo selection ─────────────────────────────────────────────────────────
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -103,7 +101,6 @@ export default function ClerkProfile() {
     setPreviewUrl(URL.createObjectURL(file));
   };
 
-  // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     const nameUnchanged =
       form.firstName === originalData.firstName &&
@@ -151,7 +148,6 @@ export default function ClerkProfile() {
     }
   };
 
-  // ── Cancel ──────────────────────────────────────────────────────────────────
   const handleCancel = () => {
     if (originalData) setForm(originalData);
     setPhotoFile(null);
@@ -162,7 +158,6 @@ export default function ClerkProfile() {
     setEditing(false);
   };
 
-  // ── Password reset ──────────────────────────────────────────────────────────
   const handleResetPassword = async () => {
     try {
       await sendPasswordResetEmail(auth, form.email);
@@ -182,6 +177,10 @@ export default function ClerkProfile() {
   if (loading) {
     return (
       <div className="cp-page">
+        <div className="cp-page-header">
+          <h1>My Profile</h1>
+          <p>View and manage your personal information and account details.</p>
+        </div>
         <div className="cp-card">
           <p style={{ color: "#6b7280" }}>Loading profile...</p>
         </div>
@@ -191,6 +190,12 @@ export default function ClerkProfile() {
 
   return (
     <div className="cp-page">
+
+      {/* ── PAGE HEADER ── */}
+      <div className="cp-page-header">
+        <h1>My Profile</h1>
+        <p>View and manage your personal information and account details.</p>
+      </div>
 
       {/* ── Toast ── */}
       {toast && (
@@ -303,7 +308,6 @@ export default function ClerkProfile() {
             <label>Role</label>
             <input className="cp-input" value={form.role} readOnly />
           </div>
-
         </div>
 
       </div>
