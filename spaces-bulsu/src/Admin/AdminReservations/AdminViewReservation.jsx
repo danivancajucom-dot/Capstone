@@ -1,4 +1,4 @@
-import "./department-head-view-reservation.css";
+import "./admin-view-reservation.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
@@ -6,7 +6,7 @@ import { db } from "../../firebase";
 import { auth } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 
-function DepartmentHeadViewReservation() {
+function AdminViewReservation() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const reservation = state?.reservation;
@@ -44,7 +44,7 @@ function DepartmentHeadViewReservation() {
     return (
       <div className="dh-view-reservation">
         <h2>Reservation not found.</h2>
-        <button onClick={() => navigate("/department-head/reservations")}>Back</button>
+        <button onClick={() => navigate("/admin/reservations")}>Back</button>
       </div>
     );
   }
@@ -200,4 +200,4 @@ function DepartmentHeadViewReservation() {
   );
 }
 
-export default DepartmentHeadViewReservation;
+export default AdminViewReservation;

@@ -1,4 +1,4 @@
-import "./department-head-edit-approved-reservation.css";
+import "./admin-edit-approved-reservation.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -130,7 +130,7 @@ function RoomDropdown({ placeholder, rooms, value, onChange, disabled, loading }
   );
 }
 
-function DepartmentHeadEditApprovedReservation() {
+function AdminEditApprovedReservation() {
   const navigate = useNavigate();
   const location = useLocation();
   const reservation = location.state?.reservation;
@@ -181,7 +181,7 @@ function DepartmentHeadEditApprovedReservation() {
   // ─── Load initial data ─────────────────────────────────────────────
   useEffect(() => {
     if (!reservation) {
-      navigate("/department-head/reservations");
+      navigate("/admin/reservations");
       return;
     }
 
@@ -403,12 +403,12 @@ function DepartmentHeadEditApprovedReservation() {
 
       const firebaseUser = auth.currentUser;
       let currentUser = {};
-      let deptHeadName = "Department Head";
+      let adminName = "Admin";
       if (firebaseUser) {
         const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
         if (userSnap.exists()) {
           currentUser = userSnap.data();
-          deptHeadName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() || "Department Head";
+          adminName = `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() || "Admin";
         }
       }
 
@@ -432,8 +432,8 @@ function DepartmentHeadEditApprovedReservation() {
       // ─── Activity log ─────────────────────────────────────────────
       await logActivity({
         userId: firebaseUser?.uid || "",
-        user: deptHeadName,
-        role: "Department Head",
+        user: adminName,
+        role: "Admin",
         action: "Updated Approved Reservation",
         actionType: "edit",
         target: `${editableFields.roomName} - ${courseTitle}`,
@@ -468,17 +468,17 @@ function DepartmentHeadEditApprovedReservation() {
           facultyUserId,
           "faculty",
           "Reservation Updated",
-          `Your reservation for ${editableFields.roomName} on ${editableFields.date} (${editableFields.startTime} - ${editableFields.endTime}) has been updated by Department Head.`,
+          `Your reservation for ${editableFields.roomName} on ${editableFields.date} (${editableFields.startTime} - ${editableFields.endTime}) has been updated by Admin.`,
           "reservation-updated",
           "INFO"
         );
       }
 
-      // 2. Department head (self)
+      // 2. Admin (self)
       if (firebaseUser?.uid) {
         await sendNotification(
           firebaseUser.uid,
-          "department-head",
+          "admin",
           "Reservation Updated",
           `You updated ${facultyName}'s reservation for ${editableFields.roomName}.`,
           "reservation-updated",
@@ -497,7 +497,7 @@ function DepartmentHeadEditApprovedReservation() {
               doc.id,
               "clerk",
               "Reservation Updated",
-              `${facultyName}'s reservation for ${editableFields.roomName} was updated by Department Head.`,
+              `${facultyName}'s reservation for ${editableFields.roomName} was updated by Admin.`,
               "reservation-updated",
               "INFO"
             )
@@ -510,7 +510,7 @@ function DepartmentHeadEditApprovedReservation() {
       showToast("success", "Success", "Reservation updated successfully!");
 
       setTimeout(() => {
-        navigate("/department-head/reservations");
+        navigate("/admin/reservations");
       }, 1500);
     } catch (err) {
       console.error(err);
@@ -525,7 +525,7 @@ function DepartmentHeadEditApprovedReservation() {
     return (
       <div className="dph-edit-approved-room">
         <h2>Reservation not found.</h2>
-        <button onClick={() => navigate("/department-head/reservations")}>Back</button>
+        <button onClick={() => navigate("/admin/reservations")}>Back</button>
       </div>
     );
   }
@@ -728,4 +728,4 @@ function DepartmentHeadEditApprovedReservation() {
   );
 }
 
-export default DepartmentHeadEditApprovedReservation;
+export default AdminEditApprovedReservation;

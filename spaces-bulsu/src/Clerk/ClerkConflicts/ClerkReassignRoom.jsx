@@ -162,14 +162,14 @@ function ClerkReassignRoom() {
         updatedAt: serverTimestamp(),
       });
 
-      // Notify Department Heads
-      const deptHeads = usersSnap.docs.filter(
-        (d) => String(d.data().role || "").toLowerCase() === "department head"
+      // Notify Admins
+      const admins = usersSnap.docs.filter(
+        (d) => String(d.data().role || "").toLowerCase() === "admin"
       );
-      for (const head of deptHeads) {
+      for (const admin of admins) {
         await addDoc(collection(db, "notifications"), {
-          userId: head.id,
-          ownerType: "department-head",
+          userId: admin.id,
+          ownerType: "admin",
           reassignmentId: reassignmentRef.id,
           title: "New Room Reassignment Request",
           message: `${facultyFullName} • ${subject} • ${conflict.roomName} → ${selectedRoom.roomName}. Please review.`,
@@ -191,7 +191,7 @@ function ClerkReassignRoom() {
         status: "PENDING",
       });
 
-      alert("Reassignment submitted for Department Head approval.");
+      alert("Reassignment submitted for Admin approval.");
       setShowConfirm(false);
       navigate(from);
     } catch (err) {
@@ -321,7 +321,7 @@ function ClerkReassignRoom() {
           </button>
           {alreadyPending && (
             <div className="dept-reassign-summary-item" style={{ color: "#991b1b" }}>
-              <span>Already reassigned. Wait for the Department Head's decision.</span>
+              <span>Already reassigned. Wait for the Admin's decision.</span>
             </div>
           )}
         </div>

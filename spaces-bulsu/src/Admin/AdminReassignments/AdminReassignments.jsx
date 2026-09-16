@@ -1,4 +1,4 @@
-import "./department-head-reassignments.css";
+import "./admin-reassignments.css";
 import { useEffect, useState, useMemo } from "react";
 import {
   collection, onSnapshot, doc, updateDoc, addDoc, getDoc, serverTimestamp,
@@ -40,7 +40,7 @@ const fmtDate = (d) => {
   });
 };
 
-function DepartmentHeadReassignments() {
+function AdminReassignments() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
@@ -215,14 +215,14 @@ function DepartmentHeadReassignments() {
           await updateDoc(evRef, {
             conflictResolved: true,
             resolution: "cancelled_class",
-            resolutionReason: noteText || "Class cancelled by Department Head.",
+            resolutionReason: noteText || "Class cancelled by Admin.",
             updatedAt: serverTimestamp(),
           });
           if (item.scheduleId && evData.roomId) {
             const schedRef = doc(db, "rooms", evData.roomId, "schedules", item.scheduleId);
             const schedSnap = await getDoc(schedRef);
             if (schedSnap.exists()) {
-              await updateDoc(schedRef, { cancelled: true, cancelledReason: "Cancelled by Department Head" });
+              await updateDoc(schedRef, { cancelled: true, cancelledReason: "Cancelled by Admin" });
             }
           }
         }
@@ -243,7 +243,7 @@ function DepartmentHeadReassignments() {
             assignmentId: item.id,
             reassignmentId: item.id,
             title: "Class Cancelled",
-            message: `The class "${item.courseTitle}" on ${item.date} was cancelled by the Department Head. No further action needed.`,
+            message: `The class "${item.courseTitle}" on ${item.date} was cancelled by the Admin. No further action needed.`,
             type: "room-reassignment-status",
             unread: true, archived: false, badge: "INFO",
             createdAt: serverTimestamp(),
@@ -595,4 +595,4 @@ function ReassignmentCard({ item, onAction }) {
   );
 }
 
-export default DepartmentHeadReassignments;
+export default AdminReassignments;

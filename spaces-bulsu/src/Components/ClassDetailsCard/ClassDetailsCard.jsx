@@ -51,7 +51,7 @@ function ClassDetailsCard({
       <div className="class-details-header">
 
         <span className="class-details-title">
-          {schedule.isDeptHeadEvent
+          {schedule.isAdminEvent
             ? "Room Activity Details"
             : schedule.isReservation
             ? "Reservation Details"
@@ -100,7 +100,7 @@ function ClassDetailsCard({
           </div>
           <div className="class-detail-info">
             <span className="class-detail-label">
-              {schedule.isDeptHeadEvent
+              {schedule.isAdminEvent
                 ? "ISSUED BY"
                 : schedule.isReservation
                 ? "REQUESTED BY"
@@ -142,7 +142,7 @@ function ClassDetailsCard({
           </div>
         </div>
 
-        {/* REASON - dept head override lang */}
+        {/* REASON - admin override lang */}
         {schedule.reason && (
           <div className="class-detail-item">
             <div className="class-detail-icon">

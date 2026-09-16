@@ -208,14 +208,14 @@ export default function BulkScheduleUpload4() {
         }
       }
 
-      // ─── Notify department heads ─────────────────────────────
-      const deptHeadsSnap = await getDocs(query(collection(db, "users"), where("role", "==", "department-head")));
-      const deptHeadNotifications = [];
-      deptHeadsSnap.forEach((doc) => {
-        deptHeadNotifications.push(
+     // ─── Notify admins ─────────────────────────────────────────
+      const adminsSnap = await getDocs(query(collection(db, "users"), where("role", "==", "admin")));
+      const adminNotifications = [];
+      adminsSnap.forEach((doc) => {
+        adminNotifications.push(
           sendNotification(
             doc.id,
-            "department-head",
+            "admin",
             "New Bulk Schedule Upload",
             `${currentUserData.user} uploaded ${allSaved.length} schedules for ${allRoomsData.length} rooms (${semester}, ${schoolYear}).`,
             "schedule-upload",
@@ -223,7 +223,7 @@ export default function BulkScheduleUpload4() {
           )
         );
       });
-      await Promise.all(deptHeadNotifications);
+      await Promise.all(adminNotifications);
 
       // ─── Notify self ──────────────────────────────────────────
       if (currentUserData.userId) {

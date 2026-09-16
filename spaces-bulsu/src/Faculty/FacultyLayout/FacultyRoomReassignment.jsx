@@ -23,7 +23,6 @@ export default function FacultyRoomReassignment() {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ─── Modal states ─────────────────────────────────────────────────────
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -48,7 +47,6 @@ export default function FacultyRoomReassignment() {
     loadAssignment();
   }, [assignmentId]);
 
-  // ─── Notifications ──────────────────────────────────────────────────
   const sendDecisionNotifications = async (decision) => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
@@ -60,7 +58,6 @@ export default function FacultyRoomReassignment() {
     const isAccepted = decision === "accepted";
     const verb = isAccepted ? "accepted" : "declined";
 
-    // Faculty's own log
     await addDoc(collection(db, "notifications"), {
       userId: currentUser.uid,
       ownerType: "faculty",
@@ -75,13 +72,13 @@ export default function FacultyRoomReassignment() {
       createdAt: serverTimestamp(),
     });
 
-    // Department Heads
-    const headQuery = query(collection(db, "users"), where("role", "==", "Department Head"));
-    const headSnap = await getDocs(headQuery);
-    for (const head of headSnap.docs) {
+    // Admins
+    const adminQuery = query(collection(db, "users"), where("role", "==", "Admin"));
+    const adminSnap = await getDocs(adminQuery);
+    for (const admin of adminSnap.docs) {
       await addDoc(collection(db, "notifications"), {
-        userId: head.id,
-        ownerType: "department-head",
+        userId: admin.id,
+        ownerType: "admin",
         assignmentId: assignment.id,
         reassignmentId: assignment.id,
         title: "Faculty Response",
@@ -94,7 +91,6 @@ export default function FacultyRoomReassignment() {
       });
     }
 
-    // ── Clerk who requested ──
     if (assignment.requestedById) {
       await addDoc(collection(db, "notifications"), {
         userId: assignment.requestedById,
@@ -112,7 +108,6 @@ export default function FacultyRoomReassignment() {
     }
   };
 
-  // ─── Approve ──────────────────────────────────────────────────────────
   const approveAssignment = async () => {
     try {
       if (isExpired()) {
@@ -122,7 +117,7 @@ export default function FacultyRoomReassignment() {
 
       await updateDoc(doc(db, "roomReassignments", assignment.id), {
         status: "accepted",
-        acceptedAt: serverTimestamp(),   // para tugma sa terminology
+        acceptedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
@@ -147,7 +142,7 @@ export default function FacultyRoomReassignment() {
         actionType: "success",
         target: `${assignment.courseTitle} | ${assignment.oldRoomName} → ${assignment.newRoomName}`,
         status: "Success",
-        details: { decision: "accepted" },   // palitan din para consistent
+        details: { decision: "accepted" },
       });
 
       alert("Room reassignment accepted.");
@@ -157,7 +152,6 @@ export default function FacultyRoomReassignment() {
     }
   };
 
-  // ─── Reject (with reason) ────────────────────────────────────────────
   const rejectAssignment = async () => {
     try {
       if (isExpired()) {
@@ -169,7 +163,7 @@ export default function FacultyRoomReassignment() {
 
       await updateDoc(doc(db, "roomReassignments", assignment.id), {
         status: "declined",
-        declinedAt: serverTimestamp(),   // palitan din
+        declinedAt: serverTimestamp(),
         denialReason: reason,
         updatedAt: serverTimestamp(),
       });
@@ -177,13 +171,13 @@ export default function FacultyRoomReassignment() {
       if (assignment.eventId) {
         await updateDoc(doc(db, "events", assignment.eventId), {
           conflictResolved: true,
-          resolution: "rejected",       // ito okay lang — event side ito, hindi tab
+          resolution: "rejected",
           resolutionReason: reason,
           resolvedAt: serverTimestamp(),
         });
       }
 
-      await sendDecisionNotifications("declined");   // ⬅️ ipasa ang tamang salita
+      await sendDecisionNotifications("declined");
 
       const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
       const userData = userSnap.data();
@@ -191,7 +185,7 @@ export default function FacultyRoomReassignment() {
       await logActivity({
         user: `${userData.firstName} ${userData.lastName}`,
         role: userData.role,
-        action: "Declined room reassignment",   // palitan para tama
+        action: "Declined room reassignment",
         actionType: "denied",
         target: `${assignment.courseTitle} | ${assignment.oldRoomName} → ${assignment.newRoomName}`,
         status: "Declined",
@@ -229,7 +223,7 @@ export default function FacultyRoomReassignment() {
         <div className="faculty-room-header">
           <h1>Room Reassignment Request</h1>
           <p>
-            The Department Head has proposed a temporary room change for one of your classes.
+            The Admin has proposed a temporary room change for one of your classes.
           </p>
         </div>
 
@@ -309,7 +303,6 @@ export default function FacultyRoomReassignment() {
         )}
       </div>
 
-      {/* ─── Rejection Modal ────────────────────────────────────────── */}
       {showRejectModal && (
         <div className="faculty-room-modal-overlay" onClick={() => setShowRejectModal(false)}>
           <div className="faculty-room-modal" onClick={(e) => e.stopPropagation()}>
@@ -352,7 +345,7 @@ export default function FacultyRoomReassignment() {
 
               <div className="faculty-room-reason-note">
                 <i className="fa-solid fa-info-circle"></i>
-                <span>Your reason will be shared with the Department Head for clarity.</span>
+                <span>Your reason will be shared with the Admin for clarity.</span>
               </div>
             </div>
             <div className="faculty-room-modal-footer">

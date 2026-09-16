@@ -108,17 +108,17 @@ function ClerkViewReservation() {
     console.log(`Notification sent to ${ownerType} (${receiverId})`);
   };
 
-  // ─── Send to all department heads ─────────────────────────────────────
-  const notifyAllDepartmentHeads = async (title, message, reservationId) => {
+  // ─── Send to all admins ───────────────────────────────────────────────
+  const notifyAllAdmins = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
     usersSnap.forEach((doc) => {
       const role = (doc.data().role || "").toLowerCase().trim();
-      if (role === "department-head" || role === "department head") {
+      if (role === "admin") {
         notifications.push(
           addDoc(collection(db, "notifications"), {
             userId: doc.id,
-            ownerType: "department-head",
+            ownerType: "admin",
             reservationId,
             title,
             message,
@@ -133,9 +133,9 @@ function ClerkViewReservation() {
     });
     if (notifications.length > 0) {
       await Promise.all(notifications);
-      console.log(`Notified ${notifications.length} department head(s)`);
+      console.log(`Notified ${notifications.length} admin(s)`);
     } else {
-      console.warn("No department heads found to notify.");
+      console.warn("No admins found to notify.");
     }
   };
 
@@ -231,8 +231,8 @@ function ClerkViewReservation() {
         );
       }
 
-      // c) All department heads
-      await notifyAllDepartmentHeads(
+      // c) All admins
+      await notifyAllAdmins(
         "Reservation Approved",
         `${reservation.facultyName}'s reservation for ${reservation.roomName} was approved by Clerk.`,
         reservation.id
@@ -320,7 +320,7 @@ function ClerkViewReservation() {
         );
       }
 
-      await notifyAllDepartmentHeads(
+      await notifyAllAdmins(
         "Reservation Rejected",
         `${reservation.facultyName}'s reservation for ${reservation.roomName} was rejected by Clerk.`,
         reservation.id

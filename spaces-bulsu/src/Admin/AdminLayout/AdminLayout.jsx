@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import "./department-head-layout.css";
+import "./admin-layout.css";
 import { auth, db } from "../../firebase";
 import {
   collection,
@@ -17,7 +17,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import LogoutPopup from "../../Popup/LogoutPopup/LogoutPopup";
 import NotificationCard from "../../Components/NotificationCard/Notification";
 
-export default function DepartmentHeadLayout() {
+export default function AdminLayout() {
   const [openRoom, setOpenRoom] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,19 +34,16 @@ export default function DepartmentHeadLayout() {
   const [activeTab, setActiveTab] = useState("all");
 
   const roomRoutes = [
-    "/department-head/room-management",
-    "/department-head/room-usagement",
+    "/admin/room-management",
+    "/admin/room-usagement",
   ];
 
-  const isRoomActive = roomRoutes.some((path) =>
-    location.pathname.startsWith(path)
-  );
+  const isRoomActive = roomRoutes.some((path) => location.pathname.startsWith(path));
 
   useEffect(() => {
     setOpenRoom(isRoomActive);
   }, [isRoomActive]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
@@ -61,7 +58,6 @@ export default function DepartmentHeadLayout() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
 
-      // Real-time profile listener
       const unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (snap) => {
         if (snap.exists()) {
           const d = snap.data();
@@ -78,18 +74,13 @@ export default function DepartmentHeadLayout() {
       const q = query(
         collection(db, "notifications"),
         where("userId", "==", user.uid),
-        where("ownerType", "==", "department-head"),
+        where("ownerType", "==", "admin"),
         where("archived", "==", false),
         orderBy("createdAt", "desc")
       );
 
       const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-        setNotifications(
-          snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-        );
+        setNotifications(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       });
 
       return () => {
@@ -100,8 +91,6 @@ export default function DepartmentHeadLayout() {
 
     return () => unsubscribe();
   }, []);
-
-  // ── Notification helpers ──────────────────────────────────────
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
@@ -124,9 +113,7 @@ export default function DepartmentHeadLayout() {
     if (unread.length === 0) return;
     try {
       const batch = writeBatch(db);
-      unread.forEach((n) =>
-        batch.update(doc(db, "notifications", n.id), { unread: false })
-      );
+      unread.forEach((n) => batch.update(doc(db, "notifications", n.id), { unread: false }));
       await batch.commit();
     } catch (err) { console.error(err); }
   };
@@ -184,9 +171,7 @@ export default function DepartmentHeadLayout() {
   return (
     <>
       <div className="dept-layout">
-
         <aside className="dept-sidebar">
-
           <div className="dept-logo">
             <div className="dept-logo-icon">
               <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="clerk-logo-img" />
@@ -198,15 +183,15 @@ export default function DepartmentHeadLayout() {
           </div>
 
           <nav className="dept-nav">
-            <NavLink end to="/department-head">
+            <NavLink end to="/admin">
               <i className="fa-solid fa-house"></i>
               <span>Dashboard</span>
             </NavLink>
-            <NavLink to="/department-head/reservations">
+            <NavLink to="/admin/reservations">
               <i className="fa-solid fa-bookmark"></i>
               <span>Reservations</span>
             </NavLink>
-            <NavLink to="/department-head/schedule-view-academic-schedule">
+            <NavLink to="/admin/schedule-view-academic-schedule">
               <i className="fa-solid fa-calendar-days"></i>
               <span>Schedule</span>
             </NavLink>
@@ -224,23 +209,22 @@ export default function DepartmentHeadLayout() {
               </button>
 
               <div className={`submenu-card ${openRoom ? "open" : ""}`}>
-              <NavLink to="/department-head/room-activity">Room Activity </NavLink>
-              <NavLink to="/department-head/room-issues">Room Issues </NavLink>                
-              <NavLink to="/department-head/reassign-room">Room Reassignments</NavLink>
+                <NavLink to="/admin/room-activity">Room Activity</NavLink>
+                <NavLink to="/admin/room-issues">Room Issues</NavLink>
+                <NavLink to="/admin/reassign-room">Room Reassignments</NavLink>
               </div>
             </div>
 
-            <NavLink to="/department-head/user-management">
+            <NavLink to="/admin/user-management">
               <i className="fa-solid fa-users"></i>
               <span>User Management</span>
             </NavLink>
-            <NavLink to="/department-head/broadcast-channel">
+            <NavLink to="/admin/broadcast-channel">
               <i className="fa-solid fa-bullhorn"></i>
               <span>Announcement Channel</span>
             </NavLink>
           </nav>
 
-          {/* PROFILE CARD + DROPDOWN */}
           <div className="dept-sidebar-profile-wrap" ref={profileMenuRef}>
             {showProfileMenu && (
               <>
@@ -262,27 +246,18 @@ export default function DepartmentHeadLayout() {
 
                   <div className="dept-profile-dropdown-divider" />
 
-                  <button
-                    className="dept-profile-dropdown-item"
-                    onClick={() => { setShowProfileMenu(false); navigate("/department-head/profile"); }}
-                  >
+                  <button className="dept-profile-dropdown-item" onClick={() => { setShowProfileMenu(false); navigate("/admin/profile"); }}>
                     <i className="fa-regular fa-user"></i>
                     <span>Profile</span>
                   </button>
-                  <button
-                    className="dept-profile-dropdown-item"
-                    onClick={() => { setShowProfileMenu(false); navigate("/department-head/settings"); }}
-                  >
+                  <button className="dept-profile-dropdown-item" onClick={() => { setShowProfileMenu(false); navigate("/admin/settings"); }}>
                     <i className="fa-solid fa-gear"></i>
                     <span>Settings</span>
                   </button>
 
                   <div className="dept-profile-dropdown-divider" />
 
-                  <button
-                    className="dept-profile-dropdown-item logout"
-                    onClick={() => { setShowProfileMenu(false); setShowLogoutConfirm(true); }}
-                  >
+                  <button className="dept-profile-dropdown-item logout" onClick={() => { setShowProfileMenu(false); setShowLogoutConfirm(true); }}>
                     <i className="fa-solid fa-arrow-right-from-bracket"></i>
                     <span>Logout</span>
                   </button>
@@ -309,14 +284,11 @@ export default function DepartmentHeadLayout() {
               <i className={`fa-solid fa-chevron-down dept-profile-chev ${showProfileMenu ? "open" : ""}`} />
             </button>
           </div>
-
         </aside>
 
         <div className="dept-main">
-
           <header className="dept-header">
             <div className="header-actions">
-              {/* NOTIFICATION TRIGGER */}
               <div className="notification-container-DH">
                 <button
                   className={`dept-header-btn dept-notif-btn ${showNotifications ? "notif-btn-open-DH" : ""}`}
@@ -404,15 +376,11 @@ export default function DepartmentHeadLayout() {
           <main className="dept-content">
             <Outlet />
           </main>
-
         </div>
       </div>
 
       {showLogoutConfirm && (
-        <LogoutPopup
-          onCancel={() => setShowLogoutConfirm(false)}
-          onConfirm={handleLogout}
-        />
+        <LogoutPopup onCancel={() => setShowLogoutConfirm(false)} onConfirm={handleLogout} />
       )}
 
       {loggingOut && (

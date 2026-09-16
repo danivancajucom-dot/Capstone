@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import './department-head-activity-log.css';
+import './admin-activity-log.css';
 import { useNavigate } from "react-router-dom";
 import {
   collection,
@@ -37,7 +37,7 @@ const actionIcon = (type) => {
   }
 };
 
-export default function DepartmentHeadActivityLog() {
+export default function AdminActivityLog() {
   const [activeTab, setActiveTab] = useState('All Activities');
   const [dateRange, setDateRange] = useState('Last 7 Days');
   const [userRole, setUserRole] = useState('All Roles');
@@ -333,7 +333,7 @@ export default function DepartmentHeadActivityLog() {
       {/* PAGE HEADER */}
       <div className="log-page-header">
         <div className="log-title-row">
-          <button className="dh-al-back-btn" onClick={() => navigate("/department-head")}>
+          <button className="dh-al-back-btn" onClick={() => navigate("/admin")}>
             <i className="fa-solid fa-arrow-left"></i>
           </button>
           <div>
@@ -428,7 +428,7 @@ export default function DepartmentHeadActivityLog() {
               <i className="fa-solid fa-users"></i>
               <select value={userRole} onChange={e => setUserRole(e.target.value)}>
                 <option>All Roles</option>
-                <option>Department Head</option>
+                <option>Admin</option>
                 <option>Faculty</option>
                 <option>Clerk</option>
               </select>

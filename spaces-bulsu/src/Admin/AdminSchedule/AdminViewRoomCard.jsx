@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import "./dept-head-view-room-card.css";
+import "./admin-view-room-card.css";
 import { normalizeScheduleItem } from "../../utils/normalizeScheduleItem";
 
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
@@ -53,7 +53,7 @@ const getCategoryColor = (source) => {
 };
 // ------------------------------------
 
-function DepartmentHeadViewRoomCard() {
+function AdminViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
   const location = useLocation();
@@ -463,4 +463,4 @@ function DepartmentHeadViewRoomCard() {
   );
 }
 
-export default DepartmentHeadViewRoomCard;
+export default AdminViewRoomCard;

@@ -7,7 +7,7 @@ import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
 import {
-  collection, query, orderBy, onSnapshot, doc, updateDoc,
+  collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc,
   serverTimestamp, getDoc, getDocs,
 } from "firebase/firestore";
 import { logActivity } from "../../utils/logActivity";
@@ -90,7 +90,32 @@ export default function ClerkRoomIssues() {
     };
   };
 
-  // ── Actions ────────────────────────────────────────────────
+  // ── Notify the original reporter ───────────────────────────
+  const notifyReporter = async (issue, title, message) => {
+    if (!issue?.reporterId) return;
+    try {
+      await addDoc(collection(db, "notifications"), {
+        userId: issue.reporterId,
+        ownerType: "faculty",
+        title,
+        message,
+        type: "issue-update",
+        issueId: issue.id,
+        roomName: issue.roomName,
+        unread: true,
+        archived: false,
+        badge: "UPDATE",
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn("Notify reporter failed:", err);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // ACTION: Mark Under Maintenance
+  // Also sets issue.status → "In Progress" (removes from Pending tab)
+  // ══════════════════════════════════════════════════════════
   const markUnderMaintenance = (issue) => {
     setConfirmAction({
       title: "Mark Room Under Maintenance?",
@@ -99,6 +124,8 @@ export default function ClerkRoomIssues() {
         setBusy(true);
         try {
           const u = await getCurrentUser();
+
+          // 1. Flag the room
           await updateDoc(doc(db, "rooms", issue.roomId), {
             status: "Under Maintenance",
             roomStatus: "maintenance",
@@ -109,6 +136,14 @@ export default function ClerkRoomIssues() {
             maintenanceSetBy: u.name,
             maintenanceSetAt: serverTimestamp(),
           });
+
+          // 2. Move issue to In Progress
+          await updateDoc(doc(db, "roomIssues", issue.id), {
+            status: "In Progress",
+            inProgressBy: u.name,
+            inProgressAt: serverTimestamp(),
+          });
+
           await logActivity({
             user: u.name, role: u.role,
             action: "Marked room under maintenance",
@@ -116,6 +151,13 @@ export default function ClerkRoomIssues() {
             target: `${issue.roomName} • ${issue.category || ""}`,
             status: "Success",
           });
+
+          await notifyReporter(
+            issue,
+            "Room Under Maintenance",
+            `Your reported issue in ${issue.roomName} is now being addressed. The room has been flagged as Under Maintenance.`
+          );
+
           showToast("success", "Room Flagged", `${issue.roomName} is now Under Maintenance.`);
         } catch (err) {
           console.error(err);
@@ -128,6 +170,9 @@ export default function ClerkRoomIssues() {
     });
   };
 
+  // ══════════════════════════════════════════════════════════
+  // ACTION: Restore Room (undo maintenance)
+  // ══════════════════════════════════════════════════════════
   const restoreRoom = (issue) => {
     setConfirmAction({
       title: "Restore Room?",
@@ -136,6 +181,7 @@ export default function ClerkRoomIssues() {
         setBusy(true);
         try {
           const u = await getCurrentUser();
+
           await updateDoc(doc(db, "rooms", issue.roomId), {
             status: "Available",
             roomStatus: "active",
@@ -145,6 +191,7 @@ export default function ClerkRoomIssues() {
             maintenanceRestoredBy: u.name,
             maintenanceRestoredAt: serverTimestamp(),
           });
+
           await logActivity({
             user: u.name, role: u.role,
             action: "Restored room from maintenance",
@@ -152,6 +199,13 @@ export default function ClerkRoomIssues() {
             target: `${issue.roomName}`,
             status: "Success",
           });
+
+          await notifyReporter(
+            issue,
+            "Room Restored",
+            `${issue.roomName} has been restored and is now available again.`
+          );
+
           showToast("success", "Room Restored", `${issue.roomName} is now Available.`);
         } catch (err) {
           console.error(err);
@@ -164,6 +218,9 @@ export default function ClerkRoomIssues() {
     });
   };
 
+  // ══════════════════════════════════════════════════════════
+  // ACTION: Mark as Resolved
+  // ══════════════════════════════════════════════════════════
   const markResolved = (issue) => {
     setConfirmAction({
       title: "Mark as Resolved?",
@@ -172,11 +229,13 @@ export default function ClerkRoomIssues() {
         setBusy(true);
         try {
           const u = await getCurrentUser();
+
           await updateDoc(doc(db, "roomIssues", issue.id), {
             status: "Resolved",
             resolvedBy: u.name,
             resolvedAt: serverTimestamp(),
           });
+
           await logActivity({
             user: u.name, role: u.role,
             action: "Marked issue as Resolved",
@@ -184,6 +243,13 @@ export default function ClerkRoomIssues() {
             target: `${issue.roomName} • ${issue.category || ""}`,
             status: "Success",
           });
+
+          await notifyReporter(
+            issue,
+            "Issue Resolved",
+            `Your reported issue in ${issue.roomName} (${issue.category}) has been resolved. Thank you for reporting!`
+          );
+
           showToast("success", "Resolved", "Issue marked as resolved.");
         } catch (err) {
           console.error(err);
@@ -280,7 +346,10 @@ export default function ClerkRoomIssues() {
         <div className="ri-header">
           <div>
             <h1>Room Issues</h1>
-            <p>Manage and resolve classroom issues reported by faculty and staff.</p>
+            <p>
+              Manage room issues forwarded by the Admin. You can only act on issues
+              that have been acknowledged.
+            </p>
           </div>
           <button className="ri-report-btn" onClick={() => setShowModal(true)}>
             <i className="fa-solid fa-plus" /> Report Issue
@@ -322,7 +391,7 @@ export default function ClerkRoomIssues() {
           </button>
         </div>
 
-        {/* TOOLBAR: Search + Room + Sort */}
+        {/* TOOLBAR */}
         <div className="ri-toolbar">
           <div className="ri-search">
             <i className="fa-solid fa-magnifying-glass" />

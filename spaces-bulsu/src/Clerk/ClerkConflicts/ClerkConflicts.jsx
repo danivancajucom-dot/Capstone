@@ -350,7 +350,7 @@ function ClerkConflicts() {
         <div className="dept-page-header">
           <div>
             <h1>Conflict Monitoring</h1>
-            <p>Review booking collisions and submit room reassignments for Department Head approval.</p>
+            <p>Review booking collisions and submit room reassignments for Admin approval.</p>
           </div>
 
           <div className="dept-export-dropdown">
@@ -494,13 +494,13 @@ function PendingReassignCard({ item }) {
     pending_admin:   {
       label: "Needs Review",
       cls: "status-pending",
-      note: "Waiting for the Department Head's review.",
+      note: "Waiting for the Admin's review.",
       icon: "fa-hourglass-half",
     },
     pending:         {
       label: "Needs Review",
       cls: "status-pending",
-      note: "Waiting for the Department Head's review.",
+      note: "Waiting for the Admin's review.",
       icon: "fa-hourglass-half",
     },
     pending_faculty: {

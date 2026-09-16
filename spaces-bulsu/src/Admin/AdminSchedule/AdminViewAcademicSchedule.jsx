@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import "./dept-head-view-academic-schedule.css";
+import "./admin-view-academic-schedule.css";
 import LRRoomCard from "../../Components/LRRoomCard/LRRoomCard";
 
 import {
@@ -57,7 +57,7 @@ const STATUS_OPTIONS = [
   "Under Maintenance",
 ];
 
-function DepartmentHeadViewAcademicSchedule() {
+function AdminViewAcademicSchedule() {
   const navigate = useNavigate();
 
   // ─── Building + Floor (top) ──────────────────────────────────
@@ -499,7 +499,7 @@ function DepartmentHeadViewAcademicSchedule() {
                 equipment={room.equipment}
                 status={room.status}
                 onClick={() =>
-                  navigate("/department-head/schedule-room-card", {
+                  navigate("/admin/schedule-room-card", {
                     state: {
                       roomId: room.id,
                       room,
@@ -660,4 +660,4 @@ function DepartmentHeadViewAcademicSchedule() {
   );
 }
 
-export default DepartmentHeadViewAcademicSchedule;
+export default AdminViewAcademicSchedule;

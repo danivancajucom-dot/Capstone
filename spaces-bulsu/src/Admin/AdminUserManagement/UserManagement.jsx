@@ -33,7 +33,6 @@ const firebaseConfig = {
   appId: "1:268419005346:web:6c2bb5f113f46ff28890fb",
 };
 
-// Cloud Function — deletes Auth + Firestore + related data
 const functions = getFunctions();
 const deleteUserFn = httpsCallable(functions, "deleteUser");
 
@@ -41,10 +40,10 @@ const ROLE_COLORS = {
   Faculty: { bg: "#EDE9FE", text: "#5B21B6" },
   "Local Registrar": { bg: "#FEF3C7", text: "#92400E" },
   Clerk: { bg: "#FEF0E7", text: "#F97316" },
-  "Department Head": { bg: "#DBEAFE", text: "#1D4ED8" },
+  Admin: { bg: "#DBEAFE", text: "#1D4ED8" },
 };
 
-const ROLES = ["Faculty", "Local Registrar", "Clerk", "Department Head"];
+const ROLES = ["Faculty", "Local Registrar", "Clerk", "Admin"];
 
 const SORT_OPTIONS = [
   { value: "name-asc", label: "Name (A–Z)", icon: "fa-arrow-down-a-z" },
@@ -55,7 +54,6 @@ const SORT_OPTIONS = [
 
 const steps = [{ number: 1, label: "DETAILS" }, { number: 2, label: "CONFIRM" }];
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 async function createUserSecondaryApp(email, password) {
   const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
@@ -108,7 +106,6 @@ function Stepper({ current }) {
   );
 }
 
-// ── Sort dropdown ──────────────────────────────────────────────────────────
 function SortMenu({ sortBy, setSortBy }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -152,7 +149,6 @@ function SortMenu({ sortBy, setSortBy }) {
   );
 }
 
-// ── User List ──────────────────────────────────────────────────────────────
 function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState([]);
@@ -166,21 +162,14 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
 
   const handleDeleteUser = (user) => setDeleteTarget(user);
 
-  // ══════════════════════════════════════════════════════════════
-  // DELETE — Cloud Function (Auth + Firestore + cleanup)
-  // ══════════════════════════════════════════════════════════════
   const confirmDeleteUser = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-
     const targetUser = deleteTarget;
 
     try {
       const result = await deleteUserFn({ userId: targetUser.id });
-
-      if (!result.data?.success) {
-        throw new Error("Cloud function did not return success.");
-      }
+      if (!result.data?.success) throw new Error("Cloud function did not return success.");
 
       setUsers((prev) => prev.filter((u) => u.id !== targetUser.id));
 
@@ -194,20 +183,11 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         status: "SUCCESS",
       });
 
-      showToast(
-        "success",
-        "User Deleted",
-        `${targetUser.email} was removed. The email can now be reused.`
-      );
+      showToast("success", "User Deleted", `${targetUser.email} was removed. The email can now be reused.`);
     } catch (e) {
       console.error("Delete error:", e);
-
       if (e?.code === "functions/not-found" || e?.code === "functions/unavailable") {
-        showToast(
-          "error",
-          "Function Not Deployed",
-          "The deleteUser Cloud Function is not deployed yet. Run: firebase deploy --only functions"
-        );
+        showToast("error", "Function Not Deployed", "The deleteUser Cloud Function is not deployed yet. Run: firebase deploy --only functions");
       } else if (e?.code === "functions/permission-denied") {
         showToast("error", "Permission Denied", e.message || "You cannot delete this user.");
       } else if (e?.code === "functions/failed-precondition") {
@@ -259,17 +239,12 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
     .sort((a, b) => {
       const nameA = `${a.firstName ?? ""} ${a.lastName ?? ""}`.trim().toLowerCase();
       const nameB = `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim().toLowerCase();
-
       switch (sortBy) {
-        case "name-desc":
-          return nameB.localeCompare(nameA);
-        case "role":
-          return (a.role || "").localeCompare(b.role || "") || nameA.localeCompare(nameB);
-        case "status":
-          return (a.status || "").localeCompare(b.status || "") || nameA.localeCompare(nameB);
+        case "name-desc": return nameB.localeCompare(nameA);
+        case "role": return (a.role || "").localeCompare(b.role || "") || nameA.localeCompare(nameB);
+        case "status": return (a.status || "").localeCompare(b.status || "") || nameA.localeCompare(nameB);
         case "name-asc":
-        default:
-          return nameA.localeCompare(nameB);
+        default: return nameA.localeCompare(nameB);
       }
     });
 
@@ -287,11 +262,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         status: "SUCCESS",
       });
       setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u)));
-      showToast(
-        "success",
-        newStatus === "Active" ? "User Enabled" : "User Disabled",
-        `${getFullName(user)} is now ${newStatus.toLowerCase()}.`
-      );
+      showToast("success", newStatus === "Active" ? "User Enabled" : "User Disabled", `${getFullName(user)} is now ${newStatus.toLowerCase()}.`);
     } catch (e) {
       showToast("error", "Update Failed", e.message);
     }
@@ -304,7 +275,6 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
     const user = resetTarget;
     setResetTarget(null);
     setSending(user.id);
-
     try {
       await sendPasswordResetEmail(auth, user.email, {
         url: `${window.location.origin}/reset-password`,
@@ -339,12 +309,9 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         </button>
       </div>
 
-      {/* STATS */}
       <div className="um-stats-row">
         <div className="um-stat-card">
-          <div className="um-stat-icon">
-            <i className="fa-solid fa-users" />
-          </div>
+          <div className="um-stat-icon"><i className="fa-solid fa-users" /></div>
           <div>
             <div className="um-stat-value">{totalCount}</div>
             <div className="um-stat-label">Total Users</div>
@@ -352,9 +319,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         </div>
 
         <div className="um-stat-card">
-          <div className="um-stat-icon is-success">
-            <i className="fa-solid fa-circle-check" />
-          </div>
+          <div className="um-stat-icon is-success"><i className="fa-solid fa-circle-check" /></div>
           <div>
             <div className="um-stat-value">{activeCount}</div>
             <div className="um-stat-label">Active</div>
@@ -362,9 +327,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         </div>
 
         <div className="um-stat-card">
-          <div className="um-stat-icon is-muted">
-            <i className="fa-solid fa-ban" />
-          </div>
+          <div className="um-stat-icon is-muted"><i className="fa-solid fa-ban" /></div>
           <div>
             <div className="um-stat-value">{disabledCount}</div>
             <div className="um-stat-label">Disabled</div>
@@ -372,7 +335,6 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         </div>
       </div>
 
-      {/* SEARCH + SORT */}
       <div className="um-search-row">
         <div className="um-search-bar">
           <i className="fa-solid fa-magnifying-glass" />
@@ -382,16 +344,11 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-
         <SortMenu sortBy={sortBy} setSortBy={setSortBy} />
       </div>
 
-      {/* ROLE FILTER CHIPS */}
       <div className="um-chip-row">
-        <button
-          className={`um-chip ${roleFilter === "All" ? "active" : ""}`}
-          onClick={() => setRoleFilter("All")}
-        >
+        <button className={`um-chip ${roleFilter === "All" ? "active" : ""}`} onClick={() => setRoleFilter("All")}>
           All <span className="um-chip-count">{totalCount}</span>
         </button>
 
@@ -401,11 +358,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
             <button
               key={r}
               className={`um-chip ${roleFilter === r ? "active" : ""}`}
-              style={
-                roleFilter === r
-                  ? { background: rc.bg, color: rc.text, borderColor: rc.text }
-                  : undefined
-              }
+              style={roleFilter === r ? { background: rc.bg, color: rc.text, borderColor: rc.text } : undefined}
               onClick={() => setRoleFilter(r)}
             >
               {r} <span className="um-chip-count">{roleCounts[r]}</span>
@@ -424,11 +377,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
           <table className="um-table">
             <thead>
               <tr>
-                <th>NAME</th>
-                <th>EMAIL</th>
-                <th>ROLE</th>
-                <th>STATUS</th>
-                <th>ACTIONS</th>
+                <th>NAME</th><th>EMAIL</th><th>ROLE</th><th>STATUS</th><th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -470,35 +419,18 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
                       </td>
                       <td>
                         <div className="um-actions">
-                          <button
-                            className="um-action-icon danger"
-                            title="Delete User"
-                            onClick={() => handleDeleteUser(u)}
-                          >
+                          <button className="um-action-icon danger" title="Delete User" onClick={() => handleDeleteUser(u)}>
                             <i className="fa-solid fa-trash" />
                           </button>
-                          <button
-                            className="um-action-icon"
-                            title="Send password reset email"
-                            onClick={() => requestResetPassword(u)}
-                            disabled={sending === u.id}
-                          >
+                          <button className="um-action-icon" title="Send password reset email" onClick={() => requestResetPassword(u)} disabled={sending === u.id}>
                             <i className={`fa-solid ${sending === u.id ? "fa-spinner fa-spin" : "fa-rotate-right"}`} />
                           </button>
                           {u.status === "Active" ? (
-                            <button
-                              className="um-action-icon danger"
-                              title="Disable"
-                              onClick={() => handleToggleStatus(u)}
-                            >
+                            <button className="um-action-icon danger" title="Disable" onClick={() => handleToggleStatus(u)}>
                               <i className="fa-solid fa-ban" />
                             </button>
                           ) : (
-                            <button
-                              className="um-action-icon success"
-                              title="Enable"
-                              onClick={() => handleToggleStatus(u)}
-                            >
+                            <button className="um-action-icon success" title="Enable" onClick={() => handleToggleStatus(u)}>
                               <i className="fa-solid fa-circle-check" />
                             </button>
                           )}
@@ -521,81 +453,39 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         )}
       </div>
 
-      {/* DELETE CONFIRM */}
       {deleteTarget && (
         <div className="um-modal-overlay">
           <div className="um-modal">
-            <div className="um-modal-icon is-danger">
-              <i className="fa-solid fa-trash" />
-            </div>
-
+            <div className="um-modal-icon is-danger"><i className="fa-solid fa-trash" /></div>
             <h3 className="um-modal-title">Delete User</h3>
-
             <p className="um-modal-text">
-              Are you sure you want to permanently delete
-              <br />
-              <strong>{deleteTarget.email}</strong>?
-              <br />
-              <br />
-              This will <strong>remove the account from Authentication</strong> so the
-              email can be reused for a new account. All associated watches and
-              notifications will also be deleted.
-              <br />
-              <br />
+              Are you sure you want to permanently delete<br />
+              <strong>{deleteTarget.email}</strong>?<br /><br />
+              This will <strong>remove the account from Authentication</strong> so the email can be reused for a new account.
+              All associated watches and notifications will also be deleted.<br /><br />
               This action <strong>cannot be undone</strong>.
             </p>
-
             <div className="um-modal-actions">
-              <button
-                className="um-modal-cancel"
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="um-modal-confirm is-danger"
-                onClick={confirmDeleteUser}
-                disabled={deleting}
-              >
-                {deleting ? (
-                  <>
-                    <i className="fa-solid fa-spinner fa-spin" /> Deleting…
-                  </>
-                ) : (
-                  "Yes, Delete Permanently"
-                )}
+              <button className="um-modal-cancel" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
+              <button className="um-modal-confirm is-danger" onClick={confirmDeleteUser} disabled={deleting}>
+                {deleting ? (<><i className="fa-solid fa-spinner fa-spin" /> Deleting…</>) : ("Yes, Delete Permanently")}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* RESET PASSWORD CONFIRM */}
       {resetTarget && (
         <div className="um-modal-overlay">
           <div className="um-modal">
-            <div className="um-modal-icon">
-              <i className="fa-solid fa-rotate-right" />
-            </div>
-
+            <div className="um-modal-icon"><i className="fa-solid fa-rotate-right" /></div>
             <h3 className="um-modal-title">Send Reset Email</h3>
-
             <p className="um-modal-text">
-              Send a password reset email to
-              <br />
-              <strong>{resetTarget.email}</strong>?
+              Send a password reset email to<br /><strong>{resetTarget.email}</strong>?
             </p>
-
             <div className="um-modal-actions">
-              <button className="um-modal-cancel" onClick={() => setResetTarget(null)}>
-                Cancel
-              </button>
-
-              <button className="um-modal-confirm" onClick={confirmResetPassword}>
-                Send Email
-              </button>
+              <button className="um-modal-cancel" onClick={() => setResetTarget(null)}>Cancel</button>
+              <button className="um-modal-confirm" onClick={confirmResetPassword}>Send Email</button>
             </div>
           </div>
         </div>
@@ -622,24 +512,12 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
       <div className="um-form-card">
         <div className="um-form-group">
           <label>Select Account Creation Method</label>
-
           <div className="um-mode-selector">
-            <button
-              type="button"
-              className={`um-mode-btn ${entryMode === "manual" ? "active" : ""}`}
-              onClick={() => setEntryMode("manual")}
-            >
-              <i className="fa-solid fa-user" />
-              Individual Entry
+            <button type="button" className={`um-mode-btn ${entryMode === "manual" ? "active" : ""}`} onClick={() => setEntryMode("manual")}>
+              <i className="fa-solid fa-user" /> Individual Entry
             </button>
-
-            <button
-              type="button"
-              className={`um-mode-btn ${entryMode === "excel" ? "active" : ""}`}
-              onClick={() => setEntryMode("excel")}
-            >
-              <i className="fa-solid fa-file-excel" />
-              Upload Excel
+            <button type="button" className={`um-mode-btn ${entryMode === "excel" ? "active" : ""}`} onClick={() => setEntryMode("excel")}>
+              <i className="fa-solid fa-file-excel" /> Upload Excel
             </button>
           </div>
         </div>
@@ -652,7 +530,6 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
             ].map((f) => (
               <div className="um-form-group" key={f.key}>
                 <label>{f.label}</label>
-
                 <input
                   className="um-input"
                   placeholder={f.placeholder}
@@ -664,7 +541,6 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
 
             <div className="um-form-group">
               <label>Email Address</label>
-
               <input
                 className="um-input"
                 type="email"
@@ -676,7 +552,6 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
 
             <div className="um-form-group">
               <label>Role</label>
-
               <select
                 className="um-input um-select"
                 value={form.role}
@@ -686,7 +561,7 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
                 <option>Faculty</option>
                 <option>Local Registrar</option>
                 <option>Clerk</option>
-                <option>Department Head</option>
+                <option>Admin</option>
               </select>
             </div>
           </>
@@ -696,45 +571,23 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
           <>
             <div className="um-upload-info">
               <div className="um-upload-info-head">
-                <h3>
-                  <i className="fa-solid fa-table-list" /> Required Excel Columns
-                </h3>
-
-                <button
-                  type="button"
-                  className="um-template-btn"
-                  onClick={downloadUserTemplate}
-                >
-                  <i className="fa-solid fa-download" />
-                  Download Template
+                <h3><i className="fa-solid fa-table-list" /> Required Excel Columns</h3>
+                <button type="button" className="um-template-btn" onClick={downloadUserTemplate}>
+                  <i className="fa-solid fa-download" /> Download Template
                 </button>
               </div>
-
               <ul>
-                <li>First Name</li>
-                <li>Last Name</li>
-                <li>Email</li>
-                <li>Role</li>
+                <li>First Name</li><li>Last Name</li><li>Email</li><li>Role</li>
               </ul>
-
-              <p>
-                Download the template above, fill in the rows, then upload the file below.
-                Every row will automatically create a new user account.
-              </p>
+              <p>Download the template above, fill in the rows, then upload the file below. Every row will automatically create a new user account.</p>
             </div>
 
             <div className="um-form-group">
               <label>Upload Excel File</label>
-
               <label className="um-dropzone">
                 <i className="fa-solid fa-cloud-arrow-up" />
                 <span>{excelFile ? "Choose a different file" : "Click to browse, or drag a file here"}</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  hidden
-                  onChange={(e) => setExcelFile(e.target.files?.[0] || null)}
-                />
+                <input type="file" accept=".xlsx,.xls" hidden onChange={(e) => setExcelFile(e.target.files?.[0] || null)} />
               </label>
             </div>
 
@@ -742,12 +595,7 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
               <div className="um-file-preview">
                 <i className="fa-solid fa-file-excel" />
                 <span>{excelFile.name}</span>
-                <button
-                  type="button"
-                  className="um-file-remove"
-                  onClick={() => setExcelFile(null)}
-                  aria-label="Remove file"
-                >
+                <button type="button" className="um-file-remove" onClick={() => setExcelFile(null)} aria-label="Remove file">
                   <i className="fa-solid fa-xmark" />
                 </button>
               </div>
@@ -757,12 +605,8 @@ function CreateAccountStep1({ form, setForm, entryMode, setEntryMode, excelFile,
       </div>
 
       <div className="um-footer step2">
-        <button className="um-back-btn" onClick={onBack}>
-          Back
-        </button>
-        <button className="um-next-btn" onClick={onNext} disabled={!canProceed}>
-          Next
-        </button>
+        <button className="um-back-btn" onClick={onBack}>Back</button>
+        <button className="um-next-btn" onClick={onNext} disabled={!canProceed}>Next</button>
       </div>
     </div>
   );
@@ -780,43 +624,22 @@ function CreateAccountStep2({ form, entryMode, excelFile, onBack, onConfirm }) {
 
       <div className="um-form-card">
         <h2 className="um-confirm-title">Account Details</h2>
-
         <hr className="um-confirm-divider" />
-
         <div className="um-confirm-body">
           {entryMode === "manual" ? (
             <>
-              <div className="um-confirm-row">
-                <span>First Name</span>
-                <strong>{form.firstName}</strong>
-              </div>
-              <div className="um-confirm-row">
-                <span>Last Name</span>
-                <strong>{form.lastName}</strong>
-              </div>
-              <div className="um-confirm-row">
-                <span>Email</span>
-                <strong>{form.email}</strong>
-              </div>
-              <div className="um-confirm-row">
-                <span>Role</span>
-                <strong>{form.role}</strong>
-              </div>
+              <div className="um-confirm-row"><span>First Name</span><strong>{form.firstName}</strong></div>
+              <div className="um-confirm-row"><span>Last Name</span><strong>{form.lastName}</strong></div>
+              <div className="um-confirm-row"><span>Email</span><strong>{form.email}</strong></div>
+              <div className="um-confirm-row"><span>Role</span><strong>{form.role}</strong></div>
             </>
           ) : (
             <>
-              <div className="um-confirm-row">
-                <span>Upload Type</span>
-                <strong>Bulk Excel Upload</strong>
-              </div>
-              <div className="um-confirm-row">
-                <span>File</span>
-                <strong>{excelFile?.name}</strong>
-              </div>
+              <div className="um-confirm-row"><span>Upload Type</span><strong>Bulk Excel Upload</strong></div>
+              <div className="um-confirm-row"><span>File</span><strong>{excelFile?.name}</strong></div>
             </>
           )}
         </div>
-
         <div className="um-info-box">
           <i className="fa-solid fa-circle-info" />
           <span>An automated email will be sent to all created users.</span>
@@ -824,19 +647,12 @@ function CreateAccountStep2({ form, entryMode, excelFile, onBack, onConfirm }) {
       </div>
 
       <div className="um-footer step2">
-        <button className="um-back-btn" onClick={onBack}>
-          Back
-        </button>
-
-        <button className="um-next-btn" onClick={onConfirm}>
-          Confirm
-        </button>
+        <button className="um-back-btn" onClick={onBack}>Back</button>
+        <button className="um-next-btn" onClick={onConfirm}>Confirm</button>
       </div>
     </div>
   );
 }
-
-// ── Root ──────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = { firstName: "", lastName: "", email: "", role: "" };
 
@@ -876,14 +692,7 @@ export default function UserManagement() {
   const logActivity = async ({ userId, user, role, action, actionType, target, status }) => {
     try {
       await addDoc(collection(db, "activityLogs"), {
-        userId,
-        user,
-        role,
-        action,
-        actionType,
-        target,
-        status,
-        timestamp: serverTimestamp(),
+        userId, user, role, action, actionType, target, status, timestamp: serverTimestamp(),
       });
     } catch (err) {
       console.error("Activity log error:", err);
@@ -900,7 +709,6 @@ export default function UserManagement() {
   const parseExcelFile = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-
       reader.onload = (e) => {
         try {
           const data = e.target.result;
@@ -913,7 +721,6 @@ export default function UserManagement() {
           reject(err);
         }
       };
-
       reader.onerror = reject;
       reader.readAsArrayBuffer(file);
     });
@@ -983,12 +790,8 @@ export default function UserManagement() {
 
         for (let i = 0; i < normalizedRows.length; i++) {
           const row = normalizedRows[i];
-
           try {
-            if (!row.firstName || !row.lastName || !row.email || !row.role) {
-              throw new Error("Missing required fields");
-            }
-
+            if (!row.firstName || !row.lastName || !row.email || !row.role) throw new Error("Missing required fields");
             const tempPassword = generateTempPassword();
             const uid = await createUserSecondaryApp(row.email, tempPassword);
 
@@ -1050,7 +853,6 @@ export default function UserManagement() {
       reset();
     } catch (err) {
       console.error(err);
-
       if (err.code === "auth/email-already-in-use") {
         showToast(
           "error",
@@ -1097,10 +899,7 @@ export default function UserManagement() {
         />
       )}
       {showModal && (
-        <ConfirmPopup
-          onCancel={() => setShowModal(false)}
-          onConfirm={handleFinalConfirm}
-        />
+        <ConfirmPopup onCancel={() => setShowModal(false)} onConfirm={handleFinalConfirm} />
       )}
 
       <Toast

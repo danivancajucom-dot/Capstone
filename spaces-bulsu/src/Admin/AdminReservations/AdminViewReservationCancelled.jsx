@@ -1,16 +1,16 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import "./department-head-view-reservation-approved.css";
+import "./admin-view-reservation-cancelled.css";
 
-function DepartmentHeadViewReservationApproved() {
+function AdminViewReservationCancelled() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const reservation = state?.reservation;
 
   if (!reservation) {
     return (
-      <div className="dph-approved-reservation-room">
+      <div className="dh-cancelled-reservation-room">
         <h2>Reservation not found.</h2>
-        <button onClick={() => navigate("/department-head/reservations")}>
+        <button onClick={() => navigate("/admin/reservations")}>
           Back
         </button>
       </div>
@@ -22,7 +22,9 @@ function DepartmentHeadViewReservationApproved() {
     if (!start || !end) return "N/A";
     const [startHour, startMin] = start.split(":").map(Number);
     const [endHour, endMin] = end.split(":").map(Number);
-    const diffMs = new Date().setHours(endHour, endMin, 0) - new Date().setHours(startHour, startMin, 0);
+    const diffMs =
+      new Date().setHours(endHour, endMin, 0) -
+      new Date().setHours(startHour, startMin, 0);
     if (diffMs <= 0) return "N/A";
     const totalMinutes = Math.floor(diffMs / 60000);
     const hours = Math.floor(totalMinutes / 60);
@@ -34,75 +36,81 @@ function DepartmentHeadViewReservationApproved() {
 
   const duration = getDuration(reservation.startTime, reservation.endTime);
 
-  const createdDate =
-    reservation.createdAt?.seconds
-      ? new Date(reservation.createdAt.seconds * 1000)
-      : new Date(reservation.createdAt);
+  const createdDate = reservation.createdAt?.seconds
+    ? new Date(reservation.createdAt.seconds * 1000)
+    : new Date(reservation.createdAt);
 
-  // Format equipment list
-  const equipmentList = reservation.requiredEquipment
-    ?.map((eq) => {
-      const labels = {
-        projector: "Projector",
-        tvDisplay: "TV Display",
-        ac: "AC",
-        computer: "Computer",
-        smartBoard: "Smart Board",
-      };
-      return labels[eq] || eq;
-    })
-    .join(", ") || "None";
+  const equipmentList =
+    reservation.requiredEquipment
+      ?.map((eq) => {
+        const labels = {
+          projector: "Projector",
+          tvDisplay: "TV Display",
+          ac: "AC",
+          computer: "Computer",
+          smartBoard: "Smart Board",
+        };
+        return labels[eq] || eq;
+      })
+      .join(", ") || "None";
 
   return (
-    <div className="dph-approved-reservation-room">
+    <div className="dh-cancelled-reservation-room">
 
-      <div className="dh-white-box-approved">
-        <h2 className="dph-approved-title">Approved Reservation Details</h2>
+      <div className="dh-white-box-cancelled">
+        <h2 className="dh-cancelled-title">Cancelled Reservation Details</h2>
 
-        <div className="dh-approved-info-grid">
+        <div className="dh-cancelled-info-grid">
           {/* ─── Faculty / Requester ────────────────────────────── */}
-          <div className="dh-approved-info-box">
-            <h3 className="dh-approved-info-box-title">
+          <div className="dh-cancelled-info-box">
+            <h3 className="dh-cancelled-info-box-title">
               <i className="fa-solid fa-user"></i> Requester
             </h3>
-            <div className="dh-approved-info-box-content">
+            <div className="dh-cancelled-info-box-content">
               <p>
-                <strong>Name:</strong> {reservation.facultyName || reservation.requesterName || "Unknown"}
+                <strong>Name:</strong>{" "}
+                {reservation.facultyName ||
+                  reservation.requesterName ||
+                  "Unknown"}
               </p>
               {reservation.audienceType === "Organization" && (
                 <p>
-                  <strong>Organization:</strong> {reservation.attendees?.organization || "N/A"}
+                  <strong>Organization:</strong>{" "}
+                  {reservation.attendees?.organization || "N/A"}
                 </p>
               )}
             </div>
           </div>
 
           {/* ─── Course & Purpose ────────────────────────────────── */}
-          <div className="dh-approved-info-box">
-            <h3 className="dh-approved-info-box-title">
+          <div className="dh-cancelled-info-box">
+            <h3 className="dh-cancelled-info-box-title">
               <i className="fa-solid fa-book"></i> Course & Purpose
             </h3>
-            <div className="dh-approved-info-box-content">
+            <div className="dh-cancelled-info-box-content">
               <p>
-                <strong>Course Title:</strong> {reservation.courseTitle || "N/A"}
+                <strong>Course Title:</strong>{" "}
+                {reservation.courseTitle || "N/A"}
               </p>
               <p>
                 <strong>Purpose:</strong> {reservation.purpose || "N/A"}
               </p>
-              {reservation.purpose === "Other Activity" && reservation.attendees?.customPurpose && (
-                <p>
-                  <strong>Specified Activity:</strong> {reservation.attendees.customPurpose}
-                </p>
-              )}
+              {reservation.purpose === "Other Activity" &&
+                reservation.attendees?.customPurpose && (
+                  <p>
+                    <strong>Specified Activity:</strong>{" "}
+                    {reservation.attendees.customPurpose}
+                  </p>
+                )}
             </div>
           </div>
 
           {/* ─── Room & Schedule ─────────────────────────────────── */}
-          <div className="dh-approved-info-box">
-            <h3 className="dh-approved-info-box-title">
+          <div className="dh-cancelled-info-box">
+            <h3 className="dh-cancelled-info-box-title">
               <i className="fa-solid fa-calendar-days"></i> Room & Schedule
             </h3>
-            <div className="dh-approved-info-box-content">
+            <div className="dh-cancelled-info-box-content">
               <p>
                 <strong>Room:</strong> {reservation.roomName || "N/A"}
               </p>
@@ -110,7 +118,8 @@ function DepartmentHeadViewReservationApproved() {
                 <strong>Date:</strong> {reservation.date || "N/A"}
               </p>
               <p>
-                <strong>Time:</strong> {reservation.startTime || "N/A"} – {reservation.endTime || "N/A"}
+                <strong>Time:</strong> {reservation.startTime || "N/A"} –{" "}
+                {reservation.endTime || "N/A"}
               </p>
               <p>
                 <strong>Duration:</strong> {duration}
@@ -119,11 +128,11 @@ function DepartmentHeadViewReservationApproved() {
           </div>
 
           {/* ─── Audience ─────────────────────────────────────────── */}
-          <div className="dh-approved-info-box">
-            <h3 className="dh-approved-info-box-title">
+          <div className="dh-cancelled-info-box">
+            <h3 className="dh-cancelled-info-box-title">
               <i className="fa-solid fa-users"></i> Audience
             </h3>
-            <div className="dh-approved-info-box-content">
+            <div className="dh-cancelled-info-box-content">
               <p>
                 <strong>Type:</strong> {reservation.audienceType || "N/A"}
               </p>
@@ -131,17 +140,20 @@ function DepartmentHeadViewReservationApproved() {
               {reservation.audienceType === "Class" && (
                 <>
                   <p>
-                    <strong>Course:</strong> {reservation.attendees?.course || "N/A"}
+                    <strong>Course:</strong>{" "}
+                    {reservation.attendees?.course || "N/A"}
                   </p>
                   <p>
-                    <strong>Year/Section/Group:</strong> {reservation.attendees?.yearSectionGroup || "N/A"}
+                    <strong>Year/Section/Group:</strong>{" "}
+                    {reservation.attendees?.yearSectionGroup || "N/A"}
                   </p>
                 </>
               )}
 
               {reservation.audienceType === "Organization" && (
                 <p>
-                  <strong>Organization Name:</strong> {reservation.attendees?.organization || "N/A"}
+                  <strong>Organization Name:</strong>{" "}
+                  {reservation.attendees?.organization || "N/A"}
                 </p>
               )}
 
@@ -153,41 +165,47 @@ function DepartmentHeadViewReservationApproved() {
 
               {reservation.audienceType === "Others" && (
                 <p>
-                  <strong>Attendees:</strong> {reservation.attendees?.otherAudience || "N/A"}
+                  <strong>Attendees:</strong>{" "}
+                  {reservation.attendees?.otherAudience || "N/A"}
                 </p>
               )}
             </div>
           </div>
 
           {/* ─── Equipment & Capacity ────────────────────────────── */}
-          <div className="dh-approved-info-box">
-            <h3 className="dh-approved-info-box-title">
+          <div className="dh-cancelled-info-box">
+            <h3 className="dh-cancelled-info-box-title">
               <i className="fa-solid fa-toolbox"></i> Equipment & Capacity
             </h3>
-            <div className="dh-approved-info-box-content">
+            <div className="dh-cancelled-info-box-content">
               <p>
                 <strong>Required Equipment:</strong> {equipmentList}
               </p>
               {reservation.studentRange && (
                 <p>
-                  <strong>Estimated Attendees:</strong> {reservation.studentRange}
+                  <strong>Estimated Attendees:</strong>{" "}
+                  {reservation.studentRange}
                 </p>
               )}
             </div>
           </div>
 
           {/* ─── Metadata ──────────────────────────────────────────── */}
-          <div className="dh-approved-info-box">
-            <h3 className="dh-approved-info-box-title">
+          <div className="dh-cancelled-info-box">
+            <h3 className="dh-cancelled-info-box-title">
               <i className="fa-solid fa-circle-info"></i> Metadata
             </h3>
-            <div className="dh-approved-info-box-content">
+            <div className="dh-cancelled-info-box-content">
               <p>
                 <strong>Status:</strong>{" "}
-                <span className="dh-approved-status-badge approved">Approved</span>
+                <span className="dh-cancelled-status-badge cancelled">
+                  Cancelled
+                </span>
               </p>
               <p>
-                <strong>Requested On:</strong> {createdDate.toLocaleDateString()} | {createdDate.toLocaleTimeString()}
+                <strong>Requested On:</strong>{" "}
+                {createdDate.toLocaleDateString()} |{" "}
+                {createdDate.toLocaleTimeString()}
               </p>
               {reservation.roomCapacity && (
                 <p>
@@ -199,22 +217,17 @@ function DepartmentHeadViewReservationApproved() {
         </div>
       </div>
 
-      <div className="dh-approved-footer">
+      <div className="dh-cancelled-footer">
         <button
-          className="dh-approved-back-btn"
-          onClick={() => navigate("/department-head/reservations")}
+          className="dh-cancelled-back-btn"
+          onClick={() => navigate("/admin/reservations")}
         >
           Back
         </button>
-        <button
-          className="dh-approved-edit-btn"
-          onClick={() => navigate("/department-head/edit-approved-reservation", { state: { reservation } })}
-        >
-          Edit
-        </button>
+        {/* No Edit button – cancelled reservations are read‑only */}
       </div>
     </div>
   );
 }
 
-export default DepartmentHeadViewReservationApproved;
+export default AdminViewReservationCancelled;

@@ -21,9 +21,6 @@ import { onAuthStateChanged } from "firebase/auth";
 const DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const DAY_TO_INDEX = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
 
-// ─────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────
 const normalizeName = (name = "") =>
   name
     .toLowerCase()
@@ -110,7 +107,6 @@ const toDateStr = (date) => {
   return `${y}-${m}-${d}`;
 };
 
-// ─── Overlap detection ─────────────────────────────────────────────
 const timesOverlap = (s1, e1, s2, e2) => {
   const a1 = toMinutes(s1);
   const b1 = toMinutes(e1);
@@ -119,7 +115,6 @@ const timesOverlap = (s1, e1, s2, e2) => {
   return a1 < b2 && b1 > a2;
 };
 
-// ─── Announcement helpers ──────────────────────────────────────────
 const getInitials = (name = "") => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -165,9 +160,6 @@ const getKindMeta = (item) => {
   return { key: "schedule", label: "Class", icon: "fa-solid fa-chalkboard-user" };
 };
 
-// ─────────────────────────────────────────────────────────────────
-// Main Component
-// ─────────────────────────────────────────────────────────────────
 export default function FacultyDashboard({ onLogout }) {
   const navigate = useNavigate();
 
@@ -178,16 +170,14 @@ export default function FacultyDashboard({ onLogout }) {
   const [myUid, setMyUid] = useState(null);
   const [myRoomIds, setMyRoomIds] = useState([]);
 
-  // ─── Realtime override states ────────────────────────────────────
   const [onlineSchedules, setOnlineSchedules] = useState([]);
   const [releasedKeys, setReleasedKeys] = useState(new Set());
   const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
   const [reassignedInto, setReassignedInto] = useState([]);
   const [approvedReservations, setApprovedReservations] = useState([]);
-  const [myRoomEvents, setMyRoomEvents] = useState([]); // for override detection
+  const [myRoomEvents, setMyRoomEvents] = useState([]);
 
-  // ─── Announcements ──────────────────────────────────────────────
-  const [deptAnnouncements, setDeptAnnouncements] = useState([]);
+  const [adminAnnouncements, setAdminAnnouncements] = useState([]);
   const [announcementLoading, setAnnouncementLoading] = useState(true);
   const [likeBusyId, setLikeBusyId] = useState(null);
 
@@ -197,15 +187,11 @@ export default function FacultyDashboard({ onLogout }) {
   const unsubsRef = useRef([]);
   const baseLoadedRef = useRef(false);
 
-  // ─── 60-second tick for countdowns ──────────────────────────────
   useEffect(() => {
     const id = setInterval(() => forceTick((t) => t + 1), 60000);
     return () => clearInterval(id);
   }, []);
 
-  // ════════════════════════════════════════════════════════════════
-  // MAIN SETUP — Base load + realtime listeners
-  // ════════════════════════════════════════════════════════════════
   useEffect(() => {
     let isCancelled = false;
 
@@ -237,7 +223,6 @@ export default function FacultyDashboard({ onLogout }) {
           `${me.lastName}, ${me.firstName}${me.middleInitial ? ` ${me.middleInitial}` : ""}`
         );
 
-        // ─── 1. BASE: Load rooms + schedules (static) ────────────
         const roomsSnap = await getDocs(collection(db, "rooms"));
         const matchedSchedules = [];
 
@@ -300,7 +285,6 @@ export default function FacultyDashboard({ onLogout }) {
         baseLoadedRef.current = true;
         setLoading(false);
 
-        // ─── 2. REALTIME: Online classes ─────────────────────────
         const unsubOnline = onSnapshot(
           query(
             collection(db, "facultySchedules"),
@@ -318,7 +302,6 @@ export default function FacultyDashboard({ onLogout }) {
         );
         unsubsRef.current.push(unsubOnline);
 
-        // ─── 3. REALTIME: Releases ───────────────────────────────
         const unsubReleases = onSnapshot(
           query(
             collection(db, "roomReleases"),
@@ -337,7 +320,6 @@ export default function FacultyDashboard({ onLogout }) {
         );
         unsubsRef.current.push(unsubReleases);
 
-        // ─── 4. REALTIME: Reassignments ──────────────────────────
         const unsubReassign = onSnapshot(
           query(
             collection(db, "roomReassignments"),
@@ -362,7 +344,6 @@ export default function FacultyDashboard({ onLogout }) {
         );
         unsubsRef.current.push(unsubReassign);
 
-        // ─── 5. REALTIME: Approved Reservations ─────────────────
         const unsubReservations = onSnapshot(
           collection(db, "reservationRequests"),
           (snap) => {
@@ -384,8 +365,6 @@ export default function FacultyDashboard({ onLogout }) {
         );
         unsubsRef.current.push(unsubReservations);
 
-        // ─── 6. REALTIME: Room Events (for override detection) ──
-        // Listen to ALL events, filter client-side by myRoomIds
         const unsubEvents = onSnapshot(
           collection(db, "events"),
           (snap) => {
@@ -405,7 +384,6 @@ export default function FacultyDashboard({ onLogout }) {
       }
     };
 
-    // Listen for auth state — safer than relying on currentUser
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (user) setup(user);
     });
@@ -417,9 +395,6 @@ export default function FacultyDashboard({ onLogout }) {
     };
   }, []);
 
-  // ════════════════════════════════════════════════════════════════
-  // ANNOUNCEMENTS — realtime
-  // ════════════════════════════════════════════════════════════════
   useEffect(() => {
     setAnnouncementLoading(true);
 
@@ -432,20 +407,20 @@ export default function FacultyDashboard({ onLogout }) {
     const unsubscribe = onSnapshot(
       annQuery,
       (snap) => {
-        const deptOnly = snap.docs
+        const adminOnly = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((a) => a.senderRole === "Department Head")
+          .filter((a) => a.senderRole === "Admin")
           .filter(
             (a) => a.recipient === "All Staffs" || a.recipient === "Faculty"
           )
           .slice(0, 3);
 
-        setDeptAnnouncements(deptOnly);
+        setAdminAnnouncements(adminOnly);
         setAnnouncementLoading(false);
       },
       (err) => {
         console.warn("Announcement listener error:", err);
-        setDeptAnnouncements([]);
+        setAdminAnnouncements([]);
         setAnnouncementLoading(false);
       }
     );
@@ -453,21 +428,18 @@ export default function FacultyDashboard({ onLogout }) {
     return () => unsubscribe();
   }, []);
 
-  // ════════════════════════════════════════════════════════════════
-  // Like / unlike an announcement
-  // ════════════════════════════════════════════════════════════════
   const toggleAnnouncementLike = async (announcementId) => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser || likeBusyId) return;
 
-    const target = deptAnnouncements.find((a) => a.id === announcementId);
+    const target = adminAnnouncements.find((a) => a.id === announcementId);
     if (!target) return;
 
     const currentLikes = target.reactions?.like || [];
     const hasLiked = currentLikes.includes(firebaseUser.uid);
 
     setLikeBusyId(announcementId);
-    setDeptAnnouncements((prev) =>
+    setAdminAnnouncements((prev) =>
       prev.map((a) => {
         if (a.id !== announcementId) return a;
         const likes = a.reactions?.like || [];
@@ -486,7 +458,7 @@ export default function FacultyDashboard({ onLogout }) {
       });
     } catch (err) {
       console.error("Failed to toggle like:", err);
-      setDeptAnnouncements((prev) =>
+      setAdminAnnouncements((prev) =>
         prev.map((a) => (a.id === announcementId ? target : a))
       );
     } finally {
@@ -494,9 +466,6 @@ export default function FacultyDashboard({ onLogout }) {
     }
   };
 
-  // ════════════════════════════════════════════════════════════════
-  // COMPUTE DERIVED ITEMS
-  // ════════════════════════════════════════════════════════════════
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const todayAbbrev = DAY_LABELS[now.getDay()];
@@ -505,7 +474,6 @@ export default function FacultyDashboard({ onLogout }) {
   const allItems = useMemo(() => {
     const items = [];
 
-    // ── Helper: is a schedule overridden by a room event? ──
     const isOverridden = (schedule, dateStr) => {
       return myRoomEvents.some((ev) => {
         if (ev.roomId !== schedule.roomId) return false;
@@ -519,7 +487,6 @@ export default function FacultyDashboard({ onLogout }) {
       });
     };
 
-    // ── Academic schedules ──
     latestSchedules.forEach((s) => {
       const occurrenceDate = getNextOccurrenceDate(s.day, s.startTime, now);
       if (!occurrenceDate) return;
@@ -528,7 +495,7 @@ export default function FacultyDashboard({ onLogout }) {
 
       if (releasedKeys.has(key)) return;
       if (reassignedAwayKeys.has(key)) return;
-      if (isOverridden(s, dateStr)) return; // ✨ override filter
+      if (isOverridden(s, dateStr)) return;
 
       items.push({
         id: s.id,
@@ -548,7 +515,6 @@ export default function FacultyDashboard({ onLogout }) {
       });
     });
 
-    // ── Online classes ──
     onlineSchedules.forEach((s) => {
       const occurrenceDate = getNextOccurrenceDate(s.day, s.startTime, now);
       if (!occurrenceDate) return;
@@ -572,7 +538,6 @@ export default function FacultyDashboard({ onLogout }) {
       });
     });
 
-    // ── Reassignments (moved classes) ──
     reassignedInto.forEach((r) => {
       const occurrence = new Date(`${r.date}T${r.startTime}:00`);
       if (occurrence < now) return;
@@ -593,7 +558,6 @@ export default function FacultyDashboard({ onLogout }) {
       });
     });
 
-    // ── Approved reservations ──
     approvedReservations.forEach((r) => {
       const occurrence = new Date(`${r.date}T${r.startTime}:00`);
       if (occurrence < now) return;
@@ -678,17 +642,13 @@ export default function FacultyDashboard({ onLogout }) {
   );
 
   const nextClass = upcomingItems[0] || null;
-  const latestAnnouncement = deptAnnouncements[0] || null;
+  const latestAnnouncement = adminAnnouncements[0] || null;
   const currentUid = auth.currentUser?.uid;
 
-  // ════════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════════
   return (
     <div className="dashboard-shell">
       <div className="container">
         <main className="dashboard-main">
-          {/* ─── ANNOUNCEMENT ───────────────────────────────────── */}
           {announcementLoading ? (
             <div className="announce-card is-skeleton">
               <div className="announce-skeleton-avatar"></div>
@@ -720,8 +680,8 @@ export default function FacultyDashboard({ onLogout }) {
                 </div>
                 <div className="announce-meta">
                   <div className="announce-meta-row">
-                    <strong>{latestAnnouncement.senderName || "Department Head"}</strong>
-                    <span className="announce-role-chip">Dept. Head</span>
+                    <strong>{latestAnnouncement.senderName || "Admin"}</strong>
+                    <span className="announce-role-chip">Admin</span>
                   </div>
                   <span className="announce-subtext">
                     College of Information and Communications Technology
@@ -765,10 +725,10 @@ export default function FacultyDashboard({ onLogout }) {
                     : "Like"}
                 </button>
 
-                {deptAnnouncements.length > 1 && (
+                {adminAnnouncements.length > 1 && (
                   <span className="announce-more-pill">
-                    +{deptAnnouncements.length - 1} more announcement
-                    {deptAnnouncements.length - 1 === 1 ? "" : "s"}
+                    +{adminAnnouncements.length - 1} more announcement
+                    {adminAnnouncements.length - 1 === 1 ? "" : "s"}
                   </span>
                 )}
 
@@ -783,7 +743,6 @@ export default function FacultyDashboard({ onLogout }) {
             </div>
           ) : null}
 
-          {/* ─── HEADER ─────────────────────────────────────────── */}
           <div className="dash-header">
             <div className="dash-greeting">
               <div className="dash-greeting-icon">
@@ -812,7 +771,6 @@ export default function FacultyDashboard({ onLogout }) {
             </button>
           </div>
 
-          {/* ─── STAT CHIPS ─────────────────────────────────────── */}
           {loading ? (
             <div className="dash-stats-row">
               <div className="stat-skeleton"></div>
@@ -858,7 +816,6 @@ export default function FacultyDashboard({ onLogout }) {
             </div>
           ) : null}
 
-          {/* ─── TODAY'S SCHEDULE ───────────────────────────────── */}
           <section className="today-card">
             <div className="card-header">
               <div>
@@ -996,7 +953,6 @@ export default function FacultyDashboard({ onLogout }) {
               </>
             )}
 
-            {/* UPCOMING */}
             <div className="upcoming-section">
               <h2>Upcoming Classes</h2>
 

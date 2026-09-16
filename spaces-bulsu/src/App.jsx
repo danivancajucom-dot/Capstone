@@ -15,32 +15,25 @@ import LocalRegistrarDashboard from "./LocalRegistrar/LocalRegistrarDashboard/Lo
 import LocalRegistrarProfile from "./LocalRegistrar/LocalRegistrarProfile/LocalRegistrarProfile";
 import LocalRegistrarSettings from "./LocalRegistrar/LocalRegistrarSettings/LocalRegistrarSettings";
 
-
-// Department Head
-import DepartmentHeadConflicts from "./DepartmentHead/DepartmentHeadConflicts/DepartmentHeadConflicts";
-import DepartmentHeadLayout from "./DepartmentHead/DepartmentHeadLayout/DepartmentHeadLayout";
-import DepartmentHeadReservations from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadReservations";
-import DepartmentHeadViewReservation from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservation";
-import DepartmentHeadViewReservationApproved from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservationApproved";
-import DepartmentHeadEditApprovedReservation from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadEditApprovedReservation";
-import DepartmentHeadViewReservationDenied from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservationDenied";
-import DepartmentHeadRoomManagement from "./DepartmentHead/DepartmentHeadRoomManagement/RoomManagementView";
-import RoomActivity from "./DepartmentHead/DepartmentHeadRoomActivity/RoomActivity";
-import UserManagement from "./DepartmentHead/DepartmentHeadUserManagement/UserManagement";
-import NotificationManagement from "./DepartmentHead/HeadDepartmentNotificationManagement/NotificationManagement";
-import DepartmentHeadDashboard from "./DepartmentHead/DepartmentHeadDashboard/DepartmentHeadDashboard";
-import DepartmentHeadActivityLog from "./DepartmentHead/DepartmentHeadActivityLog/DepartmentHeadActivityLog";
-import DepartmentHeadAddRoom from "./DepartmentHead/DepartmentHeadRoomManagement/AddRoom/RoomManagementAddRoom";
-import DepartmentHeadEditRoom from "./DepartmentHead/DepartmentHeadRoomManagement/EditDetails/RoomManagementEditDetails";
-import RoomManagementViewAffectedSchedule from "./DepartmentHead/DepartmentHeadRoomManagement/ViewAffectedSchedule/RoomManagementViewAffectedSchedule";
-import DepartmentHeadProfile from "./DepartmentHead/DepartmentHeadProfile/DepartmentHeadProfile";
-import DepartmentHeadViewAcademicSchedule from "./DepartmentHead/DepartmentHeadSchedule/DepartmentHeadViewAcademicSchedule";
-import DepartmentHeadViewRoomCard from "./DepartmentHead/DepartmentHeadSchedule/DepartmentHeadViewRoomCard";
-import DepartmentHeadRoomUsage from "./DepartmentHead/DepartmentHeadRoomUsageTracking/RoomUsageTracking";
-import DepartmentHeadViewReservationCancelled from "./DepartmentHead/DepartmentHeadReservations/DepartmentHeadViewReservationCancelled";
-import DepartmentHeadSettings from "./DepartmentHead/DepartmentHeadSettings/DepartmentHeadSettings";
-import DepartmentHeadRoomIssues from "./DepartmentHead/DepartmentHeadRoomIssues/DepartmentHeadRoomIssues";
-import DepartmentHeadReassignment from "./DepartmentHead/DepartmentHeadReassignments/DepartmentHeadReassignments";
+// Admin (formerly Department Head)
+import AdminConflicts from "./Admin/AdminConflicts/AdminConflicts";
+import AdminLayout from "./Admin/AdminLayout/AdminLayout";
+import AdminReservations from "./Admin/AdminReservations/AdminReservations";
+import AdminViewReservation from "./Admin/AdminReservations/AdminViewReservation";
+import AdminViewReservationApproved from "./Admin/AdminReservations/AdminViewReservationApproved";
+import AdminEditApprovedReservation from "./Admin/AdminReservations/AdminEditApprovedReservation";
+import AdminViewReservationDenied from "./Admin/AdminReservations/AdminViewReservationDenied";
+import RoomActivity from "./Admin/AdminRoomActivity/RoomActivity";
+import UserManagement from "./Admin/AdminUserManagement/UserManagement";
+import AdminDashboard from "./Admin/AdminDashboard/AdminDashboard";
+import AdminActivityLog from "./Admin/AdminActivityLog/AdminActivityLog";
+import AdminProfile from "./Admin/AdminProfile/AdminProfile";
+import AdminViewAcademicSchedule from "./Admin/AdminSchedule/AdminViewAcademicSchedule";
+import AdminViewRoomCard from "./Admin/AdminSchedule/AdminViewRoomCard";
+import AdminViewReservationCancelled from "./Admin/AdminReservations/AdminViewReservationCancelled";
+import AdminSettings from "./Admin/AdminSettings/AdminSettings";
+import AdminRoomIssues from "./Admin/AdminRoomIssues/AdminRoomIssues";
+import AdminReassignment from "./Admin/AdminReassignments/AdminReassignments";
 
 // Clerk
 import ClerkLayout from "./Clerk/ClerkLayout/ClerkLayout";
@@ -67,7 +60,7 @@ import ClerkReassignRoom from "./Clerk/ClerkConflicts/ClerkReassignRoom";
 import ClerkSettings from "./Clerk/ClerkSettings/ClerkSettings";
 import ClerkRoomIssues from "./Clerk/ClerkRoomIssues/ClerkRoomIssues";
 
-//Faculty
+// Faculty
 import FacultyLayout from "./Faculty/FacultyLayout/FacultyLayout";
 import FacultyDashboard from "./Faculty/FacultyDashboard/FacultyDashboard";
 import FacultyProfile from "./Faculty/FacultyProfile/FacultyProfile";
@@ -85,7 +78,7 @@ import FacultyViewDenied from "./Faculty/FacultyReservations/FacultyViewDeniedRe
 import FacultySettings from "./Faculty/FacultySettings/FacultySettings";
 import FacultyRoomIssues from "./Faculty/FacultyRoomIssues/FacultyRoomIssues";
 
-//Login
+// Login
 import Login from "./Login/Login";
 import BroadcastChannel from "./Components/BroadcastChannel/BroadcastChannel";
 import ResetPassword from "./ResetPassword/ResetPassword";
@@ -94,68 +87,61 @@ import PublicRoomSchedule from "./Pages/PublicRoomSchedule/PublicRoomSchedule";
 function App() {
   return (
     <BrowserRouter>
-        <Routes>
-        {/* Department Head */}
-        <Route path="/department-head" element={<DepartmentHeadLayout />}>
-        <Route index element={<DepartmentHeadDashboard />}/>
-        <Route path="profile" element={<DepartmentHeadProfile />} />
-        <Route path="activity-log" element={<DepartmentHeadActivityLog />} />
-        <Route path="conflicts" element={<DepartmentHeadConflicts />}  />
-        <Route path="reservations" element={<DepartmentHeadReservations />} />
-        <Route path="view-reservation" element={<DepartmentHeadViewReservation />}/>
-        <Route path="view-reservation-approved" element={<DepartmentHeadViewReservationApproved />}/>
-        <Route path="edit-approved-reservation" element={<DepartmentHeadEditApprovedReservation />}/>
-        <Route path="view-reservation-denied" element={<DepartmentHeadViewReservationDenied />}/>
-        <Route path="view-reservation-cancelled" element={<DepartmentHeadViewReservationCancelled />}/>
-        <Route path="schedule-view-academic-schedule" element={<DepartmentHeadViewAcademicSchedule />}/>
-        <Route path="schedule-room-card" element={<DepartmentHeadViewRoomCard />}/>
-        <Route path="room-management" element={<DepartmentHeadRoomManagement />} />
-        <Route path="add-room" element={<DepartmentHeadAddRoom />}/>
-        <Route path="edit-room/:id" element={<DepartmentHeadEditRoom />}/>
-        <Route path="room-activity" element={<RoomActivity />}/>
-        <Route path="user-management" element={<UserManagement />}/>
-        <Route path="broadcast-channel" element={<BroadcastChannel />} />
-        <Route path="affected-schedules" element={<RoomManagementViewAffectedSchedule />} />
-        <Route path="room-usagement" element={<DepartmentHeadRoomUsage />} />
-        <Route path="settings" element={<DepartmentHeadSettings />} />
-        <Route path="room-issues" element={<DepartmentHeadRoomIssues />} />
-        <Route path="reassign-room" element={<DepartmentHeadReassignment />} />
-      </Route>
+      <Routes>
+        {/* Admin */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="profile" element={<AdminProfile />} />
+          <Route path="activity-log" element={<AdminActivityLog />} />
+          <Route path="conflicts" element={<AdminConflicts />} />
+          <Route path="reservations" element={<AdminReservations />} />
+          <Route path="view-reservation" element={<AdminViewReservation />} />
+          <Route path="view-reservation-approved" element={<AdminViewReservationApproved />} />
+          <Route path="edit-approved-reservation" element={<AdminEditApprovedReservation />} />
+          <Route path="view-reservation-denied" element={<AdminViewReservationDenied />} />
+          <Route path="view-reservation-cancelled" element={<AdminViewReservationCancelled />} />
+          <Route path="schedule-view-academic-schedule" element={<AdminViewAcademicSchedule />} />
+          <Route path="schedule-room-card" element={<AdminViewRoomCard />} />
+          <Route path="room-activity" element={<RoomActivity />} />
+          <Route path="user-management" element={<UserManagement />} />
+          <Route path="broadcast-channel" element={<BroadcastChannel />} />
+          <Route path="settings" element={<AdminSettings />} />
+          <Route path="room-issues" element={<AdminRoomIssues />} />
+          <Route path="reassign-room" element={<AdminReassignment />} />
+        </Route>
+
         {/* Local Registrar */}
         <Route path="/local-registrar" element={<LocalRegistrarLayout />}>
           <Route path="profile" element={<LocalRegistrarProfile />} />
-          <Route index element={<LocalRegistrarDashboard />}/>
-          <Route path="academic-schedule" element={<LocalRegistrarViewAcademicSchedule />}/>
-          <Route path="room-card" element={<LocalRegistrarViewRoomCard />}/>
-          <Route path="qr-code" element={<LocalRegistrarQRCode />}/>
-          <Route path="activity-log" element={<LocalRegistrarActivityLog />}/>
-          <Route path="my-submitted-schedules" element={<MySubmittedSchedules />}/>
-          <Route path="bulk-upload-1" element={<BulkScheduleUpload1 />}/>
-          <Route path="bulk-upload-2" element={<BulkScheduleUpload2 />}/>
-          <Route path="bulk-upload-3" element={<BulkScheduleUpload3 />}/>
-          <Route path="bulk-upload-4" element={<BulkScheduleUpload4 />}/>
+          <Route index element={<LocalRegistrarDashboard />} />
+          <Route path="academic-schedule" element={<LocalRegistrarViewAcademicSchedule />} />
+          <Route path="room-card" element={<LocalRegistrarViewRoomCard />} />
+          <Route path="qr-code" element={<LocalRegistrarQRCode />} />
+          <Route path="activity-log" element={<LocalRegistrarActivityLog />} />
+          <Route path="my-submitted-schedules" element={<MySubmittedSchedules />} />
+          <Route path="bulk-upload-1" element={<BulkScheduleUpload1 />} />
+          <Route path="bulk-upload-2" element={<BulkScheduleUpload2 />} />
+          <Route path="bulk-upload-3" element={<BulkScheduleUpload3 />} />
+          <Route path="bulk-upload-4" element={<BulkScheduleUpload4 />} />
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
           <Route path="settings" element={<LocalRegistrarSettings />} />
-
         </Route>
-       
+
         {/* Login */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />}/>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+
         {/* Reset Password */}
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route
-        path="/room/:roomId"
-        element={<PublicRoomSchedule/>}
-        />
+        <Route path="/room/:roomId" element={<PublicRoomSchedule />} />
 
         {/* Clerk */}
-        <Route path="/clerk" element={<ClerkLayout />} >
+        <Route path="/clerk" element={<ClerkLayout />}>
           <Route path="profile" element={<ClerkProfile />} />
-          <Route index element={<ClerkDashboard />}/>
-          <Route path="schedule-view-academic-schedule" element={<ClerkViewAcademicSchedule />}/>
-          <Route path="schedule-room-card" element={<ClerkViewRoomCard />}/>
+          <Route index element={<ClerkDashboard />} />
+          <Route path="schedule-view-academic-schedule" element={<ClerkViewAcademicSchedule />} />
+          <Route path="schedule-room-card" element={<ClerkViewRoomCard />} />
           <Route path="online-reservations" element={<ClerkReservations />} />
           <Route path="view-online-reservation" element={<ClerkViewReservation />} />
           <Route path="view-reservation-approved" element={<ClerkViewReservationApproved />} />
@@ -179,24 +165,23 @@ function App() {
 
         {/* Faculty */}
         <Route path="/faculty" element={<FacultyLayout />}>
-          <Route index element={<FacultyDashboard />}/>
-          <Route path="schedule" element={<FacultySchedule />}/>
-          <Route path="rooms" element={<FacultyRoom />}/>
-          <Route path="view-room" element={<FacultyViewRoom />}/>
+          <Route index element={<FacultyDashboard />} />
+          <Route path="schedule" element={<FacultySchedule />} />
+          <Route path="rooms" element={<FacultyRoom />} />
+          <Route path="view-room" element={<FacultyViewRoom />} />
           <Route path="reservations" element={<FacultyReservations />} />
           <Route path="room-reassignment/:assignmentId" element={<FacultyRoomReassignment />} />
-          <Route path="profile" element={<FacultyProfile />}/>
+          <Route path="profile" element={<FacultyProfile />} />
           <Route path="submit-reservation" element={<FacultySubmitReservation />} />
           <Route path="view-approved-reservation" element={<FacultyViewApprovedReservation />} />
-          <Route path="view-pending-reservation" element={<FacultyViewPendingReservation />}/>
-          <Route path="edit-pending-reservation" element={<FacultyEditPendingReservations />}/>
-          <Route path="view-denied-reservation" element={<FacultyViewDenied/>}/>
+          <Route path="view-pending-reservation" element={<FacultyViewPendingReservation />} />
+          <Route path="edit-pending-reservation" element={<FacultyEditPendingReservations />} />
+          <Route path="view-denied-reservation" element={<FacultyViewDenied />} />
           <Route path="view-cancelled-reservation" element={<FacultyViewCancelledReservation />} />
           <Route path="settings" element={<FacultySettings />} />
           <Route path="broadcast-channel" element={<BroadcastChannel />} />
           <Route path="room-issues" element={<FacultyRoomIssues />} />
         </Route>
-
       </Routes>
     </BrowserRouter>
   );
