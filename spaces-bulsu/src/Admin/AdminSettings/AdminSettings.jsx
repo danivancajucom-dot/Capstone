@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import "./faculty-settings.css";
+import "./admin-settings.css";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -20,11 +20,9 @@ import {
   CODE_TTL_MIN,
 } from "../../utils/verification";
 
-// ── Cloud Function for self-delete ───────────────────────────────
 const functions = getFunctions();
 const deleteUserFn = httpsCallable(functions, "deleteUser");
 
-// ── Password rules ────────────────────────────────────────────────
 const passwordChecks = (pw) => ({
   length:    pw.length >= 8,
   uppercase: /[A-Z]/.test(pw),
@@ -34,7 +32,6 @@ const passwordChecks = (pw) => ({
 });
 const isStrong = (pw) => Object.values(passwordChecks(pw)).every(Boolean);
 
-// ── FAQ items ─────────────────────────────────────────────────────
 const FAQ_ITEMS = [
   { question: "Ano ang SpaceS CICT?", answer: "Ang SpaceS CICT ay isang web at mobile-based platform para sa classroom allocation at scheduling ng College of Information and Communications Technology (CICT) sa Bulacan State University." },
   { question: "Sino ang pwedeng gumawa ng account sa system?", answer: "Ang Admin lang ang may access na gumawa ng user accounts para sa Local Registrar, Clerk, at Faculty Members." },
@@ -46,16 +43,15 @@ const FAQ_ITEMS = [
   { question: "Sino ang makokontak ko kung may problema ako sa system?", answer: "Pwede mong i-click ang 'Contact Support' o direktang mag-email sa spaces-bulsu@outlook.com o spacescict@gmail.com." },
 ];
 
-const DELETE_PHRASE = "DELETE MY ACCOUNT"; // mas mahabang phrase — deliberate
+const DELETE_PHRASE = "DELETE MY ACCOUNT";
 
-export default function FacultySettings() {
+export default function AdminSettings() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [user, setUser]       = useState(null);
   const [email, setEmail]     = useState("");
 
-  // ── Security section — password change ─────────────────────────
   const [pwForm, setPwForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -69,22 +65,18 @@ export default function FacultySettings() {
   const [pwCode, setPwCode] = useState(Array(CODE_LENGTH).fill(""));
   const [pwResendIn, setPwResendIn] = useState(0);
 
-  // ── Modals ─────────────────────────────────────────────────────
   const [showEmailModal, setShowEmailModal]   = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [emailForm, setEmailForm]   = useState({ currentPassword: "", newEmail: "" });
   const [deleteForm, setDeleteForm] = useState({ currentPassword: "", confirmText: "" });
 
-  // ── Delete flow — 2-step warning ───────────────────────────────
-  const [deleteStep, setDeleteStep] = useState(1); // 1 = warning, 2 = confirm
+  const [deleteStep, setDeleteStep] = useState(1);
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
 
-  // Email sub-flow state
   const [emailStep, setEmailStep] = useState("form");
   const [emailCode, setEmailCode] = useState(Array(CODE_LENGTH).fill(""));
   const [emailResendIn, setEmailResendIn] = useState(0);
 
-  // ── Info modal ─────────────────────────────────────────────────
   const [activeInfoModal, setActiveInfoModal] = useState(null);
   const [openFaqIndex, setOpenFaqIndex] = useState(null);
 
@@ -95,24 +87,16 @@ export default function FacultySettings() {
   });
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
-    setTimeout(
-      () => setToast((prev) => ({ ...prev, show: false })),
-      3500
-    );
+    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3500);
   };
 
-  // ── Load user ──────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { setLoading(false); return; }
       setUser(u);
       try {
         const snap = await getDoc(doc(db, "users", u.uid));
-        setEmail(
-          snap.exists()
-            ? snap.data().email || u.email || ""
-            : u.email || ""
-        );
+        setEmail(snap.exists() ? snap.data().email || u.email || "" : u.email || "");
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     });
@@ -131,19 +115,13 @@ export default function FacultySettings() {
 
   useEffect(() => {
     if (pwResendIn <= 0) return;
-    const t = setInterval(
-      () => setPwResendIn((s) => (s > 0 ? s - 1 : 0)),
-      1000
-    );
+    const t = setInterval(() => setPwResendIn((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(t);
   }, [pwResendIn]);
 
   useEffect(() => {
     if (emailResendIn <= 0) return;
-    const t = setInterval(
-      () => setEmailResendIn((s) => (s > 0 ? s - 1 : 0)),
-      1000
-    );
+    const t = setInterval(() => setEmailResendIn((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(t);
   }, [emailResendIn]);
 
@@ -166,12 +144,10 @@ export default function FacultySettings() {
     setDeleteForm({ currentPassword: "", confirmText: "" });
     setEmailStep("form");
     setEmailCode(Array(CODE_LENGTH).fill(""));
-    // Reset delete flow
     setDeleteStep(1);
     setDeleteAcknowledged(false);
   };
 
-  // ── PASSWORD FLOW ──────────────────────────────────────────────
   const handlePasswordStepOne = async (e) => {
     e.preventDefault();
     const { currentPassword, newPassword, confirmPassword } = pwForm;
@@ -191,13 +167,7 @@ export default function FacultySettings() {
     setBusy(true);
     try {
       await reauthenticate(currentPassword);
-
-      await createAndSendCode({
-        email: user.email,
-        purpose: "password-change",
-        name: "",
-      });
-
+      await createAndSendCode({ email: user.email, purpose: "password-change", name: "" });
       setPwCode(Array(CODE_LENGTH).fill(""));
       setPwStep("code");
       setPwResendIn(30);
@@ -205,10 +175,8 @@ export default function FacultySettings() {
     } catch (err) {
       console.error(err);
       let msg = err?.message || "Verification failed.";
-      if (err.code === "auth/wrong-password")
-        msg = "Your current password is incorrect.";
-      if (err.code === "auth/too-many-requests")
-        msg = "Too many attempts. Try again later.";
+      if (err.code === "auth/wrong-password") msg = "Your current password is incorrect.";
+      if (err.code === "auth/too-many-requests") msg = "Too many attempts. Try again later.";
       showToast("error", "Verification Failed", msg);
     } finally {
       setBusy(false);
@@ -245,18 +213,14 @@ export default function FacultySettings() {
     try {
       await reauthenticate(currentPassword);
       await updatePassword(user, newPassword);
-
       showToast("success", "Password Updated", "Your password has been changed successfully.");
       resetPwForm();
     } catch (err) {
       console.error(err);
       let msg = err?.message || "Update failed.";
-      if (err.code === "auth/wrong-password")
-        msg = "Your current password is incorrect.";
-      if (err.code === "auth/weak-password")
-        msg = "New password is too weak.";
-      if (err.code === "auth/requires-recent-login")
-        msg = "Please log out and log back in, then try again.";
+      if (err.code === "auth/wrong-password") msg = "Your current password is incorrect.";
+      if (err.code === "auth/weak-password") msg = "New password is too weak.";
+      if (err.code === "auth/requires-recent-login") msg = "Please log out and log back in, then try again.";
       showToast("error", "Update Failed", msg);
     } finally {
       setBusy(false);
@@ -274,7 +238,6 @@ export default function FacultySettings() {
     }
   };
 
-  // ── EMAIL FLOW ─────────────────────────────────────────────────
   const handleEmailStepOne = async (e) => {
     e.preventDefault();
     const { currentPassword, newEmail } = emailForm;
@@ -289,13 +252,7 @@ export default function FacultySettings() {
     setBusy(true);
     try {
       await reauthenticate(currentPassword);
-
-      await createAndSendCode({
-        email: newEmail,
-        purpose: "email-change",
-        name: "",
-      });
-
+      await createAndSendCode({ email: newEmail, purpose: "email-change", name: "" });
       setEmailCode(Array(CODE_LENGTH).fill(""));
       setEmailStep("code");
       setEmailResendIn(30);
@@ -303,10 +260,8 @@ export default function FacultySettings() {
     } catch (err) {
       console.error(err);
       let msg = err?.message || "Verification failed.";
-      if (err.code === "auth/wrong-password")
-        msg = "Your current password is incorrect.";
-      if (err.code === "auth/too-many-requests")
-        msg = "Too many attempts. Try again later.";
+      if (err.code === "auth/wrong-password") msg = "Your current password is incorrect.";
+      if (err.code === "auth/too-many-requests") msg = "Too many attempts. Try again later.";
       showToast("error", "Verification Failed", msg);
     } finally {
       setBusy(false);
@@ -322,23 +277,18 @@ export default function FacultySettings() {
     setBusy(true);
     try {
       await verifyCode({ email: newEmail, purpose: "email-change", entered });
-
       await reauthenticate(currentPassword);
       await updateEmail(user, newEmail);
       await updateDoc(doc(db, "users", user.uid), { email: newEmail });
-
       setEmail(newEmail);
       showToast("success", "Email Updated", "Your email address has been changed successfully.");
       closeModals();
     } catch (err) {
       console.error(err);
       let msg = err?.message || "Update failed.";
-      if (err.code === "auth/wrong-password")
-        msg = "Your current password is incorrect.";
-      if (err.code === "auth/email-already-in-use")
-        msg = "That email is already in use by another account.";
-      if (err.code === "auth/requires-recent-login")
-        msg = "Please log out and log back in, then try again.";
+      if (err.code === "auth/wrong-password") msg = "Your current password is incorrect.";
+      if (err.code === "auth/email-already-in-use") msg = "That email is already in use by another account.";
+      if (err.code === "auth/requires-recent-login") msg = "Please log out and log back in, then try again.";
       showToast("error", "Update Failed", msg);
     } finally {
       setBusy(false);
@@ -348,10 +298,7 @@ export default function FacultySettings() {
   const resendEmailCode = async () => {
     if (emailResendIn > 0) return;
     try {
-      await createAndSendCode({
-        email: emailForm.newEmail,
-        purpose: "email-change",
-      });
+      await createAndSendCode({ email: emailForm.newEmail, purpose: "email-change" });
       setEmailCode(Array(CODE_LENGTH).fill(""));
       setEmailResendIn(30);
     } catch (err) {
@@ -359,9 +306,6 @@ export default function FacultySettings() {
     }
   };
 
-  // ══════════════════════════════════════════════════════════════
-  // DELETE ACCOUNT — 2-step "grabihan" flow
-  // ══════════════════════════════════════════════════════════════
   const handleDeleteAccount = async (e) => {
     e.preventDefault();
     const { currentPassword, confirmText } = deleteForm;
@@ -369,61 +313,39 @@ export default function FacultySettings() {
     if (!currentPassword)
       return showToast("error", "Missing Password", "Please enter your current password.");
     if (confirmText.trim() !== DELETE_PHRASE)
-      return showToast(
-        "error",
-        "Confirmation Failed",
-        `Type "${DELETE_PHRASE}" exactly to confirm.`
-      );
+      return showToast("error", "Confirmation Failed", `Type "${DELETE_PHRASE}" exactly to confirm.`);
     if (!deleteAcknowledged)
       return showToast("error", "Not Acknowledged", "Please check the acknowledgment box.");
 
     setBusy(true);
     try {
-      // Step 1: Re-authenticate (required by Firebase)
       await reauthenticate(currentPassword);
-
-      // Step 2: Delete via Cloud Function (Auth + Firestore + cleanup)
       try {
         const result = await deleteUserFn({ userId: user.uid });
-        if (!result.data?.success) {
-          throw new Error("Cloud function did not return success.");
-        }
+        if (!result.data?.success) throw new Error("Cloud function did not return success.");
       } catch (fnErr) {
         console.error("Cloud function delete failed:", fnErr);
-
-        // Fallback: if function not deployed, still try client-side self-delete
-        const isFnUnavailable =
-          fnErr?.code === "functions/not-found" ||
-          fnErr?.code === "functions/unavailable";
-
+        const isFnUnavailable = fnErr?.code === "functions/not-found" || fnErr?.code === "functions/unavailable";
         if (isFnUnavailable) {
           console.warn("Cloud Function unavailable — falling back to client-side delete.");
           const { deleteUser } = await import("firebase/auth");
           const { deleteDoc } = await import("firebase/firestore");
-
-          // Best-effort Firestore cleanup
           try { await deleteDoc(doc(db, "users", user.uid)); }
           catch (fsErr) { console.warn("Firestore delete failed:", fsErr); }
-
-          // Delete from Auth (client SDK — works for CURRENT user)
           await deleteUser(user);
         } else {
           throw fnErr;
         }
       }
-
       showToast("success", "Account Deleted", "Your account has been permanently deleted.");
       closeModals();
       setTimeout(() => navigate("/login"), 1500);
     } catch (err) {
       console.error(err);
       let msg = err?.message || "Deletion failed.";
-      if (err.code === "auth/wrong-password")
-        msg = "Your current password is incorrect.";
-      if (err.code === "auth/requires-recent-login")
-        msg = "Please log out and log back in, then try again.";
-      if (err?.code === "functions/failed-precondition")
-        msg = err.message;
+      if (err.code === "auth/wrong-password") msg = "Your current password is incorrect.";
+      if (err.code === "auth/requires-recent-login") msg = "Please log out and log back in, then try again.";
+      if (err?.code === "functions/failed-precondition") msg = err.message;
       showToast("error", "Deletion Failed", msg);
       setBusy(false);
     }
@@ -448,14 +370,12 @@ export default function FacultySettings() {
   return (
     <>
       <div className="fs-page">
-        {/* HEADER */}
         <div className="fs-page-header">
           <h1><span className="fs-bar" /> Settings</h1>
           <p>Manage your account security and notification settings.</p>
         </div>
 
         <div className="fs-grid">
-          {/* ── LEFT COLUMN ─────────────────────────────────────── */}
           <div className="fs-col">
             <div className="fs-section-title">
               <i className="fa-solid fa-shield-halved"></i>
@@ -472,17 +392,10 @@ export default function FacultySettings() {
                       className="fs-input"
                       placeholder="Enter current password"
                       value={pwForm.currentPassword}
-                      onChange={(e) =>
-                        setPwForm((f) => ({ ...f, currentPassword: e.target.value }))
-                      }
+                      onChange={(e) => setPwForm((f) => ({ ...f, currentPassword: e.target.value }))}
                       autoComplete="current-password"
                     />
-                    <button
-                      type="button"
-                      className="fs-eye"
-                      onClick={() => setShowCurrent((v) => !v)}
-                      tabIndex={-1}
-                    >
+                    <button type="button" className="fs-eye" onClick={() => setShowCurrent((v) => !v)} tabIndex={-1}>
                       <i className={`fa-regular ${showCurrent ? "fa-eye" : "fa-eye-slash"}`}></i>
                     </button>
                   </div>
@@ -493,11 +406,7 @@ export default function FacultySettings() {
                 </p>
 
                 <button type="submit" className="fs-primary-btn" disabled={busy}>
-                  {busy ? (
-                    <><i className="fa-solid fa-circle-notch fa-spin"></i> Sending…</>
-                  ) : (
-                    "Send Verification Code"
-                  )}
+                  {busy ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Sending…</> : "Send Verification Code"}
                 </button>
               </form>
             )}
@@ -508,55 +417,21 @@ export default function FacultySettings() {
                   <i className="fa-solid fa-shield-halved" />
                   <div>
                     <h4>Enter Verification Code</h4>
-                    <p>
-                      We sent a 6-digit code to <strong>{user?.email}</strong>.
-                      It expires in {CODE_TTL_MIN} minutes.
-                    </p>
+                    <p>We sent a 6-digit code to <strong>{user?.email}</strong>. It expires in {CODE_TTL_MIN} minutes.</p>
                   </div>
                 </div>
 
-                <OtpInput
-                  value={pwCode}
-                  onChange={setPwCode}
-                  length={CODE_LENGTH}
-                  disabled={busy}
-                />
+                <OtpInput value={pwCode} onChange={setPwCode} length={CODE_LENGTH} disabled={busy} />
 
                 <div className="fs-step-actions">
-                  <button
-                    type="button"
-                    className="fs-modal-btn cancel"
-                    onClick={() => {
-                      setPwStep("password");
-                      setPwCode(Array(CODE_LENGTH).fill(""));
-                    }}
-                    disabled={busy}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="fs-primary-btn"
-                    onClick={handlePasswordVerifyCode}
-                    disabled={busy}
-                    style={{ flex: 1 }}
-                  >
-                    {busy ? (
-                      <><i className="fa-solid fa-circle-notch fa-spin"></i> Verifying…</>
-                    ) : (
-                      "Verify Code"
-                    )}
+                  <button type="button" className="fs-modal-btn cancel" onClick={() => { setPwStep("password"); setPwCode(Array(CODE_LENGTH).fill("")); }} disabled={busy}>Cancel</button>
+                  <button type="button" className="fs-primary-btn" onClick={handlePasswordVerifyCode} disabled={busy} style={{ flex: 1 }}>
+                    {busy ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Verifying…</> : "Verify Code"}
                   </button>
                 </div>
 
-                <p
-                  className="fs-resend-link"
-                  onClick={resendPwCode}
-                  style={{ opacity: pwResendIn > 0 ? 0.6 : 1 }}
-                >
-                  {pwResendIn > 0
-                    ? `Resend code in ${pwResendIn}s`
-                    : "Didn't get the code? Resend"}
+                <p className="fs-resend-link" onClick={resendPwCode} style={{ opacity: pwResendIn > 0 ? 0.6 : 1 }}>
+                  {pwResendIn > 0 ? `Resend code in ${pwResendIn}s` : "Didn't get the code? Resend"}
                 </p>
               </div>
             )}
@@ -572,17 +447,10 @@ export default function FacultySettings() {
                         className="fs-input"
                         placeholder="Enter new password"
                         value={pwForm.newPassword}
-                        onChange={(e) =>
-                          setPwForm((f) => ({ ...f, newPassword: e.target.value }))
-                        }
+                        onChange={(e) => setPwForm((f) => ({ ...f, newPassword: e.target.value }))}
                         autoComplete="new-password"
                       />
-                      <button
-                        type="button"
-                        className="fs-eye"
-                        onClick={() => setShowNew((v) => !v)}
-                        tabIndex={-1}
-                      >
+                      <button type="button" className="fs-eye" onClick={() => setShowNew((v) => !v)} tabIndex={-1}>
                         <i className={`fa-regular ${showNew ? "fa-eye" : "fa-eye-slash"}`}></i>
                       </button>
                     </div>
@@ -596,17 +464,10 @@ export default function FacultySettings() {
                         className="fs-input"
                         placeholder="Confirm new password"
                         value={pwForm.confirmPassword}
-                        onChange={(e) =>
-                          setPwForm((f) => ({ ...f, confirmPassword: e.target.value }))
-                        }
+                        onChange={(e) => setPwForm((f) => ({ ...f, confirmPassword: e.target.value }))}
                         autoComplete="new-password"
                       />
-                      <button
-                        type="button"
-                        className="fs-eye"
-                        onClick={() => setShowConfirm((v) => !v)}
-                        tabIndex={-1}
-                      >
+                      <button type="button" className="fs-eye" onClick={() => setShowConfirm((v) => !v)} tabIndex={-1}>
                         <i className={`fa-regular ${showConfirm ? "fa-eye" : "fa-eye-slash"}`}></i>
                       </button>
                     </div>
@@ -615,36 +476,21 @@ export default function FacultySettings() {
 
                 {(pwForm.newPassword || pwForm.confirmPassword) && (
                   <ul className="fs-pw-rules">
-                    <li className={pwChecks.length    ? "ok" : ""}>
-                      <i className={`fa-solid ${pwChecks.length    ? "fa-circle-check" : "fa-circle"}`} />8+ characters
-                    </li>
-                    <li className={pwChecks.uppercase ? "ok" : ""}>
-                      <i className={`fa-solid ${pwChecks.uppercase ? "fa-circle-check" : "fa-circle"}`} />Uppercase
-                    </li>
-                    <li className={pwChecks.lowercase ? "ok" : ""}>
-                      <i className={`fa-solid ${pwChecks.lowercase ? "fa-circle-check" : "fa-circle"}`} />Lowercase
-                    </li>
-                    <li className={pwChecks.number    ? "ok" : ""}>
-                      <i className={`fa-solid ${pwChecks.number    ? "fa-circle-check" : "fa-circle"}`} />Number
-                    </li>
-                    <li className={pwChecks.special   ? "ok" : ""}>
-                      <i className={`fa-solid ${pwChecks.special   ? "fa-circle-check" : "fa-circle"}`} />Special char
-                    </li>
+                    <li className={pwChecks.length    ? "ok" : ""}><i className={`fa-solid ${pwChecks.length    ? "fa-circle-check" : "fa-circle"}`} />8+ characters</li>
+                    <li className={pwChecks.uppercase ? "ok" : ""}><i className={`fa-solid ${pwChecks.uppercase ? "fa-circle-check" : "fa-circle"}`} />Uppercase</li>
+                    <li className={pwChecks.lowercase ? "ok" : ""}><i className={`fa-solid ${pwChecks.lowercase ? "fa-circle-check" : "fa-circle"}`} />Lowercase</li>
+                    <li className={pwChecks.number    ? "ok" : ""}><i className={`fa-solid ${pwChecks.number    ? "fa-circle-check" : "fa-circle"}`} />Number</li>
+                    <li className={pwChecks.special   ? "ok" : ""}><i className={`fa-solid ${pwChecks.special   ? "fa-circle-check" : "fa-circle"}`} />Special char</li>
                   </ul>
                 )}
 
                 <button type="submit" className="fs-primary-btn" disabled={busy}>
-                  {busy ? (
-                    <><i className="fa-solid fa-circle-notch fa-spin"></i> Updating…</>
-                  ) : (
-                    "Update Password"
-                  )}
+                  {busy ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Updating…</> : "Update Password"}
                 </button>
               </form>
             )}
           </div>
 
-          {/* ── RIGHT COLUMN ────────────────────────────────────── */}
           <div className="fs-col">
             <div className="fs-section-title">
               <i className="fa-solid fa-bell"></i>
@@ -666,17 +512,13 @@ export default function FacultySettings() {
 
               <div className="fs-list-row clickable" onClick={() => setActiveInfoModal("privacy")}>
                 <i className="fa-solid fa-shield fs-row-icon"></i>
-                <div className="fs-row-text">
-                  <span className="fs-row-title">Privacy Policy</span>
-                </div>
+                <div className="fs-row-text"><span className="fs-row-title">Privacy Policy</span></div>
                 <i className="fa-solid fa-chevron-right fs-row-chev"></i>
               </div>
 
               <div className="fs-list-row clickable" onClick={() => setActiveInfoModal("terms")}>
                 <i className="fa-solid fa-file-lines fs-row-icon"></i>
-                <div className="fs-row-text">
-                  <span className="fs-row-title">Terms of Service</span>
-                </div>
+                <div className="fs-row-text"><span className="fs-row-title">Terms of Service</span></div>
                 <i className="fa-solid fa-chevron-right fs-row-chev"></i>
               </div>
             </div>
@@ -687,10 +529,7 @@ export default function FacultySettings() {
             </div>
 
             <div className="fs-card fs-card-flush">
-              <div
-                className="fs-list-row clickable"
-                onClick={() => setShowEmailModal(true)}
-              >
+              <div className="fs-list-row clickable" onClick={() => setShowEmailModal(true)}>
                 <i className="fa-solid fa-envelope fs-row-icon"></i>
                 <div className="fs-row-text">
                   <span className="fs-row-title">Change Email</span>
@@ -699,25 +538,15 @@ export default function FacultySettings() {
                 <i className="fa-solid fa-chevron-right fs-row-chev"></i>
               </div>
 
-              <div
-                className="fs-list-row clickable"
-                onClick={() => setActiveInfoModal("help")}
-              >
+              <div className="fs-list-row clickable" onClick={() => setActiveInfoModal("help")}>
                 <i className="fa-regular fa-circle-question fs-row-icon"></i>
-                <div className="fs-row-text">
-                  <span className="fs-row-title">Help Center</span>
-                </div>
+                <div className="fs-row-text"><span className="fs-row-title">Help Center</span></div>
                 <i className="fa-solid fa-chevron-right fs-row-chev"></i>
               </div>
 
-              <div
-                className="fs-list-row clickable danger"
-                onClick={() => setShowDeleteModal(true)}
-              >
+              <div className="fs-list-row clickable danger" onClick={() => setShowDeleteModal(true)}>
                 <i className="fa-regular fa-trash-can fs-row-icon danger"></i>
-                <div className="fs-row-text">
-                  <span className="fs-row-title danger">Delete Account</span>
-                </div>
+                <div className="fs-row-text"><span className="fs-row-title danger">Delete Account</span></div>
                 <i className="fa-solid fa-chevron-right fs-row-chev danger"></i>
               </div>
             </div>
@@ -725,20 +554,14 @@ export default function FacultySettings() {
         </div>
       </div>
 
-      {/* ── CHANGE EMAIL MODAL ─────────────────────────────────── */}
       {showEmailModal && (
         <div className="fs-modal-overlay" onClick={() => !busy && closeModals()}>
           <div className="fs-modal" onClick={(e) => e.stopPropagation()}>
             {emailStep === "form" && (
               <form onSubmit={handleEmailStepOne}>
-                <div className="fs-modal-icon blue">
-                  <i className="fa-solid fa-envelope"></i>
-                </div>
+                <div className="fs-modal-icon blue"><i className="fa-solid fa-envelope"></i></div>
                 <h3>Change Email</h3>
-                <p className="fs-modal-sub">
-                  Verify your current password, then enter the new email. We'll
-                  send a code to the new email.
-                </p>
+                <p className="fs-modal-sub">Verify your current password, then enter the new email. We'll send a code to the new email.</p>
 
                 <div className="fs-field">
                   <label>Current Password</label>
@@ -746,9 +569,7 @@ export default function FacultySettings() {
                     type="password"
                     className="fs-input"
                     value={emailForm.currentPassword}
-                    onChange={(e) =>
-                      setEmailForm((f) => ({ ...f, currentPassword: e.target.value }))
-                    }
+                    onChange={(e) => setEmailForm((f) => ({ ...f, currentPassword: e.target.value }))}
                     autoComplete="current-password"
                     required
                   />
@@ -760,33 +581,16 @@ export default function FacultySettings() {
                     type="email"
                     className="fs-input"
                     value={emailForm.newEmail}
-                    onChange={(e) =>
-                      setEmailForm((f) => ({ ...f, newEmail: e.target.value }))
-                    }
+                    onChange={(e) => setEmailForm((f) => ({ ...f, newEmail: e.target.value }))}
                     autoComplete="email"
                     required
                   />
                 </div>
 
                 <div className="fs-modal-actions">
-                  <button
-                    type="button"
-                    className="fs-modal-btn cancel"
-                    onClick={closeModals}
-                    disabled={busy}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="fs-modal-btn confirm"
-                    disabled={busy}
-                  >
-                    {busy ? (
-                      <><i className="fa-solid fa-circle-notch fa-spin"></i> Sending…</>
-                    ) : (
-                      "Send Code to New Email"
-                    )}
+                  <button type="button" className="fs-modal-btn cancel" onClick={closeModals} disabled={busy}>Cancel</button>
+                  <button type="submit" className="fs-modal-btn confirm" disabled={busy}>
+                    {busy ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Sending…</> : "Send Code to New Email"}
                   </button>
                 </div>
               </form>
@@ -794,61 +598,23 @@ export default function FacultySettings() {
 
             {emailStep === "code" && (
               <div>
-                <div className="fs-modal-icon blue">
-                  <i className="fa-solid fa-shield-halved"></i>
-                </div>
+                <div className="fs-modal-icon blue"><i className="fa-solid fa-shield-halved"></i></div>
                 <h3>Verify New Email</h3>
                 <p className="fs-modal-sub">
-                  Enter the 6-digit code sent to{" "}
-                  <strong>{emailForm.newEmail}</strong>. Expires in{" "}
-                  {CODE_TTL_MIN} minutes.
+                  Enter the 6-digit code sent to <strong>{emailForm.newEmail}</strong>. Expires in {CODE_TTL_MIN} minutes.
                 </p>
 
-                <OtpInput
-                  value={emailCode}
-                  onChange={setEmailCode}
-                  length={CODE_LENGTH}
-                  disabled={busy}
-                />
+                <OtpInput value={emailCode} onChange={setEmailCode} length={CODE_LENGTH} disabled={busy} />
 
                 <div className="fs-modal-actions" style={{ marginTop: 20 }}>
-                  <button
-                    type="button"
-                    className="fs-modal-btn cancel"
-                    onClick={() => {
-                      setEmailStep("form");
-                      setEmailCode(Array(CODE_LENGTH).fill(""));
-                    }}
-                    disabled={busy}
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    className="fs-modal-btn confirm"
-                    onClick={handleEmailVerifyAndUpdate}
-                    disabled={busy}
-                  >
-                    {busy ? (
-                      <><i className="fa-solid fa-circle-notch fa-spin"></i> Updating…</>
-                    ) : (
-                      "Verify & Update"
-                    )}
+                  <button type="button" className="fs-modal-btn cancel" onClick={() => { setEmailStep("form"); setEmailCode(Array(CODE_LENGTH).fill("")); }} disabled={busy}>Back</button>
+                  <button type="button" className="fs-modal-btn confirm" onClick={handleEmailVerifyAndUpdate} disabled={busy}>
+                    {busy ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Updating…</> : "Verify & Update"}
                   </button>
                 </div>
 
-                <p
-                  className="fs-resend-link"
-                  onClick={resendEmailCode}
-                  style={{
-                    opacity: emailResendIn > 0 ? 0.6 : 1,
-                    textAlign: "center",
-                    marginTop: 12,
-                  }}
-                >
-                  {emailResendIn > 0
-                    ? `Resend code in ${emailResendIn}s`
-                    : "Didn't get the code? Resend"}
+                <p className="fs-resend-link" onClick={resendEmailCode} style={{ opacity: emailResendIn > 0 ? 0.6 : 1, textAlign: "center", marginTop: 12 }}>
+                  {emailResendIn > 0 ? `Resend code in ${emailResendIn}s` : "Didn't get the code? Resend"}
                 </p>
               </div>
             )}
@@ -856,25 +622,15 @@ export default function FacultySettings() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════
-          DELETE ACCOUNT — 2-STEP "GRABIHAN" CONFIRMATION
-          ══════════════════════════════════════════════════════════ */}
       {showDeleteModal && (
         <div className="fs-modal-overlay" onClick={() => !busy && closeModals()}>
-          <div
-            className="fs-modal fs-modal-delete-warning"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* ── STEP 1: WARNING ── */}
+          <div className="fs-modal fs-modal-delete-warning" onClick={(e) => e.stopPropagation()}>
             {deleteStep === 1 && (
               <>
-                <div className="fs-modal-icon red fs-modal-icon-pulse">
-                  <i className="fa-solid fa-triangle-exclamation"></i>
-                </div>
+                <div className="fs-modal-icon red fs-modal-icon-pulse"><i className="fa-solid fa-triangle-exclamation"></i></div>
                 <h3>Delete Your Account?</h3>
                 <p className="fs-modal-sub">
-                  This is a <strong>permanent and irreversible</strong> action.
-                  Please read carefully before continuing.
+                  This is a <strong>permanent and irreversible</strong> action. Please read carefully before continuing.
                 </p>
 
                 <div className="fs-delete-warning-box">
@@ -883,26 +639,11 @@ export default function FacultySettings() {
                     What will be lost
                   </div>
                   <ul className="fs-delete-warning-list">
-                    <li>
-                      <i className="fa-solid fa-xmark"></i>
-                      All your class schedules and room assignments
-                    </li>
-                    <li>
-                      <i className="fa-solid fa-xmark"></i>
-                      All your reservations and pending requests
-                    </li>
-                    <li>
-                      <i className="fa-solid fa-xmark"></i>
-                      All rooms you're currently watching ("Notify Me")
-                    </li>
-                    <li>
-                      <i className="fa-solid fa-xmark"></i>
-                      Your notification history and account data
-                    </li>
-                    <li>
-                      <i className="fa-solid fa-xmark"></i>
-                      Access to SpaceS CICT (you'll need a new invite)
-                    </li>
+                    <li><i className="fa-solid fa-xmark"></i>All your class schedules and room assignments</li>
+                    <li><i className="fa-solid fa-xmark"></i>All your reservations and pending requests</li>
+                    <li><i className="fa-solid fa-xmark"></i>All rooms you're currently watching ("Notify Me")</li>
+                    <li><i className="fa-solid fa-xmark"></i>Your notification history and account data</li>
+                    <li><i className="fa-solid fa-xmark"></i>Access to SpaceS CICT (you'll need a new invite)</li>
                   </ul>
                 </div>
 
@@ -912,44 +653,24 @@ export default function FacultySettings() {
                     checked={deleteAcknowledged}
                     onChange={(e) => setDeleteAcknowledged(e.target.checked)}
                   />
-                  <span>
-                    I understand this action is <strong>permanent</strong> and
-                    cannot be undone.
-                  </span>
+                  <span>I understand this action is <strong>permanent</strong> and cannot be undone.</span>
                 </label>
 
                 <div className="fs-modal-actions">
-                  <button
-                    type="button"
-                    className="fs-modal-btn cancel"
-                    onClick={closeModals}
-                    disabled={busy}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="fs-modal-btn danger"
-                    disabled={!deleteAcknowledged}
-                    onClick={() => setDeleteStep(2)}
-                  >
-                    Continue to Confirmation
-                    <i className="fa-solid fa-arrow-right"></i>
+                  <button type="button" className="fs-modal-btn cancel" onClick={closeModals} disabled={busy}>Cancel</button>
+                  <button type="button" className="fs-modal-btn danger" disabled={!deleteAcknowledged} onClick={() => setDeleteStep(2)}>
+                    Continue to Confirmation <i className="fa-solid fa-arrow-right"></i>
                   </button>
                 </div>
               </>
             )}
 
-            {/* ── STEP 2: FINAL CONFIRMATION ── */}
             {deleteStep === 2 && (
               <form onSubmit={handleDeleteAccount}>
-                <div className="fs-modal-icon red fs-modal-icon-pulse">
-                  <i className="fa-solid fa-trash-can"></i>
-                </div>
+                <div className="fs-modal-icon red fs-modal-icon-pulse"><i className="fa-solid fa-trash-can"></i></div>
                 <h3>Final Confirmation</h3>
                 <p className="fs-modal-sub">
-                  This is your <strong>last chance</strong>. Once you click the
-                  delete button below, your account is gone forever.
+                  This is your <strong>last chance</strong>. Once you click the delete button below, your account is gone forever.
                 </p>
 
                 <div className="fs-delete-danger-banner">
@@ -963,9 +684,7 @@ export default function FacultySettings() {
                     type="password"
                     className="fs-input"
                     value={deleteForm.currentPassword}
-                    onChange={(e) =>
-                      setDeleteForm((f) => ({ ...f, currentPassword: e.target.value }))
-                    }
+                    onChange={(e) => setDeleteForm((f) => ({ ...f, currentPassword: e.target.value }))}
                     autoComplete="current-password"
                     placeholder="Enter your password"
                     required
@@ -973,38 +692,25 @@ export default function FacultySettings() {
                 </div>
 
                 <div className="fs-field">
-                  <label>
-                    Type <span className="fs-danger-text">{DELETE_PHRASE}</span> below
-                  </label>
+                  <label>Type <span className="fs-danger-text">{DELETE_PHRASE}</span> below</label>
                   <input
                     type="text"
                     className="fs-input"
                     value={deleteForm.confirmText}
-                    onChange={(e) =>
-                      setDeleteForm((f) => ({ ...f, confirmText: e.target.value }))
-                    }
+                    onChange={(e) => setDeleteForm((f) => ({ ...f, confirmText: e.target.value }))}
                     placeholder={DELETE_PHRASE}
                     autoComplete="off"
                     spellCheck="false"
                     required
                   />
-                  <small
-                    className={
-                      deleteForm.confirmText === DELETE_PHRASE
-                        ? "fs-phrase-ok"
-                        : deleteForm.confirmText.length > 0
-                        ? "fs-phrase-bad"
-                        : ""
-                    }
-                  >
+                  <small className={
+                    deleteForm.confirmText === DELETE_PHRASE ? "fs-phrase-ok" :
+                    deleteForm.confirmText.length > 0 ? "fs-phrase-bad" : ""
+                  }>
                     {deleteForm.confirmText === DELETE_PHRASE ? (
-                      <>
-                        <i className="fa-solid fa-circle-check"></i> Phrase matched
-                      </>
+                      <><i className="fa-solid fa-circle-check"></i> Phrase matched</>
                     ) : deleteForm.confirmText.length > 0 ? (
-                      <>
-                        <i className="fa-solid fa-circle-xmark"></i> Phrase doesn't match
-                      </>
+                      <><i className="fa-solid fa-circle-xmark"></i> Phrase doesn't match</>
                     ) : (
                       "Type the exact phrase to enable the delete button."
                     )}
@@ -1012,28 +718,11 @@ export default function FacultySettings() {
                 </div>
 
                 <div className="fs-modal-actions">
-                  <button
-                    type="button"
-                    className="fs-modal-btn cancel"
-                    onClick={() => setDeleteStep(1)}
-                    disabled={busy}
-                  >
+                  <button type="button" className="fs-modal-btn cancel" onClick={() => setDeleteStep(1)} disabled={busy}>
                     <i className="fa-solid fa-arrow-left"></i> Back
                   </button>
-                  <button
-                    type="submit"
-                    className="fs-modal-btn danger"
-                    disabled={!isDeleteReady || busy}
-                  >
-                    {busy ? (
-                      <>
-                        <i className="fa-solid fa-circle-notch fa-spin"></i> Deleting…
-                      </>
-                    ) : (
-                      <>
-                        <i className="fa-solid fa-trash-can"></i> Delete Forever
-                      </>
-                    )}
+                  <button type="submit" className="fs-modal-btn danger" disabled={!isDeleteReady || busy}>
+                    {busy ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Deleting…</> : <><i className="fa-solid fa-trash-can"></i> Delete Forever</>}
                   </button>
                 </div>
               </form>
@@ -1042,38 +731,20 @@ export default function FacultySettings() {
         </div>
       )}
 
-      {/* ═══════════ INFO MODAL (Privacy / Terms / Help / FAQ) ═══════ */}
       {activeInfoModal && (
-        <div
-          className="info-modal-overlay"
-          onClick={() => setActiveInfoModal(null)}
-        >
-          <div
-            className="info-modal-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="info-modal-close"
-              onClick={() => setActiveInfoModal(null)}
-            >
+        <div className="info-modal-overlay" onClick={() => setActiveInfoModal(null)}>
+          <div className="info-modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="info-modal-close" onClick={() => setActiveInfoModal(null)}>
               <i className="fa-solid fa-xmark" />
             </button>
 
             {activeInfoModal === "privacy" && (
               <>
-                <div className="info-modal-icon">
-                  <i className="fa-solid fa-shield-halved" />
-                </div>
+                <div className="info-modal-icon"><i className="fa-solid fa-shield-halved" /></div>
                 <h2>Privacy Policy</h2>
-                <p className="info-modal-subtitle">
-                  How SpaceS CICT collects, uses, and protects your information.
-                </p>
+                <p className="info-modal-subtitle">How SpaceS CICT collects, uses, and protects your information.</p>
                 <div className="info-modal-body">
-                  <p>
-                    SpaceS CICT is a classroom allocation and scheduling platform
-                    built for the College of Information and Communications
-                    Technology (CICT) at Bulacan State University.
-                  </p>
+                  <p>SpaceS CICT is a classroom allocation and scheduling platform built for the College of Information and Communications Technology (CICT) at Bulacan State University.</p>
                   <h4>Information We Collect</h4>
                   <ul>
                     <li>Account details such as name, email address, and assigned role.</li>
@@ -1092,18 +763,11 @@ export default function FacultySettings() {
 
             {activeInfoModal === "terms" && (
               <>
-                <div className="info-modal-icon">
-                  <i className="fa-solid fa-file-signature" />
-                </div>
+                <div className="info-modal-icon"><i className="fa-solid fa-file-signature" /></div>
                 <h2>Terms of Use</h2>
-                <p className="info-modal-subtitle">
-                  Please read these terms before using SpaceS CICT.
-                </p>
+                <p className="info-modal-subtitle">Please read these terms before using SpaceS CICT.</p>
                 <div className="info-modal-body">
-                  <p>
-                    By logging in and using SpaceS CICT, you agree to use the
-                    platform responsibly and only for its intended purpose.
-                  </p>
+                  <p>By logging in and using SpaceS CICT, you agree to use the platform responsibly and only for its intended purpose.</p>
                   <h4>Account Responsibility</h4>
                   <ul>
                     <li>Accounts are created and managed by the Admin and must not be shared.</li>
@@ -1120,13 +784,9 @@ export default function FacultySettings() {
 
             {activeInfoModal === "help" && (
               <>
-                <div className="info-modal-icon">
-                  <i className="fa-solid fa-headset" />
-                </div>
+                <div className="info-modal-icon"><i className="fa-solid fa-headset" /></div>
                 <h2>Help Center</h2>
-                <p className="info-modal-subtitle">
-                  Need help? Reach out through either email below, or check the FAQs.
-                </p>
+                <p className="info-modal-subtitle">Need help? Reach out through either email below, or check the FAQs.</p>
                 <div className="contact-list">
                   <a href="mailto:spaces-bulsu@outlook.com" className="contact-item">
                     <i className="fa-brands fa-microsoft" />
@@ -1143,11 +803,7 @@ export default function FacultySettings() {
                     </div>
                   </a>
                 </div>
-                <button
-                  type="button"
-                  className="faq-jump-link"
-                  onClick={() => setActiveInfoModal("faq")}
-                >
+                <button type="button" className="faq-jump-link" onClick={() => setActiveInfoModal("faq")}>
                   Check the FAQs first <i className="fa-solid fa-arrow-right" />
                 </button>
               </>
@@ -1155,23 +811,15 @@ export default function FacultySettings() {
 
             {activeInfoModal === "faq" && (
               <>
-                <div className="info-modal-icon">
-                  <i className="fa-solid fa-circle-question" />
-                </div>
+                <div className="info-modal-icon"><i className="fa-solid fa-circle-question" /></div>
                 <h2>Frequently Asked Questions</h2>
-                <p className="info-modal-subtitle">
-                  Mabilisang sagot sa mga karaniwang tanong.
-                </p>
+                <p className="info-modal-subtitle">Mabilisang sagot sa mga karaniwang tanong.</p>
                 <div className="faq-list">
                   {FAQ_ITEMS.map((item, index) => {
                     const isOpen = openFaqIndex === index;
                     return (
                       <div key={index} className={`faq-item ${isOpen ? "open" : ""}`}>
-                        <button
-                          type="button"
-                          className="faq-question"
-                          onClick={() => setOpenFaqIndex(isOpen ? null : index)}
-                        >
+                        <button type="button" className="faq-question" onClick={() => setOpenFaqIndex(isOpen ? null : index)}>
                           <span>{item.question}</span>
                           <i className="fa-solid fa-chevron-down faq-chevron" />
                         </button>

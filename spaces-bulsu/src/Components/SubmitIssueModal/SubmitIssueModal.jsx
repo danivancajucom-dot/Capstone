@@ -6,6 +6,7 @@ import Toast from "../../Popup/Toast/Toast";
 
 const CLOUDINARY_CLOUD_NAME    = "dqn1s5ujs";
 const CLOUDINARY_UPLOAD_PRESET = "SpaceSCICT";
+const MAX_PHOTOS = 5;
 
 const CATEGORIES = [
   { value: "Electrical",         icon: "fa-bolt",            label: "Electrical" },
@@ -45,12 +46,13 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [submitting, setSubmitting]     = useState(false);
   const [uploading, setUploading]       = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
 
   const [form, setForm] = useState({
     roomId: presetRoomId || "", category: "", severity: "Medium", description: "",
   });
-  const [photoFile, setPhotoFile]   = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [photoFiles, setPhotoFiles]     = useState([]);
+  const [previewUrls, setPreviewUrls]   = useState([]);
   const fileInputRef = useRef(null);
 
   const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
@@ -77,23 +79,54 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
   useEffect(() => {
     if (!open) {
       setForm({ roomId: presetRoomId || "", category: "", severity: "Medium", description: "" });
-      setPhotoFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
+      previewUrls.forEach(u => URL.revokeObjectURL(u));
+      setPhotoFiles([]);
+      setPreviewUrls([]);
+      setUploadProgress({ done: 0, total: 0 });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, presetRoomId]);
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      showToast("error", "Invalid File", "Please select an image."); return;
+  const handlePhotosChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const remaining = MAX_PHOTOS - photoFiles.length;
+    if (remaining <= 0) {
+      showToast("error", "Photo Limit", `You can only upload up to ${MAX_PHOTOS} photos.`);
+      return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("error", "File Too Large", "Image must be under 5 MB."); return;
+
+    const accepted = [];
+    for (const file of files) {
+      if (accepted.length >= remaining) break;
+      if (!file.type.startsWith("image/")) {
+        showToast("error", "Invalid File", `${file.name} is not an image.`);
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("error", "File Too Large", `${file.name} exceeds 5 MB.`);
+        continue;
+      }
+      accepted.push(file);
     }
-    setPhotoFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+
+    if (accepted.length === 0) return;
+
+    setPhotoFiles(prev => [...prev, ...accepted]);
+    setPreviewUrls(prev => [...prev, ...accepted.map(f => URL.createObjectURL(f))]);
+
+    // reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const removePhotoAt = (index) => {
+    setPhotoFiles(prev => prev.filter((_, i) => i !== index));
+    setPreviewUrls(prev => {
+      const url = prev[index];
+      if (url) URL.revokeObjectURL(url);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleSubmit = async () => {
@@ -114,10 +147,20 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
 
       const selectedRoom = rooms.find(r => r.id === form.roomId);
 
-      let photoUrl = "";
-      if (photoFile) {
+      // Upload all photos
+      const photoUrls = [];
+      if (photoFiles.length > 0) {
         setUploading(true);
-        photoUrl = await uploadToCloudinary(photoFile);
+        setUploadProgress({ done: 0, total: photoFiles.length });
+        for (let i = 0; i < photoFiles.length; i++) {
+          try {
+            const url = await uploadToCloudinary(photoFiles[i]);
+            photoUrls.push(url);
+            setUploadProgress({ done: i + 1, total: photoFiles.length });
+          } catch (err) {
+            console.error("Upload failed for", photoFiles[i]?.name, err);
+          }
+        }
         setUploading(false);
       }
 
@@ -128,11 +171,12 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
         category:       form.category,
         severity:       form.severity,
         description:    form.description.trim(),
-        photoUrl,
+        photoUrls,                             // ✅ array ng lahat ng larawan
+        photoUrl: photoUrls[0] || "",          // ✅ legacy: unang photo
         reporterId:     user.uid,
         reporterName,
         reporterRole,
-        status:         "Pending",
+        status:         "Pending",             // ✅ bagong flow: Pending → Admin acknowledges
         clerkNotes:     "",
         acknowledgedBy: "",
         acknowledgedAt: null,
@@ -141,7 +185,7 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
         createdAt:      serverTimestamp(),
       });
 
-      showToast("success", "Issue Reported", "Your report has been submitted.");
+      showToast("success", "Issue Reported", "Your report has been submitted to the Admin.");
       onSubmitted?.();
       setTimeout(() => onClose?.(), 800);
     } catch (err) {
@@ -150,6 +194,7 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
       setUploading(false);
     } finally {
       setSubmitting(false);
+      setUploadProgress({ done: 0, total: 0 });
     }
   };
 
@@ -244,42 +289,71 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
               <span className="sim-counter">{form.description.length}/500</span>
             </div>
 
-            {/* Photo */}
+            {/* Multiple Photos */}
             <div className="sim-field">
-              <label>Photo <span className="sim-optional">(optional)</span></label>
+              <label>
+                Photos <span className="sim-optional">
+                  (optional · up to {MAX_PHOTOS} · {photoFiles.length}/{MAX_PHOTOS})
+                </span>
+              </label>
 
-              {previewUrl ? (
-                <div className="sim-photo-preview">
-                  <img src={previewUrl} alt="Preview" />
-                  <button
-                    type="button"
-                    className="sim-photo-remove"
-                    onClick={() => {
-                      setPhotoFile(null);
-                      URL.revokeObjectURL(previewUrl);
-                      setPreviewUrl(null);
-                    }}
-                  >
-                    <i className="fa-solid fa-trash" /> Remove
-                  </button>
+              {previewUrls.length > 0 && (
+                <div className="sim-photo-grid">
+                  {previewUrls.map((url, i) => (
+                    <div key={i} className="sim-photo-cell">
+                      <img src={url} alt={`Preview ${i + 1}`} />
+                      <button
+                        type="button"
+                        className="sim-photo-remove-icon"
+                        onClick={() => removePhotoAt(i)}
+                        aria-label={`Remove photo ${i + 1}`}
+                        disabled={uploading}
+                      >
+                        <i className="fa-solid fa-xmark" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
+              )}
+
+              {photoFiles.length < MAX_PHOTOS && !uploading && (
                 <button
                   type="button"
                   className="sim-photo-btn"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
                 >
-                  <i className="fa-solid fa-camera" /> Attach Photo
+                  <i className="fa-solid fa-camera" />
+                  {previewUrls.length === 0 ? "Attach Photos" : "Add More Photos"}
                 </button>
               )}
-              <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePhotoChange} />
+
+              {uploading && (
+                <div className="sim-upload-progress">
+                  <i className="fa-solid fa-circle-notch fa-spin" />
+                  Uploading photo {uploadProgress.done} of {uploadProgress.total}…
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={handlePhotosChange}
+              />
             </div>
           </div>
 
           <div className="sim-footer">
-            <button className="sim-btn cancel" onClick={onClose} disabled={submitting}>Cancel</button>
-            <button className="sim-btn submit" onClick={handleSubmit} disabled={submitting || uploading}>
+            <button className="sim-btn cancel" onClick={onClose} disabled={submitting}>
+              Cancel
+            </button>
+            <button
+              className="sim-btn submit"
+              onClick={handleSubmit}
+              disabled={submitting || uploading}
+            >
               {submitting || uploading
                 ? <><i className="fa-solid fa-circle-notch fa-spin" /> Submitting...</>
                 : <><i className="fa-solid fa-paper-plane" /> Submit Report</>

@@ -283,7 +283,6 @@ export default function BroadcastChannel() {
         }
       }
       if (showPinnedPanel && pinnedPanelRef.current && !pinnedPanelRef.current.contains(e.target)) {
-        // Ignore clicks on the pin toggle button itself (it has its own handler)
         if (!e.target.closest(".bc-pin-toggle-btn")) {
           setShowPinnedPanel(false);
         }
@@ -338,8 +337,8 @@ export default function BroadcastChannel() {
   // ─── Send Message ─────────────────────────────────────────────────────
 
   const sendMessage = async () => {
-    if (userRole !== "Department Head") {
-      showToast("error", "Not Allowed", "Only Department Head can send announcements.");
+    if (userRole !== "Admin") {
+      showToast("error", "Not Allowed", "Only Admin can send announcements.");
       return;
     }
 
@@ -348,7 +347,6 @@ export default function BroadcastChannel() {
     setUploading(true);
 
     try {
-      // Upload images
       const imageUrls = [];
       for (const img of selectedImages) {
         try {
@@ -361,7 +359,6 @@ export default function BroadcastChannel() {
         }
       }
 
-      // Upload files
       const filesData = [];
       for (const file of selectedFiles) {
         try {
@@ -376,7 +373,6 @@ export default function BroadcastChannel() {
 
       const previewData = linkPreview;
 
-      // Build data object – keep both single and multi for backward compatibility
       const data = {
         content: message,
         senderId: auth.currentUser.uid,
@@ -389,18 +385,16 @@ export default function BroadcastChannel() {
         pinned: false,
       };
 
-      // Single image (for old display)
       if (imageUrls.length === 1) {
         data.imageUrl = imageUrls[0];
       } else if (imageUrls.length > 1) {
-        data.imageUrl = imageUrls[0]; // fallback
+        data.imageUrl = imageUrls[0];
       }
 
       if (imageUrls.length > 0) {
         data.imageUrls = imageUrls;
       }
 
-      // Single file (for old display)
       if (filesData.length === 1) {
         data.fileUrl = filesData[0].url;
         data.fileName = filesData[0].name;
@@ -416,8 +410,6 @@ export default function BroadcastChannel() {
       }
 
       const broadcastRef = await addDoc(collection(db, "broadcastChannels"), data);
-
-      // ─── Notifications ──────────────────────────────────────────
 
       const usersSnap = await getDocs(collection(db, "users"));
       const notifications = [];
@@ -665,7 +657,7 @@ export default function BroadcastChannel() {
           <div>
             <h2>Announcement Channel</h2>
             <span>
-              {userRole === "Department Head" ? "Send announcements" : "Department announcements"}
+              {userRole === "Admin" ? "Send announcements" : "Department announcements"}
             </span>
           </div>
         </div>
@@ -776,7 +768,7 @@ export default function BroadcastChannel() {
             <div className="bc-empty-state">
               <i className="fa-solid fa-bullhorn"></i>
               <p>No announcements yet.</p>
-              {userRole === "Department Head" && (
+              {userRole === "Admin" && (
                 <span className="bc-empty-hint">Your first announcement will appear here.</span>
               )}
             </div>
@@ -789,11 +781,9 @@ export default function BroadcastChannel() {
             const loveUids = msg.reactions?.love ?? [];
             const iLiked = likeUids.includes(auth.currentUser?.uid);
             const iLoved = loveUids.includes(auth.currentUser?.uid);
-            const canManage = isMine || userRole === "Department Head";
+            const canManage = isMine || userRole === "Admin";
 
-            // Determine which images to show (array first, fallback to single)
             const imageUrls = msg.imageUrls || (msg.imageUrl ? [msg.imageUrl] : []);
-            // Determine which files to show (array first, fallback to single)
             const files = msg.files || (msg.fileUrl ? [{ url: msg.fileUrl, name: msg.fileName || "File", type: msg.fileType || "" }] : []);
 
             return (
@@ -869,7 +859,7 @@ export default function BroadcastChannel() {
                                 </div>
                               ) : (
                                 <>
-                                  {userRole === "Department Head" && (
+                                  {userRole === "Admin" && (
                                     <button
                                       className="bc-msg-menu-item"
                                       onClick={() => togglePin(msg.id, msg.pinned)}
@@ -899,7 +889,6 @@ export default function BroadcastChannel() {
                       className={`bc-bubble ${isMine ? "bc-bubble-right" : "bc-bubble-left"} ${msg.pinned ? "bc-bubble-pinned" : ""}`}
                       title={formatTimestamp(msg.createdAt)}
                     >
-                      {/* ─── IMAGES ──────────────────────────────────── */}
                       {imageUrls.length > 0 && (
                         <div className="bc-images-grid">
                           {imageUrls.map((url, i) => (
@@ -914,7 +903,6 @@ export default function BroadcastChannel() {
                         </div>
                       )}
 
-                      {/* ─── FILES ───────────────────────────────────── */}
                       {files.length > 0 && (
                         <div className="bc-files-list">
                           {files.map((file, i) => (
@@ -923,7 +911,6 @@ export default function BroadcastChannel() {
                         </div>
                       )}
 
-                      {/* ─── LINK PREVIEW ───────────────────────────── */}
                       {msg.linkPreview && (
                         <a
                           href={msg.linkPreview.url}
@@ -945,14 +932,12 @@ export default function BroadcastChannel() {
                         </a>
                       )}
 
-                      {/* ─── TEXT ───────────────────────────────────── */}
                       {msg.content && (
                         <div className="bc-bubble-text">
                           {highlightText(msg.content, searchQuery)}
                         </div>
                       )}
 
-                      {/* ─── TIMESTAMP ───────────────────────────────── */}
                       {msg.createdAt && (
                         <div className="bc-message-time">
                           {msg.createdAt.toDate().toLocaleTimeString([], {
@@ -963,7 +948,6 @@ export default function BroadcastChannel() {
                       )}
                     </div>
 
-                    {/* ─── REACTIONS ────────────────────────────────── */}
                     <div className="bc-reactions">
                       {likeUids.length > 0 || loveUids.length > 0 ? (
                         <>
@@ -1015,9 +999,8 @@ export default function BroadcastChannel() {
       </div>
 
       {/* COMPOSER */}
-      {userRole === "Department Head" && (
+      {userRole === "Admin" && (
         <div className="bc-composer">
-          {/* ─── Attachments preview ────────────────────────────────── */}
           {(selectedImages.length > 0 || selectedFiles.length > 0) && (
             <div className="bc-attachments-preview">
               {selectedImages.map((img, idx) => (
@@ -1041,7 +1024,6 @@ export default function BroadcastChannel() {
             </div>
           )}
 
-          {/* ─── Link preview in composer ──────────────────────────── */}
           {fetchingPreview && selectedImages.length === 0 && selectedFiles.length === 0 && (
             <div className="bc-composer-link-preview bc-composer-link-loading">
               <div className="bc-spinner-small" />
@@ -1100,7 +1082,7 @@ export default function BroadcastChannel() {
               >
                 <option>All Staffs</option>
                 <option>Faculty</option>
-                <option>Department Head</option>
+                <option>Admin</option>
                 <option>Clerk</option>
                 <option>Local Registrar</option>
               </select>
@@ -1136,7 +1118,7 @@ export default function BroadcastChannel() {
           <div className="bc-note">
             {uploading
               ? "Uploading…"
-              : "Only Department Heads can publish announcements. Enter to send, Shift+Enter for a new line."}
+              : "Only Admins can publish announcements. Enter to send, Shift+Enter for a new line."}
           </div>
         </div>
       )}

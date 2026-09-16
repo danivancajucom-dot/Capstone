@@ -2,9 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import "../../Components/IssueReportCard/issue-report-card.css";
 import "./room-issues.css";
 import IssueReportCard from "../../Components/IssueReportCard/IssueReportCard";
+import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import Toast from "../../Popup/Toast/Toast";
-import { db } from "../../firebase";
-import { collection, query, orderBy, onSnapshot, getDocs } from "firebase/firestore";
+import { auth, db } from "../../firebase";
+import {
+  collection, query, orderBy, onSnapshot, getDocs,
+  doc, updateDoc, serverTimestamp, getDoc,
+} from "firebase/firestore";
+import { logActivity } from "../../utils/logActivity";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -16,7 +21,7 @@ const SORT_OPTIONS = [
 
 const SEVERITY_ORDER = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
 
-export default function DepartmentHeadRoomIssues() {
+export default function AdminRoomIssues() {
   const [issues, setIssues]             = useState([]);
   const [loading, setLoading]           = useState(true);
   const [activeTab, setActiveTab]       = useState("all");
@@ -25,6 +30,8 @@ export default function DepartmentHeadRoomIssues() {
   const [sortOrder, setSortOrder]       = useState("newest");
   const [currentPage, setCurrentPage]   = useState(1);
   const [maintenanceRooms, setMaintenanceRooms] = useState({});
+  const [busy, setBusy]                 = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
   const showToast = (type, title, message) => {
@@ -69,11 +76,79 @@ export default function DepartmentHeadRoomIssues() {
     load();
   }, [issues]);
 
+  const getCurrentUser = async () => {
+    const user = auth.currentUser;
+    if (!user) return { uid: "", name: "", role: "" };
+    const snap = await getDoc(doc(db, "users", user.uid));
+    const d = snap.exists() ? snap.data() : {};
+    return {
+      uid: user.uid,
+      name: `${d.firstName || ""} ${d.lastName || ""}`.trim() || user.email,
+      role: d.role || "",
+    };
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // ACKNOWLEDGE — Admin forwards the issue to Clerk
+  // ══════════════════════════════════════════════════════════════
+  const acknowledge = (issue) => {
+    setConfirmAction({
+      title: "Acknowledge Issue?",
+      message: `This will acknowledge the ${issue.category} issue in ${issue.roomName} and forward it to the Clerk for action.`,
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          const u = await getCurrentUser();
+          await updateDoc(doc(db, "roomIssues", issue.id), {
+            status: "Acknowledged",
+            acknowledgedBy: u.name,
+            acknowledgedAt: serverTimestamp(),
+          });
+
+          await logActivity({
+            user: u.name,
+            role: u.role,
+            action: "Acknowledged room issue",
+            actionType: "edit",
+            target: `${issue.roomName} • ${issue.category || ""}`,
+            status: "Success",
+          });
+
+          // Notify the reporter
+          if (issue.reporterId) {
+            await import("firebase/firestore").then(({ addDoc }) =>
+              addDoc(collection(db, "notifications"), {
+                userId: issue.reporterId,
+                ownerType: "faculty",
+                title: "Issue Acknowledged",
+                message: `Your reported issue in ${issue.roomName} has been acknowledged and is now being handled by the Clerk.`,
+                type: "issue-update",
+                unread: true,
+                archived: false,
+                badge: "INFO",
+                createdAt: serverTimestamp(),
+              })
+            );
+          }
+
+          showToast("success", "Acknowledged", "The issue has been forwarded to the Clerk.");
+        } catch (err) {
+          console.error(err);
+          showToast("error", "Failed", err.message);
+        } finally {
+          setBusy(false);
+          setConfirmAction(null);
+        }
+      },
+    });
+  };
+
   // ── Counts ─────────────────────────────────────────────────
   const counts = useMemo(
     () => ({
       all: issues.length,
-      open: issues.filter((i) => i.status !== "Resolved").length,
+      pending: issues.filter((i) => i.status === "Pending").length,
+      acknowledged: issues.filter((i) => i.status === "Acknowledged").length,
       resolved: issues.filter((i) => i.status === "Resolved").length,
       urgent: issues.filter((i) => i.severity === "Urgent" && i.status !== "Resolved").length,
     }),
@@ -93,7 +168,8 @@ export default function DepartmentHeadRoomIssues() {
   const filtered = useMemo(() => {
     let list = [...issues];
 
-    if (activeTab === "open") list = list.filter((i) => i.status !== "Resolved");
+    if (activeTab === "pending") list = list.filter((i) => i.status === "Pending");
+    if (activeTab === "acknowledged") list = list.filter((i) => i.status === "Acknowledged");
     if (activeTab === "resolved") list = list.filter((i) => i.status === "Resolved");
     if (activeTab === "urgent")
       list = list.filter((i) => i.severity === "Urgent" && i.status !== "Resolved");
@@ -146,7 +222,7 @@ export default function DepartmentHeadRoomIssues() {
         <div className="ri-header">
           <div>
             <h1>Room Issue Monitoring</h1>
-            <p>Monitor issues reported by faculty and staff across all CICT rooms.</p>
+            <p>Acknowledge issues reported by faculty and staff. Acknowledged issues are forwarded to the Clerk for action.</p>
           </div>
         </div>
 
@@ -159,10 +235,16 @@ export default function DepartmentHeadRoomIssues() {
             All <span className="ri-tab-count">{counts.all}</span>
           </button>
           <button
-            className={activeTab === "open" ? "active" : ""}
-            onClick={() => setActiveTab("open")}
+            className={activeTab === "pending" ? "active" : ""}
+            onClick={() => setActiveTab("pending")}
           >
-            Open <span className="ri-tab-count">{counts.open}</span>
+            Pending <span className="ri-tab-count">{counts.pending}</span>
+          </button>
+          <button
+            className={activeTab === "acknowledged" ? "active" : ""}
+            onClick={() => setActiveTab("acknowledged")}
+          >
+            Acknowledged <span className="ri-tab-count">{counts.acknowledged}</span>
           </button>
           <button
             className={activeTab === "resolved" ? "active" : ""}
@@ -262,7 +344,9 @@ export default function DepartmentHeadRoomIssues() {
                 key={issue.id}
                 issue={issue}
                 role="admin"
+                busy={busy}
                 roomIsUnderMaintenance={!!maintenanceRooms[issue.roomId]}
+                onAcknowledge={acknowledge}
               />
             ))}
           </div>
@@ -303,6 +387,15 @@ export default function DepartmentHeadRoomIssues() {
           </div>
         )}
       </div>
+
+      {confirmAction && (
+        <ConfirmPopup
+          title={confirmAction.title}
+          message={confirmAction.message}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={busy ? null : confirmAction.onConfirm}
+        />
+      )}
 
       <Toast
         show={toast.show}

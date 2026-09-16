@@ -481,16 +481,16 @@ function FacultyEditPendingReservation() {
         );
       }
 
-      // 2. All clerks and department heads
+      // 2. All clerks and admins
       const usersSnap = await getDocs(collection(db, "users"));
       const adminNotifications = [];
       usersSnap.forEach((doc) => {
         const role = normalize(doc.data().role);
-        if (role === "clerk" || role === "department-head") {
+        if (role === "clerk" || role === "admin") {
           adminNotifications.push(
             sendNotification(
               doc.id,
-              role === "clerk" ? "clerk" : "department-head",
+              role === "clerk" ? "clerk" : "admin",
               "Reservation Updated",
               `${facultyNameFull} updated their reservation for ${editableFields.roomName}.`,
               "reservation-updated",
@@ -580,16 +580,16 @@ function FacultyEditPendingReservation() {
         );
       }
 
-      // 2. All clerks and department heads
+      // 2. All clerks and admins
       const usersSnap = await getDocs(collection(db, "users"));
       const adminNotifications = [];
       usersSnap.forEach((doc) => {
         const role = normalize(doc.data().role);
-        if (role === "clerk" || role === "department-head") {
+        if (role === "clerk" || role === "admin") {
           adminNotifications.push(
             sendNotification(
               doc.id,
-              role === "clerk" ? "clerk" : "department-head",
+              role === "clerk" ? "clerk" : "admin",
               "Reservation Cancelled",
               `${facultyNameFull} cancelled their reservation for ${reservation.roomName} on ${reservation.date}.`,
               "reservation-cancelled",

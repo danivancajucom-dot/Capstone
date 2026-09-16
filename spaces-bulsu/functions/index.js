@@ -279,7 +279,7 @@ exports.scheduledWatcherCheck = onSchedule(
 // ════════════════════════════════════════════════════════════════
 // DELETE USER — Auth + Firestore + related cleanup
 // Callable from:
-//   • Department Head UserManagement (delete OTHER users)
+//   • Admin UserManagement (delete OTHER users)
 //   • FacultySettings (delete OWN account)
 // ════════════════════════════════════════════════════════════════
 exports.deleteUser = onCall(async (request) => {
@@ -299,7 +299,7 @@ exports.deleteUser = onCall(async (request) => {
   if (!isSelfDelete) {
     const callerDoc = await db.collection("users").doc(callerUid).get();
     const callerRole = callerDoc.data()?.role;
-    const allowed = ["Clerk", "Department Head"];
+    const allowed = ["Clerk", "Admin"];
     if (!allowed.includes(callerRole)) {
       throw new HttpsError(
         "permission-denied",
@@ -308,14 +308,14 @@ exports.deleteUser = onCall(async (request) => {
     }
   }
 
-  // ── Prevent self-deletion by DH/Clerk of their own admin account ──
+  // ── Prevent self-deletion by Admin/Clerk of their own admin account ──
   if (isSelfDelete) {
     const selfDoc = await db.collection("users").doc(userId).get();
     const selfRole = selfDoc.data()?.role;
-    if (selfRole === "Department Head") {
+    if (selfRole === "Admin") {
       throw new HttpsError(
         "failed-precondition",
-        "Department Head accounts cannot be self-deleted. Contact system administrator."
+        "Admin accounts cannot be self-deleted. Contact system administrator."
       );
     }
   }

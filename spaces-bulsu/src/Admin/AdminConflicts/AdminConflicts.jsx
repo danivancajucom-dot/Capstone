@@ -1,4 +1,4 @@
-import "./department-head-conflicts.css";
+import "./admin-conflicts.css";
 import ConflictCard from "../../Components/ConflictCard/ConflictCard";
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
@@ -37,7 +37,7 @@ const schoolYearStart = (sy = "") => {
 
 // ────────────────────────────────────────────────────────────────────
 
-function DepartmentHeadConflicts() {
+function AdminConflicts() {
   const [conflicts, setConflicts] = useState([]);
   const [resolved, setResolved] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
@@ -603,8 +603,8 @@ function DepartmentHeadConflicts() {
                     activeTab === "all" && !conflict.reassignPending
                   }
                   onResolved={handleResolved}
-                  reassignPath="/department-head/reassign-room"
-                  backPath="/department-head/conflicts"
+                  reassignPath="/admin/reassign-room"
+                  backPath="/admin/conflicts"
                 />
               ))
             )}
@@ -623,4 +623,4 @@ function DepartmentHeadConflicts() {
   );
 }
 
-export default DepartmentHeadConflicts;
+export default AdminConflicts;

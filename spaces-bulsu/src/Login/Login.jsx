@@ -33,7 +33,7 @@ export default function Login() {
   const roleDropdownRef = useRef(null);
 
   // ─── Info modal (Privacy Policy / Terms / Accessibility / Contact Support / FAQs) ─
-  const [activeModal, setActiveModal] = useState(null); // null | "privacy" | "terms" | "accessibility" | "support" | "faq"
+  const [activeModal, setActiveModal] = useState(null);
   const [openFaqIndex, setOpenFaqIndex] = useState(null);
 
   const FAQ_ITEMS = [
@@ -45,7 +45,7 @@ export default function Login() {
     {
       question: "Sino ang pwedeng gumawa ng account sa system?",
       answer:
-        "Ang Department Head lang ang may access na gumawa ng user accounts para sa Local Registrar, Clerk, at Faculty Members. Kapag nagawa na ang account, automatic na ipapadala ang temporary login credentials sa registered email address ng user.",
+        "Ang Admin lang ang may access na gumawa ng user accounts para sa Local Registrar, Clerk, at Faculty Members. Kapag nagawa na ang account, automatic na ipapadala ang temporary login credentials sa registered email address ng user.",
     },
     {
       question: "Nakalimutan ko ang password ko, ano ang gagawin ko?",
@@ -55,7 +55,7 @@ export default function Login() {
     {
       question: "Bakit naka-block ang account ko?",
       answer:
-        "Awtomatikong ma-bblock ang account pagkatapos ng 5 sunod-sunod na maling login attempts, para sa seguridad. Sa ika-3 attempt, may babalang notification ka na. Kung na-block na ang account mo, kontakin ang Department Head para ma-reactivate ito.",
+        "Awtomatikong ma-bblock ang account pagkatapos ng 5 sunod-sunod na maling login attempts, para sa seguridad. Sa ika-3 attempt, may babalang notification ka na. Kung na-block na ang account mo, kontakin ang Admin para ma-reactivate ito.",
     },
     {
       question: "Paano mag-request ng room reservation?",
@@ -70,7 +70,7 @@ export default function Login() {
     {
       question: "Ano ang gagawin ko kung hindi ko na gagamitin ang assigned room ko?",
       answer:
-        "Sa Schedule page, piliin ang klase o booking na gusto mong i-release, bigyan ng dahilan (halimbawa: examination o class suspension), at kumpirmahin. Awtomatikong mano-notify ang Department Head at Clerk para maibalik na available ang room para sa ibang users.",
+        "Sa Schedule page, piliin ang klase o booking na gusto mong i-release, bigyan ng dahilan (halimbawa: examination o class suspension), at kumpirmahin. Awtomatikong mano-notify ang Admin at Clerk para maibalik na available ang room para sa ibang users.",
     },
     {
       question: "Sino ang makokontak ko kung may problema ako sa system?",
@@ -87,7 +87,6 @@ export default function Login() {
     if (savedEmail || savedRole) setRememberMe(true);
   }, []);
 
-  // Close modal with ESC key
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === "Escape") {
@@ -99,7 +98,6 @@ export default function Login() {
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
 
-  // Close role dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(e.target)) {
@@ -110,7 +108,6 @@ export default function Login() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Reset the open FAQ item whenever the modal changes
   useEffect(() => {
     setOpenFaqIndex(null);
   }, [activeModal]);
@@ -133,12 +130,12 @@ export default function Login() {
   const ROLE_ROUTES = {
     "Local Registrar": "/local-registrar",
     Clerk: "/clerk",
-    "Department Head": "/department-head",
+    Admin: "/admin",
     Faculty: "/faculty",
   };
 
   const roles = [
-    { name: "Department Head", icon: "fa-user-tie" },
+    { name: "Admin", icon: "fa-user-tie" },
     { name: "Local Registrar", icon: "fa-building" },
     { name: "Clerk", icon: "fa-clipboard" },
     { name: "Faculty", icon: "fa-user" },
@@ -153,17 +150,17 @@ export default function Login() {
     }
   };
 
-  // ─── Helper: notify all Department Heads ──────────────────────────────
-  const notifyDepartmentHeads = async (title, message, type = "login-attempt") => {
+  // ─── Helper: notify all Admins ──────────────────────────────
+  const notifyAdmins = async (title, message, type = "login-attempt") => {
     try {
-      const q = query(collection(db, "users"), where("role", "==", "Department Head"));
+      const q = query(collection(db, "users"), where("role", "==", "Admin"));
       const snap = await getDocs(q);
-      const heads = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const admins = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      for (const head of heads) {
+      for (const admin of admins) {
         await addDoc(collection(db, "notifications"), {
-          userId: head.id,
-          ownerType: "department-head",
+          userId: admin.id,
+          ownerType: "admin",
           title,
           message,
           type,
@@ -174,7 +171,7 @@ export default function Login() {
         });
       }
     } catch (err) {
-      console.error("Failed to notify department heads:", err);
+      console.error("Failed to notify admins:", err);
     }
   };
 
@@ -207,7 +204,6 @@ export default function Login() {
     setLoading(true);
     showToast("loading", "Signing In", "Please wait while we verify your account.");
 
-    // We'll track attempts in this variable so we can conditionally show toasts
     let attempts = 0;
     let userData = null;
     let uid = null;
@@ -234,7 +230,7 @@ export default function Login() {
         showToast(
           "error",
           "Account Blocked",
-          "Your account has been blocked due to multiple failed login attempts. Please contact the Department Head for assistance."
+          "Your account has been blocked due to multiple failed login attempts. Please contact the Admin for assistance."
         );
         setLoading(false);
         return;
@@ -281,10 +277,8 @@ export default function Login() {
       }, 2000);
 
     } catch (err) {
-      // ─── LOGIN FAILED ──────────────────────────────────────────────
       console.error("Login error:", err);
 
-      // Map Firebase auth errors
       const MSG = {
         "auth/user-not-found": "No account found.",
         "auth/wrong-password": "Incorrect password.",
@@ -294,9 +288,7 @@ export default function Login() {
       };
       const errorMessage = MSG[err.code] || "Login failed. Please try again.";
 
-      // ─── Track failed attempts (only if user exists) ──────────────
       try {
-        // Re‑fetch user if we don't have it (safety)
         let currentUserData = userData;
         let currentUid = uid;
         let currentFullName = fullName;
@@ -313,10 +305,8 @@ export default function Login() {
         }
 
         if (currentUserData && currentUid) {
-          // Get current attempts
           attempts = (currentUserData.loginAttempts || 0) + 1;
 
-          // Update attempts in Firestore
           await updateDoc(doc(db, "users", currentUid), {
             loginAttempts: attempts,
             lastAttempt: serverTimestamp(),
@@ -326,8 +316,7 @@ export default function Login() {
           if (attempts === 3) {
             showToast("error", "Multiple Failed Attempts",
               `You have 3 failed login attempts. Your account will be blocked after 5 attempts.`);
-            // Notify Department Heads
-            await notifyDepartmentHeads(
+            await notifyAdmins(
               "⚠️ Failed Login Attempts",
               `${currentFullName} (${email}) has ${attempts} failed login attempts.`,
               "login-warning"
@@ -354,10 +343,10 @@ export default function Login() {
             showToast(
               "error",
               "Account Blocked",
-              "Your account has been blocked due to 5 failed login attempts. Please contact the Department Head to reactivate."
+              "Your account has been blocked due to 5 failed login attempts. Please contact the Admin to reactivate."
             );
 
-            await notifyDepartmentHeads(
+            await notifyAdmins(
               "🚫 Account Blocked",
               `${currentFullName} (${email}) has been blocked due to 5 failed login attempts.`,
               "account-blocked"
@@ -373,19 +362,15 @@ export default function Login() {
               details: { attempts, reason: "5 failed attempts" },
             });
           } else if (attempts === 4) {
-            // ── 4 attempts – warning ──
             showToast("error", "Warning", "One more failed attempt will block your account.");
           } else {
-            // 1st or 2nd attempt – show generic error
             showToast("error", "Login Failed", errorMessage);
           }
         } else {
-          // User not found – show generic error
           showToast("error", "Login Failed", errorMessage);
         }
       } catch (trackErr) {
         console.error("Failed to track login attempts:", trackErr);
-        // Still show the error toast so the user gets feedback
         showToast("error", "Login Failed", errorMessage);
       }
     } finally {
@@ -410,7 +395,6 @@ export default function Login() {
       />
 
       <div className="login-page-shell">
-        {/* HERO SIDE */}
         <div
           className="login-hero"
           style={{
@@ -445,7 +429,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* LOGIN SIDE */}
         <section className="login-panel">
           <div className="login-card"
             onKeyDown={(e) => {
@@ -466,7 +449,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* ROLE */}
             <div className="form-group">
               <label>Select Role</label>
               <div className="role-dropdown" ref={roleDropdownRef}>
@@ -518,7 +500,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* EMAIL */}
             <div className="form-group float-group">
               <div className="float-input">
                 <i className="fa-solid fa-user input-icon" />
@@ -534,7 +515,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* PASSWORD */}
             <div className="form-group float-group">
               <div className="float-input">
                 <i className="fa-solid fa-lock input-icon" />
@@ -560,7 +540,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* ACTIONS */}
             <div className="form-actions-row">
               <label className="checkbox-label">
                 <input
@@ -578,7 +557,6 @@ export default function Login() {
               </button>
             </div>
 
-            {/* SIGN IN */}
             <button
               className="sign-in-btn"
               onClick={handleSignIn}
@@ -596,7 +574,6 @@ export default function Login() {
         </section>
       </div>
 
-      {/* LOADING OVERLAY */}
       {redirecting && (
         <div className="login-loading-screen">
           <div className="loading-card">
@@ -607,7 +584,6 @@ export default function Login() {
         </div>
       )}
 
-      {/* FOOTER */}
       <footer className="login-footer">
         <div className="footer-left">
           <i className="fa-solid fa-building-columns" />
@@ -629,7 +605,6 @@ export default function Login() {
         </div>
       </footer>
 
-      {/* ══════════════════════ INFO MODAL (Privacy / Terms / Accessibility / Support) ══════════════════════ */}
       {activeModal && (
         <div className="info-modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="info-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -637,7 +612,6 @@ export default function Login() {
               <i className="fa-solid fa-xmark" />
             </button>
 
-            {/* ─── ABOUT ─── */}
             {activeModal === "about" && (
               <>
                 <div className="info-modal-icon">
@@ -669,7 +643,7 @@ export default function Login() {
 
                   <h4>Who It's For</h4>
                   <p>
-                    The platform serves four main roles — Department Head, Local Registrar, Clerk,
+                    The platform serves four main roles — Admin, Local Registrar, Clerk,
                     and Faculty Members — covering the 22 classrooms of CICT within Pimentel Hall,
                     supporting the BSIT, BSIS, and BLIS programs.
                   </p>
@@ -677,7 +651,6 @@ export default function Login() {
               </>
             )}
 
-            {/* ─── PRIVACY POLICY ─── */}
             {activeModal === "privacy" && (
               <>
                 <div className="info-modal-icon">
@@ -692,7 +665,7 @@ export default function Login() {
                     SpaceS CICT is a classroom allocation and scheduling platform built for the
                     College of Information and Communications Technology (CICT) at Bulacan State
                     University. We are committed to protecting the personal information of our
-                    Department Heads, Local Registrars, Clerks, and Faculty Members in accordance
+                    Admins, Local Registrars, Clerks, and Faculty Members in accordance
                     with Republic Act No. 10173, the Data Privacy Act of 2012.
                   </p>
 
@@ -721,7 +694,6 @@ export default function Login() {
               </>
             )}
 
-            {/* ─── TERMS OF USE ─── */}
             {activeModal === "terms" && (
               <>
                 <div className="info-modal-icon">
@@ -740,7 +712,7 @@ export default function Login() {
 
                   <h4>Account Responsibility</h4>
                   <ul>
-                    <li>Accounts are created and managed by the Department Head and must not be shared with other individuals.</li>
+                    <li>Accounts are created and managed by the Admin and must not be shared with other individuals.</li>
                     <li>Users are responsible for keeping their login credentials confidential.</li>
                     <li>Repeated failed login attempts may result in a temporarily blocked account for security purposes.</li>
                   </ul>
@@ -762,7 +734,6 @@ export default function Login() {
               </>
             )}
 
-            {/* ─── ACCESSIBILITY ─── */}
             {activeModal === "accessibility" && (
               <>
                 <div className="info-modal-icon">
@@ -775,7 +746,7 @@ export default function Login() {
                 <div className="info-modal-body">
                   <p>
                     SpaceS CICT is designed as a responsive web and mobile platform so that
-                    Department Heads, Local Registrars, Clerks, and Faculty Members can access
+                    Admins, Local Registrars, Clerks, and Faculty Members can access
                     scheduling and reservation features comfortably across desktop and mobile
                     devices.
                   </p>
@@ -798,7 +769,6 @@ export default function Login() {
               </>
             )}
 
-            {/* ─── CONTACT SUPPORT ─── */}
             {activeModal === "support" && (
               <>
                 <div className="info-modal-icon">
@@ -834,7 +804,6 @@ export default function Login() {
               </>
             )}
 
-            {/* ─── FAQs ─── */}
             {activeModal === "faq" && (
               <>
                 <div className="info-modal-icon">

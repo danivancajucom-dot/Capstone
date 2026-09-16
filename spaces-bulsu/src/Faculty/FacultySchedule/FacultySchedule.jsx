@@ -174,8 +174,8 @@ const notifyReleaseRoom = async ({
       let ownerType = "";
       if (role === "clerk") {
         ownerType = "clerk";
-      } else if (role === "department head" || role === "department-head") {
-        ownerType = "department-head";
+      } else if (role === "admin") {
+        ownerType = "admin";
       } else {
         return;
       }
@@ -615,7 +615,7 @@ export default function WeeklyCalendar() {
         daySpan: 1,
         startH, startM, endH, endM,
         colorIdx: 1,
-        faculty: e.faculty || "Department Head",
+        faculty: e.faculty || "Admin",
         date: e.date,
         rawStartTime: e.startTime,
         rawEndTime: e.endTime,

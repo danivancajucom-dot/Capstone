@@ -241,12 +241,12 @@ export default function RoomActivity() {
           startTime: form.startTime, endTime: form.endTime, conflictCount: enrichedConflicts.length },
       });
 
-      const deptHeads = usersSnap.docs.filter(
-        (d) => String(d.data().role || "").toLowerCase() === "department head"
+      const admins = usersSnap.docs.filter(
+        (d) => String(d.data().role || "").toLowerCase() === "admin"
       );
-      for (const head of deptHeads) {
+      for (const admin of admins) {
         await addDoc(collection(db, "notifications"), {
-          userId: head.id, ownerType: "department-head",
+          userId: admin.id, ownerType: "admin",
           activityRequestId: requestRef.id,
           title: "New Room Activity Request",
           message: `${fullName} submitted "${form.title}" for ${roomDoc.roomName} on ${form.date} (${formatTime12(form.startTime)} – ${formatTime12(form.endTime)}). ${enrichedConflicts.length} conflict(s) detected.`,
@@ -255,7 +255,7 @@ export default function RoomActivity() {
         });
       }
 
-      showToast("success", "Submitted for Approval", "Room activity sent to Department Head.");
+      showToast("success", "Submitted for Approval", "Room activity sent to Admin.");
       setShowModal(false);
       setForm({ title: "", room: "", date: "", startTime: "", endTime: "", reason: "" });
       setConflicts([]);
@@ -283,7 +283,7 @@ export default function RoomActivity() {
         <div>
           <h1 className="ra-title">Room Activity Request</h1>
           <p className="ra-subtitle">
-            Submit a room activity request — it will be reviewed by the Department Head before faculty are notified.
+            Submit a room activity request — it will be reviewed by the Admin before faculty are notified.
           </p>
         </div>
         <button className="ra-secondary-btn" onClick={() => setShowListModal(true)}>
@@ -306,7 +306,7 @@ export default function RoomActivity() {
 
       <div className="ra-approval-notice">
         <i className="fa-solid fa-circle-info"></i>
-        <span><strong>Approval Flow:</strong> Your request → Department Head approval → Faculty notification (if applicable)</span>
+        <span><strong>Approval Flow:</strong> Your request → Admin approval → Faculty notification (if applicable)</span>
       </div>
 
       <div className="ra-layout">
@@ -496,7 +496,7 @@ export default function RoomActivity() {
             <div className="ra-modal-icon"><i className="fa-solid fa-paper-plane"></i></div>
             <h3 className="ra-modal-title">Submit for Approval?</h3>
             <p className="ra-modal-text">
-              Your request will be sent to the Department Head for review
+              Your request will be sent to the Admin for review
               {conflicts.length > 0 ? ` — ${conflicts.length} conflict${conflicts.length > 1 ? "s" : ""} will be reported.` : "."}
             </p>
             <div className="ra-modal-summary">

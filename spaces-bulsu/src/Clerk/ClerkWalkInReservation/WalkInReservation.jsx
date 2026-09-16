@@ -774,17 +774,17 @@ export default function WalkInReservation() {
   };
 
   // ─── Notifications ────────────────────────────────────────────────
-  const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
+  const notifyClerkAndAdmin = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
     usersSnap.forEach((userDoc) => {
       const user = userDoc.data();
       const role = normalize(user.role);
-      if (role === "clerk" || role === "department-head") {
+      if (role === "clerk" || role === "admin") {
         notifications.push(
           addDoc(collection(db, "notifications"), {
             userId: userDoc.id,
-            ownerType: role === "clerk" ? "clerk" : "department-head",
+            ownerType: role === "clerk" ? "clerk" : "admin",
             reservationId,
             title,
             message,
@@ -850,7 +850,7 @@ export default function WalkInReservation() {
         },
       );
 
-      await notifyClerkAndDepartmentHead(
+      await notifyClerkAndAdmin(
         "Walk-In Reservation Created",
         `${form.requesterName} created a walk-in reservation for ${selectedRoom.roomName} on ${selectedDate} from ${form.startTime} to ${form.endTime}.`,
         reservationRef.id,

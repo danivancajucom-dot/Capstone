@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import "./department-head-dashboard.css";
+import "./admin-dashboard.css";
 import { useNavigate } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -62,7 +62,7 @@ const formatTimestamp = (timestamp) => {
 };
 
 // ─── Main Component ──────────────────────────────────────────────────────
-export default function DepartmentHeadDashboard() {
+export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const [activeBuilding, setActiveBuilding] = useState("All Buildings");
@@ -653,7 +653,7 @@ export default function DepartmentHeadDashboard() {
           </div>
           <button
             className="dept-db-view-all-btn"
-            onClick={() => navigate("/department-head/activity-log")}
+            onClick={() => navigate("/admin/activity-log")}
           >
             View All Activity
           </button>

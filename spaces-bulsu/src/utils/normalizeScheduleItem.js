@@ -55,28 +55,28 @@ export function normalizeScheduleItem(item, source = "schedule") {
   }
 
   // ---------------- ONE-TIME ROOM ACTIVITY ("events" collection) ----------------
-  // Ito yung ginagawa ng Department Head sa RoomActivity.jsx (override ng
+  // Ito yung ginagawa ng Admin sa RoomActivity.jsx (override ng
   // existing class schedule). Walang "faculty"/"purpose" field dito, kundi
   // "title", "reason", at "status: active" lang.
   if (source === "event") {
 
-    // department-head-created override kapag may "reason" field
+    // admin-created override kapag may "reason" field
     // (ito lang ang unique sa RoomActivity.jsx flow)
-    const isDeptHeadEvent = item.reason !== undefined;
+    const isAdminEvent = item.reason !== undefined;
 
     return {
-      sourceType: isDeptHeadEvent
-        ? "Department Head Override"
+      sourceType: isAdminEvent
+        ? "Admin Override"
         : "Room Activity",
       isReservation: true, // gamit din ang "reservation-style" layout (walang semester/sy)
-      isDeptHeadEvent,
-      status: item.status || (isDeptHeadEvent ? "active" : null),
+      isAdminEvent,
+      status: item.status || (isAdminEvent ? "active" : null),
 
       faculty:
         item.faculty ||
         item.organizer ||
         item.requesterName ||
-        (isDeptHeadEvent ? "DEPARTMENT HEAD" : "ROOM ACTIVITY"),
+        (isAdminEvent ? "ADMIN" : "ROOM ACTIVITY"),
 
       subject:
         item.title ||

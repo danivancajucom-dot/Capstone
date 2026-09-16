@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import "./department-head-reservations.css";
+import "./AdminViewReservationCancelled";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
 import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
@@ -49,7 +49,7 @@ function EmptyState({ label }) {
 }
 
 // ─── Main component ──────────────────────────────────────────────────
-function DepartmentHeadReservations() {
+function AdminReservations() {
   const [activeTab, setActiveTab] = useState("Pending");
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
@@ -191,7 +191,7 @@ function DepartmentHeadReservations() {
         <ReservationCard
           key={reservation.id}
           reservation={reservation}
-          basePath="/department-head/view-reservation"
+          basePath="/admin/view-reservation"
           readOnly={true}
         />
       ));
@@ -199,11 +199,11 @@ function DepartmentHeadReservations() {
 
     let viewPath;
     if (activeTab === "Approved") {
-      viewPath = "/department-head/view-reservation-approved";
+      viewPath = "/admin/view-reservation-approved";
     } else if (activeTab === "Denied") {
-      viewPath = "/department-head/view-reservation-denied";
+      viewPath = "/admin/view-reservation-denied";
     } else {
-      viewPath = "/department-head/view-reservation-cancelled";
+      viewPath = "/admin/view-reservation-cancelled";
     }
 
     return visibleReservations.map((reservation) => (
@@ -357,4 +357,4 @@ function DepartmentHeadReservations() {
   );
 }
 
-export default DepartmentHeadReservations;
+export default AdminReservations;

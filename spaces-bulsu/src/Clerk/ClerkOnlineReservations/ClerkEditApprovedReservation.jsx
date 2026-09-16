@@ -399,16 +399,16 @@ function ClerkEditApprovedReservation() {
         );
       }
 
-      // 3. All department heads
+      // 3. All admins
       const usersSnap = await getDocs(collection(db, "users"));
-      const deptHeadNotifications = [];
+      const adminNotifications = [];
       usersSnap.forEach((doc) => {
         const role = normalize(doc.data().role);
-        if (role === "department-head" || role === "department head") {
-          deptHeadNotifications.push(
+        if (role === "admin") {
+          adminNotifications.push(
             sendNotification(
               doc.id,
-              "department-head",
+              "admin",
               "Reservation Updated",
               `${facultyName}'s reservation for ${editableFields.roomName} was updated by Clerk.`,
               "reservation-updated",
@@ -417,7 +417,7 @@ function ClerkEditApprovedReservation() {
           );
         }
       });
-      await Promise.all(deptHeadNotifications);
+      await Promise.all(adminNotifications);
 
       setShowSaveModal(false);
       showToast("success", "Success", "Reservation updated successfully!");

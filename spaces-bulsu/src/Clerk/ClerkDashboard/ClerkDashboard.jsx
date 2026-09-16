@@ -170,7 +170,7 @@ function ClerkDashboard() {
         ...e,
         subject: e.title || e.purpose || "Room Activity",
         roomName: e.roomName || room.roomName,
-        facultyName: e.faculty || "Department Head",
+        facultyName: e.faculty || "Admin",
         source: "event",
       }));
 
@@ -299,7 +299,7 @@ function ClerkDashboard() {
       endTime: e.endTime,
       subject: e.title || e.purpose || "Room Activity",
       roomName: e.roomName,
-      facultyName: e.faculty || "Department Head",
+      facultyName: e.faculty || "Admin",
       source: "event",
       date: today,
     }));

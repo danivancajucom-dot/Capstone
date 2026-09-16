@@ -485,7 +485,7 @@ function FacultySubmitReservation() {
     }
   };
 
-  const notifyClerkAndDepartmentHead = async (title, message, reservationId) => {
+  const notifyClerkAndAdmin = async (title, message, reservationId) => {
     const usersSnap = await getDocs(collection(db, "users"));
     const notifications = [];
 
@@ -495,7 +495,7 @@ function FacultySubmitReservation() {
 
       let ownerType = "";
       if (role === "clerk") ownerType = "clerk";
-      else if (role.includes("department") && role.includes("head")) ownerType = "department-head";
+      else if (role === "admin") ownerType = "admin";
       else return;
 
       notifications.push(
@@ -574,7 +574,7 @@ function FacultySubmitReservation() {
         createdAt: serverTimestamp(),
       });
 
-      await notifyClerkAndDepartmentHead(
+      await notifyClerkAndAdmin(
         "New Reservation Request",
         `${facultyName} submitted a reservation request for "${courseTitle}" in ${selectedRoom.roomName} on ${date} from ${startTime} to ${endTime}.`,
         reservationRef.id

@@ -1,16 +1,16 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import "./department-head-view-reservation-denied.css";
+import "./admin-view-reservation-approved.css";
 
-function DepartmentHeadViewReservationDenied() {
+function AdminViewReservationApproved() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const reservation = state?.reservation;
 
   if (!reservation) {
     return (
-      <div className="dh-denied-reservation-room">
+      <div className="dph-approved-reservation-room">
         <h2>Reservation not found.</h2>
-        <button onClick={() => navigate("/department-head/reservations")}>
+        <button onClick={() => navigate("/admin/reservations")}>
           Back
         </button>
       </div>
@@ -54,27 +54,18 @@ function DepartmentHeadViewReservationDenied() {
     .join(", ") || "None";
 
   return (
-    <div className="dph-denied-reservation-room">
+    <div className="dph-approved-reservation-room">
 
-      <div className="dh-denied-white-box">
-        <h2 className="dph-denied-title">Denied Reservation Details</h2>
+      <div className="dh-white-box-approved">
+        <h2 className="dph-approved-title">Approved Reservation Details</h2>
 
-        {/* ─── Denial Reason (highlighted) ───────────────────────── */}
-        <div className="dh-denied-reason-box">
-          <i className="fa-solid fa-circle-exclamation dh-denied-reason-icon"></i>
-          <div>
-            <strong>Reason for Denial:</strong>
-            <p>{reservation.denialReason || "No reason provided."}</p>
-          </div>
-        </div>
-
-        <div className="dh-denied-info-grid">
+        <div className="dh-approved-info-grid">
           {/* ─── Faculty / Requester ────────────────────────────── */}
-          <div className="dh-denied-info-box">
-            <h3 className="dh-denied-info-box-title">
+          <div className="dh-approved-info-box">
+            <h3 className="dh-approved-info-box-title">
               <i className="fa-solid fa-user"></i> Requester
             </h3>
-            <div className="dh-denied-info-box-content">
+            <div className="dh-approved-info-box-content">
               <p>
                 <strong>Name:</strong> {reservation.facultyName || reservation.requesterName || "Unknown"}
               </p>
@@ -87,11 +78,11 @@ function DepartmentHeadViewReservationDenied() {
           </div>
 
           {/* ─── Course & Purpose ────────────────────────────────── */}
-          <div className="dh-denied-info-box">
-            <h3 className="dh-denied-info-box-title">
+          <div className="dh-approved-info-box">
+            <h3 className="dh-approved-info-box-title">
               <i className="fa-solid fa-book"></i> Course & Purpose
             </h3>
-            <div className="dh-denied-info-box-content">
+            <div className="dh-approved-info-box-content">
               <p>
                 <strong>Course Title:</strong> {reservation.courseTitle || "N/A"}
               </p>
@@ -107,11 +98,11 @@ function DepartmentHeadViewReservationDenied() {
           </div>
 
           {/* ─── Room & Schedule ─────────────────────────────────── */}
-          <div className="dh-denied-info-box">
-            <h3 className="dh-denied-info-box-title">
+          <div className="dh-approved-info-box">
+            <h3 className="dh-approved-info-box-title">
               <i className="fa-solid fa-calendar-days"></i> Room & Schedule
             </h3>
-            <div className="dh-denied-info-box-content">
+            <div className="dh-approved-info-box-content">
               <p>
                 <strong>Room:</strong> {reservation.roomName || "N/A"}
               </p>
@@ -128,11 +119,11 @@ function DepartmentHeadViewReservationDenied() {
           </div>
 
           {/* ─── Audience ─────────────────────────────────────────── */}
-          <div className="dh-denied-info-box">
-            <h3 className="dh-denied-info-box-title">
+          <div className="dh-approved-info-box">
+            <h3 className="dh-approved-info-box-title">
               <i className="fa-solid fa-users"></i> Audience
             </h3>
-            <div className="dh-denied-info-box-content">
+            <div className="dh-approved-info-box-content">
               <p>
                 <strong>Type:</strong> {reservation.audienceType || "N/A"}
               </p>
@@ -169,11 +160,11 @@ function DepartmentHeadViewReservationDenied() {
           </div>
 
           {/* ─── Equipment & Capacity ────────────────────────────── */}
-          <div className="dh-denied-info-box">
-            <h3 className="dh-denied-info-box-title">
+          <div className="dh-approved-info-box">
+            <h3 className="dh-approved-info-box-title">
               <i className="fa-solid fa-toolbox"></i> Equipment & Capacity
             </h3>
-            <div className="dh-denied-info-box-content">
+            <div className="dh-approved-info-box-content">
               <p>
                 <strong>Required Equipment:</strong> {equipmentList}
               </p>
@@ -186,14 +177,14 @@ function DepartmentHeadViewReservationDenied() {
           </div>
 
           {/* ─── Metadata ──────────────────────────────────────────── */}
-          <div className="dh-denied-info-box">
-            <h3 className="dh-denied-info-box-title">
+          <div className="dh-approved-info-box">
+            <h3 className="dh-approved-info-box-title">
               <i className="fa-solid fa-circle-info"></i> Metadata
             </h3>
-            <div className="dh-denied-info-box-content">
+            <div className="dh-approved-info-box-content">
               <p>
                 <strong>Status:</strong>{" "}
-                <span className="dh-denied-status-badge denied">Denied</span>
+                <span className="dh-approved-status-badge approved">Approved</span>
               </p>
               <p>
                 <strong>Requested On:</strong> {createdDate.toLocaleDateString()} | {createdDate.toLocaleTimeString()}
@@ -208,16 +199,22 @@ function DepartmentHeadViewReservationDenied() {
         </div>
       </div>
 
-      <div className="dh-denied-footer">
+      <div className="dh-approved-footer">
         <button
-          className="dh-denied-back-btn"
-          onClick={() => navigate("/department-head/reservations")}
+          className="dh-approved-back-btn"
+          onClick={() => navigate("/admin/reservations")}
         >
           Back
+        </button>
+        <button
+          className="dh-approved-edit-btn"
+          onClick={() => navigate("/admin/edit-approved-reservation", { state: { reservation } })}
+        >
+          Edit
         </button>
       </div>
     </div>
   );
 }
 
-export default DepartmentHeadViewReservationDenied;
+export default AdminViewReservationApproved;

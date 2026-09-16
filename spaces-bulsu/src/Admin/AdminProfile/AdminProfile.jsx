@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import "./departmenthead-profile.css";
+import "./admin-profile.css";
 import { logActivity } from "../../utils/logActivity";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -24,7 +24,7 @@ async function uploadToCloudinary(file) {
   return data.secure_url;
 }
 
-export default function DepartmentHeadProfile() {
+export default function AdminProfile() {
   const [editing, setEditing]       = useState(false);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -122,7 +122,7 @@ export default function DepartmentHeadProfile() {
         role: form.role,
         action: "Updated profile",
         actionType: "edit",
-        target: "Department Head Profile",
+        target: "Admin Profile",
         status: "Success",
       });
 
