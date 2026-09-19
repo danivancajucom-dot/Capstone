@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import "./faculty-layout.css";
 import { useState, useEffect, useRef } from "react";
 import { auth, db } from "../../firebase";
@@ -18,6 +18,7 @@ import NotificationCard from "../../Components/NotificationCard/Notification";
 
 export default function FacultyLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -25,9 +26,19 @@ export default function FacultyLayout() {
   const [activeTab, setActiveTab] = useState("all");
   const [loggingOut, setLoggingOut] = useState(false);
   const [profile, setProfile] = useState({
-    firstName: "", lastName: "", role: "", photoUrl: "", email: "",
+    firstName: "",
+    lastName: "",
+    role: "",
+    photoUrl: "",
+    email: "",
   });
   const profileMenuRef = useRef(null);
+
+  /* ---------- MOBILE DRAWER ---------- */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 992 : false
+  );
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
@@ -71,18 +82,57 @@ export default function FacultyLayout() {
     return () => unsubscribeAuth();
   }, []);
 
-  // Close dropdown on outside click
+  /* ---------- Close dropdown on outside click ---------- */
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
         setShowProfileMenu(false);
       }
     };
-    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    if (showProfileMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, [showProfileMenu]);
 
-  // ── Notification helpers ────────────────────────────────────────────────
+  /* ---------- Viewport watcher ---------- */
+  useEffect(() => {
+    const checkViewport = () => {
+      const mobile = window.innerWidth <= 992;
+      setIsMobile(mobile);
+      if (!mobile) setSidebarOpen(false);
+    };
+    checkViewport();
+    window.addEventListener("resize", checkViewport);
+    window.addEventListener("orientationchange", checkViewport);
+    return () => {
+      window.removeEventListener("resize", checkViewport);
+      window.removeEventListener("orientationchange", checkViewport);
+    };
+  }, []);
+
+  /* ---------- Auto-close drawer on route change ---------- */
+  useEffect(() => {
+    setSidebarOpen(false);
+    setShowProfileMenu(false);
+    setShowNotifications(false);
+  }, [location.pathname]);
+
+  /* ---------- Lock body scroll while drawer open ---------- */
+  useEffect(() => {
+    if (!isMobile) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [sidebarOpen, isMobile]);
+
+  /* ---------- Notification helpers ---------- */
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const now = new Date();
@@ -95,8 +145,11 @@ export default function FacultyLayout() {
   };
 
   const markAsRead = async (id) => {
-    try { await updateDoc(doc(db, "notifications", id), { unread: false }); }
-    catch (err) { console.error(err); }
+    try {
+      await updateDoc(doc(db, "notifications", id), { unread: false });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const markAllAsRead = async () => {
@@ -106,7 +159,9 @@ export default function FacultyLayout() {
       const batch = writeBatch(db);
       unread.forEach((n) => batch.update(doc(db, "notifications", n.id), { unread: false }));
       await batch.commit();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
@@ -118,8 +173,16 @@ export default function FacultyLayout() {
   });
 
   const emptyCopy = {
-    all: { icon: "fa-bell-slash", title: "No notifications", text: "Updates about schedules, reservations, and conflicts will appear here." },
-    unread: { icon: "fa-check-double", title: "All caught up!", text: "You've read all your notifications." },
+    all: {
+      icon: "fa-bell-slash",
+      title: "No notifications",
+      text: "Updates about schedules, reservations, and conflicts will appear here.",
+    },
+    unread: {
+      icon: "fa-check-double",
+      title: "All caught up!",
+      text: "You've read all your notifications.",
+    },
   }[activeTab];
 
   const typeIcon = {
@@ -134,7 +197,7 @@ export default function FacultyLayout() {
     default: "fa-solid fa-bell",
   };
 
-  // ── Logout ──────────────────────────────────────────────────────────────
+  /* ---------- Logout ---------- */
   const handleLogout = async () => {
     try {
       setShowLogoutConfirm(false);
@@ -156,14 +219,31 @@ export default function FacultyLayout() {
     <>
       <div className="faculty-layout">
 
+        {/* MOBILE OVERLAY */}
+        {sidebarOpen && isMobile && (
+          <div
+            className="faculty-sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* SIDEBAR */}
-        <aside className="faculty-sidebar">
+        <aside className={`faculty-sidebar ${sidebarOpen ? "faculty-sidebar-open" : ""}`}>
           <div className="faculty-logo">
             <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="faculty-logo-img" />
             <div className="faculty-logo-text">
               <h2>SpaceS</h2>
               <span>CICT Faculty</span>
             </div>
+
+            <button
+              type="button"
+              className="faculty-drawer-close"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close menu"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
           </div>
 
           <nav className="faculty-nav">
@@ -193,7 +273,6 @@ export default function FacultyLayout() {
               <>
                 <span className="profile-dropdown-arrow" />
                 <div className="profile-dropdown">
-                  {/* User header */}
                   <div className="profile-dropdown-header">
                     <div className="profile-dropdown-avatar">
                       {profile.photoUrl ? (
@@ -262,12 +341,24 @@ export default function FacultyLayout() {
         {/* MAIN */}
         <div className="faculty-main">
           <header className="faculty-header">
+            {/* HAMBURGER — mobile only */}
+            <button
+              type="button"
+              className="faculty-hamburger"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <i className="fa-solid fa-bars"></i>
+            </button>
+
             <div className="header-actions">
               {/* NOTIFICATION TRIGGER */}
               <div className="notification-container">
                 <button
+                  type="button"
                   className={`header-btn ${showNotifications ? "notif-btn-open" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
+                  aria-label="Notifications"
                 >
                   <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active" : "fa-regular"}`}></i>
                   {unreadCount > 0 && (
@@ -285,23 +376,28 @@ export default function FacultyLayout() {
                           <h2>Notifications</h2>
                           {unreadCount > 0 && (<span className="notif-top-badge">{unreadCount} new</span>)}
                         </div>
-                        <button className="notif-close" onClick={() => setShowNotifications(false)}>
+                        <button
+                          type="button"
+                          className="notif-close"
+                          onClick={() => setShowNotifications(false)}
+                          aria-label="Close notifications"
+                        >
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
 
                       <div className="notif-tabs">
-                        <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>
+                        <button type="button" className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>
                           All <span className="notif-tab-count">{allCount}</span>
                         </button>
-                        <button className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>
+                        <button type="button" className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>
                           Unread <span className="notif-tab-count">{unreadCount}</span>
                         </button>
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
                         <div className="notif-mark-all-row">
-                          <button className="notif-mark-all" onClick={markAllAsRead}>
+                          <button type="button" className="notif-mark-all" onClick={markAllAsRead}>
                             <i className="fa-solid fa-check-double"></i> Mark all as read
                           </button>
                         </div>
@@ -338,7 +434,12 @@ export default function FacultyLayout() {
                 )}
               </div>
 
-              <button className="header-btn logout" onClick={() => setShowLogoutConfirm(true)}>
+              <button
+                type="button"
+                className="header-btn logout"
+                onClick={() => setShowLogoutConfirm(true)}
+                aria-label="Logout"
+              >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
             </div>

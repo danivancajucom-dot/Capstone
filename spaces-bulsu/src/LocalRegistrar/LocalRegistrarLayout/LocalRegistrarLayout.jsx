@@ -25,10 +25,20 @@ export default function LocalRegistrarLayout() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef(null);
   const [profile, setProfile] = useState({
-    firstName: "", lastName: "", role: "", photoUrl: "", email: "",
+    firstName: "",
+    lastName: "",
+    role: "",
+    photoUrl: "",
+    email: "",
   });
 
-  // ── Notification state ────────────────────────────────────────
+  /* ---------- MOBILE DRAWER ---------- */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 992 : false
+  );
+
+  /* ---------- Notification state ---------- */
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
@@ -48,6 +58,7 @@ export default function LocalRegistrarLayout() {
     setOpenSchedule(isScheduleActive);
   }, [isScheduleActive]);
 
+  /* ---------- Auth + notifications ---------- */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) return;
@@ -88,19 +99,57 @@ export default function LocalRegistrarLayout() {
     return () => unsubscribe();
   }, []);
 
-  // Close profile dropdown on outside click
+  /* ---------- Close profile dropdown on outside click ---------- */
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
         setShowProfileMenu(false);
       }
     };
-    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    if (showProfileMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, [showProfileMenu]);
 
-  // ── Notification helpers ──────────────────────────────────────
+  /* ---------- Viewport watcher ---------- */
+  useEffect(() => {
+    const checkViewport = () => {
+      const mobile = window.innerWidth <= 992;
+      setIsMobile(mobile);
+      if (!mobile) setSidebarOpen(false);
+    };
+    checkViewport();
+    window.addEventListener("resize", checkViewport);
+    window.addEventListener("orientationchange", checkViewport);
+    return () => {
+      window.removeEventListener("resize", checkViewport);
+      window.removeEventListener("orientationchange", checkViewport);
+    };
+  }, []);
 
+  /* ---------- Auto-close drawer on route change ---------- */
+  useEffect(() => {
+    setSidebarOpen(false);
+    setShowProfileMenu(false);
+    setShowNotifications(false);
+  }, [location.pathname]);
+
+  /* ---------- Lock body scroll while drawer open ---------- */
+  useEffect(() => {
+    if (!isMobile) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [sidebarOpen, isMobile]);
+
+  /* ---------- Notification helpers ---------- */
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const now = new Date();
@@ -115,7 +164,9 @@ export default function LocalRegistrarLayout() {
   const markAsRead = async (id) => {
     try {
       await updateDoc(doc(db, "notifications", id), { unread: false });
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const markAllAsRead = async () => {
@@ -127,7 +178,9 @@ export default function LocalRegistrarLayout() {
         batch.update(doc(db, "notifications", n.id), { unread: false })
       );
       await batch.commit();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
@@ -163,8 +216,7 @@ export default function LocalRegistrarLayout() {
     default: "fa-solid fa-bell",
   };
 
-  // ── Logout ──────────────────────────────────────────────────────
-
+  /* ---------- Logout ---------- */
   const handleLogout = async () => {
     try {
       setShowLogoutConfirm(false);
@@ -186,8 +238,17 @@ export default function LocalRegistrarLayout() {
     <>
       <div className="registrar-layout">
 
-        <aside className="registrar-sidebar">
+        {/* MOBILE OVERLAY */}
+        {sidebarOpen && isMobile && (
+          <div
+            className="registrar-sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
+        <aside
+          className={`registrar-sidebar ${sidebarOpen ? "registrar-sidebar-open" : ""}`}
+        >
           <div className="registrar-logo">
             <div className="logo-icon">
               <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="clerk-logo-img" />
@@ -196,10 +257,18 @@ export default function LocalRegistrarLayout() {
               <h2>SpaceS CICT</h2>
               <span>CICT Local Registrar</span>
             </div>
+
+            <button
+              type="button"
+              className="registrar-drawer-close"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close menu"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
           </div>
 
           <nav className="registrar-nav">
-
             <NavLink end to="/local-registrar">
               <i className="fa-solid fa-table-columns"></i>
               <span>Dashboard</span>
@@ -207,6 +276,7 @@ export default function LocalRegistrarLayout() {
 
             <div className="nav-group">
               <button
+                type="button"
                 className={`lr-nav-parent ${isScheduleActive ? "active-parent" : ""}`}
                 onClick={() => setOpenSchedule(!openSchedule)}
               >
@@ -229,7 +299,6 @@ export default function LocalRegistrarLayout() {
               <i className="fa-solid fa-bell"></i>
               <span>Announcement Channel</span>
             </NavLink>
-
           </nav>
 
           {/* PROFILE CARD + DROPDOWN */}
@@ -301,18 +370,28 @@ export default function LocalRegistrarLayout() {
               <i className={`fa-solid fa-chevron-down lr-profile-chev ${showProfileMenu ? "open" : ""}`} />
             </button>
           </div>
-
         </aside>
 
         <div className="registrar-main">
-
           <header className="registrar-header">
+            {/* HAMBURGER — mobile only */}
+            <button
+              type="button"
+              className="registrar-hamburger"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <i className="fa-solid fa-bars"></i>
+            </button>
+
             <div className="header-actions">
               {/* NOTIFICATION TRIGGER */}
               <div className="notification-container-LR">
                 <button
+                  type="button"
                   className={`header-btn lr-notif-btn-LR ${showNotifications ? "notif-btn-open-LR" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
+                  aria-label="Notifications"
                 >
                   <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active-LR" : "fa-regular"}`}></i>
                   {unreadCount > 0 && (
@@ -335,19 +414,26 @@ export default function LocalRegistrarLayout() {
                             <span className="notif-top-badge-LR">{unreadCount} new</span>
                           )}
                         </div>
-                        <button className="notif-close-LR" onClick={() => setShowNotifications(false)}>
+                        <button
+                          type="button"
+                          className="notif-close-LR"
+                          onClick={() => setShowNotifications(false)}
+                          aria-label="Close notifications"
+                        >
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
 
                       <div className="notif-tabs-LR">
                         <button
+                          type="button"
                           className={activeTab === "all" ? "active" : ""}
                           onClick={() => setActiveTab("all")}
                         >
                           All <span className="notif-tab-count-LR">{allCount}</span>
                         </button>
                         <button
+                          type="button"
                           className={activeTab === "unread" ? "active" : ""}
                           onClick={() => setActiveTab("unread")}
                         >
@@ -357,7 +443,7 @@ export default function LocalRegistrarLayout() {
 
                       {activeTab === "unread" && unreadCount > 0 && (
                         <div className="notif-mark-all-row-LR">
-                          <button className="notif-mark-all-LR" onClick={markAllAsRead}>
+                          <button type="button" className="notif-mark-all-LR" onClick={markAllAsRead}>
                             <i className="fa-solid fa-check-double"></i> Mark all as read
                           </button>
                         </div>
@@ -395,7 +481,12 @@ export default function LocalRegistrarLayout() {
                 )}
               </div>
 
-              <button className="header-btn lr-logout-btn" onClick={() => setShowLogoutConfirm(true)}>
+              <button
+                type="button"
+                className="header-btn lr-logout-btn"
+                onClick={() => setShowLogoutConfirm(true)}
+                aria-label="Logout"
+              >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
             </div>
@@ -404,7 +495,6 @@ export default function LocalRegistrarLayout() {
           <main className="registrar-content">
             <Outlet />
           </main>
-
         </div>
       </div>
 

@@ -25,9 +25,19 @@ export default function AdminLayout() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [profile, setProfile] = useState({
-    firstName: "", lastName: "", role: "", photoUrl: "", email: "",
+    firstName: "",
+    lastName: "",
+    role: "",
+    photoUrl: "",
+    email: "",
   });
   const profileMenuRef = useRef(null);
+
+  /* ---------- MOBILE DRAWER ---------- */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 992 : false
+  );
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -44,16 +54,24 @@ export default function AdminLayout() {
     setOpenRoom(isRoomActive);
   }, [isRoomActive]);
 
+  /* ---------- Outside click for profile dropdown ---------- */
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
         setShowProfileMenu(false);
       }
     };
-    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    if (showProfileMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, [showProfileMenu]);
 
+  /* ---------- Auth + notifications ---------- */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
@@ -63,10 +81,10 @@ export default function AdminLayout() {
           const d = snap.data();
           setProfile({
             firstName: d.firstName || "",
-            lastName:  d.lastName  || "",
-            role:      d.role      || "",
-            photoUrl:  d.photoUrl  || "",
-            email:     d.email     || user.email || "",
+            lastName: d.lastName || "",
+            role: d.role || "",
+            photoUrl: d.photoUrl || "",
+            email: d.email || user.email || "",
           });
         }
       });
@@ -92,20 +110,56 @@ export default function AdminLayout() {
     return () => unsubscribe();
   }, []);
 
+  /* ---------- Viewport watcher ---------- */
+  useEffect(() => {
+    const checkViewport = () => {
+      const mobile = window.innerWidth <= 992;
+      setIsMobile(mobile);
+      if (!mobile) setSidebarOpen(false);
+    };
+    checkViewport();
+    window.addEventListener("resize", checkViewport);
+    window.addEventListener("orientationchange", checkViewport);
+    return () => {
+      window.removeEventListener("resize", checkViewport);
+      window.removeEventListener("orientationchange", checkViewport);
+    };
+  }, []);
+
+  /* ---------- Auto-close drawer on route change ---------- */
+  useEffect(() => {
+    setSidebarOpen(false);
+    setShowProfileMenu(false);
+    setShowNotifications(false);
+  }, [location.pathname]);
+
+  /* ---------- Lock body scroll while drawer open ---------- */
+  useEffect(() => {
+    if (!isMobile) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [sidebarOpen, isMobile]);
+
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
-    const now  = new Date();
+    const now = new Date();
     const date = timestamp.toDate();
     const diff = Math.floor((now - date) / 1000);
-    if (diff < 60)    return `${diff}s ago`;
-    if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
   };
 
   const markAsRead = async (id) => {
-    try { await updateDoc(doc(db, "notifications", id), { unread: false }); }
-    catch (err) { console.error(err); }
+    try {
+      await updateDoc(doc(db, "notifications", id), { unread: false });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const markAllAsRead = async () => {
@@ -115,11 +169,13 @@ export default function AdminLayout() {
       const batch = writeBatch(db);
       unread.forEach((n) => batch.update(doc(db, "notifications", n.id), { unread: false }));
       await batch.commit();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const unreadCount = notifications.filter((n) => n.unread && !n.archived).length;
-  const allCount    = notifications.filter((n) => !n.archived).length;
+  const allCount = notifications.filter((n) => !n.archived).length;
 
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "unread") return item.unread && !item.archived;
@@ -141,7 +197,7 @@ export default function AdminLayout() {
 
   const typeIcon = {
     schedule: "fa-regular fa-calendar",
-    urgent:   "fa-solid fa-exclamation",
+    urgent: "fa-solid fa-exclamation",
     approved: "fa-solid fa-check",
     "room-reassignment": "fa-solid fa-arrows-rotate",
     "room-activity": "fa-solid fa-calendar-plus",
@@ -171,7 +227,16 @@ export default function AdminLayout() {
   return (
     <>
       <div className="dept-layout">
-        <aside className="dept-sidebar">
+
+        {/* MOBILE OVERLAY */}
+        {sidebarOpen && isMobile && (
+          <div
+            className="dept-sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        <aside className={`dept-sidebar ${sidebarOpen ? "dept-sidebar-open" : ""}`}>
           <div className="dept-logo">
             <div className="dept-logo-icon">
               <img src="/SpaceSLogo.png" alt="SpaceS Logo" className="clerk-logo-img" />
@@ -180,6 +245,15 @@ export default function AdminLayout() {
               <h2>SpaceS CICT</h2>
               <span>Admin</span>
             </div>
+
+            <button
+              type="button"
+              className="dept-drawer-close"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close menu"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
           </div>
 
           <nav className="dept-nav">
@@ -198,6 +272,7 @@ export default function AdminLayout() {
 
             <div className="nav-group">
               <button
+                type="button"
                 className={`dept-nav-parent ${isRoomActive ? "active-parent" : ""}`}
                 onClick={() => setOpenRoom(!openRoom)}
               >
@@ -288,11 +363,23 @@ export default function AdminLayout() {
 
         <div className="dept-main">
           <header className="dept-header">
+            {/* HAMBURGER — mobile only */}
+            <button
+              type="button"
+              className="dept-hamburger"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <i className="fa-solid fa-bars"></i>
+            </button>
+
             <div className="header-actions">
               <div className="notification-container-DH">
                 <button
+                  type="button"
                   className={`dept-header-btn dept-notif-btn ${showNotifications ? "notif-btn-open-DH" : ""}`}
                   onClick={() => setShowNotifications((v) => !v)}
+                  aria-label="Notifications"
                 >
                   <i className={`fa-bell ${unreadCount > 0 ? "fa-solid bell-active-DH" : "fa-regular"}`}></i>
                   {unreadCount > 0 && (
@@ -313,23 +400,28 @@ export default function AdminLayout() {
                             <span className="notif-top-badge-DH">{unreadCount} new</span>
                           )}
                         </div>
-                        <button className="notif-close-DH" onClick={() => setShowNotifications(false)}>
+                        <button
+                          type="button"
+                          className="notif-close-DH"
+                          onClick={() => setShowNotifications(false)}
+                          aria-label="Close notifications"
+                        >
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       </div>
 
                       <div className="notif-tabs-DH">
-                        <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>
+                        <button type="button" className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>
                           All <span className="notif-tab-count-DH">{allCount}</span>
                         </button>
-                        <button className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>
+                        <button type="button" className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>
                           Unread <span className="notif-tab-count-DH">{unreadCount}</span>
                         </button>
                       </div>
 
                       {activeTab === "unread" && unreadCount > 0 && (
                         <div className="notif-mark-all-row-DH">
-                          <button className="notif-mark-all-DH" onClick={markAllAsRead}>
+                          <button type="button" className="notif-mark-all-DH" onClick={markAllAsRead}>
                             <i className="fa-solid fa-check-double"></i> Mark all as read
                           </button>
                         </div>
@@ -367,7 +459,12 @@ export default function AdminLayout() {
                 )}
               </div>
 
-              <button className="dept-header-btn dept-logout-btn" onClick={() => setShowLogoutConfirm(true)}>
+              <button
+                type="button"
+                className="dept-header-btn dept-logout-btn"
+                onClick={() => setShowLogoutConfirm(true)}
+                aria-label="Logout"
+              >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
               </button>
             </div>

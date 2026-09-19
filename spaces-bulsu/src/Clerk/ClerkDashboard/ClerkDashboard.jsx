@@ -124,11 +124,14 @@ function ClerkDashboard() {
     return h * 60 + m;
   };
 
-  const releaseKeysToday = new Set(
+  // ✅ Map of releases for today, keyed by scheduleId_date
+  const releaseMapToday = useMemo(() => {
+    const map = new Map();
     releases
       .filter((r) => r.date === today)
-      .map((r) => `${r.scheduleId}_${r.date}`)
-  );
+      .forEach((r) => map.set(`${r.scheduleId}_${r.date}`, r));
+    return map;
+  }, [releases, today]);
 
   const reassignAwayKeysToday = new Set(
     reassignments
@@ -152,17 +155,43 @@ function ClerkDashboard() {
 
     const roomClasses = (roomSchedules[room.id] || [])
       .filter((s) => s.day === todayAbbrev)
-      .filter((s) => {
+      .map((s) => {
         const key = `${s.id}_${today}`;
-        return !releaseKeysToday.has(key) && !reassignAwayKeysToday.has(key);
+
+        // Reassigned-away → hidden
+        if (reassignAwayKeysToday.has(key)) return null;
+
+        // ✅ Release handling
+        const releaseInfo = releaseMapToday.get(key);
+        let endTime = s.endTime;
+        let isReleased = false;
+        let releasedAtTime = null;
+
+        if (releaseInfo) {
+          // Upcoming release → hidden
+          if (!releaseInfo.effectiveEndTime) return null;
+
+          const endMin = toMinutes(releaseInfo.effectiveEndTime);
+          const startMin = toMinutes(s.startTime);
+          if (endMin <= startMin) return null; // nothing used
+
+          endTime = releaseInfo.effectiveEndTime;
+          isReleased = true;
+          releasedAtTime = releaseInfo.effectiveEndTime;
+        }
+
+        return {
+          ...s,
+          endTime,
+          subject: s.subject,
+          roomName: room.roomName,
+          facultyName: s.facultyName || s.faculty,
+          source: "schedule",
+          isReleased,
+          releasedAtTime,
+        };
       })
-      .map((s) => ({
-        ...s,
-        subject: s.subject,
-        roomName: room.roomName,
-        facultyName: s.facultyName || s.faculty,
-        source: "schedule",
-      }));
+      .filter(Boolean);
 
     const roomEvents = events
       .filter((e) => e.roomId === room.id && e.date === today)
@@ -275,20 +304,36 @@ function ClerkDashboard() {
   const allClassOccurrencesToday = rooms.flatMap((room) =>
     (roomSchedules[room.id] || [])
       .filter((s) => s.day === todayAbbrev)
-      .filter((s) => {
+      .map((s) => {
         const key = `${s.id}_${today}`;
-        return !releaseKeysToday.has(key) && !reassignAwayKeysToday.has(key);
+        if (reassignAwayKeysToday.has(key)) return null;
+
+        const releaseInfo = releaseMapToday.get(key);
+        let endTime = s.endTime;
+        let isReleased = false;
+
+        if (releaseInfo) {
+          if (!releaseInfo.effectiveEndTime) return null;
+          const endMin = toMinutes(releaseInfo.effectiveEndTime);
+          const startMin = toMinutes(s.startTime);
+          if (endMin <= startMin) return null;
+          endTime = releaseInfo.effectiveEndTime;
+          isReleased = true;
+        }
+
+        return {
+          id: `${room.id}_${s.id}`,
+          startTime: s.startTime,
+          endTime,
+          subject: s.subject,
+          roomName: room.roomName,
+          facultyName: s.facultyName || s.faculty,
+          source: "schedule",
+          date: today,
+          isReleased,
+        };
       })
-      .map((s) => ({
-        id: `${room.id}_${s.id}`,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        subject: s.subject,
-        roomName: room.roomName,
-        facultyName: s.facultyName || s.faculty,
-        source: "schedule",
-        date: today,
-      }))
+      .filter(Boolean)
   );
 
   const todaysEvents = events
@@ -529,7 +574,9 @@ function ClerkDashboard() {
                       key={release.id}
                       room={release.roomName}
                       name={release.faculty || "Unknown"}
-                      time={`${release.startTime} - ${release.endTime}`}
+                      time={`${release.startTime} - ${
+                        release.effectiveEndTime || release.endTime
+                      }`}
                       subject={release.subject || "N/A"}
                       ago="Today"
                       image={release.roomImage || "/default-room.png"}

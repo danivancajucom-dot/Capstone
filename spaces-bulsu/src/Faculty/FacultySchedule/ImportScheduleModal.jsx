@@ -1,6 +1,15 @@
 import { useState, useRef } from "react";
 import { auth, db } from "../../firebase";
-import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -23,9 +32,15 @@ async function parseExcelFile(file) {
     });
 
     const startTime =
-      normalized["start time"] || normalized["starttime"] || normalized["start_time"] || "";
+      normalized["start time"] ||
+      normalized["starttime"] ||
+      normalized["start_time"] ||
+      "";
     const endTime =
-      normalized["end time"] || normalized["endtime"] || normalized["end_time"] || "";
+      normalized["end time"] ||
+      normalized["endtime"] ||
+      normalized["end_time"] ||
+      "";
 
     return {
       id: index + 1,
@@ -97,7 +112,12 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [isDragging, setIsDragging] = useState(false);
-  const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
 
   // ─── Preview state ──────────────────────────────────────────────
   const [extractedSchedules, setExtractedSchedules] = useState([]);
@@ -110,12 +130,17 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
 
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
-    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 4000);
+    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
-    if (selected && (selected.type === "application/pdf" || selected.name.endsWith(".xlsx") || selected.name.endsWith(".xls"))) {
+    if (
+      selected &&
+      (selected.type === "application/pdf" ||
+        selected.name.endsWith(".xlsx") ||
+        selected.name.endsWith(".xls"))
+    ) {
       setFile(selected);
     } else {
       showToast("error", "Invalid File", "Please upload a PDF or Excel file.");
@@ -126,7 +151,12 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
     e.preventDefault();
     setIsDragging(false);
     const dropped = e.dataTransfer.files[0];
-    if (dropped && (dropped.type === "application/pdf" || dropped.name.endsWith(".xlsx") || dropped.name.endsWith(".xls"))) {
+    if (
+      dropped &&
+      (dropped.type === "application/pdf" ||
+        dropped.name.endsWith(".xlsx") ||
+        dropped.name.endsWith(".xls"))
+    ) {
       setFile(dropped);
     } else {
       showToast("error", "Invalid File", "Please upload a PDF or Excel file.");
@@ -147,8 +177,7 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ─── Get faculty's latest term from their room schedules ──────
-
+  // ─── Prefer ACTIVE term for faculty's schedule context ────────
   const getFacultyLatestTerm = async (facultyName) => {
     const normalizedFaculty = normalizeName(facultyName);
     let latestSemester = "1st Semester";
@@ -158,22 +187,27 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
     const roomsSnap = await getDocs(collection(db, "rooms"));
 
     for (const roomDoc of roomsSnap.docs) {
-      const schedulesSnap = await getDocs(collection(db, "rooms", roomDoc.id, "schedules"));
+      const schedulesSnap = await getDocs(
+        collection(db, "rooms", roomDoc.id, "schedules")
+      );
 
-      schedulesSnap.forEach(doc => {
-        const data = doc.data();
+      schedulesSnap.forEach((d) => {
+        const data = d.data();
         if (!data.faculty) return;
+        if (normalizeName(data.faculty) !== normalizedFaculty) return;
+        if (!data.semester || !data.schoolYear) return;
 
-        const normalizedScheduleFaculty = normalizeName(data.faculty);
-        if (normalizedScheduleFaculty !== normalizedFaculty) return;
+        // ✅ Prefer active term by adding a large bonus
+        const activeBonus = data.isActive ? 1000 : 0;
+        const rank =
+          activeBonus +
+          schoolYearStart(data.schoolYear) * 10 +
+          semesterRank(data.semester);
 
-        if (data.semester && data.schoolYear) {
-          const rank = schoolYearStart(data.schoolYear) * 10 + semesterRank(data.semester);
-          if (rank > latestRank) {
-            latestRank = rank;
-            latestSemester = data.semester;
-            latestSchoolYear = data.schoolYear;
-          }
+        if (rank > latestRank) {
+          latestRank = rank;
+          latestSemester = data.semester;
+          latestSchoolYear = data.schoolYear;
         }
       });
     }
@@ -188,7 +222,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   };
 
   // ─── Validate a single schedule ────────────────────────────────
-
   const validateSchedule = (item) => {
     const errors = {};
     if (!item.subject || item.subject.trim() === "") {
@@ -209,8 +242,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
     return errors;
   };
 
-  // ─── Validate all schedules ─────────────────────────────────────
-
   const validateAllSchedules = () => {
     let hasErrors = false;
     const allErrors = {};
@@ -226,7 +257,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   };
 
   // ─── Start extraction ───────────────────────────────────────────
-
   const handleExtract = async () => {
     if (!file) {
       showToast("error", "No File", "Please select a file to upload.");
@@ -252,10 +282,10 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
       }
       const userData = userSnap.data();
 
-      // ✅ Faculty name from logged-in user: "First Last"
       const facultyName = `${userData.firstName} ${userData.lastName}`.trim();
 
-      const { semester: facultySemester, schoolYear: facultySchoolYear } = await getFacultyLatestTerm(facultyName);
+      const { semester: facultySemester, schoolYear: facultySchoolYear } =
+        await getFacultyLatestTerm(facultyName);
       setProgress(`Latest term: ${facultySemester} ${facultySchoolYear}`);
 
       let schedules = [];
@@ -265,7 +295,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
         const rawText = await extractRawText(file);
         const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-        // ✅ Pass faculty name to API
         const response = await fetch(`${apiUrl}/api/extract-online-schedule`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -273,7 +302,7 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
             rawText,
             semester: facultySemester,
             schoolYear: facultySchoolYear,
-            faculty: facultyName, // ✅ sends logged-in faculty name
+            faculty: facultyName,
           }),
         });
         if (!response.ok) {
@@ -281,17 +310,21 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
           throw new Error(errorData.message || "AI extraction failed.");
         }
         const data = await response.json();
-        if (!data.success) throw new Error(data.message || "Extraction failed.");
+        if (!data.success)
+          throw new Error(data.message || "Extraction failed.");
         schedules = data.schedules || [];
       }
 
       if (schedules.length === 0) {
-        showToast("error", "No Schedules Found", "Could not extract any schedules from the file.");
+        showToast(
+          "error",
+          "No Schedules Found",
+          "Could not extract any schedules from the file."
+        );
         setLoading(false);
         return;
       }
 
-      // Ensure faculty field is set to the logged-in user's name
       const processedSchedules = schedules.map((s, index) => ({
         ...s,
         faculty: s.faculty || facultyName,
@@ -304,8 +337,9 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
       setExtractedSchedules(processedSchedules);
       setShowPreview(true);
       setLoading(false);
-      setProgress(`Extracted ${schedules.length} schedules. Review and confirm.`);
-
+      setProgress(
+        `Extracted ${schedules.length} schedules. Review and confirm.`
+      );
     } catch (error) {
       console.error(error);
       showToast("error", "Extraction Failed", error.message);
@@ -314,7 +348,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   };
 
   // ─── Edit schedule ──────────────────────────────────────────────
-
   const startEdit = (index) => {
     setEditingIndex(index);
     setEditForm({ ...extractedSchedules[index] });
@@ -333,7 +366,11 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
     const errors = validateSchedule(editForm);
     if (Object.keys(errors).length > 0) {
       setEditErrors({ [editingIndex]: errors });
-      showToast("error", "Validation Error", "Please fix the errors before saving.");
+      showToast(
+        "error",
+        "Validation Error",
+        "Please fix the errors before saving."
+      );
       return;
     }
 
@@ -346,7 +383,7 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   };
 
   const handleEditChange = (field, value) => {
-    setEditForm(prev => ({ ...prev, [field]: value }));
+    setEditForm((prev) => ({ ...prev, [field]: value }));
     if (editErrors[editingIndex] && editErrors[editingIndex][field]) {
       const newErrors = { ...editErrors };
       delete newErrors[editingIndex][field];
@@ -358,10 +395,13 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   };
 
   // ─── Confirm and save ────────────────────────────────────────────
-
   const handleConfirm = async () => {
     if (!validateAllSchedules()) {
-      showToast("error", "Validation Error", "Please fix all errors before saving.");
+      showToast(
+        "error",
+        "Validation Error",
+        "Please fix all errors before saving."
+      );
       return;
     }
 
@@ -394,7 +434,10 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
 
         // ── CASE 1: Has a room → save to room's schedules ──
         if (roomName) {
-          const roomQuery = query(collection(db, "rooms"), where("roomName", "==", roomName));
+          const roomQuery = query(
+            collection(db, "rooms"),
+            where("roomName", "==", roomName)
+          );
           const roomSnap = await getDocs(roomQuery);
           if (roomSnap.empty) {
             console.warn(`Room "${roomName}" not found. Skipping.`);
@@ -403,15 +446,19 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
           const roomDoc = roomSnap.docs[0];
           const roomId = roomDoc.id;
 
-          const existingSchedSnap = await getDocs(collection(db, "rooms", roomId, "schedules"));
+          const existingSchedSnap = await getDocs(
+            collection(db, "rooms", roomId, "schedules")
+          );
           let latestSemester = "1st Semester";
           let latestSchoolYear = "";
           let latestRank = -1;
 
-          existingSchedSnap.forEach(doc => {
-            const data = doc.data();
+          existingSchedSnap.forEach((d) => {
+            const data = d.data();
             if (data.semester && data.schoolYear) {
-              const rank = schoolYearStart(data.schoolYear) * 10 + semesterRank(data.semester);
+              const rank =
+                schoolYearStart(data.schoolYear) * 10 +
+                semesterRank(data.semester);
               if (rank > latestRank) {
                 latestRank = rank;
                 latestSemester = data.semester;
@@ -450,6 +497,10 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
             endTime: item.endTime || "",
             semester: latestSemester,
             schoolYear: latestSchoolYear,
+            // ✅ Not live until registrar activates the term
+            isActive: false,
+            activeFrom: null,
+            activeUntil: null,
             createdAt: serverTimestamp(),
           });
           added++;
@@ -477,7 +528,9 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
         }
       }
 
-      setProgress(`Done: ${added} room schedules, ${onlineAdded} online classes, ${skipped} skipped.`);
+      setProgress(
+        `Done: ${added} room schedules, ${onlineAdded} online classes, ${skipped} skipped.`
+      );
       showToast(
         "success",
         "Import Complete",
@@ -491,7 +544,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
         setFile(null);
         onClose();
       }, 2000);
-
     } catch (error) {
       console.error(error);
       showToast("error", "Save Failed", error.message);
@@ -501,7 +553,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   };
 
   // ─── Go back to upload ───────────────────────────────────────────
-
   const handleBack = () => {
     setShowPreview(false);
     setExtractedSchedules([]);
@@ -514,7 +565,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   if (!show) return null;
 
   // ─── Render: Upload view ─────────────────────────────────────────
-
   if (!showPreview) {
     return (
       <div className="ism-overlay" onClick={onClose}>
@@ -530,11 +580,14 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
             <p>
               Upload a PDF or Excel file containing your class schedule.
               <br />
-              <strong>Schedules without a room</strong> will be saved as <strong>Online Classes</strong>.
+              <strong>Schedules without a room</strong> will be saved as{" "}
+              <strong>Online Classes</strong>.
             </p>
 
             <div
-              className={`ism-dropzone ${isDragging ? "dragging" : ""} ${file ? "has-file" : ""}`}
+              className={`ism-dropzone ${isDragging ? "dragging" : ""} ${
+                file ? "has-file" : ""
+              }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -567,7 +620,10 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
                   </button>
                 </div>
               ) : (
-                <div className="ism-drop-placeholder" onClick={() => fileInputRef.current?.click()}>
+                <div
+                  className="ism-drop-placeholder"
+                  onClick={() => fileInputRef.current?.click()}
+                >
                   <i className="fa-solid fa-cloud-upload-alt" />
                   <span>Click to browse or drag file here</span>
                   <small>PDF, XLSX, XLS supported</small>
@@ -584,7 +640,11 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
           </div>
 
           <div className="ism-footer">
-            <button className="ism-cancel-btn" onClick={onClose} disabled={loading}>
+            <button
+              className="ism-cancel-btn"
+              onClick={onClose}
+              disabled={loading}
+            >
               Cancel
             </button>
             <button
@@ -598,7 +658,13 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
 
           {toast.show && (
             <div className={`ism-toast ${toast.type}`}>
-              <i className={toast.type === "error" ? "fa-solid fa-circle-exclamation" : "fa-solid fa-circle-check"} />
+              <i
+                className={
+                  toast.type === "error"
+                    ? "fa-solid fa-circle-exclamation"
+                    : "fa-solid fa-circle-check"
+                }
+              />
               <span>{toast.message}</span>
             </div>
           )}
@@ -608,10 +674,12 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
   }
 
   // ─── Render: Preview view ────────────────────────────────────────
-
   return (
     <div className="ism-overlay" onClick={onClose}>
-      <div className="ism-modal ism-preview-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="ism-modal ism-preview-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="ism-header">
           <h3>Preview Extracted Schedules</h3>
           <button className="ism-close-btn" onClick={onClose}>
@@ -621,89 +689,138 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
 
         <div className="ism-body ism-preview-body">
           <p>
-            Review the extracted schedules below. Click <strong>Edit</strong> to make changes.
+            Review the extracted schedules below. Click <strong>Edit</strong> to
+            make changes.
             <br />
-            <span className="ism-preview-count">{extractedSchedules.length} schedule(s) extracted</span>
+            <span className="ism-preview-count">
+              {extractedSchedules.length} schedule(s) extracted
+            </span>
           </p>
 
           <div className="ism-preview-list">
             {extractedSchedules.map((item, index) => {
-              const hasErrors = editErrors[index] && Object.keys(editErrors[index]).length > 0;
+              const hasErrors =
+                editErrors[index] && Object.keys(editErrors[index]).length > 0;
               return (
-                <div key={item._id || index} className={`ism-preview-item ${hasErrors ? "has-error" : ""}`}>
+                <div
+                  key={item._id || index}
+                  className={`ism-preview-item ${
+                    hasErrors ? "has-error" : ""
+                  }`}
+                >
                   {editingIndex === index ? (
-                    // ─── Edit mode ───────────────────────────────────
                     <div className="ism-edit-form">
                       <div className="ism-edit-row">
                         <div className="ism-edit-field">
-                          <label>Subject <span className="ism-required">*</span></label>
+                          <label>
+                            Subject <span className="ism-required">*</span>
+                          </label>
                           <input
                             value={editForm?.subject || ""}
-                            onChange={(e) => handleEditChange("subject", e.target.value)}
-                            className={editErrors[index]?.subject ? "ism-error" : ""}
+                            onChange={(e) =>
+                              handleEditChange("subject", e.target.value)
+                            }
+                            className={
+                              editErrors[index]?.subject ? "ism-error" : ""
+                            }
                           />
                           {editErrors[index]?.subject && (
-                            <span className="ism-error-text">{editErrors[index].subject}</span>
+                            <span className="ism-error-text">
+                              {editErrors[index].subject}
+                            </span>
                           )}
                         </div>
                         <div className="ism-edit-field">
                           <label>Section</label>
                           <input
                             value={editForm?.section || ""}
-                            onChange={(e) => handleEditChange("section", e.target.value)}
+                            onChange={(e) =>
+                              handleEditChange("section", e.target.value)
+                            }
                           />
                         </div>
                       </div>
                       <div className="ism-edit-row">
                         <div className="ism-edit-field">
-                          <label>Day <span className="ism-required">*</span></label>
+                          <label>
+                            Day <span className="ism-required">*</span>
+                          </label>
                           <select
                             value={editForm?.day || ""}
-                            onChange={(e) => handleEditChange("day", e.target.value)}
-                            className={editErrors[index]?.day ? "ism-error" : ""}
+                            onChange={(e) =>
+                              handleEditChange("day", e.target.value)
+                            }
+                            className={
+                              editErrors[index]?.day ? "ism-error" : ""
+                            }
                           >
                             <option value="">Select Day</option>
-                            {DAYS.map(d => (
-                              <option key={d} value={d}>{d}</option>
+                            {DAYS.map((d) => (
+                              <option key={d} value={d}>
+                                {d}
+                              </option>
                             ))}
                           </select>
                           {editErrors[index]?.day && (
-                            <span className="ism-error-text">{editErrors[index].day}</span>
+                            <span className="ism-error-text">
+                              {editErrors[index].day}
+                            </span>
                           )}
                         </div>
                         <div className="ism-edit-field">
                           <label>Faculty</label>
                           <input
                             value={editForm?.faculty || ""}
-                            onChange={(e) => handleEditChange("faculty", e.target.value)}
+                            onChange={(e) =>
+                              handleEditChange("faculty", e.target.value)
+                            }
                             readOnly
-                            style={{ background: "#f3f4f6", cursor: "not-allowed" }}
+                            style={{
+                              background: "#f3f4f6",
+                              cursor: "not-allowed",
+                            }}
                           />
                         </div>
                       </div>
                       <div className="ism-edit-row">
                         <div className="ism-edit-field">
-                          <label>Start Time <span className="ism-required">*</span></label>
+                          <label>
+                            Start Time <span className="ism-required">*</span>
+                          </label>
                           <input
                             type="time"
                             value={editForm?.startTime || ""}
-                            onChange={(e) => handleEditChange("startTime", e.target.value)}
-                            className={editErrors[index]?.startTime ? "ism-error" : ""}
+                            onChange={(e) =>
+                              handleEditChange("startTime", e.target.value)
+                            }
+                            className={
+                              editErrors[index]?.startTime ? "ism-error" : ""
+                            }
                           />
                           {editErrors[index]?.startTime && (
-                            <span className="ism-error-text">{editErrors[index].startTime}</span>
+                            <span className="ism-error-text">
+                              {editErrors[index].startTime}
+                            </span>
                           )}
                         </div>
                         <div className="ism-edit-field">
-                          <label>End Time <span className="ism-required">*</span></label>
+                          <label>
+                            End Time <span className="ism-required">*</span>
+                          </label>
                           <input
                             type="time"
                             value={editForm?.endTime || ""}
-                            onChange={(e) => handleEditChange("endTime", e.target.value)}
-                            className={editErrors[index]?.endTime ? "ism-error" : ""}
+                            onChange={(e) =>
+                              handleEditChange("endTime", e.target.value)
+                            }
+                            className={
+                              editErrors[index]?.endTime ? "ism-error" : ""
+                            }
                           />
                           {editErrors[index]?.endTime && (
-                            <span className="ism-error-text">{editErrors[index].endTime}</span>
+                            <span className="ism-error-text">
+                              {editErrors[index].endTime}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -712,37 +829,61 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
                           <label>Room (leave empty for online)</label>
                           <input
                             value={editForm?.room || ""}
-                            onChange={(e) => handleEditChange("room", e.target.value)}
+                            onChange={(e) =>
+                              handleEditChange("room", e.target.value)
+                            }
                             placeholder="Room name or leave empty"
                           />
                         </div>
                       </div>
                       <div className="ism-edit-actions">
-                        <button className="ism-edit-cancel" onClick={cancelEdit}>Cancel</button>
-                        <button className="ism-edit-save" onClick={saveEdit}>Save Changes</button>
+                        <button className="ism-edit-cancel" onClick={cancelEdit}>
+                          Cancel
+                        </button>
+                        <button className="ism-edit-save" onClick={saveEdit}>
+                          Save Changes
+                        </button>
                       </div>
                     </div>
                   ) : (
-                    // ─── View mode ───────────────────────────────────
                     <>
                       <div className="ism-preview-info">
                         <div className="ism-preview-subject">
                           <strong>{item.subject || "Untitled"}</strong>
-                          {item.section && <span className="ism-preview-section">{item.section}</span>}
+                          {item.section && (
+                            <span className="ism-preview-section">
+                              {item.section}
+                            </span>
+                          )}
                           {hasErrors && (
                             <span className="ism-error-badge">
-                              <i className="fa-solid fa-circle-exclamation" /> Has errors
+                              <i className="fa-solid fa-circle-exclamation" /> Has
+                              errors
                             </span>
                           )}
                         </div>
                         <div className="ism-preview-details">
-                          <span><i className="fa-regular fa-calendar" /> {item.day || "—"}</span>
-                          <span><i className="fa-regular fa-clock" /> {item.startTime || "—"} - {item.endTime || "—"}</span>
-                          <span><i className="fa-regular fa-user" /> {item.faculty || "TBA"}</span>
+                          <span>
+                            <i className="fa-regular fa-calendar" />{" "}
+                            {item.day || "—"}
+                          </span>
+                          <span>
+                            <i className="fa-regular fa-clock" />{" "}
+                            {item.startTime || "—"} - {item.endTime || "—"}
+                          </span>
+                          <span>
+                            <i className="fa-regular fa-user" />{" "}
+                            {item.faculty || "TBA"}
+                          </span>
                           {item.room ? (
-                            <span className="ism-preview-room"><i className="fa-solid fa-door-closed" /> {item.room}</span>
+                            <span className="ism-preview-room">
+                              <i className="fa-solid fa-door-closed" />{" "}
+                              {item.room}
+                            </span>
                           ) : (
-                            <span className="ism-preview-online"><i className="fa-solid fa-wifi" /> Online</span>
+                            <span className="ism-preview-online">
+                              <i className="fa-solid fa-wifi" /> Online
+                            </span>
                           )}
                         </div>
                       </div>
@@ -769,7 +910,11 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
         </div>
 
         <div className="ism-footer ism-preview-footer">
-          <button className="ism-cancel-btn" onClick={handleBack} disabled={loading}>
+          <button
+            className="ism-cancel-btn"
+            onClick={handleBack}
+            disabled={loading}
+          >
             <i className="fa-solid fa-arrow-left" /> Back
           </button>
           <button
@@ -777,13 +922,21 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
             onClick={handleConfirm}
             disabled={loading || extractedSchedules.length === 0}
           >
-            {loading ? "Saving..." : `Confirm & Save (${extractedSchedules.length})`}
+            {loading
+              ? "Saving..."
+              : `Confirm & Save (${extractedSchedules.length})`}
           </button>
         </div>
 
         {toast.show && (
           <div className={`ism-toast ${toast.type}`}>
-            <i className={toast.type === "error" ? "fa-solid fa-circle-exclamation" : "fa-solid fa-circle-check"} />
+            <i
+              className={
+                toast.type === "error"
+                  ? "fa-solid fa-circle-exclamation"
+                  : "fa-solid fa-circle-check"
+              }
+            />
             <span>{toast.message}</span>
           </div>
         )}

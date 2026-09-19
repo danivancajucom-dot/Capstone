@@ -644,105 +644,14 @@ export default function FacultyDashboard({ onLogout }) {
   const nextClass = upcomingItems[0] || null;
   const latestAnnouncement = adminAnnouncements[0] || null;
   const currentUid = auth.currentUser?.uid;
+  const latestLikes = latestAnnouncement?.reactions?.like || [];
+  const hasLikedLatest = latestLikes.includes(currentUid);
 
   return (
     <div className="dashboard-shell">
       <div className="container">
         <main className="dashboard-main">
-          {announcementLoading ? (
-            <div className="announce-card is-skeleton">
-              <div className="announce-skeleton-avatar"></div>
-              <div className="announce-skeleton-lines">
-                <div className="announce-skeleton-line w-40"></div>
-                <div className="announce-skeleton-line w-90"></div>
-                <div className="announce-skeleton-line w-60"></div>
-              </div>
-            </div>
-          ) : latestAnnouncement ? (
-            <div className="announce-card">
-              <div className="announce-card-glow" aria-hidden="true" />
-
-              <div className="announce-strip">
-                <span className="announce-strip-label">
-                  <i className="fa-solid fa-bullhorn"></i>
-                  Announcement
-                  <span className="announce-live-dot" title="Live updates enabled"></span>
-                </span>
-                <span className="announce-strip-time">
-                  <i className="fa-regular fa-clock"></i>
-                  {timeAgo(latestAnnouncement.createdAt, now)}
-                </span>
-              </div>
-
-              <div className="announce-top">
-                <div className="announce-avatar">
-                  {getInitials(latestAnnouncement.senderName)}
-                </div>
-                <div className="announce-meta">
-                  <div className="announce-meta-row">
-                    <strong>{latestAnnouncement.senderName || "Admin"}</strong>
-                    <span className="announce-role-chip">Admin</span>
-                  </div>
-                  <span className="announce-subtext">
-                    College of Information and Communications Technology
-                  </span>
-                </div>
-              </div>
-
-              <p className="announce-text">
-                {announcementPreview(latestAnnouncement)}
-              </p>
-
-              {(latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl) && (
-                <div className="announce-image-wrap">
-                  <img
-                    src={latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl}
-                    alt="Announcement attachment"
-                    className="announce-image"
-                  />
-                </div>
-              )}
-
-              <div className="announce-actions">
-                <button
-                  className={`announce-like-btn ${
-                    (latestAnnouncement.reactions?.like || []).includes(currentUid)
-                      ? "is-liked"
-                      : ""
-                  }`}
-                  onClick={() => toggleAnnouncementLike(latestAnnouncement.id)}
-                  disabled={likeBusyId === latestAnnouncement.id}
-                >
-                  <i
-                    className={
-                      (latestAnnouncement.reactions?.like || []).includes(currentUid)
-                        ? "fa-solid fa-heart"
-                        : "fa-regular fa-heart"
-                    }
-                  ></i>
-                  {(latestAnnouncement.reactions?.like || []).length > 0
-                    ? (latestAnnouncement.reactions?.like || []).length
-                    : "Like"}
-                </button>
-
-                {adminAnnouncements.length > 1 && (
-                  <span className="announce-more-pill">
-                    +{adminAnnouncements.length - 1} more announcement
-                    {adminAnnouncements.length - 1 === 1 ? "" : "s"}
-                  </span>
-                )}
-
-                <button
-                  className="announce-view-btn"
-                  onClick={() => navigate("/faculty/broadcast-channel")}
-                >
-                  View
-                  <i className="fa-solid fa-arrow-right"></i>
-                </button>
-              </div>
-            </div>
-          ) : null}
-
+          {/* ─── HEADER ──────────────────────────────────────────── */}
           <div className="dash-header">
             <div className="dash-greeting">
               <div className="dash-greeting-icon">
@@ -771,6 +680,86 @@ export default function FacultyDashboard({ onLogout }) {
             </button>
           </div>
 
+          {/* ─── ANNOUNCEMENT (now below the greeting) ─────────────── */}
+          {announcementLoading ? (
+            <div className="announce-card is-skeleton">
+              <div className="announce-skeleton-avatar"></div>
+              <div className="announce-skeleton-lines">
+                <div className="announce-skeleton-line w-40"></div>
+                <div className="announce-skeleton-line w-90"></div>
+                <div className="announce-skeleton-line w-60"></div>
+              </div>
+            </div>
+          ) : latestAnnouncement ? (
+            <div className="announce-card">
+              <div className="announce-card-glow" aria-hidden="true" />
+
+              <div className="announce-top">
+                <div className="announce-avatar-wrap">
+                  <div className="announce-avatar">
+                    {getInitials(latestAnnouncement.senderName)}
+                  </div>
+                  <span className="announce-avatar-badge">
+                    <i className="fa-solid fa-bullhorn"></i>
+                  </span>
+                </div>
+
+                <div className="announce-meta">
+                  <div className="announce-meta-row">
+                    <strong>{latestAnnouncement.senderName || "Admin"}</strong>
+                    <span className="announce-role-chip">Admin</span>
+                    <span className="announce-live-dot" title="Live updates enabled"></span>
+                  </div>
+                  <span className="announce-subtext">
+                    {timeAgo(latestAnnouncement.createdAt, now)}
+                    <span className="announce-subtext-dot">•</span>
+                    College of Information and Communications Technology
+                  </span>
+                </div>
+
+                {adminAnnouncements.length > 1 && (
+                  <span className="announce-more-pill">
+                    +{adminAnnouncements.length - 1}
+                  </span>
+                )}
+              </div>
+
+              <p className="announce-text">
+                {announcementPreview(latestAnnouncement)}
+              </p>
+
+              {(latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl) && (
+                <div className="announce-image-wrap">
+                  <img
+                    src={latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl}
+                    alt="Announcement attachment"
+                    className="announce-image"
+                  />
+                </div>
+              )}
+
+              <div className="announce-actions">
+                <button
+                  className={`announce-like-btn ${hasLikedLatest ? "is-liked" : ""}`}
+                  onClick={() => toggleAnnouncementLike(latestAnnouncement.id)}
+                  disabled={likeBusyId === latestAnnouncement.id}
+                >
+                  <i className={hasLikedLatest ? "fa-solid fa-heart" : "fa-regular fa-heart"}></i>
+                  {latestLikes.length > 0 ? latestLikes.length : "Like"}
+                </button>
+
+                <button
+                  className="announce-view-btn"
+                  onClick={() => navigate("/faculty/broadcast-channel")}
+                >
+                  View announcement
+                  <i className="fa-solid fa-arrow-right"></i>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ─── STATS ROW ───────────────────────────────────────── */}
           {loading ? (
             <div className="dash-stats-row">
               <div className="stat-skeleton"></div>
@@ -816,206 +805,249 @@ export default function FacultyDashboard({ onLogout }) {
             </div>
           ) : null}
 
-          <section className="today-card">
-            <div className="card-header">
-              <div>
-                <h2>Today's Schedule</h2>
-                <span className="card-subtitle">
-                  {todayAbbrev} · {now.toLocaleDateString("en-US", { month: "long", day: "numeric" })}
-                </span>
+          {/* ─── MAIN GRID ───────────────────────────────────────── */}
+          <div className="dash-grid">
+            {/* LEFT: Today's Schedule */}
+            <section className="today-card">
+              <div className="card-header">
+                <div>
+                  <h2>Today's Schedule</h2>
+                  <span className="card-subtitle">
+                    {todayAbbrev} · {now.toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+                  </span>
+                </div>
+
+                <button
+                  className="see-all-btn"
+                  onClick={() => navigate("/faculty/schedule")}
+                >
+                  See All
+                  <i className="fa-solid fa-arrow-right"></i>
+                </button>
               </div>
 
-              <button
-                className="see-all-btn"
-                onClick={() => navigate("/faculty/schedule")}
-              >
-                See All
-                <i className="fa-solid fa-arrow-right"></i>
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="schedule-skeleton">
-                <div className="skeleton-banner"></div>
-                <div className="skeleton-row"></div>
-                <div className="skeleton-row short"></div>
-              </div>
-            ) : !activeBanner ? (
-              <div className="schedule-empty">
-                <i className="fa-regular fa-calendar-check"></i>
-                <p>No classes scheduled for today.</p>
-                <span className="schedule-empty-hint">
-                  Enjoy the free day, or check your upcoming classes below.
-                </span>
-              </div>
-            ) : (
-              <>
-                <div className="schedule-slider">
-                  <button
-                    className="slide-btn left"
-                    disabled={todaysItems.length < 2}
-                    onClick={() =>
-                      setBannerIndex(
-                        (i) => (i - 1 + todaysItems.length) % todaysItems.length
-                      )
-                    }
-                    aria-label="Previous class"
-                  >
-                    <i className="fa-solid fa-chevron-left"></i>
-                  </button>
-
-                  <div className={`schedule-banner is-${activeBannerMeta.key}`}>
-                    <span
-                      className={`ongoing-badge ${
-                        activeBanner.status === "ONGOING"
-                          ? "status-ongoing"
-                          : activeBanner.status === "UPCOMING"
-                          ? "status-upcoming"
-                          : "status-completed"
-                      }`}
+              {loading ? (
+                <div className="schedule-skeleton">
+                  <div className="skeleton-banner"></div>
+                  <div className="skeleton-row"></div>
+                  <div className="skeleton-row short"></div>
+                </div>
+              ) : !activeBanner ? (
+                <div className="schedule-empty">
+                  <i className="fa-regular fa-calendar-check"></i>
+                  <p>No classes scheduled for today.</p>
+                  <span className="schedule-empty-hint">
+                    Enjoy the free day, or check your upcoming classes.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div className="schedule-slider">
+                    <button
+                      className="slide-btn left"
+                      disabled={todaysItems.length < 2}
+                      onClick={() =>
+                        setBannerIndex(
+                          (i) => (i - 1 + todaysItems.length) % todaysItems.length
+                        )
+                      }
+                      aria-label="Previous class"
                     >
-                      <span className="ongoing-dot"></span>
-                      {activeBanner.status}
-                    </span>
+                      <i className="fa-solid fa-chevron-left"></i>
+                    </button>
 
-                    <span className="schedule-time">
-                      <i className="fa-regular fa-clock"></i>
-                      {formatTime(activeBanner.startTime)} - {formatTime(activeBanner.endTime)}
-                    </span>
-
-                    <div className="banner-art">
-                      <i className={activeBannerMeta.icon}></i>
-                    </div>
-
-                    <div className="banner-overlay">
-                      <span className={`banner-kind-tag tag-${activeBannerMeta.key}`}>
-                        <i className={activeBannerMeta.icon}></i>
-                        {activeBannerMeta.label}
+                    <div className={`schedule-banner is-${activeBannerMeta.key}`}>
+                      <span
+                        className={`ongoing-badge ${
+                          activeBanner.status === "ONGOING"
+                            ? "status-ongoing"
+                            : activeBanner.status === "UPCOMING"
+                            ? "status-upcoming"
+                            : "status-completed"
+                        }`}
+                      >
+                        <span className="ongoing-dot"></span>
+                        {activeBanner.status}
                       </span>
 
-                      <h1>{activeBanner.roomName}</h1>
-                      <p>
-                        {activeBanner.subject}
-                        {activeBanner.section ? ` • ${activeBanner.section}` : ""}
-                      </p>
+                      <span className="schedule-time">
+                        <i className="fa-regular fa-clock"></i>
+                        {formatTime(activeBanner.startTime)} - {formatTime(activeBanner.endTime)}
+                      </span>
 
-                      {activeBanner.status === "UPCOMING" && (
-                        <span className="banner-countdown">
-                          <i className="fa-regular fa-clock"></i>
-                          Starts {formatCountdown(
-                            new Date(
-                              now.getFullYear(),
-                              now.getMonth(),
-                              now.getDate(),
-                              ...parseTimeParts(activeBanner.startTime),
-                              0
-                            ),
-                            now
-                          )}
+                      <div className="banner-art">
+                        <i className={activeBannerMeta.icon}></i>
+                      </div>
+
+                      <div className="banner-overlay">
+                        <span className={`banner-kind-tag tag-${activeBannerMeta.key}`}>
+                          <i className={activeBannerMeta.icon}></i>
+                          {activeBannerMeta.label}
                         </span>
-                      )}
 
-                      {ongoingProgress !== null && (
-                        <div className="banner-progress-track">
-                          <div
-                            className="banner-progress-fill"
-                            style={{ width: `${ongoingProgress}%` }}
-                          />
-                        </div>
-                      )}
+                        <h1>{activeBanner.roomName}</h1>
+                        <p>
+                          {activeBanner.subject}
+                          {activeBanner.section ? ` • ${activeBanner.section}` : ""}
+                        </p>
+
+                        {activeBanner.status === "UPCOMING" && (
+                          <span className="banner-countdown">
+                            <i className="fa-regular fa-clock"></i>
+                            Starts {formatCountdown(
+                              new Date(
+                                now.getFullYear(),
+                                now.getMonth(),
+                                now.getDate(),
+                                ...parseTimeParts(activeBanner.startTime),
+                                0
+                              ),
+                              now
+                            )}
+                          </span>
+                        )}
+
+                        {ongoingProgress !== null && (
+                          <div className="banner-progress-track">
+                            <div
+                              className="banner-progress-fill"
+                              style={{ width: `${ongoingProgress}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    <button
+                      className="slide-btn right"
+                      disabled={todaysItems.length < 2}
+                      onClick={() =>
+                        setBannerIndex((i) => (i + 1) % todaysItems.length)
+                      }
+                      aria-label="Next class"
+                    >
+                      <i className="fa-solid fa-chevron-right"></i>
+                    </button>
                   </div>
 
+                  {todaysItems.length > 1 && (
+                    <div className="schedule-dots">
+                      {todaysItems.map((_, i) => (
+                        <button
+                          key={i}
+                          className={`schedule-dot ${i === bannerIndex ? "active" : ""}`}
+                          onClick={() => setBannerIndex(i)}
+                          aria-label={`Go to class ${i + 1}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Today's class strip */}
+                  <div className="today-strip-wrap">
+                    <span className="today-strip-label">
+                      <i className="fa-solid fa-list-ul"></i>
+                      All classes today
+                    </span>
+                    <div className="today-strip">
+                      {todaysItems.map((item, i) => (
+                        <button
+                          key={`${item.id}-${i}`}
+                          className={`today-pill ${i === bannerIndex ? "active" : ""}`}
+                          onClick={() => setBannerIndex(i)}
+                        >
+                          <span
+                            className={`today-pill-status status-${item.status.toLowerCase()}`}
+                          />
+                          <span className="today-pill-time">
+                            {formatTime(item.startTime)}
+                          </span>
+                          <span className="today-pill-subject">{item.subject}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </section>
+
+            {/* RIGHT: Sidebar */}
+            <aside className="dash-sidebar">
+              <div className="sidebar-card">
+                <div className="sidebar-header">
+                  <div>
+                    <h3>Upcoming</h3>
+                    <span className="sidebar-subtitle">
+                      Your next {upcomingItems.length || 0} class
+                      {upcomingItems.length === 1 ? "" : "es"}
+                    </span>
+                  </div>
                   <button
-                    className="slide-btn right"
-                    disabled={todaysItems.length < 2}
-                    onClick={() =>
-                      setBannerIndex((i) => (i + 1) % todaysItems.length)
-                    }
-                    aria-label="Next class"
+                    className="sidebar-link"
+                    onClick={() => navigate("/faculty/schedule")}
                   >
+                    All
                     <i className="fa-solid fa-chevron-right"></i>
                   </button>
                 </div>
 
-                {todaysItems.length > 1 && (
-                  <div className="schedule-dots">
-                    {todaysItems.map((_, i) => (
-                      <button
-                        key={i}
-                        className={`schedule-dot ${i === bannerIndex ? "active" : ""}`}
-                        onClick={() => setBannerIndex(i)}
-                        aria-label={`Go to class ${i + 1}`}
-                      />
-                    ))}
+                {loading ? (
+                  <div className="sidebar-skeletons">
+                    <div className="skeleton-card"></div>
+                    <div className="skeleton-card"></div>
+                    <div className="skeleton-card"></div>
+                  </div>
+                ) : upcomingItems.length === 0 ? (
+                  <div className="upcoming-empty">
+                    <i className="fa-regular fa-calendar"></i>
+                    No upcoming classes found.
+                  </div>
+                ) : (
+                  <div className="upcoming-compact-list">
+                    {upcomingItems.map((item) => {
+                      const meta = getKindMeta(item);
+                      return (
+                        <div
+                          className={`upcoming-mini is-${meta.key}`}
+                          key={item.id}
+                        >
+                          <div className="mini-date">
+                            <span>{DAY_LABELS[item.occurrence.getDay()]}</span>
+                            <strong>{item.occurrence.getDate()}</strong>
+                          </div>
+
+                          <div className="mini-body">
+                            <div className="mini-heading">
+                              <h4>{item.subject}</h4>
+                              {item.isToday && (
+                                <span className="today-chip-mini">Today</span>
+                              )}
+                            </div>
+
+                            <div className="mini-meta">
+                              <span>
+                                <i className="fa-regular fa-clock"></i>
+                                {formatTime(item.startTime)}
+                              </span>
+                              <span>
+                                <i className="fa-solid fa-location-dot"></i>
+                                {item.roomName}
+                              </span>
+                            </div>
+
+                            <span className={`kind-pill pill-${meta.key}`}>
+                              <i className={meta.icon}></i>
+                              {meta.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
-              </>
-            )}
-
-            <div className="upcoming-section">
-              <h2>Upcoming Classes</h2>
-
-              {loading ? (
-                <div className="upcoming-list">
-                  <div className="skeleton-card"></div>
-                  <div className="skeleton-card"></div>
-                </div>
-              ) : upcomingItems.length === 0 ? (
-                <div className="upcoming-empty">
-                  <i className="fa-regular fa-calendar"></i>
-                  No upcoming classes found.
-                </div>
-              ) : (
-                <div className="upcoming-list">
-                  {upcomingItems.map((item) => {
-                    const meta = getKindMeta(item);
-                    return (
-                      <div
-                        className={`upcoming-card is-${meta.key} ${item.isToday ? "is-today" : ""}`}
-                        key={item.id}
-                      >
-                        <div className="date-box">
-                          <span>{DAY_LABELS[item.occurrence.getDay()]}</span>
-                          <h3>{item.occurrence.getDate()}</h3>
-                        </div>
-
-                        <div className="upcoming-main">
-                          <div className="upcoming-heading">
-                            <h1>{item.subject}</h1>
-                            {item.isToday && <span className="today-chip">Today</span>}
-                          </div>
-
-                          {item.section && (
-                            <span className="upcoming-section-label">{item.section}</span>
-                          )}
-
-                          <div className="class-info">
-                            <span>
-                              <i className="fa-regular fa-building"></i>
-                              {item.roomName}
-                            </span>
-
-                            <span>
-                              <i className="fa-regular fa-clock"></i>
-                              {formatTime(item.startTime)}
-                            </span>
-
-                            {item.kind !== "schedule" || item.isOnline ? (
-                              <span className={`kind-pill pill-${meta.key}`}>
-                                <i className={meta.icon}></i>
-                                {meta.label}
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
+              </div>
+            </aside>
+          </div>
         </main>
       </div>
     </div>

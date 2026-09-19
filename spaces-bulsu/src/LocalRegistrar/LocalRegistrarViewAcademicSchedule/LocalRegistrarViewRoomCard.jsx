@@ -4,9 +4,16 @@ import "./local-registrar-view-room-card.css";
 import { normalizeScheduleItem } from "../../utils/normalizeScheduleItem";
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
+import { isActiveOnDate } from "../../utils/scheduleActivePeriod";
 
 // ─── PDF Libraries & Logos ──────────────────────────────────────────
 import jsPDF from "jspdf";
@@ -23,6 +30,18 @@ const SCHOOL_HEADER = {
 };
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+// Height of one (1) hour row — MUST match:
+//   • .lr-vr-time-slot { height: 60px }  (CSS)
+//   • .lr-vr-calendar-grid { height: 840px } = 14 slots × 60px  (CSS)
+const HOUR_HEIGHT = 60;
+
+// Calendar grid starts at 7:00 AM (first label = "07 AM").
+const CALENDAR_START_MINUTES = 7 * 60;
+
+// Small visual gap between stacked schedule cards so consecutive
+// 1-hour blocks don't visually merge and hour lines stay visible.
+const CARD_GAP = 2;
 
 const toDateStr = (date) => {
   const y = date.getFullYear();
@@ -41,8 +60,41 @@ const format12Hour = (time) => {
   return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
 };
 
+// ─── Faculty name helpers (LastName, FirstName) ────────────────────
+const splitFacultyName = (full) => {
+  const trimmed = (full || "").trim();
+  if (!trimmed) return { lastName: "", firstName: "" };
+
+  if (trimmed.includes(",")) {
+    const [last, ...rest] = trimmed.split(",");
+    return {
+      lastName: last.trim(),
+      firstName: rest.join(",").trim(),
+    };
+  }
+
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return { lastName: parts[0], firstName: "" };
+  return {
+    lastName: parts[parts.length - 1],
+    firstName: parts.slice(0, -1).join(" "),
+  };
+};
+
+const validateFaculty = (faculty) => {
+  const trimmed = (faculty || "").trim();
+  if (!trimmed) return "Faculty is required";
+  if (!trimmed.includes(",")) {
+    return 'Format must be: "LastName, FirstName" (e.g. "Dela Cruz, Juan")';
+  }
+  const [last, ...rest] = trimmed.split(",");
+  if (!last.trim() || !rest.join(",").trim()) {
+    return "Both last name and first name are required";
+  }
+  return null;
+};
+
 // ─── COLOR HELPERS (UI) ─────────────────────────────────────────────
-// Pastel color per faculty (consistent)
 const getFacultyColor = (faculty) => {
   if (!faculty) return "#E0E0E0";
   let hash = 0;
@@ -50,20 +102,19 @@ const getFacultyColor = (faculty) => {
     hash = faculty.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 70%, 80%)`; // pastel, lively
+  return `hsl(${hue}, 70%, 80%)`;
 };
 
-// Fixed lively colors for special categories
 const getCategoryColor = (source) => {
   switch (source) {
     case "event":
-      return "#4DD0E1"; // bright cyan (room activity)
+      return "#4DD0E1";
     case "reservation":
-      return "#FFB74D"; // soft orange (approved reservation)
+      return "#FFB74D";
     case "reassignment":
-      return "#81C784"; // soft green (moved into room)
+      return "#81C784";
     case "walkin":
-      return "#FFD54F"; // soft yellow (walk‑in)
+      return "#FFD54F";
     default:
       return "#E0E0E0";
   }
@@ -74,16 +125,24 @@ function LocalRegistrarViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
   const location = useLocation();
-  const { room, semester, schoolYear, isOriginal } = location.state || {};
+  const { room, semester, schoolYear, isOriginal, canEdit } =
+    location.state || {};
 
   const [schedules, setSchedules] = useState([]);
   const [events, setEvents] = useState([]);
   const [reservations, setReservations] = useState([]);
-  const [releasedKeys, setReleasedKeys] = useState(new Set());
+  const [releasedMap, setReleasedMap] = useState(new Map());
   const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
   const [reassignedInto, setReassignedInto] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [exporting, setExporting] = useState(false);
+
+  // ─── Edit state ────────────────────────────────────────────────
+  const [editingSchedule, setEditingSchedule] = useState(null);
+  const [editForm, setEditForm] = useState({ faculty: "", section: "" });
+  const [editErrors, setEditErrors] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const [toast, setToast] = useState({
     show: false,
@@ -101,6 +160,7 @@ function LocalRegistrarViewRoomCard() {
 
   useEffect(() => {
     loadSchedules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSchedules = async () => {
@@ -112,23 +172,21 @@ function LocalRegistrarViewRoomCard() {
 
     if (isOriginal) {
       list = list.filter(
-        (s) => s.semester === semester && s.schoolYear === schoolYear,
+        (s) => s.semester === semester && s.schoolYear === schoolYear
       );
     }
 
     setSchedules(list.filter((item) => !item.initialized));
 
-    // For original schedules, skip all other data
     if (isOriginal) {
       setEvents([]);
       setReservations([]);
-      setReleasedKeys(new Set());
+      setReleasedMap(new Map());
       setReassignedAwayKeys(new Set());
       setReassignedInto([]);
       return;
     }
 
-    // ─── load events, reservations, releases, reassignments ───
     const eventSnap = await getDocs(collection(db, "events"));
     const eventList = eventSnap.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
@@ -136,25 +194,25 @@ function LocalRegistrarViewRoomCard() {
     setEvents(eventList);
 
     const reservationSnap = await getDocs(
-      collection(db, "reservationRequests"),
+      collection(db, "reservationRequests")
     );
     const reservationList = reservationSnap.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
       .filter(
         (reservation) =>
           reservation.roomId === room.id &&
-          String(reservation.status).toLowerCase() === "approved",
+          String(reservation.status).toLowerCase() === "approved"
       );
     setReservations(reservationList);
 
+    // ── Releases as Map ──
     const releaseSnap = await getDocs(collection(db, "roomReleases"));
-    const keys = new Set(
-      releaseSnap.docs
-        .map((d) => d.data())
-        .filter((r) => r.roomId === room.id)
-        .map((r) => `${r.scheduleId}_${r.date}`),
-    );
-    setReleasedKeys(keys);
+    const map = new Map();
+    releaseSnap.docs
+      .map((d) => d.data())
+      .filter((r) => r.roomId === room.id)
+      .forEach((r) => map.set(`${r.scheduleId}_${r.date}`, r));
+    setReleasedMap(map);
 
     const reassignSnap = await getDocs(collection(db, "roomReassignments"));
     const roomReassignments = reassignSnap.docs
@@ -162,22 +220,24 @@ function LocalRegistrarViewRoomCard() {
       .filter(
         (r) =>
           String(r.status || "").toLowerCase() === "approved" &&
-          (r.oldRoomId === room.id || r.newRoomId === room.id),
+          (r.oldRoomId === room.id || r.newRoomId === room.id)
       );
     setReassignedAwayKeys(
       new Set(
         roomReassignments
           .filter((r) => r.oldRoomId === room.id)
-          .map((r) => `${r.scheduleId}_${r.date}`),
-      ),
+          .map((r) => `${r.scheduleId}_${r.date}`)
+      )
     );
-    setReassignedInto(roomReassignments.filter((r) => r.newRoomId === room.id));
+    setReassignedInto(
+      roomReassignments.filter((r) => r.newRoomId === room.id)
+    );
   };
 
   // ─── Helper functions ──────────────────────────────────────────────
   const getSchedulesByDay = (day) => {
     return schedules.filter(
-      (schedule) => schedule.day?.trim().toUpperCase() === day,
+      (schedule) => schedule.day?.trim().toUpperCase() === day
     );
   };
 
@@ -187,16 +247,24 @@ function LocalRegistrarViewRoomCard() {
     return hour * 60 + minute;
   };
 
-  const HOUR_HEIGHT = 60;
+  // ✅ Aligned with the hour lines (no more +10 offset).
+  // 7:00 AM → top = 0
+  // 8:00 AM → top = 60
+  // 9:30 AM → top = 150
   const getTopPosition = (startTime) => {
     const startMinutes = convertToMinutes(startTime);
-    const calendarStart = 7 * 60;
-    return ((startMinutes - calendarStart) / 60) * HOUR_HEIGHT + 10;
+    return (
+      ((startMinutes - CALENDAR_START_MINUTES) / 60) * HOUR_HEIGHT
+    );
   };
+
+  // ✅ Exact duration height minus a small gap so stacked cards don't
+  // touch. Minimum 18px so very short sessions remain visible.
   const getCardHeight = (startTime, endTime) => {
     const startMinutes = convertToMinutes(startTime);
     const endMinutes = convertToMinutes(endTime);
-    return ((endMinutes - startMinutes) / 60) * 60;
+    const raw = ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT;
+    return Math.max(raw - CARD_GAP, 18);
   };
 
   const getStartOfWeek = (date) => {
@@ -251,26 +319,123 @@ function LocalRegistrarViewRoomCard() {
     ];
   };
 
-  // ─── PDF EXPORT (Portrait, No Legend, Full Page) ─────────────────
+  // ─── Save an edited schedule ─────────────────────────────────────
+  const handleSaveEdit = async () => {
+    if (!editingSchedule || !selectedScheduleId) {
+      showToast(
+        "error",
+        "Cannot Save",
+        "Schedule id is missing. Try clicking the schedule again."
+      );
+      return;
+    }
+
+    const facultyError = validateFaculty(editForm.faculty);
+    if (facultyError) {
+      setEditErrors({ faculty: facultyError });
+      return;
+    }
+
+    setEditErrors({});
+    setSavingEdit(true);
+
+    try {
+      const parsed = splitFacultyName(editForm.faculty);
+      const updateData = {
+        faculty: editForm.faculty.trim(),
+        facultyLastName: parsed.lastName,
+        facultyFirstName: parsed.firstName,
+        section: (editForm.section || "").trim(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const primaryCol = isOriginal ? "originalSchedules" : "schedules";
+      const mirrorCol = isOriginal ? "schedules" : "originalSchedules";
+
+      await updateDoc(
+        doc(db, "rooms", room.id, primaryCol, selectedScheduleId),
+        updateData
+      );
+
+      try {
+        const mirrorSnap = await getDocs(
+          collection(db, "rooms", room.id, mirrorCol)
+        );
+        const match = mirrorSnap.docs.find((d) => {
+          const data = d.data();
+          return (
+            data.subject === editingSchedule.subject &&
+            data.day === editingSchedule.day &&
+            data.startTime === editingSchedule.startTime &&
+            data.endTime === editingSchedule.endTime &&
+            data.semester === editingSchedule.semester &&
+            data.schoolYear === editingSchedule.schoolYear
+          );
+        });
+        if (match) {
+          await updateDoc(
+            doc(db, "rooms", room.id, mirrorCol, match.id),
+            updateData
+          );
+        } else {
+          console.warn(
+            `[Edit] No match in ${mirrorCol} — skipping mirror update.`
+          );
+        }
+      } catch (mirrorErr) {
+        console.warn("Mirror update failed:", mirrorErr);
+      }
+
+      setSchedules((prev) =>
+        prev.map((s) =>
+          s.id === selectedScheduleId
+            ? {
+                ...s,
+                faculty: updateData.faculty,
+                facultyLastName: updateData.facultyLastName,
+                facultyFirstName: updateData.facultyFirstName,
+                section: updateData.section,
+              }
+            : s
+        )
+      );
+      setSelectedSchedule((prev) =>
+        prev && prev.id === selectedScheduleId
+          ? {
+              ...prev,
+              faculty: updateData.faculty,
+              section: updateData.section,
+            }
+          : prev
+      );
+
+      showToast("success", "Updated", "Schedule updated successfully.");
+      setEditingSchedule(null);
+      setSelectedScheduleId(null);
+      setEditErrors({});
+    } catch (err) {
+      console.error("Edit failed:", err);
+      showToast("error", "Update Failed", err.message || "Try again.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ─── PDF EXPORT ─────────────────────────────────────────────────
   const handleExportPDF = async () => {
     if (schedules.length === 0) {
       showToast(
         "error",
         "No Schedules",
-        "This room has no schedules to export.",
+        "This room has no schedules to export."
       );
       return;
     }
 
     setExporting(true);
-
     showToast("loading", "Generating PDF...", "Please wait.");
 
     try {
-      // ============================================================
-      // PDF SETUP
-      // ============================================================
-
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "pt",
@@ -278,36 +443,20 @@ function LocalRegistrarViewRoomCard() {
       });
 
       const pageWidth = pdf.internal.pageSize.getWidth();
-
       const pageHeight = pdf.internal.pageSize.getHeight();
-
       const marginX = 28;
-
       const timeColWidth = 45;
-
       const topHeader = 105;
-
       const bottomFooter = 30;
-
       const calendarTop = topHeader;
-
       const calendarBottom = pageHeight - bottomFooter;
-
       const calendarHeight = calendarBottom - calendarTop;
 
-      // 7:00 AM - 8:00 PM = 13 hours
       const calendarStartMinutes = 7 * 60;
       const calendarEndMinutes = 20 * 60;
-
       const totalHours = 13;
-
       const hourHeight = calendarHeight / totalHours;
-
       const dayWidth = (pageWidth - marginX * 2 - timeColWidth) / 7;
-
-      // ============================================================
-      // HEADER / LOGOS
-      // ============================================================
 
       const logoSize = 30;
 
@@ -318,10 +467,9 @@ function LocalRegistrarViewRoomCard() {
           marginX,
           12,
           logoSize,
-          logoSize,
+          logoSize
         );
       }
-
       if (SCHOOL_HEADER.collegeLogoUrl) {
         pdf.addImage(
           SCHOOL_HEADER.collegeLogoUrl,
@@ -329,100 +477,52 @@ function LocalRegistrarViewRoomCard() {
           pageWidth - marginX - logoSize,
           12,
           logoSize,
-          logoSize,
+          logoSize
         );
       }
 
-      // ============================================================
-      // UNIVERSITY NAME
-      // ============================================================
-
       pdf.setFont("helvetica", "bold");
-
       pdf.setFontSize(11);
-
       pdf.setTextColor(20, 27, 45);
-
       pdf.text(SCHOOL_HEADER.universityName, pageWidth / 2, 24, {
         align: "center",
       });
 
-      // ============================================================
-      // COLLEGE NAME
-      // ============================================================
-
       pdf.setFont("helvetica", "normal");
-
       pdf.setFontSize(7.5);
-
       pdf.setTextColor(107, 114, 128);
-
       pdf.text(SCHOOL_HEADER.collegeName, pageWidth / 2, 36, {
         align: "center",
       });
-
-      // ============================================================
-      // SYSTEM NAME
-      // ============================================================
-
       pdf.text(SCHOOL_HEADER.systemName, pageWidth / 2, 47, {
         align: "center",
       });
 
-      // ============================================================
-      // HEADER DIVIDER
-      // ============================================================
-
       pdf.setDrawColor(245, 124, 0);
-
       pdf.setLineWidth(1.2);
-
       pdf.line(marginX, 58, pageWidth - marginX, 58);
 
-      // ============================================================
-      // CENTERED ROOM TITLE
-      // ============================================================
-
       pdf.setFont("helvetica", "bold");
-
       pdf.setFontSize(12);
-
       pdf.setTextColor(245, 124, 0);
-
       pdf.text(
         `Classroom Schedule — ${room?.roomName || "Room"}`,
         pageWidth / 2,
         77,
-        {
-          align: "center",
-        },
+        { align: "center" }
       );
 
-      // ============================================================
-      // CENTERED SCHOOL YEAR + SEMESTER
-      // ============================================================
-
       pdf.setFont("helvetica", "normal");
-
       pdf.setFontSize(7.5);
-
       pdf.setTextColor(107, 114, 128);
-
       pdf.text(
         `${schoolYear || "N/A"} | ${semester || "N/A"}`,
         pageWidth / 2,
         89,
-        {
-          align: "center",
-        },
+        { align: "center" }
       );
 
-      // ============================================================
-      // FACULTY COLOR MAPPING
-      // ============================================================
-
       const facultyColors = {};
-
       const colorPalette = [
         [255, 225, 210],
         [220, 235, 255],
@@ -435,282 +535,138 @@ function LocalRegistrarViewRoomCard() {
         [220, 230, 255],
         [230, 250, 225],
       ];
-
       let colorIndex = 0;
-
       const getFacultyColorPDF = (faculty) => {
         const key = (faculty || "Unknown").trim().toLowerCase();
-
         if (!facultyColors[key]) {
           facultyColors[key] = colorPalette[colorIndex % colorPalette.length];
-
           colorIndex++;
         }
-
         return facultyColors[key];
       };
 
-      // ============================================================
-      // CALENDAR GRID
-      // ============================================================
-
       pdf.setDrawColor(220, 220, 220);
-
       pdf.setLineWidth(0.35);
-
-      // ============================================================
-      // HORIZONTAL GRID + TIME LABELS
-      // ============================================================
 
       for (let h = 0; h <= totalHours; h++) {
         const y = calendarTop + h * hourHeight;
-
-        // Horizontal line
         pdf.line(marginX + timeColWidth, y, pageWidth - marginX, y);
-
-        // Time label
         const hour = 7 + h;
-
         let label;
-
-        if (hour < 12) {
-          label = `${hour} AM`;
-        } else if (hour === 12) {
-          label = "12 PM";
-        } else {
-          label = `${hour - 12} PM`;
-        }
-
+        if (hour < 12) label = `${hour} AM`;
+        else if (hour === 12) label = "12 PM";
+        else label = `${hour - 12} PM`;
         pdf.setFont("helvetica", "normal");
-
         pdf.setFontSize(6.5);
-
         pdf.setTextColor(105, 105, 105);
-
-        // Put 8 PM slightly above bottom line
         const labelY = h === totalHours ? y - 2 : y + 4;
-
         pdf.text(label, marginX + 2, labelY);
       }
 
-      // ============================================================
-      // VERTICAL DAY SEPARATORS
-      // ============================================================
-
       for (let d = 0; d <= 7; d++) {
         const x = marginX + timeColWidth + d * dayWidth;
-
         pdf.line(x, calendarTop, x, calendarBottom);
       }
 
-      // ============================================================
-      // DAY HEADERS
-      // ============================================================
-
       pdf.setFont("helvetica", "bold");
-
       pdf.setFontSize(7.5);
-
       pdf.setTextColor(50, 50, 50);
-
       for (let d = 0; d < 7; d++) {
         const x = marginX + timeColWidth + d * dayWidth + dayWidth / 2;
-
-        pdf.text(DAYS[d], x, calendarTop - 5, {
-          align: "center",
-        });
+        pdf.text(DAYS[d], x, calendarTop - 5, { align: "center" });
       }
-
-      // ============================================================
-      // SORT SCHEDULES
-      // ============================================================
 
       const sortedSchedules = [...schedules].sort((a, b) => {
         const dayOrder =
           DAYS.indexOf(a.day?.trim().toUpperCase()) -
           DAYS.indexOf(b.day?.trim().toUpperCase());
-
-        if (dayOrder !== 0) {
-          return dayOrder;
-        }
-
+        if (dayOrder !== 0) return dayOrder;
         return convertToMinutes(a.startTime) - convertToMinutes(b.startTime);
       });
 
-      // ============================================================
-      // DRAW SCHEDULE BLOCKS
-      // ============================================================
-
       for (const schedule of sortedSchedules) {
         const dayIndex = DAYS.indexOf(schedule.day?.trim().toUpperCase());
-
-        if (dayIndex === -1) {
-          continue;
-        }
+        if (dayIndex === -1) continue;
 
         const startMin = convertToMinutes(schedule.startTime);
-
         const endMin = convertToMinutes(schedule.endTime);
-
-        // Ignore invalid schedules
-        if (endMin <= startMin) {
+        if (endMin <= startMin) continue;
+        if (endMin <= calendarStartMinutes || startMin >= calendarEndMinutes)
           continue;
-        }
-
-        // Ignore schedules completely
-        // outside 7 AM - 8 PM
-        if (endMin <= calendarStartMinutes || startMin >= calendarEndMinutes) {
-          continue;
-        }
-
-        // ==========================================================
-        // CLAMP TO 7 AM - 8 PM
-        // ==========================================================
 
         const visibleStart = Math.max(startMin, calendarStartMinutes);
-
         const visibleEnd = Math.min(endMin, calendarEndMinutes);
-
         const duration = visibleEnd - visibleStart;
-
-        if (duration <= 0) {
-          continue;
-        }
-
-        // ==========================================================
-        // BLOCK POSITION
-        // ==========================================================
+        if (duration <= 0) continue;
 
         const topOffset =
           ((visibleStart - calendarStartMinutes) / 60) * hourHeight;
-
         const rawHeight = (duration / 60) * hourHeight;
-
-        // Small gap between schedules
         const verticalGap = 2.5;
-
         const x = marginX + timeColWidth + dayIndex * dayWidth + verticalGap;
-
         const y = calendarTop + topOffset + verticalGap;
-
         const w = dayWidth - verticalGap * 2;
-
         const blockHeight = Math.max(rawHeight - verticalGap * 2, 18);
 
-        // ==========================================================
-        // BLOCK COLOR
-        // ==========================================================
-
         const faculty = schedule.faculty || "";
-
         const [r, g, b] = getFacultyColorPDF(faculty);
-
         const averageColor = (r + g + b) / 3;
-
         const textColor = averageColor < 180 ? [255, 255, 255] : [35, 35, 35];
-
         const secondaryTextColor =
           averageColor < 180 ? [235, 235, 235] : [75, 75, 75];
 
-        // ==========================================================
-        // DRAW BLOCK
-        // ==========================================================
-
         pdf.setFillColor(r, g, b);
-
         pdf.setDrawColor(
           Math.max(r - 25, 0),
           Math.max(g - 25, 0),
-          Math.max(b - 25, 0),
+          Math.max(b - 25, 0)
         );
-
         pdf.setLineWidth(0.35);
-
         pdf.roundedRect(x, y, w, blockHeight, 3, 3, "FD");
 
-        // ==========================================================
-        // CONTENT AREA
-        // ==========================================================
-
         const innerPaddingX = 5;
-
-        const contentX = x + innerPaddingX;
-
         const contentWidth = w - innerPaddingX * 2;
-
-        // ==========================================================
-        // CONTENT FONT SIZES
-        // ==========================================================
-
         const subject = schedule.courseTitle || schedule.subject || "Class";
-
         const section = schedule.section || "";
-
-        const timeLabel = `${format12Hour(schedule.startTime)} - ${format12Hour(
-          schedule.endTime,
-        )}`;
+        const timeLabel = `${format12Hour(
+          schedule.startTime
+        )} - ${format12Hour(schedule.endTime)}`;
 
         let titleSize = 7;
-
         let detailSize = 5.5;
-
         let lineSpacing = 7;
-
         if (blockHeight < 32) {
           titleSize = 6.2;
           detailSize = 4.8;
           lineSpacing = 6;
         }
-
         if (blockHeight < 24) {
           titleSize = 5.7;
           detailSize = 4.4;
           lineSpacing = 5.5;
         }
 
-        // ==========================================================
-        // TEXT FIT HELPER
-        // ==========================================================
-
         const fitText = (text, fontSize) => {
-          if (!text) {
-            return "";
-          }
-
+          if (!text) return "";
           pdf.setFontSize(fontSize);
-
           const maxWidth = contentWidth - 2;
-
-          if (pdf.getTextWidth(text) <= maxWidth) {
-            return text;
-          }
-
+          if (pdf.getTextWidth(text) <= maxWidth) return text;
           let result = text;
-
           while (
             result.length > 3 &&
             pdf.getTextWidth(`${result}...`) > maxWidth
           ) {
             result = result.slice(0, -1);
           }
-
           return `${result}...`;
         };
 
-        // ==========================================================
-        // BUILD CONTENT FIRST
-        // ==========================================================
-
         const contentLines = [];
-
-        // SUBJECT
         contentLines.push({
           text: fitText(subject, titleSize),
           font: "bold",
           size: titleSize,
         });
-
-        // FACULTY
         if (faculty && blockHeight >= 27) {
           contentLines.push({
             text: fitText(faculty, detailSize),
@@ -718,8 +674,6 @@ function LocalRegistrarViewRoomCard() {
             size: detailSize,
           });
         }
-
-        // SECTION
         if (section && blockHeight >= 38) {
           contentLines.push({
             text: fitText(`[${section}]`, detailSize),
@@ -727,8 +681,6 @@ function LocalRegistrarViewRoomCard() {
             size: detailSize,
           });
         }
-
-        // TIME
         if (blockHeight >= 48) {
           contentLines.push({
             text: timeLabel,
@@ -737,90 +689,47 @@ function LocalRegistrarViewRoomCard() {
           });
         }
 
-        // ==========================================================
-        // VERTICAL CENTERING
-        // ==========================================================
-
         const totalContentHeight = contentLines.length * lineSpacing;
-
         let textY = y + (blockHeight - totalContentHeight) / 2 + 5;
-
-        // Prevent content from going
-        // too close to the top
         textY = Math.max(textY, y + 5);
-
-        // ==========================================================
-        // DRAW CONTENT
-        // ==========================================================
 
         contentLines.forEach((line, index) => {
           pdf.setFont("helvetica", line.font);
-
           pdf.setFontSize(line.size);
-
-          // Subject = primary
-          // Others = secondary
           pdf.setTextColor(...(index === 0 ? textColor : secondaryTextColor));
-
-          pdf.text(line.text, x + w / 2, textY, {
-            align: "center",
-          });
-
+          pdf.text(line.text, x + w / 2, textY, { align: "center" });
           textY += lineSpacing;
         });
       }
 
-      // ============================================================
-      // FOOTER
-      // ============================================================
-
       const pageCount = pdf.internal.getNumberOfPages();
-
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
-
         pdf.setFont("helvetica", "normal");
-
         pdf.setFontSize(7);
-
         pdf.setTextColor(150, 150, 150);
-
-        // Bottom-left
         pdf.text(
           `${SCHOOL_HEADER.systemName} — Confidential`,
           marginX,
-          pageHeight - 12,
+          pageHeight - 12
         );
-
-        // Bottom-right
         pdf.text(
           `Generated: ${new Date().toLocaleString()}`,
           pageWidth - marginX,
           pageHeight - 12,
-          {
-            align: "right",
-          },
+          { align: "right" }
         );
       }
-
-      // ============================================================
-      // SAVE PDF
-      // ============================================================
 
       pdf.save(
         `Room-Schedule-${room?.roomName || "Room"}-${new Date()
           .toISOString()
-          .slice(0, 10)}.pdf`,
+          .slice(0, 10)}.pdf`
       );
-
-      // ============================================================
-      // SUCCESS
-      // ============================================================
 
       showToast("success", "PDF Downloaded", "Schedule exported successfully.");
     } catch (err) {
       console.error("PDF export failed:", err);
-
       showToast("error", "Export Failed", "Could not generate PDF.");
     } finally {
       setExporting(false);
@@ -886,7 +795,6 @@ function LocalRegistrarViewRoomCard() {
           </div>
 
           <div className="lr-vr-scroll-x">
-            {/* Day headers */}
             <div className="lr-vr-days-container">
               <div className="lr-vr-time-column" aria-hidden="true"></div>
               {weekDates.map((date, index) => (
@@ -904,7 +812,6 @@ function LocalRegistrarViewRoomCard() {
 
             <hr className="lr-vr-days-divider" />
 
-            {/* Schedule grid */}
             <div className="lr-vr-schedule-container">
               <div className="lr-vr-time-column">
                 {[
@@ -942,27 +849,65 @@ function LocalRegistrarViewRoomCard() {
                     const dateStr = toDateStr(dateObj);
                     const daySchedules = getSchedulesByDay(day);
 
-                    let filteredSchedules = daySchedules;
-                    if (!isOriginal) {
-                      filteredSchedules = daySchedules.filter((schedule) => {
-                        if (releasedKeys.has(`${schedule.id}_${dateStr}`))
-                          return false;
-                        if (reassignedAwayKeys.has(`${schedule.id}_${dateStr}`))
-                          return false;
-                        const sStart = convertToMinutes(schedule.startTime);
-                        const sEnd = convertToMinutes(schedule.endTime);
-                        const items = getItemsForDate(dateObj);
-                        return !items.some((ev) => {
-                          const eStart = convertToMinutes(ev.startTime);
-                          const eEnd = convertToMinutes(ev.endTime);
-                          return sStart < eEnd && sEnd > eStart;
-                        });
-                      });
+                    let filteredSchedules;
+                    if (isOriginal) {
+                      filteredSchedules = daySchedules;
+                    } else {
+                      filteredSchedules = daySchedules
+                        .map((schedule) => {
+                          if (!isActiveOnDate(schedule, dateStr)) return null;
+                          if (
+                            reassignedAwayKeys.has(
+                              `${schedule.id}_${dateStr}`
+                            )
+                          )
+                            return null;
+
+                          // ✅ Release handling
+                          const releaseInfo = releasedMap.get(
+                            `${schedule.id}_${dateStr}`
+                          );
+                          let effectiveSchedule = schedule;
+                          if (releaseInfo) {
+                            if (!releaseInfo.effectiveEndTime) return null;
+
+                            const endMin = convertToMinutes(
+                              releaseInfo.effectiveEndTime
+                            );
+                            const startMin = convertToMinutes(
+                              schedule.startTime
+                            );
+                            if (endMin <= startMin) return null;
+
+                            effectiveSchedule = {
+                              ...schedule,
+                              endTime: releaseInfo.effectiveEndTime,
+                              isReleased: true,
+                              releasedAtTime: releaseInfo.effectiveEndTime,
+                            };
+                          }
+
+                          const sStart = convertToMinutes(
+                            effectiveSchedule.startTime
+                          );
+                          const sEnd = convertToMinutes(
+                            effectiveSchedule.endTime
+                          );
+                          const items = getItemsForDate(dateObj);
+                          const conflict = items.some((ev) => {
+                            const eStart = convertToMinutes(ev.startTime);
+                            const eEnd = convertToMinutes(ev.endTime);
+                            return sStart < eEnd && sEnd > eStart;
+                          });
+                          if (conflict) return null;
+
+                          return effectiveSchedule;
+                        })
+                        .filter(Boolean);
                     }
 
                     return (
                       <div className="lr-vr-calendar-day" key={day}>
-                        {/* Regular schedules */}
                         {filteredSchedules.map((schedule) => (
                           <ScheduleCard
                             key={schedule.id}
@@ -970,22 +915,20 @@ function LocalRegistrarViewRoomCard() {
                             top={getTopPosition(schedule.startTime)}
                             height={getCardHeight(
                               schedule.startTime,
-                              schedule.endTime,
+                              schedule.endTime
                             )}
-                            onClick={() =>
+                            onClick={() => {
                               setSelectedSchedule(
-                                normalizeScheduleItem(schedule, "schedule"),
-                              )
-                            }
-                            // ── Faculty color (pastel) ──
+                                normalizeScheduleItem(schedule, "schedule")
+                              );
+                              setSelectedScheduleId(schedule.id);
+                            }}
                             facultyColor={getFacultyColor(schedule.faculty)}
                           />
                         ))}
 
-                        {/* Events, reservations, reassignments */}
                         {!isOriginal &&
                           getItemsForDate(dateObj).map((item) => {
-                            // Determine category and faculty name for display
                             let category = item._source;
                             let facultyName;
                             if (category === "event") {
@@ -995,7 +938,6 @@ function LocalRegistrarViewRoomCard() {
                                 item.requesterName ||
                                 item.facultyName ||
                                 "Walk-in";
-                              // If no requester/faculty, treat as walk-in for color
                               if (!item.requesterName && !item.facultyName) {
                                 category = "walkin";
                               }
@@ -1028,14 +970,14 @@ function LocalRegistrarViewRoomCard() {
                                 top={getTopPosition(item.startTime)}
                                 height={getCardHeight(
                                   item.startTime,
-                                  item.endTime,
+                                  item.endTime
                                 )}
-                                onClick={() =>
+                                onClick={() => {
                                   setSelectedSchedule(
-                                    normalizeScheduleItem(item, item._source),
-                                  )
-                                }
-                                // ── Category color ──
+                                    normalizeScheduleItem(item, item._source)
+                                  );
+                                  setSelectedScheduleId(item.id);
+                                }}
                                 facultyColor={color}
                               />
                             );
@@ -1052,11 +994,128 @@ function LocalRegistrarViewRoomCard() {
             <ClassDetailsCard
               schedule={selectedSchedule}
               roomName={room?.roomName}
-              onClose={() => setSelectedSchedule(null)}
+              onClose={() => {
+                setSelectedSchedule(null);
+                setSelectedScheduleId(null);
+              }}
             />
+
+            {isOriginal && canEdit && selectedSchedule && selectedScheduleId && (
+              <button
+                className="lr-vr-edit-sched-btn"
+                onClick={() => {
+                  setEditingSchedule(selectedSchedule);
+                  setEditForm({
+                    faculty: selectedSchedule.faculty || "",
+                    section: selectedSchedule.section || "",
+                  });
+                  setEditErrors({});
+                }}
+              >
+                <i className="fa-solid fa-pen"></i> Edit schedule
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* ─── Edit schedule modal ─────────────────────────────────── */}
+      {editingSchedule && (
+        <div
+          className="msd-modal-overlay"
+          onClick={() => {
+            setEditingSchedule(null);
+            setEditErrors({});
+          }}
+        >
+          <div className="msd-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="msd-modal-icon activate">
+              <i className="fa-solid fa-pen"></i>
+            </div>
+            <h3>Edit Schedule</h3>
+            <p>
+              {editingSchedule.subject}
+              {editingSchedule.day ? ` • ${editingSchedule.day}` : ""}{" "}
+              {editingSchedule.startTime && editingSchedule.endTime
+                ? `• ${format12Hour(
+                    editingSchedule.startTime
+                  )} - ${format12Hour(editingSchedule.endTime)}`
+                : ""}
+            </p>
+
+            <div style={{ textAlign: "left", marginBottom: 14 }}>
+              <label
+                className="filter-label"
+                style={{ display: "block", marginBottom: 6 }}
+              >
+                Faculty <span style={{ color: "#dc2626" }}>*</span>
+              </label>
+              <input
+                className={`dropdown ${editErrors.faculty ? "input-error" : ""}`}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderColor: editErrors.faculty ? "#dc2626" : undefined,
+                }}
+                placeholder='LastName, FirstName (e.g. "Dela Cruz, Juan")'
+                value={editForm.faculty}
+                onChange={(e) => {
+                  setEditForm((p) => ({ ...p, faculty: e.target.value }));
+                  if (editErrors.faculty) setEditErrors({});
+                }}
+              />
+              <small
+                style={{
+                  display: "block",
+                  marginTop: 4,
+                  fontSize: 11,
+                  color: editErrors.faculty ? "#dc2626" : "#64748b",
+                  lineHeight: 1.4,
+                }}
+              >
+                {editErrors.faculty
+                  ? editErrors.faculty
+                  : 'Required format: "LastName, FirstName" — this is how faculty accounts are matched.'}
+              </small>
+
+              <label
+                className="filter-label"
+                style={{ display: "block", marginTop: 12, marginBottom: 6 }}
+              >
+                Section
+              </label>
+              <input
+                className="dropdown"
+                style={{ width: "100%", padding: "10px" }}
+                value={editForm.section}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, section: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="msd-modal-actions">
+              <button
+                className="msd-cancel-btn"
+                onClick={() => {
+                  setEditingSchedule(null);
+                  setEditErrors({});
+                }}
+                disabled={savingEdit}
+              >
+                Cancel
+              </button>
+              <button
+                className="msd-confirm-btn activate"
+                onClick={handleSaveEdit}
+                disabled={savingEdit}
+              >
+                {savingEdit ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast
         show={toast.show}

@@ -50,6 +50,53 @@ const toDateInputValue = (date) => {
   return `${y}-${m}-${d}`;
 };
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const todayString = () => toDateInputValue(new Date());
+
+const addDaysLocal = (dateStr, days) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toDateInputValue(d);
+};
+
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const cells = [];
+
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+
+  return cells;
+};
+
 const buildDateChips = () => {
   const chips = [];
   const today = new Date();
@@ -106,6 +153,17 @@ export default function RoomActivity() {
   const [showListModal, setShowListModal] = useState(false);
   const [showCustomTime, setShowCustomTime] = useState(false);
 
+  // ─── Room picker ─────────────────────────────────────────────
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+
+  // ─── Date picker ─────────────────────────────────────────────
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
   const [form, setForm] = useState({
     title: "", room: "", date: "", startTime: "", endTime: "", reason: "",
   });
@@ -115,6 +173,18 @@ export default function RoomActivity() {
   const [maintenanceBlocked, setMaintenanceBlocked] = useState(false);
 
   const dateChips = buildDateChips();
+  const filteredRooms = rooms.filter((r) => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return true;
+    const name = String(r.roomName || r.name || "").toLowerCase();
+    const floor = String(r.floor || "").toLowerCase();
+    const building = String(r.building || r.bldg || "").toLowerCase();
+    return name.includes(q) || floor.includes(q) || building.includes(q);
+  });
+
+  const selectedRoom = rooms.find(
+    (r) => (r.roomName || r.name) === form.room
+  );
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "rooms"), (snap) => {
@@ -168,6 +238,7 @@ export default function RoomActivity() {
     if (!form.title) return "Title is required";
     if (!form.room) return "Please select a room";
     if (!form.date) return "Date is required";
+    if (form.date < todayString()) return "Past dates are not allowed. Please select today or a future date.";
     if (!form.startTime || !form.endTime) return "Time is required";
     if (parseTime(form.startTime) >= parseTime(form.endTime)) return "Invalid time range";
     if (maintenanceBlocked) return "This room is under maintenance during the selected date/time.";
@@ -269,7 +340,6 @@ export default function RoomActivity() {
     }
   };
 
-  const selectedRoom = rooms.find((r) => r.roomName === form.room);
   const duration = formatDuration(form.startTime, form.endTime);
   const isPresetActive = (slot) => slot.start === form.startTime && slot.end === form.endTime;
   const handlePresetClick = (slot) => {
@@ -327,16 +397,100 @@ export default function RoomActivity() {
 
             <div className="ra-field">
               <label>Room</label>
-              <div className="ra-select-wrap">
-                <i className="fa-solid fa-door-closed"></i>
-                <select value={form.room} onChange={handleChange("room")} className="ra-select" disabled={loading}>
-                  <option value="">{loading ? "Loading rooms…" : "Select room"}</option>
-                  {rooms.map((r) => {
-                    const m = String(r.roomStatus || "").toLowerCase() === "maintenance";
-                    return <option key={r.id} value={r.roomName}>{r.roomName}{m ? " (Under Maintenance)" : ""}</option>;
-                  })}
-                </select>
-                <i className="fa-solid fa-chevron-down ra-chevron"></i>
+
+              <div className="rut-roompicker ra-roompicker">
+                <button
+                  type="button"
+                  className={`rut-room-trigger ${showRoomPicker ? "open" : ""}`}
+                  onClick={() => {
+                    setRoomSearch("");
+                    setShowDatePicker(false);
+                    setShowRoomPicker((v) => !v);
+                  }}
+                  disabled={loading}
+                >
+                  <i className="fa-solid fa-door-open"></i>
+                  <span className="rut-room-trigger-text">
+                    {form.room || (loading ? "Loading rooms…" : "Select a room")}
+                  </span>
+                  {selectedRoom?.floor && (
+                    <span className="rut-room-trigger-floor">
+                      {selectedRoom.floor} Floor
+                    </span>
+                  )}
+                  <i className={`fa-solid fa-chevron-down rut-room-caret ${showRoomPicker ? "open" : ""}`}></i>
+                </button>
+
+                {showRoomPicker && (
+                  <>
+                    <div className="rut-room-clickaway" onClick={() => setShowRoomPicker(false)}></div>
+                    <div className="rut-room-popover">
+                      <span className="rut-room-popover-arrow"></span>
+                      <div className="rut-room-search-wrap">
+                        <i className="fa-solid fa-magnifying-glass"></i>
+                        <input
+                          type="text"
+                          className="rut-room-search"
+                          placeholder="Search room, floor, building..."
+                          value={roomSearch}
+                          onChange={(e) => setRoomSearch(e.target.value)}
+                          autoFocus
+                        />
+                        {roomSearch && (
+                          <button type="button" className="rut-room-search-clear" onClick={() => setRoomSearch("")} aria-label="Clear search">
+                            <i className="fa-solid fa-xmark"></i>
+                          </button>
+                        )}
+                      </div>
+                      <div className="rut-room-list">
+                        {filteredRooms.length === 0 ? (
+                          <div className="rut-room-empty">
+                            <i className="fa-regular fa-face-frown"></i>
+                            <span>No rooms match your search.</span>
+                          </div>
+                        ) : (
+                          filteredRooms.map((r) => {
+                            const name = r.roomName || r.name;
+                            const isActive = name === form.room;
+                            return (
+                              <button
+                                type="button"
+                                key={r.id}
+                                className={`rut-room-option ${isActive ? "is-active" : ""}`}
+                                onClick={() => {
+                                  setForm((prev) => ({ ...prev, room: name }));
+                                  setShowRoomPicker(false);
+                                  setRoomSearch("");
+                                }}
+                              >
+                                <div className="rut-room-option-icon"><i className="fa-solid fa-door-open"></i></div>
+                                <div className="rut-room-option-body">
+                                  <span className="rut-room-option-name">{name}</span>
+                                  <span className="rut-room-option-meta">
+                                    {r.floor && (
+                                      <>
+                                        <i className="fa-solid fa-building"></i>
+                                        {r.floor} Floor
+                                      </>
+                                    )}
+                                    {r.capacity && (
+                                      <>
+                                        <span className="rut-room-dot">•</span>
+                                        <i className="fa-solid fa-users"></i>
+                                        {r.capacity} Seats
+                                      </>
+                                    )}
+                                  </span>
+                                </div>
+                                {isActive && <i className="fa-solid fa-circle-check rut-room-option-check"></i>}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -346,27 +500,112 @@ export default function RoomActivity() {
                 <label>Date</label>
                 {form.date && (
                   <span className="dt-selected-pill">
-                    <i className="fa-regular fa-calendar-check"></i>{formatDateLong(form.date)}
+                    <i className="fa-regular fa-calendar-check"></i>
+                    {formatDateLong(form.date)}
                   </span>
                 )}
               </div>
-              <div className="date-chip-row">
-                {dateChips.map((chip) => (
-                  <button key={chip.value} type="button"
-                    className={`date-chip ${form.date === chip.value ? "active" : ""}`}
-                    onClick={() => setForm((f) => ({ ...f, date: chip.value }))}>
-                    <span className="date-chip-label">{chip.label}</span>
-                    <span className="date-chip-sub">{chip.sublabel}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="date-custom-row">
-                <span className="date-custom-label">Or pick a date:</span>
-                <div className="date-input-wrap">
-                  <i className="fa-regular fa-calendar date-input-icon"></i>
-                  <input type="date" className="date-input-field" min={toDateInputValue(new Date())}
-                    value={form.date} onChange={handleChange("date")} />
-                </div>
+
+              <div className="rut-datepicker ra-datepicker">
+                <button
+                  type="button"
+                  className={`rut-date-trigger ${showDatePicker ? "open" : ""}`}
+                  onClick={() => {
+                    const base = form.date ? new Date(`${form.date}T00:00:00`) : new Date();
+                    setCalendarCursor({ year: base.getFullYear(), month: base.getMonth() });
+                    setShowRoomPicker(false);
+                    setShowDatePicker((v) => !v);
+                  }}
+                >
+                  <i className="fa-regular fa-calendar"></i>
+                  <span>{form.date ? formatDateLong(form.date) : "Select a date"}</span>
+                  <i className={`fa-solid fa-chevron-down rut-date-caret ${showDatePicker ? "open" : ""}`}></i>
+                </button>
+
+                {showDatePicker && (
+                  <>
+                    <div className="rut-date-clickaway" onClick={() => setShowDatePicker(false)}></div>
+                    <div className="rut-date-popover">
+                      <span className="rut-date-popover-arrow"></span>
+
+                      <div className="rut-date-quick-row">
+                        <button
+                          type="button"
+                          className={form.date === todayString() ? "active" : ""}
+                          onClick={() => {
+                            setForm((prev) => ({ ...prev, date: todayString() }));
+                            setShowDatePicker(false);
+                          }}
+                        >Today</button>
+                        <button
+                          type="button"
+                          className={form.date === addDaysLocal(todayString(), 1) ? "active" : ""}
+                          onClick={() => {
+                            setForm((prev) => ({ ...prev, date: addDaysLocal(todayString(), 1) }));
+                            setShowDatePicker(false);
+                          }}
+                        >Tomorrow</button>
+                      </div>
+
+                      <div className="rut-cal-header">
+                        <button
+                          type="button"
+                          className="rut-cal-nav"
+                          disabled={calendarCursor.year === new Date().getFullYear() && calendarCursor.month === new Date().getMonth()}
+                          onClick={() => setCalendarCursor((c) => {
+                            const current = new Date();
+                            const previous = c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 };
+                            if (previous.year < current.getFullYear() || (previous.year === current.getFullYear() && previous.month < current.getMonth())) return c;
+                            return previous;
+                          })}
+                          aria-label="Previous month"
+                        ><i className="fa-solid fa-chevron-left"></i></button>
+
+                        <span className="rut-cal-title">{MONTH_NAMES[calendarCursor.month]} {calendarCursor.year}</span>
+
+                        <button
+                          type="button"
+                          className="rut-cal-nav"
+                          onClick={() => setCalendarCursor((c) => {
+                            const m = c.month + 1;
+                            return m > 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: m };
+                          })}
+                          aria-label="Next month"
+                        ><i className="fa-solid fa-chevron-right"></i></button>
+                      </div>
+
+                      <div className="rut-cal-weekdays">
+                        {WEEKDAY_LABELS.map((w) => <span key={w}>{w}</span>)}
+                      </div>
+
+                      <div className="rut-cal-grid">
+                        {buildCalendarGrid(calendarCursor.year, calendarCursor.month).map((cell, i) => {
+                          const cellStr = toDateInputValue(cell.date);
+                          const isPast = cellStr < todayString();
+                          const isSelected = cellStr === form.date;
+                          return (
+                            <button
+                              type="button"
+                              key={i}
+                              disabled={isPast}
+                              className={[
+                                "rut-cal-day",
+                                !cell.inMonth && "is-outside",
+                                isSelected && "is-selected",
+                                isPast && "is-disabled",
+                              ].filter(Boolean).join(" ")}
+                              onClick={() => {
+                                if (isPast) return;
+                                setForm((prev) => ({ ...prev, date: cellStr }));
+                                setShowDatePicker(false);
+                              }}
+                            >{cell.day}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

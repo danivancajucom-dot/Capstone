@@ -1,6 +1,6 @@
 import "./faculty-reservations.css";
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   collection,
   query,
@@ -13,18 +13,27 @@ import { auth, db } from "../../firebase";
 // ─── Helper: normalize status case-insensitively ──────────────────────
 const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
 
+const ITEMS_PER_PAGE = 5;
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest to Oldest", icon: "fa-solid fa-arrow-down-long" },
+  { value: "oldest", label: "Oldest to Newest", icon: "fa-solid fa-arrow-up-long" },
+];
+
 function FacultyReservations() {
   const [activeTab, setActiveTab] = useState("all");
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ─── Search ───────────────────────────────────────────────────────
+  // ─── Search + Filter ──────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef(null);
 
-  // ─── Pagination ───────────────────────────────────────────────────
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  // ─── Load More ────────────────────────────────────────────────────
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
   useEffect(() => {
     if (!auth.currentUser) {
@@ -32,7 +41,6 @@ function FacultyReservations() {
       return;
     }
 
-    // Scoped to the logged-in faculty's own reservations only
     const q = query(
       collection(db, "reservationRequests"),
       where("userId", "==", auth.currentUser.uid),
@@ -58,50 +66,68 @@ function FacultyReservations() {
     return unsubscribe;
   }, []);
 
-  // Reset to page 1 whenever the tab or search term changes
+  // Close the filter dropdown on outside click
   useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchTerm]);
+    const handleClickOutside = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  // ── Filter (status tab + search, scoped to own reservations) ──────
-  const filteredReservations = reservations.filter((res) => {
-    const status = normalizeStatus(res.status);
+  // Reset visible items whenever tab, search or sort changes
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [activeTab, searchTerm, sortOrder]);
 
-    const matchesTab =
-      activeTab === "all" ||
-      (activeTab === "pending" && status === "pending") ||
-      (activeTab === "approved" && status === "approved") ||
-      (activeTab === "denied" && status === "rejected") ||
-      (activeTab === "cancelled" && status === "cancelled");
+  // ── Filter (status tab + search) ─────────────────────────────────
+  const filteredReservations = reservations
+    .filter((res) => {
+      const status = normalizeStatus(res.status);
 
-    if (!matchesTab) return false;
+      const matchesTab =
+        activeTab === "all" ||
+        (activeTab === "pending" && status === "pending") ||
+        (activeTab === "approved" && status === "approved") ||
+        (activeTab === "denied" && status === "rejected") ||
+        (activeTab === "cancelled" && status === "cancelled");
 
-    if (!searchTerm.trim()) return true;
+      if (!matchesTab) return false;
 
-    const term = searchTerm.toLowerCase();
-    const searchableFields = [
-      res.roomName,
-      res.courseTitle,
-      res.purpose,
-      res.date,
-      res.facultyName,
-    ];
+      if (!searchTerm.trim()) return true;
 
-    return searchableFields.some((field) =>
-      String(field || "").toLowerCase().includes(term)
-    );
-  });
+      const term = searchTerm.toLowerCase();
+      const searchableFields = [
+        res.roomName,
+        res.courseTitle,
+        res.purpose,
+        res.date,
+        res.facultyName,
+      ];
 
-  // ── Pagination calculations ───────────────────────────────────────
-  const totalItems = filteredReservations.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const paginatedReservations = filteredReservations.slice(startIndex, endIndex);
+      return searchableFields.some((field) =>
+        String(field || "").toLowerCase().includes(term)
+      );
+    })
+    .sort((a, b) => {
+      const aTime = a.createdAt?.toDate?.()?.getTime() || 0;
+      const bTime = b.createdAt?.toDate?.()?.getTime() || 0;
+      return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
+    });
 
-  const goToPage = (page) => {
-    setCurrentPage(Math.min(Math.max(1, page), totalPages));
+  // ── Visible slice for load-more ──────────────────────────────────
+  const visibleReservations = filteredReservations.slice(0, visibleCount);
+  const hasMore = filteredReservations.length > visibleCount;
+  const remainingCount = filteredReservations.length - visibleCount;
+
+  const handleLoadMore = () => {
+    setVisibleCount((prev) => prev + ITEMS_PER_PAGE);
   };
+
+  const activeSortLabel =
+    SORT_OPTIONS.find((o) => o.value === sortOrder)?.label || "Sort";
 
   // ── Render helpers ─────────────────────────────────────────────────
   const getStatusBadge = (status) => {
@@ -140,7 +166,6 @@ function FacultyReservations() {
   };
 
   // ── Render ──────────────────────────────────────────────────────────
-
   return (
     <div className="faculty-reservations-page">
       <div className="faculty-reservations-header">
@@ -151,25 +176,10 @@ function FacultyReservations() {
       </div>
 
       <div className="faculty-reservations-box">
-        {/* ── Tabs + Search ─────────────────────────────────────── */}
-        <div className="faculty-reservations-toolbar">
-          <div className="faculty-reservations-nav">
-            {["all", "pending", "approved", "denied", "cancelled"].map((tab) => (
-              <div
-                key={tab}
-                className={`faculty-nav-item ${activeTab === tab ? "active" : ""}`}
-                onClick={() => setActiveTab(tab)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") setActiveTab(tab);
-                }}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </div>
-            ))}
-          </div>
+        
 
+        {/* ── Search + Filter ───────────────────────────────────── */}
+        <div className="faculty-reservations-toolbar">
           <div className="faculty-search-container">
             <i className="fa-solid fa-magnifying-glass faculty-search-icon"></i>
             <input
@@ -189,7 +199,69 @@ function FacultyReservations() {
               </button>
             )}
           </div>
+
+          <div className="faculty-filter-wrap" ref={filterRef}>
+            <button
+              type="button"
+              className={`faculty-filter-btn ${filterOpen ? "open" : ""}`}
+              onClick={() => setFilterOpen((v) => !v)}
+              aria-label="Filter and sort"
+            >
+              <i className="fa-solid fa-sliders"></i>
+              <span>Filter</span>
+              <i className="fa-solid fa-chevron-down faculty-filter-caret"></i>
+            </button>
+
+            {filterOpen && (
+              <div className="faculty-filter-menu" role="menu">
+                <div className="faculty-filter-menu-head">
+                  <i className="fa-solid fa-arrow-down-wide-short"></i>
+                  <span>Sort by</span>
+                </div>
+                {SORT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="menuitem"
+                    className={`faculty-filter-option ${
+                      sortOrder === opt.value ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setSortOrder(opt.value);
+                      setFilterOpen(false);
+                    }}
+                  >
+                    <i className={opt.icon}></i>
+                    <span>{opt.label}</span>
+                    {sortOrder === opt.value && (
+                      <i className="fa-solid fa-check faculty-filter-check"></i>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* ── Tabs ──────────────────────────────────────────────── */}
+        <div className="faculty-reservations-nav">
+          {["all", "pending", "approved", "denied", "cancelled"].map((tab) => (
+            <div
+              key={tab}
+              className={`faculty-nav-item ${activeTab === tab ? "active" : ""}`}
+              onClick={() => setActiveTab(tab)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setActiveTab(tab);
+              }}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </div>
+          ))}
+        </div>
+
+      
 
         <hr className="faculty-reservations-divider" />
 
@@ -246,7 +318,7 @@ function FacultyReservations() {
         ) : (
           <>
             <div className="faculty-reservations-list">
-              {paginatedReservations.map((reservation) => {
+              {visibleReservations.map((reservation) => {
                 const statusInfo = getStatusBadge(reservation.status);
                 const statusIcon = getStatusIcon(reservation.status);
                 const statusColor = getStatusColor(reservation.status);
@@ -267,7 +339,6 @@ function FacultyReservations() {
                       }
                     }}
                   >
-                    {/* ── Card Header ───────────────────────────── */}
                     <div className="faculty-res-card-header">
                       <div className="faculty-res-card-user">
                         <div className="faculty-res-avatar">
@@ -291,7 +362,6 @@ function FacultyReservations() {
                       </div>
                     </div>
 
-                    {/* ── Card Details ───────────────────────────── */}
                     <div className="faculty-res-card-body">
                       <div className="faculty-res-detail-row">
                         <i className="fa-regular fa-calendar"></i>
@@ -315,7 +385,6 @@ function FacultyReservations() {
                       )}
                     </div>
 
-                    {/* ── Card Footer ────────────────────────────── */}
                     <div className="faculty-res-card-footer">
                       <span className="faculty-res-view-indicator">
                         View Details
@@ -327,43 +396,29 @@ function FacultyReservations() {
               })}
             </div>
 
-            {/* ── Pagination ─────────────────────────────────────── */}
-            {totalItems > 0 && (
-              <div className="faculty-pagination">
+            {/* ── Load More ─────────────────────────────────────── */}
+            {hasMore ? (
+              <div className="faculty-load-more-wrap">
                 <button
-                  className="faculty-page-btn"
-                  disabled={currentPage === 1}
-                  onClick={() => goToPage(currentPage - 1)}
+                  className="faculty-load-more-btn"
+                  onClick={handleLoadMore}
                 >
-                  <i className="fa-solid fa-chevron-left"></i>
+                  <i className="fa-solid fa-arrow-down"></i>
+                  Load More
+                  <span className="faculty-load-more-count">
+                    {remainingCount} remaining
+                  </span>
                 </button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <button
-                      key={page}
-                      className={`faculty-page-btn ${
-                        page === currentPage ? "active" : ""
-                      }`}
-                      onClick={() => goToPage(page)}
-                    >
-                      {page}
-                    </button>
-                  )
-                )}
-
-                <button
-                  className="faculty-page-btn"
-                  disabled={currentPage === totalPages}
-                  onClick={() => goToPage(currentPage + 1)}
-                >
-                  <i className="fa-solid fa-chevron-right"></i>
-                </button>
-
-                <span className="faculty-page-info">
-                  Showing {startIndex + 1}–{endIndex} of {totalItems}
-                </span>
               </div>
+            ) : (
+              filteredReservations.length > ITEMS_PER_PAGE && (
+                <div className="faculty-load-more-wrap">
+                  <span className="faculty-end-hint">
+                    <i className="fa-solid fa-check"></i>
+                    You've reached the end — {filteredReservations.length} total
+                  </span>
+                </div>
+              )
             )}
           </>
         )}

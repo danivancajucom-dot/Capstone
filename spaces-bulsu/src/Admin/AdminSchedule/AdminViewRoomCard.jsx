@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 import "./admin-view-room-card.css";
 import { normalizeScheduleItem } from "../../utils/normalizeScheduleItem";
+import { isActiveOnDate } from "../../utils/scheduleActivePeriod";
 
 import ScheduleCard from "../../Components/ScheduleCard/ScheduleCard";
 import ClassDetailsCard from "../../Components/ClassDetailsCard/ClassDetailsCard";
@@ -16,6 +17,13 @@ import { db } from "../../firebase";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
+// Must match CSS:
+//   • .lr-vr-time-slot { height: 60px }
+//   • .lr-vr-calendar-grid { height: 840px } = 14 × 60
+const HOUR_HEIGHT = 60;
+const CALENDAR_START_MINUTES = 7 * 60;
+const CARD_GAP = 2;
+
 // Local date string (YYYY-MM-DD) — avoids UTC shift
 const toDateStr = (date) => {
   const y = date.getFullYear();
@@ -25,7 +33,6 @@ const toDateStr = (date) => {
 };
 
 // ---------- COLOR HELPERS ----------
-// Pastel color for regular schedules (based on faculty name)
 const getFacultyColor = (faculty) => {
   if (!faculty) return "#E0E0E0";
   let hash = 0;
@@ -33,20 +40,19 @@ const getFacultyColor = (faculty) => {
     hash = faculty.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 70%, 80%)`; // pastel, lively
+  return `hsl(${hue}, 70%, 80%)`;
 };
 
-// Fixed lively colors for special categories
 const getCategoryColor = (source) => {
   switch (source) {
     case "event":
-      return "#4DD0E1"; // bright cyan (room activity)
+      return "#4DD0E1";
     case "reservation":
-      return "#FFB74D"; // soft orange (approved reservation)
+      return "#FFB74D";
     case "reassignment":
-      return "#81C784"; // soft green (moved into room)
+      return "#81C784";
     case "walkin":
-      return "#FFD54F"; // soft yellow (walk‑in)
+      return "#FFD54F";
     default:
       return "#E0E0E0";
   }
@@ -62,19 +68,19 @@ function AdminViewRoomCard() {
   const [schedules, setSchedules] = useState([]);
   const [events, setEvents] = useState([]);
   const [reservations, setReservations] = useState([]);
-  const [releasedKeys, setReleasedKeys] = useState(new Set());
+  const [releasedMap, setReleasedMap] = useState(new Map());
   const [reassignedAwayKeys, setReassignedAwayKeys] = useState(new Set());
   const [reassignedInto, setReassignedInto] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   useEffect(() => {
     loadSchedules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSchedules = async () => {
     if (!room?.id) return;
 
-    // ─── REGULAR SCHEDULES ──────────────────────────────────────
     const snapshot = await getDocs(
       collection(db, "rooms", room.id, "schedules")
     );
@@ -86,51 +92,34 @@ function AdminViewRoomCard() {
 
     setSchedules(list.filter((item) => !item.initialized));
 
-    // ─── ROOM ACTIVITIES (EVENTS) ──────────────────────────────
     const eventSnap = await getDocs(collection(db, "events"));
-
     const eventList = eventSnap.docs
-      .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
       .filter((event) => event.roomId === room.id);
-
     setEvents(eventList);
 
-    // ─── APPROVED RESERVATIONS (case‑insensitive) ──────────────
     const reservationSnap = await getDocs(
       collection(db, "reservationRequests")
     );
-
     const reservationList = reservationSnap.docs
-      .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
       .filter(
         (reservation) =>
           reservation.roomId === room.id &&
           String(reservation.status).toLowerCase() === "approved"
       );
-
     setReservations(reservationList);
 
-    // ─── RELEASED SCHEDULE OCCURRENCES ─────────────────────────
+    // ── Releases as Map (keyed by scheduleId_date) ──
     const releaseSnap = await getDocs(collection(db, "roomReleases"));
+    const map = new Map();
+    releaseSnap.docs
+      .map((d) => d.data())
+      .filter((r) => r.roomId === room.id)
+      .forEach((r) => map.set(`${r.scheduleId}_${r.date}`, r));
+    setReleasedMap(map);
 
-    const keys = new Set(
-      releaseSnap.docs
-        .map((d) => d.data())
-        .filter((r) => r.roomId === room.id)
-        .map((r) => `${r.scheduleId}_${r.date}`)
-    );
-
-    setReleasedKeys(keys);
-
-    // ─── APPROVED ROOM REASSIGNMENTS ───────────────────────────
     const reassignSnap = await getDocs(collection(db, "roomReassignments"));
-
     const roomReassignments = reassignSnap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter(
@@ -138,8 +127,6 @@ function AdminViewRoomCard() {
           String(r.status || "").toLowerCase() === "approved" &&
           (r.oldRoomId === room.id || r.newRoomId === room.id)
       );
-
-    // Moved out of this room
     setReassignedAwayKeys(
       new Set(
         roomReassignments
@@ -147,8 +134,6 @@ function AdminViewRoomCard() {
           .map((r) => `${r.scheduleId}_${r.date}`)
       )
     );
-
-    // Moved into this room
     setReassignedInto(
       roomReassignments.filter((r) => r.newRoomId === room.id)
     );
@@ -166,23 +151,23 @@ function AdminViewRoomCard() {
     return hour * 60 + minute;
   };
 
-  const HOUR_HEIGHT = 60;
-
+  // ✅ Aligned to hour lines (no more +10 offset)
   const getTopPosition = (startTime) => {
     const startMinutes = convertToMinutes(startTime);
-    const calendarStart = 7 * 60;
-    return ((startMinutes - calendarStart) / 60) * HOUR_HEIGHT + 10;
+    return ((startMinutes - CALENDAR_START_MINUTES) / 60) * HOUR_HEIGHT;
   };
 
+  // ✅ Exact duration height, minus a small gap
   const getCardHeight = (startTime, endTime) => {
     const startMinutes = convertToMinutes(startTime);
     const endMinutes = convertToMinutes(endTime);
-    return ((endMinutes - startMinutes) / 60) * 60;
+    const raw = ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT;
+    return Math.max(raw - CARD_GAP, 18);
   };
 
   const getStartOfWeek = (date) => {
     const d = new Date(date);
-    const day = d.getDay(); // 0 = Sunday
+    const day = d.getDay();
     const diff = day === 0 ? -6 : 1 - day;
     d.setDate(d.getDate() + diff);
     d.setHours(0, 0, 0, 0);
@@ -200,19 +185,11 @@ function AdminViewRoomCard() {
   const formatWeekRange = () => {
     const start = weekDates[0];
     const end = weekDates[6];
-
-    const startMonth = start.toLocaleString("default", {
-      month: "long",
-    });
-
-    const endMonth = end.toLocaleString("default", {
-      month: "long",
-    });
-
+    const startMonth = start.toLocaleString("default", { month: "long" });
+    const endMonth = end.toLocaleString("default", { month: "long" });
     if (start.getMonth() === end.getMonth()) {
       return `${startMonth} ${start.getDate()} - ${end.getDate()}, ${end.getFullYear()}`;
     }
-
     return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
   };
 
@@ -227,16 +204,13 @@ function AdminViewRoomCard() {
 
   const getItemsForDate = (date) => {
     const dateString = toDateStr(date);
-
     return [
       ...events
         .filter((e) => e.date === dateString)
         .map((e) => ({ ...e, _source: "event" })),
-
       ...reservations
         .filter((r) => r.date === dateString)
         .map((r) => ({ ...r, _source: "reservation" })),
-
       ...reassignedInto
         .filter((r) => r.date === dateString)
         .map((r) => ({ ...r, _source: "reassignment" })),
@@ -249,12 +223,12 @@ function AdminViewRoomCard() {
         <i
           className="fa-solid fa-arrow-left lr-back-arrow"
           onClick={() => {
-              if (window.history.length > 1) {
-                navigate(-1);
-              } else {
-                navigate("/local-registrar/academic-schedule");
-              }
-            }}
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate("/admin/schedule-view-academic-schedule");
+            }
+          }}
         ></i>
 
         <div className="lr-vr-white-box">
@@ -334,37 +308,66 @@ function AdminViewRoomCard() {
 
                     return (
                       <div className="lr-vr-calendar-day" key={day}>
-                        {/* REGULAR SCHEDULE — hide released & reassigned‑away */}
                         {getSchedulesByDay(day)
-                          .filter((schedule) => {
-                            if (
-                              releasedKeys.has(
-                                `${schedule.id}_${occurrenceDateStr}`
-                              )
-                            ) {
-                              return false;
+                          .map((schedule) => {
+                            // ✅ Respect activation window
+                            if (!isActiveOnDate(schedule, occurrenceDateStr)) {
+                              return null;
                             }
                             if (
                               reassignedAwayKeys.has(
                                 `${schedule.id}_${occurrenceDateStr}`
                               )
                             ) {
-                              return false;
+                              return null;
+                            }
+
+                            // ✅ Release handling
+                            const releaseInfo = releasedMap.get(
+                              `${schedule.id}_${occurrenceDateStr}`
+                            );
+                            let effectiveSchedule = schedule;
+
+                            if (releaseInfo) {
+                              // Upcoming release → hide entirely
+                              if (!releaseInfo.effectiveEndTime) return null;
+
+                              const endMin = convertToMinutes(
+                                releaseInfo.effectiveEndTime
+                              );
+                              const startMin = convertToMinutes(
+                                schedule.startTime
+                              );
+                              if (endMin <= startMin) return null;
+
+                              // Ongoing release → truncate end time
+                              effectiveSchedule = {
+                                ...schedule,
+                                endTime: releaseInfo.effectiveEndTime,
+                                isReleased: true,
+                                releasedAtTime: releaseInfo.effectiveEndTime,
+                              };
                             }
 
                             const sStart = convertToMinutes(
-                              schedule.startTime
+                              effectiveSchedule.startTime
                             );
-                            const sEnd = convertToMinutes(schedule.endTime);
+                            const sEnd = convertToMinutes(
+                              effectiveSchedule.endTime
+                            );
 
-                            return !dateEvents.some((event) => {
+                            const conflict = dateEvents.some((event) => {
                               const eStart = convertToMinutes(
                                 event.startTime
                               );
                               const eEnd = convertToMinutes(event.endTime);
                               return sStart < eEnd && sEnd > eStart;
                             });
+                            if (conflict) return null;
+
+                            return effectiveSchedule;
                           })
+                          .filter(Boolean)
                           .map((schedule) => (
                             <ScheduleCard
                               key={schedule.id}
@@ -379,14 +382,11 @@ function AdminViewRoomCard() {
                                   normalizeScheduleItem(schedule, "schedule")
                                 )
                               }
-                              // Faculty‑based pastel color
                               facultyColor={getFacultyColor(schedule.faculty)}
                             />
                           ))}
 
-                        {/* ROOM ACTIVITIES, RESERVATIONS, REASSIGNED‑IN */}
                         {dateEvents.map((event) => {
-                          // Determine category for color
                           let category;
                           let facultyName;
 
@@ -396,19 +396,25 @@ function AdminViewRoomCard() {
                           } else if (event._source === "reservation") {
                             category = "reservation";
                             facultyName =
-                              event.requesterName || event.facultyName || "Walk-in";
+                              event.requesterName ||
+                              event.facultyName ||
+                              "Walk-in";
                           } else if (event._source === "reassignment") {
                             category = "reassignment";
                             facultyName =
-                              event.facultyName || event.courseTitle || "Moved Class";
+                              event.facultyName ||
+                              event.courseTitle ||
+                              "Moved Class";
                           } else {
-                            // fallback (shouldn't happen)
                             category = "walkin";
                             facultyName = "Walk-in";
                           }
 
-                          // If it's a reservation but no requester, treat as walk‑in for color
-                          if (event._source === "reservation" && !event.requesterName && !event.facultyName) {
+                          if (
+                            event._source === "reservation" &&
+                            !event.requesterName &&
+                            !event.facultyName
+                          ) {
                             category = "walkin";
                           }
 
