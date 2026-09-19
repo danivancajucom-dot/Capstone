@@ -2,10 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./clerk-view-academic-schedule.css";
 import LRRoomCard from "../../Components/LRRoomCard/LRRoomCard";
-import {
-  collection,
-  onSnapshot,
-} from "firebase/firestore";
+import { isActiveOnDate } from "../../utils/scheduleActivePeriod";
+import { collection, onSnapshot } from "firebase/firestore";
 
 import { db } from "../../firebase";
 
@@ -80,22 +78,84 @@ const STATUS_OPTIONS = [
   "Under Maintenance",
 ];
 
+// ─── Date picker helpers ────────────────────────────────────────────
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const toDateInputValue = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "-";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+  return cells;
+};
+
 // ─── Main component ──────────────────────────────────────────────────
 function ClerkViewAcademicSchedule() {
   const navigate = useNavigate();
 
-  // ─── Building + Floor (top) ──────────────────────────────────────
   const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
   const [selectedFloor, setSelectedFloor] = useState("All Floors");
 
-  // ─── Floating filter panel ───────────────────────────────────────
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [startTime, setStartTime] = useState(getCurrentTime());
   const [endTime, setEndTime] = useState(getCurrentTime());
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-  // ─── Real-time state ─────────────────────────────────────────────
+  // ─── Building picker popover ────────────────────────────
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
+  const [buildingSearch, setBuildingSearch] = useState("");
+
+  // ─── Date picker popover ────────────────────────────────
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
   const [rooms, setRooms] = useState([]);
   const [roomSchedules, setRoomSchedules] = useState({});
   const [events, setEvents] = useState([]);
@@ -104,18 +164,15 @@ function ClerkViewAcademicSchedule() {
   const [reassignments, setReassignments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ─── Live ticker ─────────────────────────────────────────────────
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 30 * 1000);
     return () => clearInterval(id);
   }, []);
 
-  // ─── Pagination (load more) ──────────────────────────────────────
   const PAGE_SIZE = 8;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // ─── Listeners ───────────────────────────────────────────────────
   useEffect(() => {
     const unsubRooms = onSnapshot(collection(db, "rooms"), (snap) => {
       const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -160,7 +217,6 @@ function ClerkViewAcademicSchedule() {
     };
   }, []);
 
-  // ─── Per-room schedules listener ─────────────────────────────────
   useEffect(() => {
     if (rooms.length === 0) return;
 
@@ -182,44 +238,54 @@ function ClerkViewAcademicSchedule() {
     return () => unsubs.forEach((u) => u());
   }, [rooms.map((r) => r.id).join(",")]);
 
-  // ─── Reset pagination on filter change ───────────────────────────
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [selectedBuilding, selectedFloor, selectedStatus, selectedDate, startTime, endTime]);
+  }, [
+    selectedBuilding,
+    selectedFloor,
+    selectedStatus,
+    selectedDate,
+    startTime,
+    endTime,
+  ]);
 
-  // ─── Building options ────────────────────────────────────────────
   const buildingOptions = useMemo(() => {
     const set = new Set();
     rooms.forEach((r) => r.building && set.add(r.building));
     return ["All Buildings", ...Array.from(set).sort()];
   }, [rooms]);
 
-  // ─── Floor options depend on selected building ───────────────────
+  const filteredBuildings = useMemo(() => {
+    const q = buildingSearch.trim().toLowerCase();
+    if (!q) return buildingOptions;
+    return buildingOptions.filter((b) => String(b).toLowerCase().includes(q));
+  }, [buildingOptions, buildingSearch]);
+
   const floorOptions = useMemo(() => {
     const set = new Set();
     rooms
       .filter(
         (r) =>
-          selectedBuilding === "All Buildings" || r.building === selectedBuilding
+          selectedBuilding === "All Buildings" ||
+          r.building === selectedBuilding
       )
       .forEach((r) => r.floor && set.add(r.floor));
     return ["All Floors", ...Array.from(set).sort()];
   }, [rooms, selectedBuilding]);
 
-  // Reset floor if no longer valid
   useEffect(() => {
     if (!floorOptions.includes(selectedFloor)) {
       setSelectedFloor("All Floors");
     }
   }, [floorOptions, selectedFloor]);
 
-  // ─── Compute rooms with latest schedule and status ───────────────
   const computedRooms = useMemo(() => {
     const todayDay = new Date(selectedDate + "T00:00:00")
       .toLocaleDateString("en-US", { weekday: "short" })
       .toUpperCase();
 
-    // Compute time window
+    const selectedDateStr = selectedDate;
+
     const nowMinutes = getCurrentMinutes();
     let windowStart = startTime
       ? timeToMinutes(startTime)
@@ -262,17 +328,22 @@ function ClerkViewAcademicSchedule() {
       .map((room) => {
         const maintenance = isUnderMaintenance(room);
         const schedules = roomSchedules[room.id] || [];
-        const latestSchedule = getLatestSchedule(schedules);
+
+        const activeSchedules = schedules.filter((s) =>
+          isActiveOnDate(s, selectedDateStr)
+        );
+        const latestSchedule =
+          getLatestSchedule(activeSchedules) || getLatestSchedule(schedules);
 
         let occupied = false;
         let occupiedUntil = "";
         let currentSchedule = null;
 
-        // 1. Check schedules for the selected day
         const daySchedules = schedules.filter(
           (s) =>
             !s.initialized &&
             s.day?.toUpperCase() === todayDay &&
+            isActiveOnDate(s, selectedDateStr) &&
             !releaseKeysForDate.has(`${s.id}_${selectedDate}`) &&
             !reassignAwayKeysForDate.has(`${s.id}_${selectedDate}`)
         );
@@ -288,7 +359,6 @@ function ClerkViewAcademicSchedule() {
           }
         }
 
-        // 2. Events
         if (!occupied) {
           const roomEvents = events.filter(
             (e) => e.roomId === room.id && e.date === selectedDate
@@ -305,7 +375,6 @@ function ClerkViewAcademicSchedule() {
           }
         }
 
-        // 3. Reservations
         if (!occupied) {
           const roomReservations = reservations.filter(
             (r) => r.roomId === room.id && r.date === selectedDate
@@ -322,7 +391,6 @@ function ClerkViewAcademicSchedule() {
           }
         }
 
-        // 4. Reassigned-in
         if (!occupied) {
           const reassignInto = reassignIntoByRoom[room.id] || [];
           for (const item of reassignInto) {
@@ -352,7 +420,10 @@ function ClerkViewAcademicSchedule() {
         };
       })
       .filter((room) => {
-        if (selectedBuilding !== "All Buildings" && room.building !== selectedBuilding)
+        if (
+          selectedBuilding !== "All Buildings" &&
+          room.building !== selectedBuilding
+        )
           return false;
         if (selectedFloor !== "All Floors" && room.floor !== selectedFloor)
           return false;
@@ -377,7 +448,6 @@ function ClerkViewAcademicSchedule() {
     nowTick,
   ]);
 
-  // ─── Paginate ────────────────────────────────────────────────────
   const visibleRooms = computedRooms.slice(0, visibleCount);
   const hasMore = visibleCount < computedRooms.length;
 
@@ -385,7 +455,6 @@ function ClerkViewAcademicSchedule() {
     setVisibleCount((prev) => prev + PAGE_SIZE);
   };
 
-  // ─── Clear filters ───────────────────────────────────────────────
   const clearFilters = () => {
     setSelectedBuilding("All Buildings");
     setSelectedFloor("All Floors");
@@ -400,38 +469,113 @@ function ClerkViewAcademicSchedule() {
     selectedFloor !== "All Floors" ||
     selectedStatus !== "All Status";
 
-  // ─── Render ──────────────────────────────────────────────────────
   return (
     <div className="clerk-academic-schedule">
       <div className="lr-page-header">
         <h1>Academic Schedule</h1>
         <p>
-          View classroom schedules by building, floor, date, and time.
-          Status updates automatically in real time.
+          View classroom schedules by building, floor, date, and time. Status
+          updates automatically in real time.
         </p>
       </div>
 
       <div className="white-box-rooms">
-        {/* ─── BUILDING + FLOORS ──────────────────────────────── */}
         <div className="building-floor-filter">
           <div className="filter-group building-group">
             <label className="filter-label">Building</label>
-            <div className="dropdown-container">
-              <select
-                className="dropdown"
-                value={selectedBuilding}
-                onChange={(e) => {
-                  setSelectedBuilding(e.target.value);
-                  setSelectedFloor("All Floors");
+
+            <div className="cvas-buildingpicker">
+              <button
+                type="button"
+                className={`cvas-building-trigger ${
+                  showBuildingPicker ? "open" : ""
+                }`}
+                onClick={() => {
+                  setBuildingSearch("");
+                  setShowBuildingPicker((v) => !v);
                 }}
               >
-                {buildingOptions.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-              <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
+                <i className="fa-solid fa-building"></i>
+                <span className="cvas-building-trigger-text">
+                  {selectedBuilding || "All Buildings"}
+                </span>
+                <i
+                  className={`fa-solid fa-chevron-down cvas-building-caret ${
+                    showBuildingPicker ? "open" : ""
+                  }`}
+                ></i>
+              </button>
+
+              {showBuildingPicker && (
+                <>
+                  <div
+                    className="cvas-picker-clickaway"
+                    onClick={() => setShowBuildingPicker(false)}
+                  ></div>
+                  <div className="cvas-building-popover">
+                    <span className="cvas-popover-arrow"></span>
+
+                    <div className="cvas-search-wrap">
+                      <i className="fa-solid fa-magnifying-glass"></i>
+                      <input
+                        type="text"
+                        className="cvas-search"
+                        placeholder="Search building..."
+                        value={buildingSearch}
+                        onChange={(e) => setBuildingSearch(e.target.value)}
+                        autoFocus
+                      />
+                      {buildingSearch && (
+                        <button
+                          type="button"
+                          className="cvas-search-clear"
+                          onClick={() => setBuildingSearch("")}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="cvas-building-list">
+                      {filteredBuildings.length === 0 ? (
+                        <div className="cvas-picker-empty">
+                          <i className="fa-regular fa-face-frown"></i>
+                          <span>No buildings match.</span>
+                        </div>
+                      ) : (
+                        filteredBuildings.map((b) => {
+                          const isActive = b === selectedBuilding;
+                          return (
+                            <button
+                              type="button"
+                              key={b}
+                              className={`cvas-building-option ${
+                                isActive ? "is-active" : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedBuilding(b);
+                                setSelectedFloor("All Floors");
+                                setShowBuildingPicker(false);
+                                setBuildingSearch("");
+                              }}
+                            >
+                              <div className="cvas-building-option-icon">
+                                <i className="fa-solid fa-building"></i>
+                              </div>
+                              <span className="cvas-building-option-name">
+                                {b}
+                              </span>
+                              {isActive && (
+                                <i className="fa-solid fa-circle-check cvas-building-option-check"></i>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -440,7 +584,9 @@ function ClerkViewAcademicSchedule() {
               <button
                 key={f}
                 type="button"
-                className={`floor-btn-lr ${selectedFloor === f ? "active" : ""}`}
+                className={`floor-btn-lr ${
+                  selectedFloor === f ? "active" : ""
+                }`}
                 onClick={() => setSelectedFloor(f)}
               >
                 {f}
@@ -449,7 +595,6 @@ function ClerkViewAcademicSchedule() {
           </div>
         </div>
 
-        {/* ─── ACTIVE FILTER CHIPS ─────────────────────────────── */}
         <div className="active-filter-chips">
           <span className="filter-chip">
             <i className="fa-regular fa-calendar"></i>
@@ -465,7 +610,6 @@ function ClerkViewAcademicSchedule() {
           </span>
         </div>
 
-        {/* ─── ROOM CARDS ──────────────────────────────────────── */}
         <div className="lr-room-cards">
           {loading ? (
             <div className="room-empty">
@@ -477,7 +621,7 @@ function ClerkViewAcademicSchedule() {
             <div className="room-empty">
               <i className="fa-regular fa-building"></i>
               <h2>No Rooms Found</h2>
-              <p>No rooms match the selected filters or have schedules.</p>
+              <p>No rooms match the selected filters.</p>
             </div>
           ) : (
             visibleRooms.map((room) => (
@@ -513,7 +657,6 @@ function ClerkViewAcademicSchedule() {
         )}
       </div>
 
-      {/* ─── FLOATING FILTER BUTTON ────────────────────────────── */}
       <button
         type="button"
         className={`fab-filter-btn ${hasActiveFilters ? "has-active" : ""}`}
@@ -524,7 +667,6 @@ function ClerkViewAcademicSchedule() {
         {hasActiveFilters && <span className="fab-dot" />}
       </button>
 
-      {/* ─── FLOATING FILTER PANEL ─────────────────────────────── */}
       {showFilterPanel && (
         <>
           <div
@@ -546,15 +688,120 @@ function ClerkViewAcademicSchedule() {
             </div>
 
             <div className="filter-panel-body">
+              {/* ── DATE PICKER ── */}
               <div className="filter-group">
                 <label className="filter-label">Date</label>
-                <div className="dropdown-container">
-                  <input
-                    type="date"
-                    className="dropdown date-input"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                  />
+                <div className="cvas-datepicker">
+                  <button
+                    type="button"
+                    className={`cvas-date-trigger ${
+                      showDatePicker ? "open" : ""
+                    }`}
+                    onClick={() => {
+                      const base = selectedDate
+                        ? new Date(`${selectedDate}T00:00:00`)
+                        : new Date();
+                      setCalendarCursor({
+                        year: base.getFullYear(),
+                        month: base.getMonth(),
+                      });
+                      setShowDatePicker((v) => !v);
+                    }}
+                  >
+                    <i className="fa-regular fa-calendar"></i>
+                    <span>
+                      {selectedDate
+                        ? formatDateLong(selectedDate)
+                        : "Select a date"}
+                    </span>
+                    <i
+                      className={`fa-solid fa-chevron-down cvas-date-caret ${
+                        showDatePicker ? "open" : ""
+                      }`}
+                    ></i>
+                  </button>
+
+                  {showDatePicker && (
+                    <>
+                      <div
+                        className="cvas-picker-clickaway"
+                        onClick={() => setShowDatePicker(false)}
+                      ></div>
+                      <div className="cvas-date-popover">
+                        <span className="cvas-popover-arrow"></span>
+
+                        <div className="cvas-cal-header">
+                          <button
+                            type="button"
+                            className="cvas-cal-nav"
+                            onClick={() =>
+                              setCalendarCursor((c) => {
+                                const m = c.month - 1;
+                                return m < 0
+                                  ? { year: c.year - 1, month: 11 }
+                                  : { year: c.year, month: m };
+                              })
+                            }
+                          >
+                            <i className="fa-solid fa-chevron-left"></i>
+                          </button>
+                          <span className="cvas-cal-title">
+                            {MONTH_NAMES[calendarCursor.month]}{" "}
+                            {calendarCursor.year}
+                          </span>
+                          <button
+                            type="button"
+                            className="cvas-cal-nav"
+                            onClick={() =>
+                              setCalendarCursor((c) => {
+                                const m = c.month + 1;
+                                return m > 11
+                                  ? { year: c.year + 1, month: 0 }
+                                  : { year: c.year, month: m };
+                              })
+                            }
+                          >
+                            <i className="fa-solid fa-chevron-right"></i>
+                          </button>
+                        </div>
+
+                        <div className="cvas-cal-weekdays">
+                          {WEEKDAY_LABELS.map((w) => (
+                            <span key={w}>{w}</span>
+                          ))}
+                        </div>
+
+                        <div className="cvas-cal-grid">
+                          {buildCalendarGrid(
+                            calendarCursor.year,
+                            calendarCursor.month
+                          ).map((cell, i) => {
+                            const cellStr = toDateInputValue(cell.date);
+                            const isSelected = cellStr === selectedDate;
+                            return (
+                              <button
+                                type="button"
+                                key={i}
+                                className={[
+                                  "cvas-cal-day",
+                                  !cell.inMonth && "is-outside",
+                                  isSelected && "is-selected",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                onClick={() => {
+                                  setSelectedDate(cellStr);
+                                  setShowDatePicker(false);
+                                }}
+                              >
+                                {cell.day}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

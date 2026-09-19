@@ -15,7 +15,6 @@ body {
   background-color: #F8F7F5;
 }
 
-
 .faculty-reservations-header {
   display: flex;
   flex-direction: column;
@@ -33,14 +32,11 @@ body {
 }
 
 .faculty-reservations-subtitle {
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 15px;
   color: #6b7280;
-  margin: 4px 0 0;
   font-weight: 300;
 }
- 
-  
 
 .faculty-reservations-box {
   background-color: #ffffff;
@@ -57,7 +53,15 @@ body {
 .faculty-reservations-nav {
   display: flex;
   gap: 36px;
-  padding: 6px 16px 0;
+  padding: 6px 4px 0;
+  border-bottom: 1px solid #ECEAE6;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.faculty-reservations-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .faculty-nav-item {
@@ -69,6 +73,8 @@ body {
   border-bottom: 2px solid transparent;
   transition: color 0.18s ease, border-color 0.18s ease;
   outline: none;
+  white-space: nowrap;
+  margin-bottom: -1px;
 }
 
 .faculty-nav-item:hover {
@@ -83,7 +89,240 @@ body {
 .faculty-reservations-divider {
   border: none;
   border-top: 1px solid #ECEAE6;
-  margin: 0 0 16px;
+  margin: 0 0 14px;
+}
+
+/* ── Toolbar (search + filter) ─────────────────────────────────── */
+.faculty-reservations-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+/* ── Search ─────────────────────────────────────────────────────── */
+.faculty-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+
+.faculty-search-icon {
+  position: absolute;
+  left: 14px;
+  color: #94A3B8;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.faculty-search-input {
+  width: 100%;
+  padding: 10px 36px 10px 38px;
+  border-radius: 8px;
+  border: 1px solid #E2E1DE;
+  font-size: 14px;
+  color: #1E2430;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: "Lexend", sans-serif;
+  background-color: #FAFAF9;
+}
+
+.faculty-search-input::placeholder {
+  color: #94A3B8;
+}
+
+.faculty-search-input:focus {
+  border-color: #f57c00;
+  background-color: #ffffff;
+}
+
+.faculty-search-clear {
+  position: absolute;
+  right: 10px;
+  border: none;
+  background: none;
+  color: #94A3B8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.faculty-search-clear:hover {
+  color: #f57c00;
+  background-color: #FEF0E7;
+}
+
+/* ── Filter Button + Dropdown ───────────────────────────────────── */
+.faculty-filter-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.faculty-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #E2E1DE;
+  background: #FAFAF9;
+  color: #374151;
+  font-family: "Lexend", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.faculty-filter-btn:hover {
+  background: #fff8f0;
+  border-color: #f57c00;
+  color: #f57c00;
+}
+
+.faculty-filter-btn.open {
+  background: #FFF3E8;
+  border-color: #f57c00;
+  color: #f57c00;
+}
+
+.faculty-filter-btn > i:first-child {
+  font-size: 13px;
+}
+
+.faculty-filter-caret {
+  font-size: 10px;
+  margin-left: 2px;
+  transition: transform 0.2s;
+}
+
+.faculty-filter-btn.open .faculty-filter-caret {
+  transform: rotate(180deg);
+}
+
+.faculty-filter-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 230px;
+  background: #ffffff;
+  border: 1px solid #ECEAE6;
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(20, 20, 20, 0.12);
+  padding: 6px;
+  z-index: 40;
+  animation: filter-pop 0.16s ease;
+}
+
+@keyframes filter-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.faculty-filter-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid #F3F4F6;
+  margin-bottom: 4px;
+}
+
+.faculty-filter-menu-head i {
+  font-size: 11px;
+  color: #f57c00;
+}
+
+.faculty-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #374151;
+  font-family: "Lexend", sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.faculty-filter-option i:first-child {
+  font-size: 12px;
+  color: #94A3B8;
+  width: 14px;
+  text-align: center;
+}
+
+.faculty-filter-option:hover {
+  background: #FFF3E8;
+  color: #f57c00;
+}
+
+.faculty-filter-option:hover i:first-child {
+  color: #f57c00;
+}
+
+.faculty-filter-option.active {
+  background: #FFF3E8;
+  color: #f57c00;
+}
+
+.faculty-filter-option.active i:first-child {
+  color: #f57c00;
+}
+
+.faculty-filter-check {
+  margin-left: auto;
+  font-size: 11px;
+  color: #f57c00;
+}
+
+/* ── Active sort hint ───────────────────────────────────────────── */
+.faculty-active-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #94A3B8;
+  font-weight: 500;
+  margin-bottom: 12px;
+  padding-left: 2px;
+}
+
+.faculty-active-sort i {
+  font-size: 11px;
+  color: #f57c00;
+}
+
+.faculty-active-sort strong {
+  color: #374151;
+  font-weight: 700;
 }
 
 /* ── Cards List ──────────────────────────────────────────────────── */
@@ -91,7 +330,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 8px 4px;
+  padding: 4px 0;
 }
 
 /* ── Single Card ────────────────────────────────────────────────── */
@@ -101,6 +340,7 @@ body {
   border-radius: 16px;
   padding: 18px 22px;
   box-shadow: 0px 2px 8px rgba(20, 20, 20, 0.05);
+  cursor: pointer;
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
@@ -203,32 +443,30 @@ body {
   padding-top: 12px;
 }
 
-.faculty-res-view-btn {
-  display: inline-flex;
+.faculty-res-view-indicator {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 20px;
-  border: 1.5px solid #f57c00;
-  background: transparent;
-  color: #f57c00;
-  border-radius: 8px;
   font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: 0.2s;
-  font-family: "Lexend", sans-serif;
+  font-weight: 600;
+  color: #f57c00;
+  transition: gap 0.2s ease;
 }
 
-.faculty-res-view-btn:hover {
-  background: #FEF0E7;
+.faculty-res-view-indicator i {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.faculty-reservation-card:hover .faculty-res-view-indicator {
+  gap: 12px;
+}
+
+.faculty-reservation-card:hover .faculty-res-view-indicator i {
   transform: translateX(3px);
 }
 
-.faculty-res-view-btn i {
-  font-size: 12px;
-}
-
-/* ── Add Button ─────────────────────────────────────────────────── */
+/* ── Add Button (FAB) ───────────────────────────────────────────── */
 .faculty-add-btn {
   position: fixed;
   bottom: 40px;
@@ -311,11 +549,85 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: 0.2s;
+  font-family: "Lexend", sans-serif;
 }
 
 .faculty-empty-btn:hover {
   background: #db620b;
   transform: translateY(-2px);
+}
+
+/* ── Load More ──────────────────────────────────────────────────── */
+.faculty-load-more-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 22px 0 8px;
+  margin-top: 8px;
+}
+
+.faculty-load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 26px;
+  border-radius: 999px;
+  border: 1.5px solid #f57c00;
+  background: #ffffff;
+  color: #f57c00;
+  font-family: "Lexend", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, transform 0.15s,
+    box-shadow 0.15s;
+}
+
+.faculty-load-more-btn:hover {
+  background: #f57c00;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(245, 124, 0, 0.28);
+}
+
+.faculty-load-more-btn:active {
+  transform: translateY(0);
+}
+
+.faculty-load-more-btn i {
+  font-size: 12px;
+}
+
+.faculty-load-more-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #fff3e8;
+  color: #f57c00;
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-left: 4px;
+  transition: background 0.18s, color 0.18s;
+}
+
+.faculty-load-more-btn:hover .faculty-load-more-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.faculty-end-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94A3B8;
+}
+
+.faculty-end-hint i {
+  color: #22c55e;
+  font-size: 12px;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────── */
@@ -329,11 +641,11 @@ body {
   }
 
   .faculty-reservations-box {
-    padding: 12px;
+    padding: 14px;
   }
 
   .faculty-reservations-nav {
-    gap: 20px;
+    gap: 22px;
   }
 
   .faculty-res-card-body {
@@ -354,11 +666,6 @@ body {
     justify-content: stretch;
   }
 
-  .faculty-res-view-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
   .faculty-add-btn {
     bottom: 20px;
     right: 20px;
@@ -366,205 +673,25 @@ body {
     height: 54px;
     font-size: 20px;
   }
-}
 
-/* ── Make the whole card clickable ────────────────────────────── */
-.faculty-reservation-card {
-  cursor: pointer;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.faculty-reservation-card:hover {
-  box-shadow: 0px 8px 20px rgba(20, 20, 20, 0.08);
-  transform: translateY(-2px);
-}
-
-.faculty-res-card-footer {
-  display: flex;
-  justify-content: flex-end;
-  border-top: 1px solid #F3F4F6;
-  padding-top: 12px;
-}
-
-.faculty-res-view-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #f57c00;
-  transition: gap 0.2s ease;
-}
-
-.faculty-res-view-indicator i {
-  font-size: 12px;
-  transition: transform 0.2s ease;
-}
-
-.faculty-reservation-card:hover .faculty-res-view-indicator {
-  gap: 12px;
-}
-
-.faculty-reservation-card:hover .faculty-res-view-indicator i {
-  transform: translateX(3px);
-}
-
-/* ── Toolbar (tabs + search) ────────────────────────────────────── */
-.faculty-reservations-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 6px 16px 0;
-  margin-bottom: 16px; 
-}
-
-.faculty-reservations-toolbar .faculty-reservations-nav {
-  padding: 0;
-}
-
-/* ── Search ─────────────────────────────────────────────────────── */
-.faculty-search-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-width: 260px;
-  flex: 0 1 320px;
-}
-
-.faculty-search-icon {
-  position: absolute;
-  left: 14px;
-  color: #94A3B8;
-  font-size: 14px;
-  pointer-events: none;
-}
-
-.faculty-search-input {
-  width: 100%;
-  padding: 10px 36px 10px 38px;
-  border-radius: 8px;
-  border: 1px solid #E2E1DE;
-  font-size: 14px;
-  color: #1E2430;
-  outline: none;
-  transition: border-color 0.2s;
-  font-family: "Lexend", sans-serif;
-  background-color: #FAFAF9;
-}
-
-.faculty-search-input::placeholder {
-  color: #94A3B8;
-}
-
-.faculty-search-input:focus {
-  border-color: #f57c00;
-  background-color: #ffffff;
-}
-
-.faculty-search-clear {
-  position: absolute;
-  right: 10px;
-  border: none;
-  background: none;
-  color: #94A3B8;
-  cursor: pointer;
-  font-size: 13px;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: 0.2s;
-}
-
-.faculty-search-clear:hover {
-  color: #f57c00;
-  background-color: #FEF0E7;
-}
-
-/* ── Pagination ─────────────────────────────────────────────────── */
-.faculty-pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 24px;
-  padding-top: 16px;
-  flex-wrap: wrap;
-}
-
-.faculty-page-btn {
-  min-width: 36px;
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid #E2E1DE;
-  background: white;
-  color: #374151;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: 0.2s;
-  font-family: "Lexend", sans-serif;
-}
-
-.faculty-page-btn:hover:not(:disabled) {
-  border-color: #f57c00;
-  color: #f57c00;
-}
-
-.faculty-page-btn.active {
-  background: #f57c00;
-  border-color: #f57c00;
-  color: white;
-}
-
-.faculty-page-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.faculty-page-info {
-  margin-left: 12px;
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-/* ── Responsive ─────────────────────────────────────────────────── */
-@media (max-width: 768px) {
   .faculty-reservations-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .faculty-search-container {
-    min-width: 100%;
-    flex: 1 1 auto;
-  }
-
-  .faculty-pagination {
-    gap: 4px;
-  }
-
-  .faculty-page-btn {
-    min-width: 32px;
-    height: 32px;
-    font-size: 12px;
-  }
-
-  .faculty-page-info {
+  .faculty-filter-wrap,
+  .faculty-filter-btn {
     width: 100%;
-    text-align: center;
-    margin-left: 0;
-    margin-top: 8px;
+    justify-content: center;
   }
-}
 
-.faculty-reservations-divider {
-  border: none;
-  border-top: 1px solid #ECEAE6;
-  margin: 0 0 14px;
+  .faculty-filter-menu {
+    left: 0;
+    right: 0;
+  }
+
+  .faculty-load-more-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }

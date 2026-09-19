@@ -1034,3 +1034,601 @@
   gap: 16px;
   flex-wrap: wrap;
 }
+integrate mo yung date and room picker dito, and past date is not allowed ha.rut-datepicker {
+  position: relative;
+  width: 100%;
+}
+
+.rut-date-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #fff;
+  font-family: "Lexend", sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.rut-date-trigger > i:first-child {
+  color: #f57c00;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.rut-date-trigger > span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rut-date-trigger:hover {
+  border-color: #d1d5db;
+}
+
+.rut-date-trigger.open,
+.rut-date-trigger:focus {
+  outline: none;
+  border-color: #f57c00;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.12);
+}
+
+.rut-date-caret {
+  font-size: 11px;
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.rut-date-caret.open {
+  transform: rotate(180deg);
+}
+
+/* ── Click-away layer ── */
+.rut-date-clickaway {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: transparent;
+}
+
+/* ── Popover ── */
+.rut-date-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.05),
+    0 12px 40px rgba(0, 0, 0, 0.18);
+  padding: 14px;
+  z-index: 50;
+  width: 320px;
+  animation: rut-pop-in 0.15s ease-out;
+}
+
+.rut-date-popover-arrow {
+  position: absolute;
+  top: -6px;
+  left: 26px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  box-shadow: -2px -2px 4px rgba(0, 0, 0, 0.03);
+}
+
+/* ── Quick row (Today / Tomorrow) ── */
+.rut-date-quick-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.rut-date-quick-row > button {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-family: "Lexend", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.rut-date-quick-row > button:hover {
+  border-color: #f57c00;
+  color: #f57c00;
+  background: #fff7ed;
+}
+
+.rut-date-quick-row > button.active {
+  background: #f57c00;
+  border-color: #f57c00;
+  color: #fff;
+}
+
+/* ── Calendar header ── */
+.rut-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.rut-cal-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: 0.01em;
+}
+
+.rut-cal-nav {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: #f4f6f9;
+  color: #5c6378;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  transition: 0.15s;
+}
+
+.rut-cal-nav:hover {
+  background: #fef0e7;
+  color: #f57c00;
+}
+
+/* ── Weekday labels ── */
+.rut-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.rut-cal-weekdays > span {
+  font-size: 10px;
+  font-weight: 800;
+  color: #9ca3af;
+  text-align: center;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+
+/* ── Calendar grid ── */
+.rut-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.rut-cal-day {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: none;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: "Lexend", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 0.12s ease;
+}
+
+.rut-cal-day:hover:not(:disabled):not(.is-selected) {
+  background: #fef0e7;
+  color: #f57c00;
+}
+
+.rut-cal-day.is-outside {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.rut-cal-day.is-selected {
+  background: #f57c00;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(245, 124, 0, 0.3);
+}
+
+.rut-cal-day.is-disabled {
+  color: #d1d5db;
+  cursor: not-allowed;
+  background: #fafafa;
+}
+
+.rut-cal-day.is-disabled:hover {
+  background: #fafafa;
+  color: #d1d5db;
+}
+
+@keyframes rut-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ROOM PICKER — custom popover (may search)
+   ═══════════════════════════════════════════════════════════════ */
+.rut-roompicker {
+  position: relative;
+  width: 100%;
+}
+
+.rut-room-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #fff;
+  font-family: "Lexend", sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.rut-room-trigger > i:first-child {
+  color: #f57c00;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.rut-room-trigger-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.rut-room-trigger-floor {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f57c00;
+  background: #fef0e7;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rut-room-trigger:hover {
+  border-color: #d1d5db;
+}
+
+.rut-room-trigger.open,
+.rut-room-trigger:focus {
+  outline: none;
+  border-color: #f57c00;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.12);
+}
+
+.rut-room-caret {
+  font-size: 11px;
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.rut-room-caret.open {
+  transform: rotate(180deg);
+}
+
+/* ── Click-away ── */
+.rut-room-clickaway {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: transparent;
+}
+
+/* ── Popover ── */
+.rut-room-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.05),
+    0 12px 40px rgba(0, 0, 0, 0.18);
+  padding: 12px;
+  z-index: 50;
+  width: 340px;
+  max-width: calc(100vw - 40px);
+  animation: rut-pop-in 0.15s ease-out;
+}
+
+.rut-room-popover-arrow {
+  position: absolute;
+  top: -6px;
+  left: 26px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  box-shadow: -2px -2px 4px rgba(0, 0, 0, 0.03);
+}
+
+/* ── Search input ── */
+.rut-room-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  margin-bottom: 10px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.rut-room-search-wrap:focus-within {
+  border-color: #f57c00;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.1);
+}
+
+.rut-room-search-wrap > i {
+  color: #9ca3af;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.rut-room-search-wrap:focus-within > i {
+  color: #f57c00;
+}
+
+.rut-room-search {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: "Lexend", sans-serif;
+  font-size: 13px;
+  color: #1a1a1a;
+}
+
+.rut-room-search::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.rut-room-search-clear {
+  background: #e5e7eb;
+  border: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 10px;
+  flex-shrink: 0;
+  transition: 0.15s;
+}
+
+.rut-room-search-clear:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* ── Room list ── */
+.rut-room-list {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 2px;
+}
+
+.rut-room-list::-webkit-scrollbar {
+  width: 6px;
+}
+.rut-room-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+.rut-room-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.rut-room-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: "Lexend", sans-serif;
+  transition: background 0.12s ease;
+  width: 100%;
+}
+
+.rut-room-option:hover {
+  background: #fef0e7;
+}
+
+.rut-room-option.is-active {
+  background: #fff7ed;
+  box-shadow: inset 0 0 0 1.5px #f57c00;
+}
+
+.rut-room-option-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f4f6f9;
+  color: #6b7280;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: 0.15s;
+}
+
+.rut-room-option:hover .rut-room-option-icon,
+.rut-room-option.is-active .rut-room-option-icon {
+  background: #f57c00;
+  color: #fff;
+}
+
+.rut-room-option-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rut-room-option-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rut-room-option-meta {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.rut-room-option-meta i {
+  font-size: 9px;
+  color: #9ca3af;
+}
+
+.rut-room-dot {
+  color: #d1d5db;
+  margin: 0 2px;
+}
+
+.rut-room-option-check {
+  color: #f57c00;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Empty state ── */
+.rut-room-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: #9ca3af;
+  font-size: 13px;
+  text-align: center;
+}
+
+.rut-room-empty i {
+  font-size: 28px;
+  color: #d1d5db;
+}
+
+/* ─── Refresh button: loading state ──────────────────────── */
+.rut-track-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  filter: saturate(0.85);
+}
+
+.rut-track-btn:disabled:hover {
+  background: #f57c00;
+  color: #fff;
+  border-color: #f57c00;
+}
+
+
+
+
+/* ============================================================
+   ROOM ACTIVITY PICKER OVERRIDES
+   Past dates are not selectable.
+   ============================================================ */
+.ra-roompicker,
+.ra-datepicker {
+  position: relative;
+  width: 100%;
+}
+
+.ra-roompicker .rut-room-trigger,
+.ra-datepicker .rut-date-trigger {
+  width: 100%;
+}
+
+.ra-datepicker .rut-cal-day.is-disabled {
+  color: #d1d5db;
+  cursor: not-allowed;
+  background: #fafafa;
+  opacity: 0.65;
+}
+
+.ra-datepicker .rut-cal-day.is-disabled:hover {
+  background: #fafafa;
+  color: #d1d5db;
+}
+
+.ra-datepicker .rut-cal-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .ra-datepicker .rut-date-popover,
+  .ra-roompicker .rut-room-popover {
+    max-width: calc(100vw - 40px);
+  }
+}

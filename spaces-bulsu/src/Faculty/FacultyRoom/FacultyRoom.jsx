@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
+import { isActiveOnDate } from "../../utils/scheduleActivePeriod";
 import Toast from "../../Popup/Toast/Toast";
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -58,21 +59,81 @@ const STATUS_OPTIONS = [
   "Under Maintenance",
 ];
 
+// ─── Date picker helpers ────────────────────────────────────────────
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const toDateInputValue = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "-";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", {
+    month: "long", day: "numeric", year: "numeric",
+  });
+};
+
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+  return cells;
+};
+
 export default function FacultyRoom() {
   const navigate = useNavigate();
 
-  // ─── Building + Floor ────────────────────────────────────────
   const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
   const [selectedFloor, setSelectedFloor] = useState("All Floors");
 
-  // ─── Floating filter panel ───────────────────────────────────
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [startTime, setStartTime] = useState(getCurrentTime());
   const [endTime, setEndTime] = useState(getCurrentTime());
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-  // ─── Realtime data ───────────────────────────────────────────
+  // ── Building picker popover ────────────────────────────────
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
+  const [buildingSearch, setBuildingSearch] = useState("");
+
+  // ── Date picker popover state ──
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
   const [roomsData, setRoomsData] = useState([]);
   const [schedulesData, setSchedulesData] = useState([]);
   const [eventsData, setEventsData] = useState([]);
@@ -81,11 +142,9 @@ export default function FacultyRoom() {
   const [reassignmentsData, setReassignmentsData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ─── Notify Me watches ───────────────────────────────────────
   const [myWatches, setMyWatches] = useState([]);
   const [watchBusyRoomId, setWatchBusyRoomId] = useState(null);
 
-  // ─── Toast ───────────────────────────────────────────────────
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -97,14 +156,12 @@ export default function FacultyRoom() {
     setTimeout(() => setToast((p) => ({ ...p, show: false })), 3500);
   };
 
-  // ─── Live ticker ─────────────────────────────────────────────
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 30 * 1000);
     return () => clearInterval(id);
   }, []);
 
-  // ─── Realtime subscriptions ──────────────────────────────────
   useEffect(() => {
     const unsubs = [];
 
@@ -154,7 +211,9 @@ export default function FacultyRoom() {
           setReservationsData(
             snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
-              .filter((r) => String(r.status || "").toLowerCase() === "approved")
+              .filter(
+                (r) => String(r.status || "").toLowerCase() === "approved"
+              )
           );
         },
         (err) => console.error("reservations listener:", err)
@@ -177,7 +236,9 @@ export default function FacultyRoom() {
           setReassignmentsData(
             snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
-              .filter((r) => String(r.status || "").toLowerCase() === "approved")
+              .filter(
+                (r) => String(r.status || "").toLowerCase() === "approved"
+              )
           );
         },
         (err) => console.error("reassignments listener:", err)
@@ -187,7 +248,6 @@ export default function FacultyRoom() {
     return () => unsubs.forEach((u) => u());
   }, []);
 
-  // ─── Subscribe to user's own watches ─────────────────────────
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -208,7 +268,6 @@ export default function FacultyRoom() {
     return () => unsub();
   }, []);
 
-  // ─── Group schedules by room ─────────────────────────────────
   const schedulesByRoom = useMemo(() => {
     const map = new Map();
     schedulesData.forEach((s) => {
@@ -219,20 +278,28 @@ export default function FacultyRoom() {
     return map;
   }, [schedulesData]);
 
-  // ─── Building options ────────────────────────────────────────
   const buildingOptions = useMemo(() => {
     const set = new Set();
     roomsData.forEach((r) => r.building && set.add(r.building));
     return ["All Buildings", ...Array.from(set).sort()];
   }, [roomsData]);
 
-  // ─── Floor options ───────────────────────────────────────────
+  // Filtered list of buildings (for the search input inside picker)
+  const filteredBuildings = useMemo(() => {
+    const q = buildingSearch.trim().toLowerCase();
+    if (!q) return buildingOptions;
+    return buildingOptions.filter((b) =>
+      String(b).toLowerCase().includes(q)
+    );
+  }, [buildingOptions, buildingSearch]);
+
   const floorOptions = useMemo(() => {
     const set = new Set();
     roomsData
       .filter(
         (r) =>
-          selectedBuilding === "All Buildings" || r.building === selectedBuilding
+          selectedBuilding === "All Buildings" ||
+          r.building === selectedBuilding
       )
       .forEach((r) => r.floor && set.add(r.floor));
     return ["All Floors", ...Array.from(set).sort()];
@@ -244,9 +311,6 @@ export default function FacultyRoom() {
     }
   }, [floorOptions, selectedFloor]);
 
-  // ════════════════════════════════════════════════════════════════
-  // Availability check — used by watches
-  // ════════════════════════════════════════════════════════════════
   const isRoomAvailableAt = (roomId, date, sTime, eTime) => {
     const roomData = roomsData.find((r) => r.id === roomId);
     if (!roomData) return false;
@@ -276,40 +340,45 @@ export default function FacultyRoom() {
         .map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    // Schedules
     const schedules = schedulesByRoom.get(roomId) || [];
     for (const s of schedules) {
       if (s.initialized) continue;
       if (s.day?.toUpperCase() !== day) continue;
+      if (!isActiveOnDate(s, date)) continue;
       const key = `${s.id}_${date}`;
       if (releaseSet.has(key)) continue;
       if (awaySet.has(key)) continue;
-      if (overlaps(convertToMinutes(s.startTime), convertToMinutes(s.endTime))) {
+      if (
+        overlaps(convertToMinutes(s.startTime), convertToMinutes(s.endTime))
+      ) {
         return false;
       }
     }
 
-    // Events
     for (const e of eventsData) {
       if (e.roomId !== roomId || e.date !== date) continue;
       if (e.status === "Cancelled") continue;
-      if (overlaps(convertToMinutes(e.startTime), convertToMinutes(e.endTime))) {
+      if (
+        overlaps(convertToMinutes(e.startTime), convertToMinutes(e.endTime))
+      ) {
         return false;
       }
     }
 
-    // Reservations
     for (const r of reservationsData) {
       if (r.roomId !== roomId || r.date !== date) continue;
-      if (overlaps(convertToMinutes(r.startTime), convertToMinutes(r.endTime))) {
+      if (
+        overlaps(convertToMinutes(r.startTime), convertToMinutes(r.endTime))
+      ) {
         return false;
       }
     }
 
-    // Reassigned-in
     for (const r of reassignmentsData) {
       if (r.date !== date || r.newRoomId !== roomId) continue;
-      if (overlaps(convertToMinutes(r.startTime), convertToMinutes(r.endTime))) {
+      if (
+        overlaps(convertToMinutes(r.startTime), convertToMinutes(r.endTime))
+      ) {
         return false;
       }
     }
@@ -317,9 +386,6 @@ export default function FacultyRoom() {
     return true;
   };
 
-  // ════════════════════════════════════════════════════════════════
-  // Auto-notify when watched room becomes available
-  // ════════════════════════════════════════════════════════════════
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -338,7 +404,6 @@ export default function FacultyRoom() {
 
         if (!available) return;
 
-        // Send in-app notification
         await addDoc(collection(db, "notifications"), {
           userId: uid,
           ownerType: "faculty",
@@ -356,7 +421,6 @@ export default function FacultyRoom() {
           createdAt: serverTimestamp(),
         });
 
-        // Delete the watch (served its purpose)
         await deleteDoc(doc(db, "roomAvailabilityWatches", watch.id));
 
         showToast(
@@ -380,7 +444,6 @@ export default function FacultyRoom() {
     nowTick,
   ]);
 
-  // ─── Processed rooms ─────────────────────────────────────────
   const processedRooms = useMemo(() => {
     if (roomsData.length === 0) return [];
 
@@ -397,7 +460,8 @@ export default function FacultyRoom() {
       : startTime
       ? convertToMinutes(startTime)
       : nowMinutes;
-    if (windowStart > windowEnd) [windowStart, windowEnd] = [windowEnd, windowStart];
+    if (windowStart > windowEnd)
+      [windowStart, windowEnd] = [windowEnd, windowStart];
 
     const overlaps = (startMin, endMin) =>
       startMin <= windowEnd && endMin >= windowStart;
@@ -436,7 +500,8 @@ export default function FacultyRoom() {
 
       const maintenance =
         isRoomUnderMaintenance(roomData, selectedDate, startTime, endTime) ||
-        String(roomData?.roomStatus || "").trim().toLowerCase() === "maintenance";
+        String(roomData?.roomStatus || "").trim().toLowerCase() ===
+          "maintenance";
 
       if (maintenance) {
         result.push({
@@ -458,6 +523,7 @@ export default function FacultyRoom() {
       schedules.forEach((sched) => {
         if (sched.initialized) return;
         if (sched.day?.toUpperCase() !== selectedDay) return;
+        if (!isActiveOnDate(sched, selectedDate)) return;
         const key = `${sched.id}_${selectedDate}`;
         if (releasesForRoom.has(key)) return;
         if (reassignAwayForRoom.has(key)) return;
@@ -531,7 +597,6 @@ export default function FacultyRoom() {
     nowTick,
   ]);
 
-  // ─── Apply filters ───────────────────────────────────────────
   const filteredRooms = useMemo(() => {
     let list = processedRooms;
 
@@ -547,7 +612,6 @@ export default function FacultyRoom() {
     return list;
   }, [processedRooms, selectedBuilding, selectedFloor, selectedStatus]);
 
-  // ─── Clear filters ───────────────────────────────────────────
   const clearFilters = () => {
     setSelectedBuilding("All Buildings");
     setSelectedFloor("All Floors");
@@ -562,9 +626,6 @@ export default function FacultyRoom() {
     selectedFloor !== "All Floors" ||
     selectedStatus !== "All Status";
 
-  // ════════════════════════════════════════════════════════════════
-  // Toggle watch
-  // ════════════════════════════════════════════════════════════════
   const handleToggleWatch = async (room) => {
     const uid = auth.currentUser?.uid;
     if (!uid) {
@@ -578,7 +639,11 @@ export default function FacultyRoom() {
       return;
     }
     if (room.status === "Under Maintenance") {
-      showToast("error", "Under Maintenance", "You can't watch a room under maintenance.");
+      showToast(
+        "error",
+        "Under Maintenance",
+        "You can't watch a room under maintenance."
+      );
       return;
     }
 
@@ -623,7 +688,6 @@ export default function FacultyRoom() {
     }
   };
 
-  // ─── Render ──────────────────────────────────────────────────
   return (
     <>
       <div className="faculty-room-container">
@@ -636,26 +700,103 @@ export default function FacultyRoom() {
         </div>
 
         <div className="white-box-rooms">
-          {/* ─── BUILDING + FLOORS ──────────────────────────────── */}
           <div className="building-floor-filter">
             <div className="filter-group building-group">
               <label className="filter-label">Building</label>
-              <div className="dropdown-container">
-                <select
-                  className="dropdown"
-                  value={selectedBuilding}
-                  onChange={(e) => {
-                    setSelectedBuilding(e.target.value);
-                    setSelectedFloor("All Floors");
+
+              {/* ── BUILDING PICKER ── */}
+              <div className="fr-buildingpicker">
+                <button
+                  type="button"
+                  className={`fr-building-trigger ${
+                    showBuildingPicker ? "open" : ""
+                  }`}
+                  onClick={() => {
+                    setBuildingSearch("");
+                    setShowBuildingPicker((v) => !v);
                   }}
                 >
-                  {buildingOptions.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                <i className="fa-duotone fa-solid fa-angle-down dropdown-icon"></i>
+                  <i className="fa-solid fa-building"></i>
+                  <span className="fr-building-trigger-text">
+                    {selectedBuilding || "All Buildings"}
+                  </span>
+                  <i
+                    className={`fa-solid fa-chevron-down fr-building-caret ${
+                      showBuildingPicker ? "open" : ""
+                    }`}
+                  ></i>
+                </button>
+
+                {showBuildingPicker && (
+                  <>
+                    <div
+                      className="fr-picker-clickaway"
+                      onClick={() => setShowBuildingPicker(false)}
+                    ></div>
+                    <div className="fr-building-popover">
+                      <span className="fr-popover-arrow"></span>
+
+                      <div className="fr-search-wrap">
+                        <i className="fa-solid fa-magnifying-glass"></i>
+                        <input
+                          type="text"
+                          className="fr-search"
+                          placeholder="Search building..."
+                          value={buildingSearch}
+                          onChange={(e) => setBuildingSearch(e.target.value)}
+                          autoFocus
+                        />
+                        {buildingSearch && (
+                          <button
+                            type="button"
+                            className="fr-search-clear"
+                            onClick={() => setBuildingSearch("")}
+                          >
+                            <i className="fa-solid fa-xmark"></i>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="fr-building-list">
+                        {filteredBuildings.length === 0 ? (
+                          <div className="fr-picker-empty">
+                            <i className="fa-regular fa-face-frown"></i>
+                            <span>No buildings match.</span>
+                          </div>
+                        ) : (
+                          filteredBuildings.map((b) => {
+                            const isActive = b === selectedBuilding;
+                            return (
+                              <button
+                                type="button"
+                                key={b}
+                                className={`fr-building-option ${
+                                  isActive ? "is-active" : ""
+                                }`}
+                                onClick={() => {
+                                  setSelectedBuilding(b);
+                                  setSelectedFloor("All Floors");
+                                  setShowBuildingPicker(false);
+                                  setBuildingSearch("");
+                                }}
+                              >
+                                <div className="fr-building-option-icon">
+                                  <i className="fa-solid fa-building"></i>
+                                </div>
+                                <span className="fr-building-option-name">
+                                  {b}
+                                </span>
+                                {isActive && (
+                                  <i className="fa-solid fa-circle-check fr-building-option-check"></i>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -664,7 +805,9 @@ export default function FacultyRoom() {
                 <button
                   key={f}
                   type="button"
-                  className={`floor-btn-lr ${selectedFloor === f ? "active" : ""}`}
+                  className={`floor-btn-lr ${
+                    selectedFloor === f ? "active" : ""
+                  }`}
                   onClick={() => setSelectedFloor(f)}
                 >
                   {f}
@@ -673,7 +816,6 @@ export default function FacultyRoom() {
             </div>
           </div>
 
-          {/* ─── ACTIVE FILTER CHIPS ─────────────────────────────── */}
           <div className="active-filter-chips">
             <span className="filter-chip">
               <i className="fa-regular fa-calendar"></i>
@@ -695,7 +837,6 @@ export default function FacultyRoom() {
             )}
           </div>
 
-          {/* ─── ROOM CARDS ──────────────────────────────────────── */}
           {loading ? (
             <div className="room-empty">
               <i className="fa-solid fa-spinner fa-spin"></i>
@@ -726,7 +867,9 @@ export default function FacultyRoom() {
                     }
                     onReserve={() => {
                       if (room.status === "Under Maintenance") return;
-                      navigate("/faculty/submit-reservation", { state: { room } });
+                      navigate("/faculty/submit-reservation", {
+                        state: { room },
+                      });
                     }}
                   />
                 );
@@ -735,7 +878,6 @@ export default function FacultyRoom() {
           )}
         </div>
 
-        {/* ─── FLOATING FILTER BUTTON ────────────────────────────── */}
         <button
           type="button"
           className={`fab-filter-btn ${hasActiveFilters ? "has-active" : ""}`}
@@ -746,7 +888,6 @@ export default function FacultyRoom() {
           {hasActiveFilters && <span className="fab-dot" />}
         </button>
 
-        {/* ─── FLOATING FILTER PANEL ─────────────────────────────── */}
         {showFilterPanel && (
           <>
             <div
@@ -768,15 +909,113 @@ export default function FacultyRoom() {
               </div>
 
               <div className="filter-panel-body">
+                {/* ── DATE PICKER ── */}
                 <div className="filter-group">
                   <label className="filter-label">Date</label>
-                  <div className="dropdown-container">
-                    <input
-                      type="date"
-                      className="dropdown date-input"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                    />
+                  <div className="fr-datepicker">
+                    <button
+                      type="button"
+                      className={`fr-date-trigger ${showDatePicker ? "open" : ""}`}
+                      onClick={() => {
+                        const base = selectedDate
+                          ? new Date(`${selectedDate}T00:00:00`)
+                          : new Date();
+                        setCalendarCursor({
+                          year: base.getFullYear(),
+                          month: base.getMonth(),
+                        });
+                        setShowDatePicker((v) => !v);
+                      }}
+                    >
+                      <i className="fa-regular fa-calendar"></i>
+                      <span>{selectedDate ? formatDateLong(selectedDate) : "Select a date"}</span>
+                      <i
+                        className={`fa-solid fa-chevron-down fr-date-caret ${
+                          showDatePicker ? "open" : ""
+                        }`}
+                      ></i>
+                    </button>
+
+                    {showDatePicker && (
+                      <>
+                        <div
+                          className="fr-picker-clickaway"
+                          onClick={() => setShowDatePicker(false)}
+                        ></div>
+                        <div className="fr-date-popover">
+                          <span className="fr-popover-arrow"></span>
+
+                          <div className="fr-cal-header">
+                            <button
+                              type="button"
+                              className="fr-cal-nav"
+                              onClick={() =>
+                                setCalendarCursor((c) => {
+                                  const m = c.month - 1;
+                                  return m < 0
+                                    ? { year: c.year - 1, month: 11 }
+                                    : { year: c.year, month: m };
+                                })
+                              }
+                            >
+                              <i className="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <span className="fr-cal-title">
+                              {MONTH_NAMES[calendarCursor.month]} {calendarCursor.year}
+                            </span>
+                            <button
+                              type="button"
+                              className="fr-cal-nav"
+                              onClick={() =>
+                                setCalendarCursor((c) => {
+                                  const m = c.month + 1;
+                                  return m > 11
+                                    ? { year: c.year + 1, month: 0 }
+                                    : { year: c.year, month: m };
+                                })
+                              }
+                            >
+                              <i className="fa-solid fa-chevron-right"></i>
+                            </button>
+                          </div>
+
+                          <div className="fr-cal-weekdays">
+                            {WEEKDAY_LABELS.map((w) => (
+                              <span key={w}>{w}</span>
+                            ))}
+                          </div>
+
+                          <div className="fr-cal-grid">
+                            {buildCalendarGrid(
+                              calendarCursor.year,
+                              calendarCursor.month
+                            ).map((cell, i) => {
+                              const cellStr = toDateInputValue(cell.date);
+                              const isSelected = cellStr === selectedDate;
+                              return (
+                                <button
+                                  type="button"
+                                  key={i}
+                                  className={[
+                                    "fr-cal-day",
+                                    !cell.inMonth && "is-outside",
+                                    isSelected && "is-selected",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" ")}
+                                  onClick={() => {
+                                    setSelectedDate(cellStr);
+                                    setShowDatePicker(false);
+                                  }}
+                                >
+                                  {cell.day}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 

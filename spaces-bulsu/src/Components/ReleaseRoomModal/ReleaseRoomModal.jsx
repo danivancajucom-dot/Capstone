@@ -154,9 +154,23 @@ export default function ReleaseRoomModal({ target, onClose, onConfirm, submittin
             </div>
           )}
 
+          {/* ─── Ongoing notice ─────────────────────────────────────── */}
+          {target.status === "ONGOING" && (
+            <div className="rr-ongoing-note">
+              <i className="fa-solid fa-circle-info"></i>
+              <span>
+                This class is currently <strong>ongoing</strong>. Only the
+                remaining time will be released — the elapsed portion will
+                still be recorded.
+              </span>
+            </div>
+          )}
+
           {/* ─── Release form ────────────────────────────────────────── */}
           <div className="rr-form-group">
-            <label htmlFor="reason">Reason <span>*</span></label>
+            <label htmlFor="reason">
+              Reason <span>*</span>
+            </label>
             <select
               id="reason"
               value={reason}
@@ -166,7 +180,9 @@ export default function ReleaseRoomModal({ target, onClose, onConfirm, submittin
             >
               <option value="">Select a reason</option>
               <option value="Class Cancelled">Class Cancelled</option>
-              <option value="Class will be held online">Class will be held online</option>
+              <option value="Class will be held online">
+                Class will be held online
+              </option>
               <option value="Faculty Unavailable">Faculty Unavailable</option>
               <option value="Alternative Activity">Alternative Activity</option>
               <option value="Other">Other</option>
