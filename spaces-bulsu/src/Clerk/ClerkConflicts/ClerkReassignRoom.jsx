@@ -27,6 +27,19 @@ function ClerkReassignRoom() {
   const reassignType = location.state?.reassignType || "class"; // "class" | "event"
   const from = location.state?.from || "/clerk/conflicts";
 
+  const isEventReassign = reassignType === "event";
+
+  // ── Kung event: gamitin ang totoong oras ng event, hindi ng schedule ──
+  const effectiveDate  = isEventReassign
+    ? (conflict?.event?.date || conflict?.date)
+    : conflict?.date;
+  const effectiveStart = isEventReassign
+    ? (conflict?.event?.startTime || conflict?.startTime)
+    : conflict?.startTime;
+  const effectiveEnd   = isEventReassign
+    ? (conflict?.event?.endTime   || conflict?.endTime)
+    : conflict?.endTime;
+
   useEffect(() => { checkPendingReassignment(); }, []);
   useEffect(() => { loadAvailableRooms(); }, [floor]);
 
@@ -72,8 +85,8 @@ function ClerkReassignRoom() {
       // Check events
       const roomEvents = eventSnap.docs.map((d) => d.data()).filter((e) => e.roomId === roomDoc.id);
       for (const event of roomEvents) {
-        if (event.date !== conflict.date) continue;
-        if (overlap(conflict.startTime, conflict.endTime, event.startTime, event.endTime)) {
+        if (event.date !== effectiveDate) continue;
+        if (overlap(effectiveStart, effectiveEnd, event.startTime, event.endTime)) {
           occupied = true; break;
         }
       }
@@ -85,7 +98,7 @@ function ClerkReassignRoom() {
         const sched = schedDoc.data();
         if (schedDoc.id === conflict?.schedule?.id) continue;
         if (sched.day !== conflict.day) continue;
-        if (overlap(conflict.startTime, conflict.endTime, sched.startTime, sched.endTime)) {
+        if (overlap(effectiveStart, effectiveEnd, sched.startTime, sched.endTime)) {
           occupied = true; break;
         }
       }
@@ -122,8 +135,10 @@ function ClerkReassignRoom() {
         facultyFullName = formatFacultyName(`${fd.lastName}, ${fd.firstName}`);
       }
 
-      const subject = conflict.subject || conflict.schedule?.subject || "Unknown Subject";
-      const isEventReassign = reassignType === "event";
+      // ── Title: event → eventTitle ; class → courseTitle / subject ──
+      const classSubject = conflict.subject || conflict.schedule?.subject || "Unknown Subject";
+      const eventSubject = conflict.activityTitle || conflict.event?.title || "Untitled Activity";
+      const displaySubject = isEventReassign ? eventSubject : classSubject;
 
       const reassignmentRef = await addDoc(collection(db, "roomReassignments"), {
         // meta
@@ -135,16 +150,18 @@ function ClerkReassignRoom() {
         facultyId,
         facultyName: conflict.faculty || "",
 
-        courseTitle: subject,
-        section: conflict.section || "",
+        // Title — same field for both; nilalagay natin yung tamang title
+        courseTitle: isEventReassign ? "" : classSubject,
+        section: isEventReassign ? "" : (conflict.section || ""),
         day: conflict.day || "",
 
-        date: conflict.date,
-        startTime: conflict.startTime,
-        endTime: conflict.endTime,
+        // Date / time — kung event, gamitin ang totoong event time
+        date: effectiveDate,
+        startTime: effectiveStart,
+        endTime: effectiveEnd,
 
-        oldRoomId: isEventReassign ? conflict.roomId : conflict.roomId,
-        oldRoomName: isEventReassign ? conflict.roomName : conflict.roomName,
+        oldRoomId: conflict.roomId,
+        oldRoomName: conflict.roomName,
 
         newRoomId: selectedRoom.id,
         newRoomName: selectedRoom.roomName,
@@ -152,8 +169,11 @@ function ClerkReassignRoom() {
         eventId: conflict?.event?.id || null,
         scheduleId: conflict?.schedule?.id || null,
 
-        eventTitle: conflict.activityTitle || "",
-        eventReason: conflict.activityReason || "",
+        // Event-specific details
+        eventTitle: isEventReassign ? eventSubject : "",
+        eventReason: isEventReassign
+          ? (conflict.activityReason || conflict.event?.reason || "")
+          : "",
 
         // flow status
         status: "pending_admin",
@@ -172,7 +192,7 @@ function ClerkReassignRoom() {
           ownerType: "admin",
           reassignmentId: reassignmentRef.id,
           title: "New Room Reassignment Request",
-          message: `${facultyFullName} • ${subject} • ${conflict.roomName} → ${selectedRoom.roomName}. Please review.`,
+          message: `${facultyFullName} • ${displaySubject} • ${conflict.roomName} → ${selectedRoom.roomName}. Please review.`,
           type: "room-reassignment-request",
           unread: true, archived: false, badge: "NEW",
           createdAt: serverTimestamp(),
@@ -185,9 +205,9 @@ function ClerkReassignRoom() {
       await logActivity({
         user: `${userData.firstName} ${userData.lastName}`,
         role: userData.role,
-        action: "Submitted room reassignment",
+        action: `Submitted ${isEventReassign ? "activity" : "class"} room reassignment`,
         actionType: "edit",
-        target: `${facultyFullName} • ${subject} • ${conflict.roomName} → ${selectedRoom.roomName}`,
+        target: `${facultyFullName} • ${displaySubject} • ${conflict.roomName} → ${selectedRoom.roomName}`,
         status: "PENDING",
       });
 
@@ -202,8 +222,9 @@ function ClerkReassignRoom() {
     }
   };
 
-  const courseTitle = conflict?.subject || conflict?.schedule?.subject || "—";
-  const isEventReassign = reassignType === "event";
+  const courseTitle   = conflict?.subject || conflict?.schedule?.subject || "—";
+  const activityTitle = conflict?.activityTitle || conflict?.event?.title || "—";
+  const activityReason = conflict?.activityReason || conflict?.event?.reason || "";
 
   return (
     <>
@@ -224,36 +245,68 @@ function ClerkReassignRoom() {
             </p>
           </div>
 
+          {/* ── SUMMARY: same layout, dynamic labels for event vs class ── */}
           <div className="dept-reassign-summary">
+            {/* 1. Title */}
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">
                 {isEventReassign ? "Activity Title" : "Course Title"}
               </span>
               <span className="dept-reassign-summary-value">
-                {isEventReassign ? (conflict?.activityTitle || "—") : courseTitle}
+                {isEventReassign ? activityTitle : courseTitle}
               </span>
             </div>
+
+            {/* 2. Reason (event) / Section (class) */}
+            <div className="dept-reassign-summary-item">
+              <span className="dept-reassign-summary-label">
+                {isEventReassign ? "Reason" : "Section"}
+              </span>
+              <span className="dept-reassign-summary-value">
+                {isEventReassign
+                  ? (activityReason || "—")
+                  : (conflict?.section || "—")}
+              </span>
+            </div>
+
+            {/* 3. Faculty */}
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Faculty</span>
-              <span className="dept-reassign-summary-value">{conflict?.faculty || "—"}</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.faculty || "—"}
+              </span>
             </div>
+
+            {/* 4. Day */}
             <div className="dept-reassign-summary-item">
-              <span className="dept-reassign-summary-label">Section</span>
-              <span className="dept-reassign-summary-value">{conflict?.section || "—"}</span>
+              <span className="dept-reassign-summary-label">Day</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.day || "—"}
+              </span>
             </div>
+
+            {/* 5. Date */}
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Date</span>
-              <span className="dept-reassign-summary-value">{conflict?.date || "—"}</span>
+              <span className="dept-reassign-summary-value">
+                {effectiveDate || "—"}
+              </span>
             </div>
+
+            {/* 6. Current Room */}
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Current Room</span>
-              <span className="dept-reassign-summary-value">{conflict?.roomName || "—"}</span>
+              <span className="dept-reassign-summary-value">
+                {conflict?.roomName || "—"}
+              </span>
             </div>
+
+            {/* 7. Time */}
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Time</span>
               <span className="dept-reassign-summary-value">
-                {conflict?.startTime && conflict?.endTime
-                  ? `${formatTime(conflict.startTime)} – ${formatTime(conflict.endTime)}`
+                {effectiveStart && effectiveEnd
+                  ? `${formatTime(effectiveStart)} – ${formatTime(effectiveEnd)}`
                   : "—"}
               </span>
             </div>

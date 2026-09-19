@@ -32,20 +32,20 @@ function LocalRegistrarQRCode() {
   const [zipping, setZipping] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [downloading, setDownloading] = useState({}); // track per room
+  const [downloading, setDownloading] = useState({});
 
-  // hidden QR refs para sa ZIP — isa per room
+  // ─── FILTER STATE ──────────────────────────────────────────
+  const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
+  const [selectedFloor, setSelectedFloor] = useState("All Floors");
+  const [buildingSearch, setBuildingSearch] = useState("");
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
+
   const hiddenQrRefs = useRef({});
-  // refs para sa PDF generation
   const pdfQrRefs = useRef({});
-  // refs para sa individual download — gamit ang visible cards
   const cardRefs = useRef({});
 
   const [toast, setToast] = useState({
-    show: false,
-    type: "",
-    title: "",
-    message: "",
+    show: false, type: "", title: "", message: "",
   });
 
   const showToast = (type, title, message) => {
@@ -72,6 +72,59 @@ function LocalRegistrarQRCode() {
     setLoading(false);
   };
 
+  // ─── FILTERED ROOMS ────────────────────────────────────────
+  const filteredRooms = useMemo(() => {
+    let list = rooms;
+    if (selectedBuilding !== "All Buildings") {
+      list = list.filter((r) => r.building === selectedBuilding);
+    }
+    if (selectedFloor !== "All Floors") {
+      list = list.filter((r) => String(r.floor) === String(selectedFloor));
+    }
+    return list;
+  }, [rooms, selectedBuilding, selectedFloor]);
+
+  // ─── Building options ──
+  const buildingOptions = useMemo(() => {
+    const set = new Set();
+    rooms.forEach((r) => r.building && set.add(r.building));
+    return ["All Buildings", ...Array.from(set).sort()];
+  }, [rooms]);
+
+  const filteredBuildings = useMemo(() => {
+    const q = buildingSearch.trim().toLowerCase();
+    if (!q) return buildingOptions;
+    return buildingOptions.filter((b) => String(b).toLowerCase().includes(q));
+  }, [buildingOptions, buildingSearch]);
+
+  // ─── Floor options (based on selected building) ──
+  const floorOptions = useMemo(() => {
+    const set = new Set();
+    rooms
+      .filter((r) =>
+        selectedBuilding === "All Buildings" || r.building === selectedBuilding
+      )
+      .forEach((r) => r.floor && set.add(String(r.floor)));
+    const sorted = Array.from(set).sort((a, b) => {
+      const na = parseInt(a, 10) || 0;
+      const nb = parseInt(b, 10) || 0;
+      return na - nb;
+    });
+    return ["All Floors", ...sorted];
+  }, [rooms, selectedBuilding]);
+
+  // Reset floor kapag hindi na valid
+  useEffect(() => {
+    if (!floorOptions.includes(selectedFloor)) {
+      setSelectedFloor("All Floors");
+    }
+  }, [floorOptions, selectedFloor]);
+
+  // Reset page kapag nagbago filters
+  useEffect(() => {
+    setPage(1);
+  }, [selectedBuilding, selectedFloor]);
+
   // ─── INDIVIDUAL QR DOWNLOAD (PNG) ────────────────────────────────
   const downloadSingleQR = async (room) => {
     setDownloading(prev => ({ ...prev, [room.id]: true }));
@@ -79,17 +132,12 @@ function LocalRegistrarQRCode() {
 
     try {
       const ref = cardRefs.current[room.id];
-      if (!ref) {
-        throw new Error("QR element not found.");
-      }
+      if (!ref) throw new Error("QR element not found.");
 
       const dataUrl = await toPng(ref, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
+        cacheBust: true, pixelRatio: 2, backgroundColor: "#ffffff",
       });
 
-      // Create download link
       const link = document.createElement("a");
       link.download = `${room.roomName || room.id}-QR.png`;
       link.href = dataUrl;
@@ -105,10 +153,10 @@ function LocalRegistrarQRCode() {
     setDownloading(prev => ({ ...prev, [room.id]: false }));
   };
 
-  // ─── DOWNLOAD ALL ZIP ──────────────────────────────────────────────
+  // ─── DOWNLOAD ALL ZIP (filtered rooms only) ────────────────────
   const downloadAllZip = async () => {
-    if (rooms.length === 0) {
-      showToast("error", "No Rooms", "No rooms available to export.");
+    if (filteredRooms.length === 0) {
+      showToast("error", "No Rooms", "No rooms to export under current filters.");
       return;
     }
 
@@ -118,24 +166,19 @@ function LocalRegistrarQRCode() {
     try {
       const zip = new JSZip();
 
-      for (const room of rooms) {
+      for (const room of filteredRooms) {
         const ref = hiddenQrRefs.current[room.id];
-        if (!ref) {
-          console.warn(`No ref found for room ${room.id}`);
-          continue;
-        }
+        if (!ref) continue;
 
-        const dataUrl = await toPng(ref, { 
-          cacheBust: true, 
-          pixelRatio: 2,
-          backgroundColor: "#ffffff",
+        const dataUrl = await toPng(ref, {
+          cacheBust: true, pixelRatio: 2, backgroundColor: "#ffffff",
         });
         const base64 = dataUrl.split(",")[1];
         zip.file(`${room.roomName || room.id}-QR.png`, base64, { base64: true });
       }
 
       const blob = await zip.generateAsync({ type: "blob" });
-      saveAs(blob, `SpaceS-QR-Codes-${new Date().toISOString().slice(0,10)}.zip`);
+      saveAs(blob, `SpaceS-QR-Codes-${new Date().toISOString().slice(0, 10)}.zip`);
 
       await addDoc(collection(db, "activityLogs"), {
         userId: auth.currentUser?.uid,
@@ -144,12 +187,12 @@ function LocalRegistrarQRCode() {
         action: "Downloaded All QR ZIP",
         actionType: "success",
         target: "QR Codes",
-        details: `Downloaded all QR codes as ZIP (${rooms.length} rooms).`,
+        details: `Downloaded ${filteredRooms.length} QR codes as ZIP (Building: ${selectedBuilding}, Floor: ${selectedFloor}).`,
         status: "SUCCESS",
         timestamp: serverTimestamp(),
       });
 
-      showToast("success", "ZIP Downloaded", `${rooms.length} QR codes exported.`);
+      showToast("success", "ZIP Downloaded", `${filteredRooms.length} QR codes exported.`);
     } catch (err) {
       console.error("ZIP failed:", err);
       showToast("error", "ZIP Failed", "Could not generate ZIP file.");
@@ -158,10 +201,10 @@ function LocalRegistrarQRCode() {
     setExportMenuOpen(false);
   };
 
-  // ─── EXPORT PDF ─────────────────────────────────────────────────────
+  // ─── EXPORT PDF (filtered rooms only) ─────────────────────────
   const exportPDF = async () => {
-    if (rooms.length === 0) {
-      showToast("error", "No Rooms", "No rooms available to export.");
+    if (filteredRooms.length === 0) {
+      showToast("error", "No Rooms", "No rooms to export under current filters.");
       return;
     }
 
@@ -177,19 +220,11 @@ function LocalRegistrarQRCode() {
       const logoSize = 40;
       const centerX = pageWidth / 2;
 
-      // ── Letterhead ──
       if (SCHOOL_HEADER.universityLogoUrl) {
         pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 20, logoSize, logoSize);
       }
       if (SCHOOL_HEADER.collegeLogoUrl) {
-        pdf.addImage(
-          SCHOOL_HEADER.collegeLogoUrl,
-          "PNG",
-          pageWidth - marginX - logoSize,
-          20,
-          logoSize,
-          logoSize
-        );
+        pdf.addImage(SCHOOL_HEADER.collegeLogoUrl, "PNG", pageWidth - marginX - logoSize, 20, logoSize, logoSize);
       }
 
       pdf.setFont("helvetica", "bold");
@@ -207,7 +242,6 @@ function LocalRegistrarQRCode() {
       pdf.setLineWidth(1.5);
       pdf.line(marginX, 74, pageWidth - marginX, 74);
 
-      // ── Title ──
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(14);
       pdf.setTextColor(245, 124, 0);
@@ -216,28 +250,28 @@ function LocalRegistrarQRCode() {
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9);
       pdf.setTextColor(107, 114, 128);
-      pdf.text(`Total Rooms: ${rooms.length}`, marginX, 110);
+      pdf.text(`Total Rooms: ${filteredRooms.length}`, marginX, 110);
+      pdf.text(
+        `Building: ${selectedBuilding}  ·  Floor: ${selectedFloor}`,
+        marginX, 122
+      );
       pdf.text(
         `Generated: ${new Date().toLocaleString()}`,
-        pageWidth - marginX,
-        110,
-        { align: "right" }
+        pageWidth - marginX, 110, { align: "right" }
       );
 
-      // ── QR Codes Grid ──
       const qrSize = 100;
       const spacing = 20;
       const colsPerRow = 4;
       const totalWidth = colsPerRow * (qrSize + spacing) - spacing;
       const startX = (pageWidth - totalWidth) / 2;
       let currentX = startX;
-      let currentY = 130;
+      let currentY = 140;
       let col = 0;
 
-      for (let i = 0; i < rooms.length; i++) {
-        const room = rooms[i];
+      for (let i = 0; i < filteredRooms.length; i++) {
+        const room = filteredRooms[i];
 
-        // Check if need new page
         if (currentY + qrSize + 30 > pageHeight - marginY) {
           pdf.addPage();
           currentY = marginY + 20;
@@ -245,14 +279,11 @@ function LocalRegistrarQRCode() {
           col = 0;
         }
 
-        // Draw QR code
         try {
           const ref = pdfQrRefs.current[room.id];
           if (ref) {
-            const dataUrl = await toPng(ref, { 
-              cacheBust: true, 
-              pixelRatio: 2,
-              backgroundColor: "#ffffff",
+            const dataUrl = await toPng(ref, {
+              cacheBust: true, pixelRatio: 2, backgroundColor: "#ffffff",
             });
             pdf.addImage(dataUrl, "PNG", currentX, currentY, qrSize, qrSize);
           }
@@ -260,7 +291,6 @@ function LocalRegistrarQRCode() {
           console.warn(`Could not render QR for ${room.id}`);
         }
 
-        // Room name below QR
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8);
         pdf.setTextColor(26, 26, 26);
@@ -269,7 +299,6 @@ function LocalRegistrarQRCode() {
         const nameX = currentX + (qrSize / 2) - (nameWidth / 2);
         pdf.text(name, nameX, currentY + qrSize + 14);
 
-        // Optional: floor below name
         if (room.floor) {
           pdf.setFont("helvetica", "normal");
           pdf.setFontSize(7);
@@ -280,7 +309,6 @@ function LocalRegistrarQRCode() {
           pdf.text(floorText, floorX, currentY + qrSize + 26);
         }
 
-        // Move to next position
         col++;
         if (col >= colsPerRow) {
           col = 0;
@@ -291,27 +319,17 @@ function LocalRegistrarQRCode() {
         }
       }
 
-      // ── Footer ──
       const pageCount = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(7);
         pdf.setTextColor(150, 150, 150);
-        pdf.text(
-          `Page ${i} of ${pageCount}`,
-          pageWidth - marginX,
-          pageHeight - 16,
-          { align: "right" }
-        );
-        pdf.text(
-          `${SCHOOL_HEADER.systemName} — Confidential`,
-          marginX,
-          pageHeight - 16
-        );
+        pdf.text(`Page ${i} of ${pageCount}`, pageWidth - marginX, pageHeight - 16, { align: "right" });
+        pdf.text(`${SCHOOL_HEADER.systemName} — Confidential`, marginX, pageHeight - 16);
       }
 
-      pdf.save(`SpaceS-QR-Codes-${new Date().toISOString().slice(0,10)}.pdf`);
+      pdf.save(`SpaceS-QR-Codes-${new Date().toISOString().slice(0, 10)}.pdf`);
 
       await addDoc(collection(db, "activityLogs"), {
         userId: auth.currentUser?.uid,
@@ -320,12 +338,12 @@ function LocalRegistrarQRCode() {
         action: "Downloaded QR PDF",
         actionType: "success",
         target: "QR Codes",
-        details: `Downloaded QR codes as PDF (${rooms.length} rooms).`,
+        details: `Downloaded ${filteredRooms.length} QR codes as PDF (Building: ${selectedBuilding}, Floor: ${selectedFloor}).`,
         status: "SUCCESS",
         timestamp: serverTimestamp(),
       });
 
-      showToast("success", "PDF Downloaded", `${rooms.length} QR codes exported.`);
+      showToast("success", "PDF Downloaded", `${filteredRooms.length} QR codes exported.`);
     } catch (err) {
       console.error("PDF failed:", err);
       showToast("error", "PDF Failed", "Could not generate PDF file.");
@@ -334,15 +352,22 @@ function LocalRegistrarQRCode() {
     setExportMenuOpen(false);
   };
 
-  const totalPages = Math.ceil(rooms.length / CARDS_PER_PAGE);
+  const totalPages = Math.ceil(filteredRooms.length / CARDS_PER_PAGE);
   const currentRooms = useMemo(() => {
     const start = (page - 1) * CARDS_PER_PAGE;
-    return rooms.slice(start, start + CARDS_PER_PAGE);
-  }, [rooms, page]);
+    return filteredRooms.slice(start, start + CARDS_PER_PAGE);
+  }, [filteredRooms, page]);
+
+  const hasActiveFilters =
+    selectedBuilding !== "All Buildings" || selectedFloor !== "All Floors";
+
+  const clearFilters = () => {
+    setSelectedBuilding("All Buildings");
+    setSelectedFloor("All Floors");
+  };
 
   return (
     <div className="lr-qr-code">
-
       <div className="lr-qr-page-header">
         <div>
           <h1>QR Code Management</h1>
@@ -354,7 +379,7 @@ function LocalRegistrarQRCode() {
           <button
             className="lr-qr-download-btn"
             onClick={() => setExportMenuOpen(!exportMenuOpen)}
-            disabled={loading || rooms.length === 0}
+            disabled={loading || filteredRooms.length === 0}
           >
             <i className="fa-solid fa-download"></i> Export Report
             <i className={`fa-solid fa-chevron-down ${exportMenuOpen ? "rotate" : ""}`}></i>
@@ -374,46 +399,123 @@ function LocalRegistrarQRCode() {
         </div>
       </div>
 
-      {/* Hidden QR divs para sa ZIP generation — lahat ng rooms */}
+      {/* ─── FILTER BAR ─── */}
+      <div className="lr-qr-filter-bar">
+        {/* Building picker */}
+        <div className="lqr-buildingpicker">
+          <button
+            type="button"
+            className={`lqr-building-trigger ${showBuildingPicker ? "open" : ""}`}
+            onClick={() => { setBuildingSearch(""); setShowBuildingPicker((v) => !v); }}
+          >
+            <i className="fa-solid fa-building"></i>
+            <span className="lqr-building-trigger-text">
+              {selectedBuilding}
+            </span>
+            <i className={`fa-solid fa-chevron-down lqr-building-caret ${showBuildingPicker ? "open" : ""}`}></i>
+          </button>
+
+          {showBuildingPicker && (
+            <>
+              <div className="lqr-picker-clickaway" onClick={() => setShowBuildingPicker(false)}></div>
+              <div className="lqr-building-popover">
+                <span className="lqr-popover-arrow"></span>
+
+                <div className="lqr-search-wrap">
+                  <i className="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" className="lqr-search" placeholder="Search building..."
+                    value={buildingSearch} onChange={(e) => setBuildingSearch(e.target.value)} autoFocus />
+                  {buildingSearch && (
+                    <button type="button" className="lqr-search-clear" onClick={() => setBuildingSearch("")}>
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  )}
+                </div>
+
+                <div className="lqr-building-list">
+                  {filteredBuildings.length === 0 ? (
+                    <div className="lqr-picker-empty">
+                      <i className="fa-regular fa-face-frown"></i>
+                      <span>No buildings match.</span>
+                    </div>
+                  ) : (
+                    filteredBuildings.map((b) => {
+                      const isActive = b === selectedBuilding;
+                      return (
+                        <button type="button" key={b}
+                          className={`lqr-building-option ${isActive ? "is-active" : ""}`}
+                          onClick={() => {
+                            setSelectedBuilding(b);
+                            setSelectedFloor("All Floors");
+                            setShowBuildingPicker(false);
+                            setBuildingSearch("");
+                          }}>
+                          <div className="lqr-building-option-icon">
+                            <i className="fa-solid fa-building"></i>
+                          </div>
+                          <span className="lqr-building-option-name">{b}</span>
+                          {isActive && <i className="fa-solid fa-circle-check lqr-building-option-check"></i>}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Floor pills */}
+        <div className="lqr-floor-pills">
+          {floorOptions.map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`lqr-floor-pill ${selectedFloor === f ? "active" : ""}`}
+              onClick={() => setSelectedFloor(f)}
+            >
+              {f === "All Floors" ? "All Floors" : `${f} Floor`}
+            </button>
+          ))}
+        </div>
+
+        {hasActiveFilters && (
+          <button className="lqr-clear-btn" onClick={clearFilters}>
+            <i className="fa-solid fa-filter-circle-xmark"></i> Clear
+          </button>
+        )}
+
+        <span className="lqr-result-count">
+          {filteredRooms.length} room{filteredRooms.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {/* Hidden QR divs para sa ZIP generation — filtered rooms */}
       <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
-        {rooms.map(room => (
-          <div
-            key={`hidden-${room.id}`}
+        {filteredRooms.map(room => (
+          <div key={`hidden-${room.id}`}
             ref={el => hiddenQrRefs.current[room.id] = el}
             style={{
-              background: "#fff",
-              padding: 18,
-              borderRadius: 10,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 10,
-              width: "fit-content",
-            }}
-          >
+              background: "#fff", padding: 18, borderRadius: 10,
+              display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 10, width: "fit-content",
+            }}>
             <QRCode value={`${window.location.origin}/room/${room.id}`} size={220} />
             <strong>{room.roomName}</strong>
           </div>
         ))}
       </div>
 
-      {/* Hidden QR divs para sa PDF generation — lahat ng rooms */}
+      {/* Hidden QR divs para sa PDF generation — filtered rooms */}
       <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
-        {rooms.map(room => (
-          <div
-            key={`pdf-${room.id}`}
+        {filteredRooms.map(room => (
+          <div key={`pdf-${room.id}`}
             ref={el => pdfQrRefs.current[room.id] = el}
             style={{
-              background: "#fff",
-              padding: 10,
-              borderRadius: 8,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 6,
-              width: "fit-content",
-            }}
-          >
+              background: "#fff", padding: 10, borderRadius: 8,
+              display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 6, width: "fit-content",
+            }}>
             <QRCode value={`${window.location.origin}/room/${room.id}`} size={150} />
             <strong style={{ fontSize: 12 }}>{room.roomName}</strong>
           </div>
@@ -426,26 +528,22 @@ function LocalRegistrarQRCode() {
             <span className="qr-spinner"></span>
             <p>Loading QR Codes...</p>
           </div>
-        ) : rooms.length === 0 ? (
+        ) : filteredRooms.length === 0 ? (
           <div className="qr-empty">
             <i className="fa-solid fa-qrcode"></i>
-            <p>No rooms available</p>
-            <span className="qr-empty-hint">Add rooms to generate QR codes.</span>
+            <p>No rooms under current filter</p>
+            <span className="qr-empty-hint">
+              Try clearing the building or floor filter.
+            </span>
           </div>
         ) : (
           <>
             <div className="qr-cards-grid">
               {currentRooms.map(room => (
-                <div 
-                  key={room.id} 
-                  className="qr-card-item"
-                  ref={el => cardRefs.current[room.id] = el}
-                >
+                <div key={room.id} className="qr-card-item"
+                  ref={el => cardRefs.current[room.id] = el}>
                   <div className="qr-card-content">
-                    <QRCode 
-                      value={`${window.location.origin}/room/${room.id}`} 
-                      size={160} 
-                    />
+                    <QRCode value={`${window.location.origin}/room/${room.id}`} size={160} />
                     <div className="qr-room-name">{room.roomName}</div>
                     {room.floor && <div className="qr-room-floor">Floor {room.floor}</div>}
                     <button
@@ -466,26 +564,21 @@ function LocalRegistrarQRCode() {
 
             <div className="qr-pagination">
               <span className="qr-showing">
-                Showing{" "}
-                {currentRooms.length === 0 ? 0 : (page - 1) * CARDS_PER_PAGE + 1}
+                Showing {currentRooms.length === 0 ? 0 : (page - 1) * CARDS_PER_PAGE + 1}
                 {" - "}
                 {(page - 1) * CARDS_PER_PAGE + currentRooms.length}
                 {" of "}
-                {rooms.length} rooms
+                {filteredRooms.length} rooms
               </span>
 
               <div className="qr-pagination-controls">
-                <i
-                  className="fa-solid fa-chevron-left"
+                <i className="fa-solid fa-chevron-left"
                   style={{ opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? "default" : "pointer" }}
-                  onClick={() => { if (page > 1) setPage(page - 1); }}
-                />
+                  onClick={() => { if (page > 1) setPage(page - 1); }} />
                 <span>{page} / {Math.max(totalPages, 1)}</span>
-                <i
-                  className="fa-solid fa-chevron-right"
+                <i className="fa-solid fa-chevron-right"
                   style={{ opacity: page === totalPages || totalPages === 0 ? 0.4 : 1, cursor: page === totalPages || totalPages === 0 ? "default" : "pointer" }}
-                  onClick={() => { if (page < totalPages) setPage(page + 1); }}
-                />
+                  onClick={() => { if (page < totalPages) setPage(page + 1); }} />
               </div>
             </div>
           </>

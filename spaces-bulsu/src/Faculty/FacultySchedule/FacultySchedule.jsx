@@ -1,8 +1,10 @@
 // ============================================================
-// FILE: WeeklyCalendar.jsx
+// FILE: FacultySchedule.jsx
 // - Realtime via onSnapshot
-// - Compact 12-hour time format ("7:00 – 8:30 AM")
-// - Reassignment block shows section, no "(Moved)" text
+// - Compact 12-hour time format
+// - Respects room-schedule activation windows
+// - Online classes tied to the active term
+// - Mid-class release preserves elapsed time (effectiveEndTime)
 // ============================================================
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
@@ -24,6 +26,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { logActivity } from "../../utils/logActivity";
+import { isActiveOnDate } from "../../utils/scheduleActivePeriod";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const START_HOUR = 7;
@@ -31,23 +34,22 @@ const END_HOUR = 21;
 const HOUR_HEIGHT = 60;
 
 const CARD_COLORS = [
-  { bg: "#EEF2FF", border: "#4F6EF7", text: "#3651D4", timeBg: "#C7D0FA" }, // Academic
-  { bg: "#ECFDF5", border: "#34C77B", text: "#1A9E5C", timeBg: "#A7F0CC" }, // Institutional
-  { bg: "#FFF7ED", border: "#F97316", text: "#C2621A", timeBg: "#FDD9B5" }, // Reservation
-  { bg: "#F5F3FF", border: "#8B5CF6", text: "#6D28D9", timeBg: "#DDD6FE" }, // Reassigned
-  { bg: "#F3E8FF", border: "#c38af8", text: "#7E22CE", timeBg: "#E9D5FF" }, // Online
+  { bg: "#EEF2FF", border: "#4F6EF7", text: "#3651D4", timeBg: "#C7D0FA" },
+  { bg: "#ECFDF5", border: "#34C77B", text: "#1A9E5C", timeBg: "#A7F0CC" },
+  { bg: "#FFF7ED", border: "#F97316", text: "#C2621A", timeBg: "#FDD9B5" },
+  { bg: "#F5F3FF", border: "#8B5CF6", text: "#6D28D9", timeBg: "#DDD6FE" },
+  { bg: "#F3E8FF", border: "#c38af8", text: "#7E22CE", timeBg: "#E9D5FF" },
 ];
 
 const LEGEND = [
-  { label: "Academic",      color: "#4F6EF7" },
+  { label: "Academic", color: "#4F6EF7" },
   { label: "Room Activity", color: "#34C77B" },
-  { label: "Reservation",   color: "#F97316" },
-  { label: "Reassigned",    color: "#8B5CF6" },
-  { label: "Online",        color: "#c38af8" },
+  { label: "Reservation", color: "#F97316" },
+  { label: "Reassigned", color: "#8B5CF6" },
+  { label: "Online", color: "#c38af8" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────
-
 const normalizeName = (name = "") =>
   name
     .toLowerCase()
@@ -100,9 +102,6 @@ function fmtHour(h) {
   return `${String(h - 12).padStart(2, "0")} PM`;
 }
 
-// ═══ COMPACT 12-HOUR RANGE ═══
-// Same suffix:  "7:00 – 8:30 AM"
-// Cross suffix: "11:30 AM – 1:00 PM"
 const fmtTimeRange = (startH, startM, endH, endM) => {
   const startSuffix = startH >= 12 ? "PM" : "AM";
   const endSuffix = endH >= 12 ? "PM" : "AM";
@@ -116,7 +115,6 @@ const fmtTimeRange = (startH, startM, endH, endM) => {
   return `${startStr} ${startSuffix} – ${endStr} ${endSuffix}`;
 };
 
-// 12-hour standalone (para sa modal labels)
 const fmtTime12Compact = (time) => {
   const [h, m] = parseTimeParts(time);
   const suffix = h >= 12 ? "PM" : "AM";
@@ -239,7 +237,7 @@ export default function WeeklyCalendar() {
   const [overrideEvents, setOverrideEvents] = useState([]);
   const [reservationEvents, setReservationEvents] = useState([]);
   const [reassignedEvents, setReassignedEvents] = useState([]);
-  const [releasedKeys, setReleasedKeys] = useState(new Set());
+  const [releasedMap, setReleasedMap] = useState(new Map());
 
   const [releaseTarget, setReleaseTarget] = useState(null);
   const [detailsTarget, setDetailsTarget] = useState(null);
@@ -287,7 +285,11 @@ export default function WeeklyCalendar() {
 
     const cleanup = () => {
       unsubsRef.current.forEach((u) => {
-        try { u(); } catch (e) { /* ignore */ }
+        try {
+          u();
+        } catch (e) {
+          /* ignore */
+        }
       });
       unsubsRef.current = [];
     };
@@ -306,7 +308,9 @@ export default function WeeklyCalendar() {
 
         const me = userSnap.data();
         const myName = normalizeName(
-          `${me.lastName}, ${me.firstName}${me.middleInitial ? ` ${me.middleInitial}` : ""}`
+          `${me.lastName}, ${me.firstName}${
+            me.middleInitial ? ` ${me.middleInitial}` : ""
+          }`
         );
         myNameRef.current = myName;
 
@@ -342,31 +346,45 @@ export default function WeeklyCalendar() {
         let roomIds = [];
 
         if (matchedSchedules.length > 0) {
-          const rank = (s) => [
-            schoolYearStart(s.schoolYear),
-            semesterRank(s.semester),
-          ];
-
-          const latest = matchedSchedules.reduce((best, cur) => {
-            const [by, bs] = rank(best);
-            const [cy, cs] = rank(cur);
-            if (cy > by || (cy === by && cs > bs)) return cur;
-            return best;
-          }, matchedSchedules[0]);
-
-          const latestSchedules = matchedSchedules.filter(
-            (s) =>
-              (s.schoolYear || "") === (latest.schoolYear || "") &&
-              (s.semester || "") === (latest.semester || "")
+          // ✅ Prefer schedules from the currently activated term
+          const activeGroup = matchedSchedules.filter(
+            (s) => s.isActive === true
           );
 
-          setScheduleEvents(latestSchedules);
-          setActiveTerm({
-            semester: latest.semester,
-            schoolYear: latest.schoolYear,
-          });
+          let displaySchedules;
+          let displaySem;
+          let displaySY;
+
+          if (activeGroup.length > 0) {
+            displaySchedules = activeGroup;
+            displaySem = activeGroup[0].semester;
+            displaySY = activeGroup[0].schoolYear;
+          } else {
+            // Fallback: newest term so faculty still sees something
+            const rank = (s) => [
+              schoolYearStart(s.schoolYear),
+              semesterRank(s.semester),
+            ];
+            const latest = matchedSchedules.reduce((best, cur) => {
+              const [by, bs] = rank(best);
+              const [cy, cs] = rank(cur);
+              if (cy > by || (cy === by && cs > bs)) return cur;
+              return best;
+            }, matchedSchedules[0]);
+
+            displaySchedules = matchedSchedules.filter(
+              (s) =>
+                (s.schoolYear || "") === (latest.schoolYear || "") &&
+                (s.semester || "") === (latest.semester || "")
+            );
+            displaySem = latest.semester;
+            displaySY = latest.schoolYear;
+          }
+
+          setScheduleEvents(displaySchedules);
+          setActiveTerm({ semester: displaySem, schoolYear: displaySY });
           setNoSchedule(false);
-          roomIds = [...new Set(latestSchedules.map((s) => s.roomId))];
+          roomIds = [...new Set(displaySchedules.map((s) => s.roomId))];
           myRoomIdsRef.current = roomIds;
         } else {
           setScheduleEvents([]);
@@ -385,7 +403,11 @@ export default function WeeklyCalendar() {
           ),
           (snap) => {
             setFacultyOnlineEvents(
-              snap.docs.map((d) => ({ id: d.id, ...d.data(), isOnline: true }))
+              snap.docs.map((d) => ({
+                id: d.id,
+                ...d.data(),
+                isOnline: true,
+              }))
             );
           },
           (err) => {
@@ -395,14 +417,13 @@ export default function WeeklyCalendar() {
         );
         unsubsRef.current.push(unsubOnline);
 
-        // ─── REALTIME: Events (room activities) ─────────────────
+        // ─── REALTIME: Events ───────────────────────────────────
         const unsubEvents = onSnapshot(
           collection(db, "events"),
           (snap) => {
             const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             const mine = all.filter(
-              (e) =>
-                roomIds.includes(e.roomId) && e.status !== "Cancelled"
+              (e) => roomIds.includes(e.roomId) && e.status !== "Cancelled"
             );
             setOverrideEvents(mine);
           },
@@ -413,7 +434,7 @@ export default function WeeklyCalendar() {
         );
         unsubsRef.current.push(unsubEvents);
 
-        // ─── REALTIME: Approved reservations ────────────────────
+        // ─── REALTIME: Reservations ─────────────────────────────
         const unsubReservations = onSnapshot(
           collection(db, "reservationRequests"),
           (snap) => {
@@ -438,24 +459,23 @@ export default function WeeklyCalendar() {
         );
         unsubsRef.current.push(unsubReservations);
 
-        // ─── REALTIME: Releases ─────────────────────────────────
+        // ─── REALTIME: Releases (Map with effectiveEndTime) ─────
         const unsubReleases = onSnapshot(
           query(
             collection(db, "roomReleases"),
             where("releasedBy", "==", user.uid)
           ),
           (snap) => {
-            const keys = new Set(
-              snap.docs.map((d) => {
-                const r = d.data();
-                return `${r.scheduleId}_${r.date}`;
-              })
-            );
-            setReleasedKeys(keys);
+            const map = new Map();
+            snap.docs.forEach((d) => {
+              const r = d.data();
+              map.set(`${r.scheduleId}_${r.date}`, r);
+            });
+            setReleasedMap(map);
           },
           (err) => {
             console.warn("Releases listener:", err);
-            setReleasedKeys(new Set());
+            setReleasedMap(new Map());
           }
         );
         unsubsRef.current.push(unsubReleases);
@@ -480,7 +500,6 @@ export default function WeeklyCalendar() {
           }
         );
         unsubsRef.current.push(unsubReassign);
-
       } catch (err) {
         console.error("setup error:", err);
         setLoading(false);
@@ -515,8 +534,18 @@ export default function WeeklyCalendar() {
   weekEnd.setDate(weekStart.getDate() + 6);
 
   const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
   const weekLabel = `${months[weekStart.getMonth()]} ${weekStart.getDate()} - ${weekEnd.getDate()}, ${weekStart.getFullYear()}`;
 
@@ -552,11 +581,28 @@ export default function WeeklyCalendar() {
       occurrenceDate.setDate(weekStart.getDate() + (dayIdx - 1));
       const occurrenceDateStr = toDateStr(occurrenceDate);
 
-      if (releasedKeys.has(`${s.id}_${occurrenceDateStr}`)) return;
+      // ✅ Respect activation window per-occurrence
+      if (!isActiveOnDate(s, occurrenceDateStr)) return;
+
+      // ✅ Reassigned-away → totally hidden
       if (reassignedKeys.has(`${s.id}_${occurrenceDateStr}`)) return;
 
+      // ✅ Release handling
+      const releaseInfo = releasedMap.get(`${s.id}_${occurrenceDateStr}`);
+      // Upcoming release → totally hidden
+      if (releaseInfo && !releaseInfo.effectiveEndTime) return;
+
       const [startH, startM] = parseTimeParts(s.startTime);
-      const [endH, endM] = parseTimeParts(s.endTime);
+      let [endH, endM] = parseTimeParts(s.endTime);
+
+      // Ongoing release → truncate end time to release time
+      if (releaseInfo?.effectiveEndTime) {
+        const [rH, rM] = parseTimeParts(releaseInfo.effectiveEndTime);
+        if (rH * 60 + rM <= startH * 60 + startM) return; // no time was used
+        endH = rH;
+        endM = rM;
+      }
+
       const colorIdx = s.isOnline ? 4 : 0;
 
       scheduleItems.push({
@@ -577,13 +623,18 @@ export default function WeeklyCalendar() {
         faculty: s.faculty || "Faculty",
         dayIdx,
         daySpan: 1,
-        startH, startM, endH, endM,
+        startH,
+        startM,
+        endH,
+        endM,
         colorIdx,
         isOnline: s.isOnline || false,
+        isReleased: !!releaseInfo,
+        releasedAtTime: releaseInfo?.effectiveEndTime || null,
       });
     });
 
-    // ── 2. Activity items (room activities) ──
+    // ── 2. Room activities ──
     const activityItems = [];
     overrideEvents.forEach((e) => {
       if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
@@ -613,7 +664,10 @@ export default function WeeklyCalendar() {
         roomName: e.roomName || "-",
         dayIdx,
         daySpan: 1,
-        startH, startM, endH, endM,
+        startH,
+        startM,
+        endH,
+        endM,
         colorIdx: 1,
         faculty: e.faculty || "Admin",
         date: e.date,
@@ -624,7 +678,6 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 3. Overridden schedules (filtered out) ──
     const overriddenScheduleIds = new Set();
     for (const activity of activityItems) {
       if (activity.conflictsWithSchedule && activity.conflictingSchedule) {
@@ -632,16 +685,22 @@ export default function WeeklyCalendar() {
       }
     }
 
-    // ── 4. Add non-overridden schedules ──
     for (const s of scheduleItems) {
       if (!overriddenScheduleIds.has(s.id)) items.push(s);
     }
 
-    // ── 5. Add all activities ──
     for (const activity of activityItems) items.push(activity);
 
-    // ── 6. Faculty online schedules ──
+    // ── 3. Faculty online schedules ──
     facultyOnlineEvents.forEach((s) => {
+      // ✅ Only show online classes that belong to the active term
+      if (activeTerm) {
+        const sameTerm =
+          (s.semester || "") === (activeTerm.semester || "") &&
+          (s.schoolYear || "") === (activeTerm.schoolYear || "");
+        if (!sameTerm) return;
+      }
+
       const dayIdx = DAYS.indexOf(s.day) + 1;
       if (dayIdx < 1) return;
 
@@ -669,14 +728,17 @@ export default function WeeklyCalendar() {
         faculty: s.facultyName || "Faculty",
         dayIdx,
         daySpan: 1,
-        startH, startM, endH, endM,
+        startH,
+        startM,
+        endH,
+        endM,
         colorIdx: 4,
         isOnline: true,
         isFacultyOnline: true,
       });
     });
 
-    // ── 7. Reservations ──
+    // ── 4. Reservations ──
     reservationEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
       const dayIdx = mondayIndexFromDate(r.date);
@@ -691,7 +753,10 @@ export default function WeeklyCalendar() {
         roomName: r.roomName || "-",
         dayIdx,
         daySpan: 1,
-        startH, startM, endH, endM,
+        startH,
+        startM,
+        endH,
+        endM,
         colorIdx: 2,
         faculty: r.facultyName || r.requesterName || "Faculty",
         date: r.date,
@@ -700,7 +765,7 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 8. Reassignments (NO "(Moved)" suffix, section shown) ──
+    // ── 5. Reassignments ──
     reassignedEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
       const dayIdx = mondayIndexFromDate(r.date);
@@ -709,15 +774,16 @@ export default function WeeklyCalendar() {
       items.push({
         id: `reassign-${r.id}`,
         kind: "reassignment",
-        // ✅ WALANG "(Moved)" — plain course title
         title: r.courseTitle || "Class",
-        // ✅ Ibinabalik ang section
         section: r.section || "",
         location: `${r.newRoomName || "-"} | Reassigned Room`,
         roomName: r.newRoomName || "-",
         dayIdx,
         daySpan: 1,
-        startH, startM, endH, endM,
+        startH,
+        startM,
+        endH,
+        endM,
         colorIdx: 3,
         faculty: r.facultyName || "Faculty",
         date: r.date,
@@ -728,13 +794,15 @@ export default function WeeklyCalendar() {
     });
 
     return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     scheduleEvents,
     facultyOnlineEvents,
     overrideEvents,
     reservationEvents,
-    releasedKeys,
+    releasedMap,
     reassignedEvents,
+    activeTerm,
     weekStart.getTime(),
     weekEnd.getTime(),
   ]);
@@ -748,6 +816,11 @@ export default function WeeklyCalendar() {
     }
 
     if (ev.kind === "schedule") {
+      // Already released → just view details (no re-release)
+      if (ev.isReleased) {
+        setDetailsTarget({ ...ev, status });
+        return;
+      }
       if (status !== "COMPLETED") {
         openReleaseModal(ev);
         return;
@@ -756,7 +829,6 @@ export default function WeeklyCalendar() {
     setDetailsTarget({ ...ev, status });
   };
 
-  // ─── Release modal helpers ──────────────────────────────────────
   const openReleaseModal = (ev) => {
     const { status, remainingMinutes } = computeStatus(
       ev.date,
@@ -805,6 +877,22 @@ export default function WeeklyCalendar() {
       const me = userSnap.exists() ? userSnap.data() : {};
       const fullName = `${me.firstName || ""} ${me.lastName || ""}`.trim();
 
+      // ── Compute effectiveEndTime if class is ongoing ──
+      let effectiveEndTime = null;
+      const nowD = new Date();
+      const nowMin = nowD.getHours() * 60 + nowD.getMinutes();
+      const [rsh, rsm] = parseTimeParts(releaseTarget.rawStartTime);
+      const [reh, rem] = parseTimeParts(releaseTarget.rawEndTime);
+      const rStartMin = rsh * 60 + rsm;
+      const rEndMin = reh * 60 + rem;
+
+      if (nowMin > rStartMin && nowMin < rEndMin) {
+        effectiveEndTime = `${String(nowD.getHours()).padStart(
+          2,
+          "0"
+        )}:${String(nowD.getMinutes()).padStart(2, "0")}`;
+      }
+
       await addDoc(collection(db, "roomReleases"), {
         scheduleId: releaseTarget.scheduleId,
         roomId: releaseTarget.roomId,
@@ -815,6 +903,7 @@ export default function WeeklyCalendar() {
         section: releaseTarget.section || "",
         startTime: releaseTarget.startTime,
         endTime: releaseTarget.endTime,
+        effectiveEndTime, // null if upcoming, time if ongoing
         faculty: fullName,
         releasedBy: firebaseUser.uid,
         releasedByName: fullName,
@@ -843,23 +932,34 @@ export default function WeeklyCalendar() {
           actionType: "UPDATE",
           target: `${releaseTarget.roomName} | ${releaseTarget.subject || ""}`,
           status: "SUCCESS",
-          details: { reason, details },
+          details: {
+            reason,
+            details,
+            effectiveEndTime,
+            partiallyReleased: !!effectiveEndTime,
+          },
         });
       } catch (logErr) {
         console.error("logActivity failed:", logErr);
       }
 
-      setReleasedKeys((prev) => {
-        const next = new Set(prev);
-        next.add(`${releaseTarget.scheduleId}_${releaseTarget.date}`);
-        return next;
-      });
+      // NOTE: no manual setReleasedMap — onSnapshot handles it
 
       setReleaseTarget(null);
-      showToast("success", "Success", "Room released successfully! Notifications sent.");
+      showToast(
+        "success",
+        "Success",
+        effectiveEndTime
+          ? `Room released. Elapsed time up to ${effectiveEndTime} kept.`
+          : "Room released successfully! Notifications sent."
+      );
     } catch (err) {
       console.error("Release error:", err);
-      showToast("error", "Error", err.message || "Failed to release room. Please try again.");
+      showToast(
+        "error",
+        "Error",
+        err.message || "Failed to release room. Please try again."
+      );
     } finally {
       setSubmittingRelease(false);
     }
@@ -878,13 +978,16 @@ export default function WeeklyCalendar() {
           <div className="wc-page-header-text">
             <h1>My Schedule</h1>
             <p className="wc-page-subtitle">
-              View your weekly class schedule, keep track of your room assignments,
-              and release a room for classes you won't be holding.
+              View your weekly class schedule, keep track of your room
+              assignments, and release a room for classes you won't be holding.
             </p>
           </div>
 
           <div className="wc-page-actions">
-            <button className="wc-import-btn" onClick={() => setShowImportModal(true)}>
+            <button
+              className="wc-import-btn"
+              onClick={() => setShowImportModal(true)}
+            >
               <i className="fa-solid fa-upload" aria-hidden="true" />
               Import Schedule
             </button>
@@ -895,7 +998,10 @@ export default function WeeklyCalendar() {
           <div className="wc-legend">
             {LEGEND.map((l) => (
               <div className="wc-legend-item" key={l.label}>
-                <span className="wc-legend-dot" style={{ background: l.color }} />
+                <span
+                  className="wc-legend-dot"
+                  style={{ background: l.color }}
+                />
                 <span className="wc-legend-label">{l.label}</span>
               </div>
             ))}
@@ -909,9 +1015,15 @@ export default function WeeklyCalendar() {
 
         <div className="wc-card">
           <div className="wc-week-nav">
-            <i className="fa-solid fa-chevron-left" onClick={() => setWeekOffset((w) => w - 1)} />
+            <i
+              className="fa-solid fa-chevron-left"
+              onClick={() => setWeekOffset((w) => w - 1)}
+            />
             <span className="wc-week-label">{weekLabel}</span>
-            <i className="fa-solid fa-chevron-right" onClick={() => setWeekOffset((w) => w + 1)} />
+            <i
+              className="fa-solid fa-chevron-right"
+              onClick={() => setWeekOffset((w) => w + 1)}
+            />
           </div>
 
           <div className="wc-days-header">
@@ -919,7 +1031,9 @@ export default function WeeklyCalendar() {
             {DAYS.map((d, i) => (
               <div className="wc-day-cell" key={d}>
                 <span className="wc-day-name">{d}</span>
-                <span className={`wc-day-date ${i === todayIdx ? "today" : ""}`}>
+                <span
+                  className={`wc-day-date ${i === todayIdx ? "today" : ""}`}
+                >
                   {dayDates[i]}
                 </span>
               </div>
@@ -938,7 +1052,8 @@ export default function WeeklyCalendar() {
               <i className="fa-regular fa-calendar-xmark"></i>
               <p>No events found for this week.</p>
               <p style={{ fontSize: "14px", marginTop: "8px" }}>
-                Click <strong>Import Schedule</strong> to upload your class schedule.
+                Click <strong>Import Schedule</strong> to upload your class
+                schedule.
               </p>
             </div>
           ) : (
@@ -955,9 +1070,16 @@ export default function WeeklyCalendar() {
                 <div className="wc-events-layer">
                   {DAYS.map((_, i) => (
                     <div className="wc-day-col" key={i}>
-                      {Array.from({ length: END_HOUR - START_HOUR }, (_, j) => (
-                        <div className="wc-hour-line" key={j} style={{ top: j * HOUR_HEIGHT }} />
-                      ))}
+                      {Array.from(
+                        { length: END_HOUR - START_HOUR },
+                        (_, j) => (
+                          <div
+                            className="wc-hour-line"
+                            key={j}
+                            style={{ top: j * HOUR_HEIGHT }}
+                          />
+                        )
+                      )}
                     </div>
                   ))}
 
@@ -973,6 +1095,7 @@ export default function WeeklyCalendar() {
                     const widthPct = (ev.daySpan / 7) * 100;
                     const isClickable =
                       ev.kind === "schedule" &&
+                      !ev.isReleased &&
                       computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime)
                         .status !== "COMPLETED";
                     const isOnline = ev.isOnline || false;
@@ -981,8 +1104,12 @@ export default function WeeklyCalendar() {
                       <div
                         key={ev.id}
                         className={`wc-event ${
-                          isClickable ? "wc-event--clickable" : "wc-event--viewable"
-                        } ${isOnline ? "wc-event--online" : ""}`}
+                          isClickable
+                            ? "wc-event--clickable"
+                            : "wc-event--viewable"
+                        } ${isOnline ? "wc-event--online" : ""} ${
+                          ev.isReleased ? "wc-event--released" : ""
+                        }`}
                         onClick={() => handleEventClick(ev)}
                         style={{
                           top: topPx,
@@ -995,23 +1122,44 @@ export default function WeeklyCalendar() {
                         }}
                       >
                         <div className="wc-event-top">
-                          <span className="wc-event-title" style={{ color: color.text }}>
+                          <span
+                            className="wc-event-title"
+                            style={{ color: color.text }}
+                          >
                             {ev.title}
                             {ev.section && (
-                              <span className="wc-event-section"> ({ev.section})</span>
+                              <span className="wc-event-section">
+                                {" "}
+                                ({ev.section})
+                              </span>
                             )}
-                            {isOnline && <span className="wc-online-badge">Online</span>}
+                            {isOnline && (
+                              <span className="wc-online-badge">Online</span>
+                            )}
+                            {ev.isReleased && (
+                              <span
+                                className="wc-released-badge"
+                                title={`Released at ${ev.releasedAtTime}`}
+                              >
+                                Released {ev.releasedAtTime}
+                              </span>
+                            )}
                           </span>
 
-                          {/* ✅ COMPACT 12-HOUR: "7:00 – 8:30 AM" */}
                           <span
                             className="wc-event-time"
-                            style={{ background: color.timeBg, color: color.text }}
+                            style={{
+                              background: color.timeBg,
+                              color: color.text,
+                            }}
                           >
                             {fmtTimeRange(ev.startH, ev.startM, ev.endH, ev.endM)}
                           </span>
                         </div>
-                        <span className="wc-event-loc" style={{ color: color.text }}>
+                        <span
+                          className="wc-event-loc"
+                          style={{ color: color.text }}
+                        >
                           {ev.location}
                         </span>
                       </div>

@@ -251,3 +251,22 @@
     font-size: 14px;
   }
 }
+
+.rr-ongoing-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin: 12px 0 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #92400e;
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: 6px;
+}
+
+.rr-ongoing-note i {
+  margin-top: 2px;
+  color: #d97706;
+}

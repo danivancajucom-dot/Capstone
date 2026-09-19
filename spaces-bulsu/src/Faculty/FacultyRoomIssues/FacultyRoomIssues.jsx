@@ -29,6 +29,10 @@ export default function FacultyRoomIssues() {
   const [currentPage, setCurrentPage]   = useState(1);
   const [myUid, setMyUid]               = useState(null);
 
+  // ── Room picker popover state ──────────────────────────────
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+
   const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
@@ -49,8 +53,6 @@ export default function FacultyRoomIssues() {
   }, []);
 
   // ── Step 2: Load THIS faculty's reports (realtime) ──────────
-  // NOTE: Removed `orderBy` to avoid Firestore composite index.
-  // Sorting is handled client-side by the `filtered` useMemo.
   useEffect(() => {
     if (!myUid) return;
 
@@ -101,6 +103,13 @@ export default function FacultyRoomIssues() {
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [issues]);
+
+  // ── Filtered room list (for search inside picker) ──────────
+  const filteredRoomOptions = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return roomOptions;
+    return roomOptions.filter((r) => r.toLowerCase().includes(q));
+  }, [roomOptions, roomSearch]);
 
   // ── Filter + sort (client-side) ────────────────────────────
   const filtered = useMemo(() => {
@@ -216,22 +225,117 @@ export default function FacultyRoomIssues() {
           </div>
 
           <div className="ri-filters">
-            <div className="ri-select">
-              <i className="fa-solid fa-door-open" />
-              <select
-                value={roomFilter}
-                onChange={(e) => setRoomFilter(e.target.value)}
+            {/* ── ROOM PICKER ── */}
+            <div className="ri-roompicker">
+              <button
+                type="button"
+                className={`ri-room-trigger ${showRoomPicker ? "open" : ""}`}
+                onClick={() => {
+                  setRoomSearch("");
+                  setShowRoomPicker((v) => !v);
+                }}
               >
-                <option value="">All Rooms</option>
-                {roomOptions.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-              <i className="fa-solid fa-angle-down ri-select-chev" />
+                <i className="fa-solid fa-door-open"></i>
+                <span className="ri-room-trigger-text">
+                  {roomFilter || "All Rooms"}
+                </span>
+                <i
+                  className={`fa-solid fa-chevron-down ri-room-caret ${
+                    showRoomPicker ? "open" : ""
+                  }`}
+                ></i>
+              </button>
+
+              {showRoomPicker && (
+                <>
+                  <div
+                    className="ri-room-clickaway"
+                    onClick={() => setShowRoomPicker(false)}
+                  ></div>
+                  <div className="ri-room-popover">
+                    <span className="ri-room-popover-arrow"></span>
+
+                    <div className="ri-room-search-wrap">
+                      <i className="fa-solid fa-magnifying-glass"></i>
+                      <input
+                        type="text"
+                        className="ri-room-search"
+                        placeholder="Search room..."
+                        value={roomSearch}
+                        onChange={(e) => setRoomSearch(e.target.value)}
+                        autoFocus
+                      />
+                      {roomSearch && (
+                        <button
+                          type="button"
+                          className="ri-room-search-clear"
+                          onClick={() => setRoomSearch("")}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="ri-room-list">
+                      <button
+                        type="button"
+                        className={`ri-room-option ${
+                          !roomFilter ? "is-active" : ""
+                        }`}
+                        onClick={() => {
+                          setRoomFilter("");
+                          setShowRoomPicker(false);
+                          setRoomSearch("");
+                        }}
+                      >
+                        <div className="ri-room-option-icon">
+                          <i className="fa-solid fa-layer-group"></i>
+                        </div>
+                        <span className="ri-room-option-name">All Rooms</span>
+                        {!roomFilter && (
+                          <i className="fa-solid fa-circle-check ri-room-option-check"></i>
+                        )}
+                      </button>
+
+                      {filteredRoomOptions.length === 0 && roomSearch ? (
+                        <div className="ri-room-empty">
+                          <i className="fa-regular fa-face-frown"></i>
+                          <span>No rooms match.</span>
+                        </div>
+                      ) : (
+                        filteredRoomOptions.map((r) => {
+                          const isActive = r === roomFilter;
+                          return (
+                            <button
+                              type="button"
+                              key={r}
+                              className={`ri-room-option ${
+                                isActive ? "is-active" : ""
+                              }`}
+                              onClick={() => {
+                                setRoomFilter(r);
+                                setShowRoomPicker(false);
+                                setRoomSearch("");
+                              }}
+                            >
+                              <div className="ri-room-option-icon">
+                                <i className="fa-solid fa-door-open"></i>
+                              </div>
+                              <span className="ri-room-option-name">{r}</span>
+                              {isActive && (
+                                <i className="fa-solid fa-circle-check ri-room-option-check"></i>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
+            {/* ── SORT (native select) ── */}
             <div className="ri-select">
               <i className="fa-solid fa-arrow-down-short-wide" />
               <select
