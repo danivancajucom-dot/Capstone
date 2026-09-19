@@ -35,7 +35,9 @@ const fmt12 = (t) => {
 };
 const fmtDate = (d) => {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("en-US", {
+  const dt = d?.toDate ? d.toDate() : new Date(d);
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric", year: "numeric",
   });
 };
@@ -48,11 +50,14 @@ function AdminReassignments() {
   const [noteText, setNoteText] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  // ── Filters ──────────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");        // "" = all rooms
-  const [sortOrder, setSortOrder] = useState("newest");    // newest | oldest | date_asc | date_desc
+  const [roomFilter, setRoomFilter] = useState("");
+  const [sortOrder, setSortOrder] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
+
+  // ── Room picker ──
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
 
   const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
   const showToast = (type, title, message) => {
@@ -60,14 +65,12 @@ function AdminReassignments() {
     if (type !== "loading") setTimeout(() => setToast((p) => ({ ...p, show: false })), 4000);
   };
 
-  // ── REALTIME LISTENER ─────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     const unsub = onSnapshot(
       collection(db, "roomReassignments"),
       (snap) => {
-        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setItems(data);
+        setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setLoading(false);
       },
       (err) => {
@@ -84,7 +87,6 @@ function AdminReassignments() {
     return acc;
   }, {}), [items]);
 
-  // ── Unique room list (for filter dropdown) ────────────────────
   const roomOptions = useMemo(() => {
     const set = new Set();
     items.forEach((i) => {
@@ -94,16 +96,15 @@ function AdminReassignments() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [items]);
 
-  // ── FILTER + SEARCH + ROOM + SORT ────────────────────────────
+  const filteredRoomOptions = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return roomOptions;
+    return roomOptions.filter((r) => r.toLowerCase().includes(q));
+  }, [roomOptions, roomSearch]);
+
   const filtered = useMemo(() => {
     let list = activeTab === "all" ? items : items.filter((i) => i.status === activeTab);
-
-    if (roomFilter) {
-      list = list.filter(
-        (i) => i.oldRoomName === roomFilter || i.newRoomName === roomFilter
-      );
-    }
-
+    if (roomFilter) list = list.filter((i) => i.oldRoomName === roomFilter || i.newRoomName === roomFilter);
     if (searchTerm.trim()) {
       const s = searchTerm.toLowerCase();
       list = list.filter((i) =>
@@ -115,45 +116,33 @@ function AdminReassignments() {
         (i.newRoomName || "").toLowerCase().includes(s)
       );
     }
-
     const sorted = [...list];
-    if (sortOrder === "newest") {
-      sorted.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    } else if (sortOrder === "oldest") {
-      sorted.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-    } else if (sortOrder === "date_asc") {
-      sorted.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
-    } else if (sortOrder === "date_desc") {
-      sorted.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
-    }
+    if (sortOrder === "newest") sorted.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    else if (sortOrder === "oldest") sorted.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    else if (sortOrder === "date_asc") sorted.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    else if (sortOrder === "date_desc") sorted.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     return sorted;
   }, [items, activeTab, searchTerm, roomFilter, sortOrder]);
 
   useEffect(() => { setCurrentPage(1); }, [activeTab, searchTerm, roomFilter, sortOrder]);
 
-  // ── PAGINATION ───────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
   const startIdx = (safePage - 1) * ITEMS_PER_PAGE;
   const paginated = filtered.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
   const hasActiveFilters = searchTerm || roomFilter || sortOrder !== "newest";
+  const clearAllFilters = () => { setSearchTerm(""); setRoomFilter(""); setSortOrder("newest"); };
 
-  const clearAllFilters = () => {
-    setSearchTerm("");
-    setRoomFilter("");
-    setSortOrder("newest");
-  };
-
-  const openAction = (item, type) => {
-    setActionModal({ item, type });
-    setNoteText("");
-  };
+  const openAction = (item, type) => { setActionModal({ item, type }); setNoteText(""); };
 
   const decide = async () => {
     if (!actionModal) return;
     const { item, type } = actionModal;
     setProcessing(true);
+    const isEvent = item.reassignType === "event";
+    const displayTitle = isEvent ? (item.eventTitle || item.courseTitle || "Untitled Activity") : (item.courseTitle || "Untitled Class");
+    const entryLabel = isEvent ? "activity" : "class";
 
     try {
       const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
@@ -162,50 +151,33 @@ function AdminReassignments() {
 
       if (type === "approve") {
         await updateDoc(doc(db, "roomReassignments", item.id), {
-          status: "pending_faculty",
-          adminNote: noteText || "",
-          approvedById: auth.currentUser.uid,
-          approvedByName: myName,
-          approvedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          status: "pending_faculty", adminNote: noteText || "",
+          approvedById: auth.currentUser.uid, approvedByName: myName,
+          approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
         });
-
         if (item.facultyId) {
           await addDoc(collection(db, "notifications"), {
-            userId: item.facultyId,
-            ownerType: "faculty",
-            assignmentId: item.id,
-            reassignmentId: item.id,
-            title: "Room Reassignment — Please Respond",
-            message: `Your ${item.courseTitle || "class"} has been moved from ${item.oldRoomName} to ${item.newRoomName} on ${item.date} (${fmt12(item.startTime)} – ${fmt12(item.endTime)}). Please review and respond.`,
-            type: "room-reassignment",
-            unread: true, archived: false, badge: "NEW",
+            userId: item.facultyId, ownerType: "faculty",
+            assignmentId: item.id, reassignmentId: item.id,
+            title: `Room Reassignment — Please Respond`,
+            message: `Your ${entryLabel} "${displayTitle}" has been moved from ${item.oldRoomName} to ${item.newRoomName} on ${item.date} (${fmt12(item.startTime)} – ${fmt12(item.endTime)}). Please review and respond.`,
+            type: "room-reassignment", unread: true, archived: false, badge: "NEW",
             createdAt: serverTimestamp(),
           });
         }
-
         if (item.requestedById) {
           await addDoc(collection(db, "notifications"), {
-            userId: item.requestedById,
-            ownerType: "clerk",
-            assignmentId: item.id,
-            reassignmentId: item.id,
+            userId: item.requestedById, ownerType: "clerk",
+            assignmentId: item.id, reassignmentId: item.id,
             title: "Reassignment Approved",
-            message: `Your reassignment request (${item.oldRoomName} → ${item.newRoomName}) was approved. Waiting for faculty response.`,
-            type: "room-reassignment-status",
-            unread: true, archived: false, badge: "INFO",
+            message: `Your reassignment request (${item.oldRoomName} → ${item.newRoomName}) for "${displayTitle}" was approved. Waiting for faculty response.`,
+            type: "room-reassignment-status", unread: true, archived: false, badge: "INFO",
             createdAt: serverTimestamp(),
           });
         }
-
-        await logActivity({
-          user: myName, role: me.role,
-          action: "Approved room reassignment",
-          actionType: "approve",
-          target: `${item.courseTitle} • ${item.oldRoomName} → ${item.newRoomName}`,
-          status: "SUCCESS",
-        });
-
+        await logActivity({ user: myName, role: me.role,
+          action: "Approved room reassignment", actionType: "approve",
+          target: `${displayTitle} • ${item.oldRoomName} → ${item.newRoomName}`, status: "SUCCESS" });
         showToast("success", "Approved", "Faculty has been notified.");
       } else if (type === "cancel_class") {
         if (item.eventId) {
@@ -213,87 +185,58 @@ function AdminReassignments() {
           const evSnap = await getDoc(evRef);
           const evData = evSnap.data() || {};
           await updateDoc(evRef, {
-            conflictResolved: true,
-            resolution: "cancelled_class",
-            resolutionReason: noteText || "Class cancelled by Admin.",
+            conflictResolved: true, resolution: "cancelled_class",
+            resolutionReason: noteText || `${isEvent ? "Activity" : "Class"} cancelled by Admin.`,
             updatedAt: serverTimestamp(),
           });
           if (item.scheduleId && evData.roomId) {
             const schedRef = doc(db, "rooms", evData.roomId, "schedules", item.scheduleId);
             const schedSnap = await getDoc(schedRef);
             if (schedSnap.exists()) {
-              await updateDoc(schedRef, { cancelled: true, cancelledReason: "Cancelled by Admin" });
+              await updateDoc(schedRef, { cancelled: true, cancelledReason: `Cancelled by Admin` });
             }
           }
         }
-
         await updateDoc(doc(db, "roomReassignments", item.id), {
-          status: "cancelled",
-          adminNote: noteText || "",
-          decidedById: auth.currentUser.uid,
-          decidedByName: myName,
-          decidedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          status: "cancelled", adminNote: noteText || "",
+          decidedById: auth.currentUser.uid, decidedByName: myName,
+          decidedAt: serverTimestamp(), updatedAt: serverTimestamp(),
         });
-
         if (item.requestedById) {
           await addDoc(collection(db, "notifications"), {
-            userId: item.requestedById,
-            ownerType: "clerk",
-            assignmentId: item.id,
-            reassignmentId: item.id,
-            title: "Class Cancelled",
-            message: `The class "${item.courseTitle}" on ${item.date} was cancelled by the Admin. No further action needed.`,
-            type: "room-reassignment-status",
-            unread: true, archived: false, badge: "INFO",
+            userId: item.requestedById, ownerType: "clerk",
+            assignmentId: item.id, reassignmentId: item.id,
+            title: isEvent ? "Activity Cancelled" : "Class Cancelled",
+            message: `The ${entryLabel} "${displayTitle}" on ${item.date} was cancelled by the Admin. No further action needed.`,
+            type: "room-reassignment-status", unread: true, archived: false, badge: "INFO",
             createdAt: serverTimestamp(),
           });
         }
-
-        await logActivity({
-          user: myName, role: me.role,
-          action: "Cancelled class (via reassignment)",
-          actionType: "cancel",
-          target: `${item.courseTitle} • ${item.oldRoomName}`,
-          status: "SUCCESS",
-        });
-
-        showToast("success", "Class Cancelled", "Clerk has been notified.");
+        await logActivity({ user: myName, role: me.role,
+          action: `Cancelled ${entryLabel} (via reassignment)`, actionType: "cancel",
+          target: `${displayTitle} • ${item.oldRoomName}`, status: "SUCCESS" });
+        showToast("success", isEvent ? "Activity Cancelled" : "Class Cancelled", "Clerk has been notified.");
       } else if (type === "reassign_again") {
         await updateDoc(doc(db, "roomReassignments", item.id), {
-          status: "needs_reassign",
-          adminNote: noteText || "Please select another room.",
-          decidedById: auth.currentUser.uid,
-          decidedByName: myName,
-          decidedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          status: "needs_reassign", adminNote: noteText || "Please select another room.",
+          decidedById: auth.currentUser.uid, decidedByName: myName,
+          decidedAt: serverTimestamp(), updatedAt: serverTimestamp(),
         });
-
         if (item.requestedById) {
           await addDoc(collection(db, "notifications"), {
-            userId: item.requestedById,
-            ownerType: "clerk",
-            assignmentId: item.id,
-            reassignmentId: item.id,
+            userId: item.requestedById, ownerType: "clerk",
+            assignmentId: item.id, reassignmentId: item.id,
             title: "Reassign Again",
-            message: `Please reassign this class to a different room.${noteText ? ` Reason: ${noteText}` : ""}`,
-            type: "room-reassignment-status",
-            unread: true, archived: false, badge: "ACTION",
+            message: `Please reassign this ${entryLabel} to a different room.${noteText ? ` Reason: ${noteText}` : ""}`,
+            type: "room-reassignment-status", unread: true, archived: false, badge: "ACTION",
             createdAt: serverTimestamp(),
           });
         }
-
-        await logActivity({
-          user: myName, role: me.role,
-          action: "Requested reassignment again",
-          actionType: "edit",
-          target: `${item.courseTitle} • ${item.oldRoomName} → ${item.newRoomName}`,
-          status: "PENDING",
-        });
-
+        await logActivity({ user: myName, role: me.role,
+          action: "Requested reassignment again", actionType: "edit",
+          target: `${displayTitle} • ${item.oldRoomName} → ${item.newRoomName}`, status: "PENDING" });
         showToast("success", "Sent back to Clerk", "Clerk has been notified to reassign.");
       }
-
       setActionModal(null);
     } catch (err) {
       console.error(err);
@@ -315,11 +258,9 @@ function AdminReassignments() {
           </div>
         </div>
 
-        {/* TABS */}
         <div className="dhr-tabs">
           {TABS.map((t) => (
-            <button key={t.key}
-              className={`dhr-tab ${activeTab === t.key ? "active" : ""}`}
+            <button key={t.key} className={`dhr-tab ${activeTab === t.key ? "active" : ""}`}
               onClick={() => setActiveTab(t.key)}>
               {t.label}
               <span className="dhr-tab-count">{counts[t.key] || 0}</span>
@@ -327,16 +268,12 @@ function AdminReassignments() {
           ))}
         </div>
 
-        {/* TOOLBAR: Search + Room Filter + Sort */}
+        {/* TOOLBAR */}
         <div className="dhr-toolbar">
           <div className="dhr-search">
             <i className="fa-solid fa-magnifying-glass"></i>
-            <input
-              type="text"
-              placeholder="Search course, faculty, section, or room…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <input type="text" placeholder="Search course, faculty, section, or room…"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             {searchTerm && (
               <button className="dhr-search-clear" onClick={() => setSearchTerm("")} aria-label="Clear">
                 <i className="fa-solid fa-xmark"></i>
@@ -345,25 +282,71 @@ function AdminReassignments() {
           </div>
 
           <div className="dhr-filters">
-            {/* Room filter */}
-            <div className="dhr-select">
-              <i className="fa-solid fa-door-open"></i>
-              <select value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)}>
-                <option value="">All Rooms</option>
-                {roomOptions.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <i className="fa-solid fa-angle-down dhr-select-chev"></i>
+            {/* ROOM PICKER */}
+            <div className="dhr-roompicker">
+              <button type="button"
+                className={`dhr-room-trigger ${showRoomPicker ? "open" : ""}`}
+                onClick={() => { setRoomSearch(""); setShowRoomPicker((v) => !v); }}>
+                <i className="fa-solid fa-door-open"></i>
+                <span className="dhr-room-trigger-text">{roomFilter || "All Rooms"}</span>
+                <i className={`fa-solid fa-chevron-down dhr-room-caret ${showRoomPicker ? "open" : ""}`}></i>
+              </button>
+
+              {showRoomPicker && (
+                <>
+                  <div className="dhr-picker-clickaway" onClick={() => setShowRoomPicker(false)}></div>
+                  <div className="dhr-room-popover">
+                    <span className="dhr-popover-arrow"></span>
+
+                    <div className="dhr-search-wrap">
+                      <i className="fa-solid fa-magnifying-glass"></i>
+                      <input type="text" className="dhr-search-input" placeholder="Search room..."
+                        value={roomSearch} onChange={(e) => setRoomSearch(e.target.value)} autoFocus />
+                      {roomSearch && (
+                        <button type="button" className="dhr-search-clear-input" onClick={() => setRoomSearch("")}>
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="dhr-room-list">
+                      <button type="button"
+                        className={`dhr-room-option ${!roomFilter ? "is-active" : ""}`}
+                        onClick={() => { setRoomFilter(""); setShowRoomPicker(false); setRoomSearch(""); }}>
+                        <div className="dhr-room-option-icon"><i className="fa-solid fa-layer-group"></i></div>
+                        <span className="dhr-room-option-name">All Rooms</span>
+                        {!roomFilter && <i className="fa-solid fa-circle-check dhr-room-option-check"></i>}
+                      </button>
+
+                      {filteredRoomOptions.length === 0 && roomSearch ? (
+                        <div className="dhr-picker-empty">
+                          <i className="fa-regular fa-face-frown"></i>
+                          <span>No rooms match.</span>
+                        </div>
+                      ) : (
+                        filteredRoomOptions.map((r) => {
+                          const isActive = r === roomFilter;
+                          return (
+                            <button type="button" key={r}
+                              className={`dhr-room-option ${isActive ? "is-active" : ""}`}
+                              onClick={() => { setRoomFilter(r); setShowRoomPicker(false); setRoomSearch(""); }}>
+                              <div className="dhr-room-option-icon"><i className="fa-solid fa-door-open"></i></div>
+                              <span className="dhr-room-option-name">{r}</span>
+                              {isActive && <i className="fa-solid fa-circle-check dhr-room-option-check"></i>}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Sort */}
             <div className="dhr-select">
               <i className="fa-solid fa-arrow-down-short-wide"></i>
               <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
-                {SORT_OPTIONS.map((s) => (
-                  <option key={s.key} value={s.key}>{s.label}</option>
-                ))}
+                {SORT_OPTIONS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
               <i className="fa-solid fa-angle-down dhr-select-chev"></i>
             </div>
@@ -380,7 +363,6 @@ function AdminReassignments() {
           </span>
         </div>
 
-        {/* BODY */}
         <div className="dhr-body">
           {loading ? (
             <div className="dhr-empty">
@@ -390,44 +372,26 @@ function AdminReassignments() {
           ) : paginated.length === 0 ? (
             <div className="dhr-empty">
               <i className="fa-regular fa-folder-open"></i>
-              <p>
-                {searchTerm || roomFilter
-                  ? "No matches for your filters."
-                  : "No reassignment requests in this view."}
-              </p>
+              <p>{searchTerm || roomFilter ? "No matches for your filters." : "No reassignment requests in this view."}</p>
             </div>
           ) : (
-            paginated.map((item) => (
-              <ReassignmentCard key={item.id} item={item} onAction={openAction} />
-            ))
+            paginated.map((item) => <ReassignmentCard key={item.id} item={item} onAction={openAction} />)
           )}
         </div>
 
-        {/* PAGINATION */}
         {!loading && totalPages > 1 && (
           <div className="dhr-pagination">
             <span className="dhr-page-info">
               Showing {startIdx + 1}–{Math.min(startIdx + ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
             </span>
             <div className="dhr-page-controls">
-              <button
-                disabled={safePage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                aria-label="Previous">
+              <button disabled={safePage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
                 <i className="fa-solid fa-chevron-left"></i>
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  className={safePage === p ? "active" : ""}
-                  onClick={() => setCurrentPage(p)}>
-                  {p}
-                </button>
+                <button key={p} className={safePage === p ? "active" : ""} onClick={() => setCurrentPage(p)}>{p}</button>
               ))}
-              <button
-                disabled={safePage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                aria-label="Next">
+              <button disabled={safePage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
                 <i className="fa-solid fa-chevron-right"></i>
               </button>
             </div>
@@ -447,21 +411,30 @@ function AdminReassignments() {
             </div>
             <h3 className="dhr-modal-title">
               {actionModal.type === "approve" ? "Approve Reassignment?" :
-               actionModal.type === "cancel_class" ? "Cancel the Class?" :
-               "Reassign Again?"}
+               actionModal.type === "cancel_class"
+                 ? (actionModal.item.reassignType === "event" ? "Cancel the Activity?" : "Cancel the Class?")
+                 : "Reassign Again?"}
             </h3>
             <p className="dhr-modal-text">
               {actionModal.type === "approve"
                 ? "The affected faculty will be notified and can accept or decline."
                 : actionModal.type === "cancel_class"
-                ? "The class will be cancelled immediately. The faculty is aware and no further response is needed."
+                ? (actionModal.item.reassignType === "event"
+                    ? "The activity will be cancelled immediately. No further response is needed."
+                    : "The class will be cancelled immediately. The faculty is aware and no further response is needed.")
                 : "This will be sent back to the Clerk to pick a different room."}
             </p>
 
             <div className="dhr-modal-summary">
               <div className="dhr-modal-summary-row">
-                <i className="fa-solid fa-chalkboard-user"></i>
-                <span>{actionModal.item.courseTitle || "—"} {actionModal.item.section ? `· ${actionModal.item.section}` : ""}</span>
+                <i className={`fa-solid ${actionModal.item.reassignType === "event" ? "fa-calendar-plus" : "fa-chalkboard-user"}`}></i>
+                <span>
+                  {actionModal.item.reassignType === "event"
+                    ? (actionModal.item.eventTitle || "Untitled Activity")
+                    : (actionModal.item.courseTitle || "—")}
+                  {actionModal.item.reassignType !== "event" && actionModal.item.section
+                    ? ` · ${actionModal.item.section}` : ""}
+                </span>
               </div>
               <div className="dhr-modal-summary-row">
                 <i className="fa-solid fa-door-open"></i>
@@ -477,30 +450,18 @@ function AdminReassignments() {
               </div>
             </div>
 
-            <textarea
-              className="dhr-modal-note"
-              placeholder={
-                actionModal.type === "reassign_again"
-                  ? "Optional note for the Clerk…"
-                  : "Optional note (added to record)…"
-              }
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              rows={3}
-            />
+            <textarea className="dhr-modal-note"
+              placeholder={actionModal.type === "reassign_again" ? "Optional note for the Clerk…" : "Optional note (added to record)…"}
+              value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3} />
 
             <div className="dhr-modal-actions">
-              <button className="dhr-modal-cancel" onClick={() => setActionModal(null)} disabled={processing}>
-                Cancel
-              </button>
-              <button
-                className={`dhr-modal-confirm is-${actionModal.type}`}
-                onClick={decide}
-                disabled={processing}>
+              <button className="dhr-modal-cancel" onClick={() => setActionModal(null)} disabled={processing}>Cancel</button>
+              <button className={`dhr-modal-confirm is-${actionModal.type}`} onClick={decide} disabled={processing}>
                 {processing ? "Processing…" :
                   actionModal.type === "approve" ? "Approve" :
-                  actionModal.type === "cancel_class" ? "Cancel Class" :
-                  "Send Back"}
+                  actionModal.type === "cancel_class"
+                    ? (actionModal.item.reassignType === "event" ? "Cancel Activity" : "Cancel Class")
+                    : "Send Back"}
               </button>
             </div>
           </div>
@@ -513,7 +474,6 @@ function AdminReassignments() {
   );
 }
 
-// ─── Card ──────────────────────────────────────────────────────
 function ReassignmentCard({ item, onAction }) {
   const statusMap = {
     pending_admin:   { label: "Needs Review",       cls: "is-pending-admin" },
@@ -525,22 +485,26 @@ function ReassignmentCard({ item, onAction }) {
     cancelled:       { label: "Cancelled",          cls: "is-cancelled" },
   };
   const meta = statusMap[item.status] || statusMap.pending_admin;
-
   const isPending = item.status === "pending_admin" || item.status === "pending";
+  const isEvent = item.reassignType === "event";
+  const displayTitle = isEvent ? (item.eventTitle || item.courseTitle || "Untitled Activity") : (item.courseTitle || "Untitled Class");
+  const displaySubtitle = isEvent ? (item.eventReason || "") : (item.section || "");
+  const acceptedDate = item.acceptedAt?.toDate?.() || item.acceptedAt || null;
+  const declinedDate = item.declinedAt?.toDate?.() || item.declinedAt || null;
 
   return (
     <div className={`dhr-card ${meta.cls}`}>
       <div className="dhr-card-top">
         <div className="dhr-card-title-block">
           <div className="dhr-card-title">
-            <span className={`dhr-type-chip ${item.reassignType === "event" ? "is-event" : "is-class"}`}>
-              <i className={`fa-solid ${item.reassignType === "event" ? "fa-calendar-plus" : "fa-chalkboard-user"}`}></i>
-              {item.reassignType === "event" ? "Activity" : "Class"}
+            <span className={`dhr-type-chip ${isEvent ? "is-event" : "is-class"}`}>
+              <i className={`fa-solid ${isEvent ? "fa-calendar-plus" : "fa-chalkboard-user"}`}></i>
+              {isEvent ? "Activity" : "Class"}
             </span>
-            {item.courseTitle || item.eventTitle || "—"}
+            {displayTitle}
           </div>
           <div className="dhr-card-sub">
-            {item.section && <span>{item.section}</span>}
+            {displaySubtitle && <span>{displaySubtitle}</span>}
             {item.facultyName && <span><i className="fa-regular fa-user"></i> {item.facultyName}</span>}
           </div>
         </div>
@@ -548,33 +512,42 @@ function ReassignmentCard({ item, onAction }) {
       </div>
 
       <div className="dhr-card-grid">
-        <div className="dhr-info">
-          <span className="dhr-info-label">From</span>
-          <span className="dhr-info-value">{item.oldRoomName || "—"}</span>
-        </div>
-        <div className="dhr-info">
-          <span className="dhr-info-label">To</span>
-          <span className="dhr-info-value">{item.newRoomName || "—"}</span>
-        </div>
-        <div className="dhr-info">
-          <span className="dhr-info-label">Date</span>
-          <span className="dhr-info-value">{fmtDate(item.date)}</span>
-        </div>
-        <div className="dhr-info">
-          <span className="dhr-info-label">Time</span>
-          <span className="dhr-info-value">{fmt12(item.startTime)} – {fmt12(item.endTime)}</span>
-        </div>
+        <div className="dhr-info"><span className="dhr-info-label">From</span><span className="dhr-info-value">{item.oldRoomName || "—"}</span></div>
+        <div className="dhr-info"><span className="dhr-info-label">To</span><span className="dhr-info-value">{item.newRoomName || "—"}</span></div>
+        <div className="dhr-info"><span className="dhr-info-label">Date</span><span className="dhr-info-value">{fmtDate(item.date)}</span></div>
+        <div className="dhr-info"><span className="dhr-info-label">Time</span><span className="dhr-info-value">{fmt12(item.startTime)} – {fmt12(item.endTime)}</span></div>
       </div>
 
-      {item.adminNote && (
-        <div className="dhr-note">
-          <i className="fa-solid fa-comment-dots"></i> {item.adminNote}
+      {item.adminNote && (<div className="dhr-note"><i className="fa-solid fa-comment-dots"></i> {item.adminNote}</div>)}
+
+      {item.status === "pending_faculty" && (
+        <div className="dhr-note" style={{ background: "#eff6ff", color: "#1e40af" }}>
+          <i className="fa-solid fa-user-clock"></i>
+          <span>Waiting for faculty response{item.facultyName ? ` (${item.facultyName})` : ""}…</span>
         </div>
       )}
 
-      {item.denialReason && item.status === "declined" && (
+      {item.status === "accepted" && (
+        <div className="dhr-note" style={{ background: "#ecfdf5", color: "#065f46" }}>
+          <i className="fa-solid fa-circle-check"></i>
+          <span>
+            <strong>Accepted by faculty</strong>
+            {item.facultyName ? ` — ${item.facultyName}` : ""}
+            {acceptedDate ? ` · ${fmtDate(acceptedDate)}` : ""}
+            {` · ${isEvent ? "Activity" : "Class"} moved to ${item.newRoomName || "new room"}.`}
+          </span>
+        </div>
+      )}
+
+      {item.status === "declined" && (
         <div className="dhr-note" style={{ background: "#fef2f2", color: "#b91c1c" }}>
-          <i className="fa-solid fa-circle-xmark"></i> Faculty reason: {item.denialReason}
+          <i className="fa-solid fa-circle-xmark"></i>
+          <span>
+            <strong>Declined by faculty</strong>
+            {item.facultyName ? ` — ${item.facultyName}` : ""}
+            {declinedDate ? ` · ${fmtDate(declinedDate)}` : ""}
+            {item.denialReason ? ` · Reason: ${item.denialReason}` : ""}
+          </span>
         </div>
       )}
 
@@ -584,7 +557,7 @@ function ReassignmentCard({ item, onAction }) {
             <i className="fa-solid fa-circle-check"></i> Approve
           </button>
           <button className="dhr-btn dhr-btn-cancel" onClick={() => onAction(item, "cancel_class")}>
-            <i className="fa-solid fa-ban"></i> Cancel Class
+            <i className="fa-solid fa-ban"></i> {isEvent ? "Cancel Activity" : "Cancel Class"}
           </button>
           <button className="dhr-btn dhr-btn-reassign" onClick={() => onAction(item, "reassign_again")}>
             <i className="fa-solid fa-rotate-left"></i> Reassign Again

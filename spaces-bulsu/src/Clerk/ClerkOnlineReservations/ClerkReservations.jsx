@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./clerk-reservations.css";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
@@ -27,9 +27,9 @@ const PAGE_SIZE = 8;
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
-const normalizeRoom = (name) => name?.toLowerCase().trim().replace(/\s+/g, "") || "";
+const normalizeRoom = (name) =>
+  name?.toLowerCase().trim().replace(/\s+/g, "") || "";
 
-// ─── Get today's date as YYYY-MM-DD ──────────────────────────────────
 const getToday = () => {
   const now = new Date();
   const y = now.getFullYear();
@@ -38,7 +38,6 @@ const getToday = () => {
   return `${y}-${m}-${d}`;
 };
 
-// ─── Format 12-hour ──────────────────────────────────────────────────
 const format12Hour = (time) => {
   if (!time) return "-";
   const [hour, minute] = time.split(":").map(Number);
@@ -46,6 +45,60 @@ const format12Hour = (time) => {
   const suffix = hour >= 12 ? "PM" : "AM";
   const h = hour % 12 || 12;
   return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+// ─── Date picker helpers ────────────────────────────────────────────
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const toDateInputValue = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "-";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+  return cells;
 };
 
 // ─── Empty icon (SVG) ──────────────────────────────────────────────────
@@ -59,7 +112,6 @@ const EmptyIcon = () => (
   </svg>
 );
 
-// ─── Skeleton card placeholder ────────────────────────────────────────
 function SkeletonCard() {
   return (
     <div className="clerk-skeleton-card">
@@ -73,7 +125,6 @@ function SkeletonCard() {
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────
 function EmptyState({ label }) {
   return (
     <div className="clerk-empty-state">
@@ -101,6 +152,17 @@ function ClerkReservations() {
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
 
+  // ─── Room picker popover ────────────────────────────────────────────
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+
+  // ─── Date picker popover ────────────────────────────────────────────
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
   // ─── Export state ──────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -118,20 +180,15 @@ function ClerkReservations() {
     }
   };
 
-  // ─── Auto-cancel past-dated pending reservations (time‑aware) ──────
+  // ─── Auto-cancel past-dated pending ────────────────────────────────
   const autoCancelPastReservations = async () => {
     const now = new Date();
     const pendingPast = reservations.filter((r) => {
       if (normalizeStatus(r.status) !== "pending") return false;
-
-      // Parse date and end time
       if (!r.date || !r.endTime) return false;
-
       const [year, month, day] = r.date.split("-").map(Number);
       const [hour, minute] = r.endTime.split(":").map(Number);
       const reservationEnd = new Date(year, month - 1, day, hour, minute);
-
-      // If the end time is in the past → cancel
       return reservationEnd < now;
     });
 
@@ -149,13 +206,11 @@ function ClerkReservations() {
         });
       });
       await batch.commit();
-      console.log(`✅ Auto-cancelled ${pendingPast.length} past-dated reservations.`);
     } catch (err) {
-      console.error("❌ Auto-cancel failed:", err);
+      console.error("Auto-cancel failed:", err);
     }
   };
 
-  // ─── Firestore subscription ────────────────────────────────────────
   useEffect(() => {
     const q = query(collection(db, "reservationRequests"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(
@@ -164,8 +219,6 @@ function ClerkReservations() {
         const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setReservations(list);
         setLoading(false);
-
-        // After first load, auto-cancel past-dated pending reservations
         if (!loading) {
           await autoCancelPastReservations();
         }
@@ -178,18 +231,17 @@ function ClerkReservations() {
     return unsubscribe;
   }, []);
 
-  // ─── Re-run auto-cancel after updates (e.g., new reservations) ────
   useEffect(() => {
     if (!loading && reservations.length > 0) {
       autoCancelPastReservations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservations]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [activeTab]);
 
-  // ─── Status mapping ──────────────────────────────────────────────────
   const statusMap = {
     Pending: "pending",
     Approved: "approved",
@@ -197,12 +249,10 @@ function ClerkReservations() {
     Cancelled: "cancelled",
   };
 
-  // ─── Step 1: Filter by tab (status) ─────────────────────────────────
   const tabFiltered = reservations.filter(
     (r) => normalizeStatus(r.status) === statusMap[activeTab]
   );
 
-  // ─── Step 2: Apply search, room, date filters ──────────────────────
   const trimmedSearch = searchTerm.trim().toLowerCase();
 
   const filtered = tabFiltered.filter((r) => {
@@ -218,7 +268,6 @@ function ClerkReservations() {
     return true;
   });
 
-  // ─── Step 3: Sort ──────────────────────────────────────────────────
   const sorted = [...filtered].sort((a, b) => {
     let aVal, bVal;
     switch (sortBy) {
@@ -242,11 +291,9 @@ function ClerkReservations() {
     return 0;
   });
 
-  // ─── Step 4: Paginate ──────────────────────────────────────────────
   const visibleReservations = sorted.slice(0, visibleCount);
   const hasMore = visibleCount < sorted.length;
 
-  // ─── Counts for tabs ──────────────────────────────────────────────────
   const counts = {
     Pending: reservations.filter((r) => normalizeStatus(r.status) === "pending").length,
     Approved: reservations.filter((r) => normalizeStatus(r.status) === "approved").length,
@@ -254,22 +301,45 @@ function ClerkReservations() {
     Cancelled: reservations.filter((r) => normalizeStatus(r.status) === "cancelled").length,
   };
 
-  // ─── Unique room names for filter dropdown ──────────────────────────
-  const roomMap = new Map();
-  reservations.forEach((r) => {
-    const original = (r.roomName || "").trim();
-    if (!original) return;
-    const normalized = normalizeRoom(original);
-    if (!roomMap.has(normalized)) {
-      roomMap.set(normalized, original);
-    }
-  });
-  const roomOptions = Array.from(roomMap.entries()).map(([normalized, original]) => ({
-    normalized,
-    original,
-  }));
+  // Unique rooms for filter dropdown
+  const roomMap = useMemo(() => {
+    const map = new Map();
+    reservations.forEach((r) => {
+      const original = (r.roomName || "").trim();
+      if (!original) return;
+      const normalized = normalizeRoom(original);
+      if (!map.has(normalized)) {
+        map.set(normalized, original);
+      }
+    });
+    return map;
+  }, [reservations]);
 
-  // ─── Clear all filters ──────────────────────────────────────────────
+  const roomOptions = useMemo(
+    () =>
+      Array.from(roomMap.entries()).map(([normalized, original]) => ({
+        normalized,
+        original,
+      })),
+    [roomMap]
+  );
+
+  // Filtered room list (for search inside picker)
+  const filteredRoomOptions = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return roomOptions;
+    return roomOptions.filter((o) =>
+      o.original.toLowerCase().includes(q)
+    );
+  }, [roomOptions, roomSearch]);
+
+  // Currently selected room (original label)
+  const selectedRoomLabel = useMemo(() => {
+    if (!filterRoom) return "All Rooms";
+    const found = roomOptions.find((o) => o.normalized === filterRoom);
+    return found ? found.original : filterRoom;
+  }, [filterRoom, roomOptions]);
+
   const clearFilters = () => {
     setSearchTerm("");
     setFilterRoom("");
@@ -279,28 +349,17 @@ function ClerkReservations() {
   };
 
   // ─── EXPORT FUNCTIONS ──────────────────────────────────────────────
-
   const exportCSV = () => {
     if (sorted.length === 0) {
       showToast("error", "Nothing to Export", "No reservations match your filters.");
       return;
     }
-
     showToast("loading", "Preparing CSV...", "Please wait.");
-
     try {
       const headers = [
-        "Faculty/Requester",
-        "Room",
-        "Date",
-        "Start Time",
-        "End Time",
-        "Purpose",
-        "Status",
-        "Organization",
-        "Section",
+        "Faculty/Requester", "Room", "Date", "Start Time", "End Time",
+        "Purpose", "Status", "Organization", "Section",
       ];
-
       const rows = sorted.map((r) => [
         r.facultyName || r.requesterName || "-",
         r.roomName || "-",
@@ -312,12 +371,10 @@ function ClerkReservations() {
         r.organizationName || r.attendees?.organization || "-",
         r.yearSectionGroup || r.attendees?.yearSectionGroup || "-",
       ]);
-
       const csvContent = [
         headers.join(","),
         ...rows.map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")),
       ].join("\n");
-
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -327,7 +384,6 @@ function ClerkReservations() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
       showToast("success", "CSV Downloaded", `${sorted.length} reservations exported.`);
     } catch (err) {
       console.error("CSV export failed:", err);
@@ -341,9 +397,7 @@ function ClerkReservations() {
       showToast("error", "Nothing to Export", "No reservations match your filters.");
       return;
     }
-
     showToast("loading", "Generating PDF...", "Please wait.");
-
     try {
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -356,52 +410,38 @@ function ClerkReservations() {
       }
       if (SCHOOL_HEADER.collegeLogoUrl) {
         pdf.addImage(
-          SCHOOL_HEADER.collegeLogoUrl,
-          "PNG",
-          pageWidth - marginX - logoSize,
-          20,
-           logoSize,
-          logoSize
+          SCHOOL_HEADER.collegeLogoUrl, "PNG",
+          pageWidth - marginX - logoSize, 20, logoSize, logoSize
         );
       }
-
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(13);
       pdf.setTextColor(20, 27, 45);
       pdf.text(SCHOOL_HEADER.universityName, centerX, 34, { align: "center" });
-
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9);
       pdf.setTextColor(107, 114, 128);
       pdf.text(SCHOOL_HEADER.collegeName, centerX, 48, { align: "center" });
       pdf.text(SCHOOL_HEADER.systemName, centerX, 58, { align: "center" });
-
       pdf.setDrawColor(245, 124, 0);
       pdf.setLineWidth(1.5);
       pdf.line(marginX, 74, pageWidth - marginX, 74);
-
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
       pdf.setTextColor(245, 124, 0);
       pdf.text(`Reservation Report — ${activeTab}`, marginX, 98);
-
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9);
       pdf.setTextColor(107, 114, 128);
       let filterSummary = "";
       if (searchTerm) filterSummary += `Faculty: ${searchTerm} | `;
-      if (filterRoom) {
-        const roomName = roomOptions.find(o => o.normalized === filterRoom)?.original || filterRoom;
-        filterSummary += `Room: ${roomName} | `;
-      }
+      if (filterRoom) filterSummary += `Room: ${selectedRoomLabel} | `;
       if (filterDate) filterSummary += `Date: ${filterDate} | `;
       if (!filterSummary) filterSummary = "All reservations";
       pdf.text(`Filters: ${filterSummary}`, marginX, 112);
       pdf.text(
         `Generated: ${new Date().toLocaleString()}`,
-        pageWidth - marginX,
-        112,
-        { align: "right" }
+        pageWidth - marginX, 112, { align: "right" }
       );
 
       const tableRows = sorted.map((r) => [
@@ -422,26 +462,10 @@ function ClerkReservations() {
         body: tableRows,
         theme: "grid",
         styles: { font: "helvetica", fontSize: 7, cellPadding: 4, valign: "middle" },
-        headStyles: {
-          fillColor: [245, 124, 0],
-          textColor: [255, 255, 255],
-          fontStyle: "bold",
-          fontSize: 7,
-        },
+        headStyles: { fillColor: [245, 124, 0], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7 },
         bodyStyles: { textColor: [26, 26, 26] },
         alternateRowStyles: { fillColor: [253, 246, 240] },
         margin: { left: marginX, right: marginX },
-        columnStyles: {
-          0: { cellWidth: 55 },
-          1: { cellWidth: 45 },
-          2: { cellWidth: 50 },
-          3: { cellWidth: 35 },
-          4: { cellWidth: 35 },
-          5: { cellWidth: 60 },
-          6: { cellWidth: 35 },
-          7: { cellWidth: 50 },
-          8: { cellWidth: 45 },
-        },
       });
 
       const pageCount = pdf.internal.getNumberOfPages();
@@ -450,21 +474,10 @@ function ClerkReservations() {
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(7);
         pdf.setTextColor(150, 150, 150);
-        pdf.text(
-          `Page ${i} of ${pageCount}`,
-          pageWidth - marginX,
-          pdf.internal.pageSize.getHeight() - 16,
-          { align: "right" }
-        );
-        pdf.text(
-          `${SCHOOL_HEADER.systemName} — Confidential`,
-          marginX,
-          pdf.internal.pageSize.getHeight() - 16
-        );
+        pdf.text(`Page ${i} of ${pageCount}`, pageWidth - marginX, pdf.internal.pageSize.getHeight() - 16, { align: "right" });
+        pdf.text(`${SCHOOL_HEADER.systemName} — Confidential`, marginX, pdf.internal.pageSize.getHeight() - 16);
       }
-
       pdf.save(`reservations-${activeTab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.pdf`);
-
       showToast("success", "PDF Downloaded", `${sorted.length} reservations exported.`);
     } catch (err) {
       console.error("PDF export failed:", err);
@@ -473,16 +486,13 @@ function ClerkReservations() {
     setExportMenuOpen(false);
   };
 
-  // ─── Render list ────────────────────────────────────────────────────
   const renderList = () => {
     if (loading) {
       return Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />);
     }
-
     if (sorted.length === 0) {
       return <EmptyState label={activeTab.toLowerCase()} />;
     }
-
     if (activeTab === "Pending") {
       return visibleReservations.map((reservation) => (
         <ReservationCard
@@ -492,15 +502,10 @@ function ClerkReservations() {
         />
       ));
     }
-
     let viewPath;
-    if (activeTab === "Approved") {
-      viewPath = "/clerk/view-reservation-approved";
-    } else if (activeTab === "Denied") {
-      viewPath = "/clerk/view-reservation-denied";
-    } else {
-      viewPath = "/clerk/view-reservation-cancelled";
-    }
+    if (activeTab === "Approved") viewPath = "/clerk/view-reservation-approved";
+    else if (activeTab === "Denied") viewPath = "/clerk/view-reservation-denied";
+    else viewPath = "/clerk/view-reservation-cancelled";
 
     return visibleReservations.map((reservation) => (
       <ApprovedAndDeniedCard
@@ -516,7 +521,6 @@ function ClerkReservations() {
 
   return (
     <div className="clerk-reservations">
-      {/* ─── Header ────────────────────────────────────────────── */}
       <div className="clerk-reservations-header">
         <div className="clerk-reservations-header-top">
           <div>
@@ -526,7 +530,6 @@ function ClerkReservations() {
             </p>
           </div>
 
-          {/* ── Export Dropdown ── */}
           <div className="clerk-export-dropdown">
             <button
               className="clerk-export-btn"
@@ -550,7 +553,7 @@ function ClerkReservations() {
         </div>
       </div>
 
-      {/* ─── Filter Bar (outside white box) ──────────────────── */}
+      {/* ── Filter Bar ── */}
       <div className="clerk-filter-bar-outer">
         <div className="clerk-filter-row">
           <div className="clerk-filter-group">
@@ -564,30 +567,243 @@ function ClerkReservations() {
             />
           </div>
 
-          <div className="clerk-filter-group">
-            <i className="fa-solid fa-building"></i>
-            <select
-              value={filterRoom}
-              onChange={(e) => setFilterRoom(e.target.value)}
-              className="clerk-filter-select"
-            >
-              <option value="">All Rooms</option>
-              {roomOptions.map(({ normalized, original }) => (
-                <option key={normalized} value={normalized}>
-                  {original}
-                </option>
-              ))}
-            </select>
+          {/* ── ROOM PICKER ── */}
+          <div className="clerk-filter-group cr-picker-group">
+            <div className="cr-roompicker">
+              <button
+                type="button"
+                className={`cr-room-trigger ${showRoomPicker ? "open" : ""}`}
+                onClick={() => {
+                  setRoomSearch("");
+                  setShowRoomPicker((v) => !v);
+                }}
+              >
+                <i className="fa-solid fa-building"></i>
+                <span className="cr-room-trigger-text">{selectedRoomLabel}</span>
+                <i
+                  className={`fa-solid fa-chevron-down cr-room-caret ${
+                    showRoomPicker ? "open" : ""
+                  }`}
+                ></i>
+              </button>
+
+              {showRoomPicker && (
+                <>
+                  <div
+                    className="cr-picker-clickaway"
+                    onClick={() => setShowRoomPicker(false)}
+                  ></div>
+                  <div className="cr-room-popover">
+                    <span className="cr-popover-arrow"></span>
+
+                    <div className="cr-search-wrap">
+                      <i className="fa-solid fa-magnifying-glass"></i>
+                      <input
+                        type="text"
+                        className="cr-search"
+                        placeholder="Search room..."
+                        value={roomSearch}
+                        onChange={(e) => setRoomSearch(e.target.value)}
+                        autoFocus
+                      />
+                      {roomSearch && (
+                        <button
+                          type="button"
+                          className="cr-search-clear"
+                          onClick={() => setRoomSearch("")}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="cr-room-list">
+                      <button
+                        type="button"
+                        className={`cr-room-option ${!filterRoom ? "is-active" : ""}`}
+                        onClick={() => {
+                          setFilterRoom("");
+                          setShowRoomPicker(false);
+                          setRoomSearch("");
+                        }}
+                      >
+                        <div className="cr-room-option-icon">
+                          <i className="fa-solid fa-layer-group"></i>
+                        </div>
+                        <span className="cr-room-option-name">All Rooms</span>
+                        {!filterRoom && (
+                          <i className="fa-solid fa-circle-check cr-room-option-check"></i>
+                        )}
+                      </button>
+
+                      {filteredRoomOptions.length === 0 && roomSearch ? (
+                        <div className="cr-picker-empty">
+                          <i className="fa-regular fa-face-frown"></i>
+                          <span>No rooms match.</span>
+                        </div>
+                      ) : (
+                        filteredRoomOptions.map(({ normalized, original }) => {
+                          const isActive = normalized === filterRoom;
+                          return (
+                            <button
+                              type="button"
+                              key={normalized}
+                              className={`cr-room-option ${isActive ? "is-active" : ""}`}
+                              onClick={() => {
+                                setFilterRoom(normalized);
+                                setShowRoomPicker(false);
+                                setRoomSearch("");
+                              }}
+                            >
+                              <div className="cr-room-option-icon">
+                                <i className="fa-solid fa-door-open"></i>
+                              </div>
+                              <span className="cr-room-option-name">{original}</span>
+                              {isActive && (
+                                <i className="fa-solid fa-circle-check cr-room-option-check"></i>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="clerk-filter-group">
-            <i className="fa-regular fa-calendar"></i>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="clerk-filter-input"
-            />
+          {/* ── DATE PICKER ── */}
+          <div className="clerk-filter-group cr-picker-group">
+            <div className="cr-datepicker">
+              <button
+                type="button"
+                className={`cr-date-trigger ${showDatePicker ? "open" : ""}`}
+                onClick={() => {
+                  const base = filterDate
+                    ? new Date(`${filterDate}T00:00:00`)
+                    : new Date();
+                  setCalendarCursor({
+                    year: base.getFullYear(),
+                    month: base.getMonth(),
+                  });
+                  setShowDatePicker((v) => !v);
+                }}
+              >
+                <i className="fa-regular fa-calendar"></i>
+                <span>
+                  {filterDate ? formatDateLong(filterDate) : "All Dates"}
+                </span>
+                <i
+                  className={`fa-solid fa-chevron-down cr-date-caret ${
+                    showDatePicker ? "open" : ""
+                  }`}
+                ></i>
+              </button>
+
+              {showDatePicker && (
+                <>
+                  <div
+                    className="cr-picker-clickaway"
+                    onClick={() => setShowDatePicker(false)}
+                  ></div>
+                  <div className="cr-date-popover">
+                    <span className="cr-popover-arrow"></span>
+
+                    <div className="cr-date-quick-row">
+                      <button
+                        type="button"
+                        className={!filterDate ? "active" : ""}
+                        onClick={() => {
+                          setFilterDate("");
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        All Dates
+                      </button>
+                      <button
+                        type="button"
+                        className={filterDate === toDateInputValue(new Date()) ? "active" : ""}
+                        onClick={() => {
+                          setFilterDate(toDateInputValue(new Date()));
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        Today
+                      </button>
+                    </div>
+
+                    <div className="cr-cal-header">
+                      <button
+                        type="button"
+                        className="cr-cal-nav"
+                        onClick={() =>
+                          setCalendarCursor((c) => {
+                            const m = c.month - 1;
+                            return m < 0
+                              ? { year: c.year - 1, month: 11 }
+                              : { year: c.year, month: m };
+                          })
+                        }
+                      >
+                        <i className="fa-solid fa-chevron-left"></i>
+                      </button>
+                      <span className="cr-cal-title">
+                        {MONTH_NAMES[calendarCursor.month]} {calendarCursor.year}
+                      </span>
+                      <button
+                        type="button"
+                        className="cr-cal-nav"
+                        onClick={() =>
+                          setCalendarCursor((c) => {
+                            const m = c.month + 1;
+                            return m > 11
+                              ? { year: c.year + 1, month: 0 }
+                              : { year: c.year, month: m };
+                          })
+                        }
+                      >
+                        <i className="fa-solid fa-chevron-right"></i>
+                      </button>
+                    </div>
+
+                    <div className="cr-cal-weekdays">
+                      {WEEKDAY_LABELS.map((w) => (
+                        <span key={w}>{w}</span>
+                      ))}
+                    </div>
+
+                    <div className="cr-cal-grid">
+                      {buildCalendarGrid(calendarCursor.year, calendarCursor.month).map(
+                        (cell, i) => {
+                          const cellStr = toDateInputValue(cell.date);
+                          const isSelected = cellStr === filterDate;
+                          return (
+                            <button
+                              type="button"
+                              key={i}
+                              className={[
+                                "cr-cal-day",
+                                !cell.inMonth && "is-outside",
+                                isSelected && "is-selected",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                              onClick={() => {
+                                setFilterDate(cellStr);
+                                setShowDatePicker(false);
+                              }}
+                            >
+                              {cell.day}
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="clerk-filter-group clerk-sort-group">
@@ -615,15 +831,12 @@ function ClerkReservations() {
           </button>
         </div>
 
-        {/* Active filters summary */}
         {(searchTerm || filterRoom || filterDate) && (
           <div className="clerk-filter-summary">
             <span>Active filters:</span>
             {searchTerm && <span className="clerk-filter-tag">Faculty: {searchTerm}</span>}
             {filterRoom && (
-              <span className="clerk-filter-tag">
-                Room: {roomOptions.find(o => o.normalized === filterRoom)?.original || filterRoom}
-              </span>
+              <span className="clerk-filter-tag">Room: {selectedRoomLabel}</span>
             )}
             {filterDate && <span className="clerk-filter-tag">Date: {filterDate}</span>}
             <span className="clerk-filter-result-count">
@@ -633,7 +846,6 @@ function ClerkReservations() {
         )}
       </div>
 
-      {/* ─── White box with tabs + content ────────────────────── */}
       <div className="clerk-white-box-reservations">
         <div className="clerk-reservations-nav">
           {TABS.map((tab) => (

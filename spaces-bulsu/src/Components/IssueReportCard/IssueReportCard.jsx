@@ -97,6 +97,7 @@ export default function IssueReportCard({
   const visiblePhotos = photos.slice(0, 4);
   const extraCount = Math.max(0, photos.length - 4);
   const photoCount = photos.length;
+  const hasPhotos = photoCount > 0;
 
   const openLightbox = (index) => setLightboxIndex(index);
   const closeLightbox = () => setLightboxIndex(null);
@@ -117,7 +118,7 @@ export default function IssueReportCard({
 
   return (
     <>
-      <div className={`irc ${status.cls}`}>
+      <div className={`irc ${status.cls} ${hasPhotos ? "has-photo" : "no-photo"}`}>
         {/* ── TOP ROW ─────────────────────────────────────── */}
         <div className="irc-top">
           <div className="irc-icon-wrap">
@@ -146,13 +147,8 @@ export default function IssueReportCard({
         </div>
 
         {/* ── MEDIA ─────────────────────────────────────────── */}
-        <div className="irc-media">
-          {photos.length === 0 ? (
-            <div className="irc-photo-placeholder">
-              <i className="fa-regular fa-image" />
-              <span>No photo attached</span>
-            </div>
-          ) : (
+        {hasPhotos ? (
+          <div className="irc-media">
             <div className={`irc-photo-grid count-${Math.min(photoCount, 4)}`}>
               {visiblePhotos.map((url, i) => {
                 const isLast = i === visiblePhotos.length - 1;
@@ -173,20 +169,35 @@ export default function IssueReportCard({
                 );
               })}
             </div>
-          )}
 
-          {photoCount > 1 && (
-            <span className="irc-photo-count">
-              <i className="fa-regular fa-images" /> {photoCount}
-            </span>
-          )}
+            {photoCount > 1 && (
+              <span className="irc-photo-count">
+                <i className="fa-regular fa-images" /> {photoCount}
+              </span>
+            )}
 
-          {roomIsUnderMaintenance && !isResolved && (
-            <span className="irc-maint-ribbon">
-              <i className="fa-solid fa-wrench" /> Under Maintenance
-            </span>
-          )}
-        </div>
+            {roomIsUnderMaintenance && !isResolved && (
+              <span className="irc-maint-ribbon">
+                <i className="fa-solid fa-wrench" /> Under Maintenance
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="irc-no-media">
+            <div className="irc-photo-placeholder">
+              <span className="irc-photo-placeholder-icon">
+                <i className="fa-regular fa-image" />
+              </span>
+              <span className="irc-photo-placeholder-text">No photo attached</span>
+            </div>
+
+            {roomIsUnderMaintenance && !isResolved && (
+              <span className="irc-maint-chip">
+                <i className="fa-solid fa-wrench" /> Under Maintenance
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ── DESCRIPTION ─────────────────────────────────── */}
         <p className="irc-description">{issue.description}</p>

@@ -404,3 +404,20 @@ body {
   color: #6b7280;
   margin-left: 2px;
 }
+
+.wc-released-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #b91c1c;
+  background: #fee2e2;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.wc-event--released {
+  opacity: 0.85;
+  filter: saturate(0.85);
+}

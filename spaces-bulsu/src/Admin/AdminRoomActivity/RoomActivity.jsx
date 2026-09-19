@@ -43,14 +43,16 @@ const fmtDate = (d) => {
 function RoomActivity() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  // ⬅️ DEFAULT TAB: "all"
   const [activeTab, setActiveTab] = useState("all");
 
-  // ── Filters ──────────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
+
+  // ── Room picker ──
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
 
   const [reviewing, setReviewing] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -64,14 +66,12 @@ function RoomActivity() {
     if (type !== "loading") setTimeout(() => setToast((p) => ({ ...p, show: false })), 4000);
   };
 
-  // ── REALTIME listener ────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     const unsub = onSnapshot(
       collection(db, "roomActivityRequests"),
       (snap) => {
-        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setItems(data);
+        setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setLoading(false);
       },
       (err) => {
@@ -91,19 +91,21 @@ function RoomActivity() {
     all:           items.length,
   }), [items]);
 
-  // ── Unique rooms for filter ──────────────────────────────────
   const roomOptions = useMemo(() => {
     const set = new Set();
     items.forEach((i) => { if (i.roomName) set.add(i.roomName); });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [items]);
 
-  // ── FILTER + SEARCH + ROOM + SORT ────────────────────────────
+  const filteredRoomOptions = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return roomOptions;
+    return roomOptions.filter((r) => r.toLowerCase().includes(q));
+  }, [roomOptions, roomSearch]);
+
   const filtered = useMemo(() => {
     let list = activeTab === "all" ? items : items.filter((i) => i.status === activeTab);
-
     if (roomFilter) list = list.filter((i) => i.roomName === roomFilter);
-
     if (searchTerm.trim()) {
       const s = searchTerm.toLowerCase();
       list = list.filter((i) =>
@@ -113,17 +115,11 @@ function RoomActivity() {
         (i.reason || "").toLowerCase().includes(s)
       );
     }
-
     const sorted = [...list];
-    if (sortOrder === "newest") {
-      sorted.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    } else if (sortOrder === "oldest") {
-      sorted.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-    } else if (sortOrder === "date_asc") {
-      sorted.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
-    } else if (sortOrder === "date_desc") {
-      sorted.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
-    }
+    if (sortOrder === "newest") sorted.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    else if (sortOrder === "oldest") sorted.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    else if (sortOrder === "date_asc") sorted.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    else if (sortOrder === "date_desc") sorted.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     return sorted;
   }, [items, activeTab, searchTerm, roomFilter, sortOrder]);
 
@@ -135,14 +131,8 @@ function RoomActivity() {
   const paginated = filtered.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
   const hasActiveFilters = searchTerm || roomFilter || sortOrder !== "newest";
+  const clearAllFilters = () => { setSearchTerm(""); setRoomFilter(""); setSortOrder("newest"); };
 
-  const clearAllFilters = () => {
-    setSearchTerm("");
-    setRoomFilter("");
-    setSortOrder("newest");
-  };
-
-  // ── Approve ──────────────────────────────────────────────────
   const startReview = (item, mode) => {
     setReviewing({ item, mode });
     setEditMode(false);
@@ -168,35 +158,22 @@ function RoomActivity() {
       const myName = `${me.firstName} ${me.lastName}`;
 
       await updateDoc(doc(db, "roomActivityRequests", item.id), {
-        title: draft.title.trim(),
-        roomName: draft.roomName,
-        roomId: draft.roomId,
-        date: draft.date,
-        startTime: draft.startTime,
-        endTime: draft.endTime,
-        reason: draft.reason.trim(),
-        status: "approved",
-        approvedById: auth.currentUser.uid,
-        approvedByName: myName,
-        approvedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        title: draft.title.trim(), roomName: draft.roomName, roomId: draft.roomId,
+        date: draft.date, startTime: draft.startTime, endTime: draft.endTime,
+        reason: draft.reason.trim(), status: "approved",
+        approvedById: auth.currentUser.uid, approvedByName: myName,
+        approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
 
       let eventId = item.eventId;
       if (!eventId) {
         const eventRef = await addDoc(collection(db, "events"), {
-          roomId: draft.roomId,
-          roomName: draft.roomName,
-          title: draft.title.trim(),
-          reason: draft.reason.trim(),
-          date: draft.date,
-          startTime: draft.startTime,
-          endTime: draft.endTime,
+          roomId: draft.roomId, roomName: draft.roomName,
+          title: draft.title.trim(), reason: draft.reason.trim(),
+          date: draft.date, startTime: draft.startTime, endTime: draft.endTime,
           status: "active",
-          createdById: item.requestedById,
-          createdByName: item.requestedByName,
-          approvedById: auth.currentUser.uid,
-          createdAt: serverTimestamp(),
+          createdById: item.requestedById, createdByName: item.requestedByName,
+          approvedById: auth.currentUser.uid, createdAt: serverTimestamp(),
         });
         eventId = eventRef.id;
         await updateDoc(doc(db, "roomActivityRequests", item.id), { eventId });
@@ -206,52 +183,38 @@ function RoomActivity() {
       let notified = 0;
       for (const conflict of item.conflicts || []) {
         let facultyDoc = null;
-        if (conflict.facultyId) {
-          facultyDoc = usersSnap.docs.find((d) => d.id === conflict.facultyId) || null;
-        }
-        if (!facultyDoc && conflict.faculty) {
-          facultyDoc = findFacultyUserByName(usersSnap, conflict.faculty);
-        }
+        if (conflict.facultyId) facultyDoc = usersSnap.docs.find((d) => d.id === conflict.facultyId) || null;
+        if (!facultyDoc && conflict.faculty) facultyDoc = findFacultyUserByName(usersSnap, conflict.faculty);
         if (!facultyDoc) continue;
 
         await addDoc(collection(db, "notifications"), {
-          userId: facultyDoc.id,
-          ownerType: "faculty",
-          activityId: eventId,
-          title: "Room Activity Override",
+          userId: facultyDoc.id, ownerType: "faculty",
+          activityId: eventId, title: "Room Activity Override",
           message: `${draft.title} will use ${draft.roomName} on ${draft.date} (${fmt12(draft.startTime)} - ${fmt12(draft.endTime)}). Your scheduled class may be affected.`,
-          type: "room-activity",
-          unread: true, archived: false, badge: "NEW",
+          type: "room-activity", unread: true, archived: false, badge: "NEW",
           roomId: draft.roomId, roomName: draft.roomName,
           activityTitle: draft.title, activityReason: draft.reason,
           activityDate: draft.date, activityStart: draft.startTime, activityEnd: draft.endTime,
-          affectedScheduleId: conflict.scheduleId,
-          affectedSubject: conflict.subject,
-          affectedFaculty: conflict.faculty,
-          createdAt: serverTimestamp(),
+          affectedScheduleId: conflict.scheduleId, affectedSubject: conflict.subject,
+          affectedFaculty: conflict.faculty, createdAt: serverTimestamp(),
         });
         notified++;
       }
 
       if (item.requestedById) {
         await addDoc(collection(db, "notifications"), {
-          userId: item.requestedById,
-          ownerType: "clerk",
-          activityRequestId: item.id,
-          title: "Room Activity Approved",
+          userId: item.requestedById, ownerType: "clerk",
+          activityRequestId: item.id, title: "Room Activity Approved",
           message: `"${draft.title}" was approved for ${draft.roomName} on ${draft.date}. ${notified} faculty notified.`,
-          type: "room-activity-status",
-          unread: true, archived: false, badge: "INFO",
+          type: "room-activity-status", unread: true, archived: false, badge: "INFO",
           createdAt: serverTimestamp(),
         });
       }
 
       await logActivity({
         user: myName, role: me.role,
-        action: "Approved room activity request",
-        actionType: "approve",
-        target: `${draft.title} (${draft.roomName})`,
-        status: "SUCCESS",
+        action: "Approved room activity request", actionType: "approve",
+        target: `${draft.title} (${draft.roomName})`, status: "SUCCESS",
       });
 
       showToast("success", "Approved", `Activity approved. ${notified} faculty notified.`);
@@ -275,33 +238,25 @@ function RoomActivity() {
       const myName = `${me.firstName} ${me.lastName}`;
 
       await updateDoc(doc(db, "roomActivityRequests", item.id), {
-        status: "denied",
-        deniedReason: denyReason.trim(),
-        deniedById: auth.currentUser.uid,
-        deniedByName: myName,
-        deniedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        status: "denied", deniedReason: denyReason.trim(),
+        deniedById: auth.currentUser.uid, deniedByName: myName,
+        deniedAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
 
       if (item.requestedById) {
         await addDoc(collection(db, "notifications"), {
-          userId: item.requestedById,
-          ownerType: "clerk",
-          activityRequestId: item.id,
-          title: "Room Activity Denied",
+          userId: item.requestedById, ownerType: "clerk",
+          activityRequestId: item.id, title: "Room Activity Denied",
           message: `"${item.title}" was denied. Reason: ${denyReason.trim()}`,
-          type: "room-activity-status",
-          unread: true, archived: false, badge: "INFO",
+          type: "room-activity-status", unread: true, archived: false, badge: "INFO",
           createdAt: serverTimestamp(),
         });
       }
 
       await logActivity({
         user: myName, role: me.role,
-        action: "Denied room activity request",
-        actionType: "deny",
-        target: `${item.title} (${item.roomName})`,
-        status: "SUCCESS",
+        action: "Denied room activity request", actionType: "deny",
+        target: `${item.title} (${item.roomName})`, status: "SUCCESS",
       });
 
       showToast("success", "Denied", "The clerk has been notified.");
@@ -326,11 +281,9 @@ function RoomActivity() {
           </div>
         </div>
 
-        {/* TABS */}
         <div className="ra-review-tabs">
           {TABS.map((t) => (
-            <button key={t.key}
-              className={`ra-review-tab ${activeTab === t.key ? "active" : ""}`}
+            <button key={t.key} className={`ra-review-tab ${activeTab === t.key ? "active" : ""}`}
               onClick={() => setActiveTab(t.key)}>
               {t.label}
               <span className="ra-review-tab-count">{counts[t.key] ?? 0}</span>
@@ -338,42 +291,84 @@ function RoomActivity() {
           ))}
         </div>
 
-        {/* TOOLBAR: Search + Room Filter + Sort */}
         <div className="ra-review-toolbar">
           <div className="ra-review-search">
             <i className="fa-solid fa-magnifying-glass"></i>
-            <input
-              type="text"
-              placeholder="Search title, room, requester, or reason…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <input type="text" placeholder="Search title, room, requester, or reason…"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             {searchTerm && (
-              <button className="ra-review-search-clear"
-                onClick={() => setSearchTerm("")} aria-label="Clear">
+              <button className="ra-review-search-clear" onClick={() => setSearchTerm("")} aria-label="Clear">
                 <i className="fa-solid fa-xmark"></i>
               </button>
             )}
           </div>
 
           <div className="ra-review-filters">
-            <div className="ra-review-select">
-              <i className="fa-solid fa-door-open"></i>
-              <select value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)}>
-                <option value="">All Rooms</option>
-                {roomOptions.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <i className="fa-solid fa-angle-down ra-review-select-chev"></i>
+            {/* ROOM PICKER */}
+            <div className="ra-review-roompicker">
+              <button type="button"
+                className={`ra-review-room-trigger ${showRoomPicker ? "open" : ""}`}
+                onClick={() => { setRoomSearch(""); setShowRoomPicker((v) => !v); }}>
+                <i className="fa-solid fa-door-open"></i>
+                <span className="ra-review-room-trigger-text">{roomFilter || "All Rooms"}</span>
+                <i className={`fa-solid fa-chevron-down ra-review-room-caret ${showRoomPicker ? "open" : ""}`}></i>
+              </button>
+
+              {showRoomPicker && (
+                <>
+                  <div className="ra-review-picker-clickaway" onClick={() => setShowRoomPicker(false)}></div>
+                  <div className="ra-review-room-popover">
+                    <span className="ra-review-popover-arrow"></span>
+
+                    <div className="ra-review-room-search-wrap">
+                      <i className="fa-solid fa-magnifying-glass"></i>
+                      <input type="text" className="ra-review-room-search-input" placeholder="Search room..."
+                        value={roomSearch} onChange={(e) => setRoomSearch(e.target.value)} autoFocus />
+                      {roomSearch && (
+                        <button type="button" className="ra-review-room-search-clear" onClick={() => setRoomSearch("")}>
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="ra-review-room-list">
+                      <button type="button"
+                        className={`ra-review-room-option ${!roomFilter ? "is-active" : ""}`}
+                        onClick={() => { setRoomFilter(""); setShowRoomPicker(false); setRoomSearch(""); }}>
+                        <div className="ra-review-room-option-icon"><i className="fa-solid fa-layer-group"></i></div>
+                        <span className="ra-review-room-option-name">All Rooms</span>
+                        {!roomFilter && <i className="fa-solid fa-circle-check ra-review-room-option-check"></i>}
+                      </button>
+
+                      {filteredRoomOptions.length === 0 && roomSearch ? (
+                        <div className="ra-review-picker-empty">
+                          <i className="fa-regular fa-face-frown"></i>
+                          <span>No rooms match.</span>
+                        </div>
+                      ) : (
+                        filteredRoomOptions.map((r) => {
+                          const isActive = r === roomFilter;
+                          return (
+                            <button type="button" key={r}
+                              className={`ra-review-room-option ${isActive ? "is-active" : ""}`}
+                              onClick={() => { setRoomFilter(r); setShowRoomPicker(false); setRoomSearch(""); }}>
+                              <div className="ra-review-room-option-icon"><i className="fa-solid fa-door-open"></i></div>
+                              <span className="ra-review-room-option-name">{r}</span>
+                              {isActive && <i className="fa-solid fa-circle-check ra-review-room-option-check"></i>}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="ra-review-select">
               <i className="fa-solid fa-arrow-down-short-wide"></i>
               <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
-                {SORT_OPTIONS.map((s) => (
-                  <option key={s.key} value={s.key}>{s.label}</option>
-                ))}
+                {SORT_OPTIONS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
               <i className="fa-solid fa-angle-down ra-review-select-chev"></i>
             </div>
@@ -390,7 +385,6 @@ function RoomActivity() {
           </span>
         </div>
 
-        {/* BODY */}
         <div className="ra-review-body">
           {loading ? (
             <div className="ra-review-empty">
@@ -399,11 +393,7 @@ function RoomActivity() {
           ) : paginated.length === 0 ? (
             <div className="ra-review-empty">
               <i className="fa-regular fa-folder-open"></i>
-              <p>
-                {searchTerm || roomFilter
-                  ? "No matches for your filters."
-                  : "No requests in this view."}
-              </p>
+              <p>{searchTerm || roomFilter ? "No matches for your filters." : "No requests in this view."}</p>
             </div>
           ) : (
             paginated.map((item) => (
@@ -413,25 +403,19 @@ function RoomActivity() {
           )}
         </div>
 
-        {/* PAGINATION */}
         {!loading && totalPages > 1 && (
           <div className="ra-review-pagination">
             <span className="ra-review-page-info">
               Showing {startIdx + 1}–{Math.min(startIdx + ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
             </span>
             <div className="ra-review-page-controls">
-              <button disabled={safePage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} aria-label="Previous">
+              <button disabled={safePage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
                 <i className="fa-solid fa-chevron-left"></i>
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button key={p} className={safePage === p ? "active" : ""}
-                  onClick={() => setCurrentPage(p)}>
-                  {p}
-                </button>
+                <button key={p} className={safePage === p ? "active" : ""} onClick={() => setCurrentPage(p)}>{p}</button>
               ))}
-              <button disabled={safePage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} aria-label="Next">
+              <button disabled={safePage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
                 <i className="fa-solid fa-chevron-right"></i>
               </button>
             </div>
@@ -484,13 +468,8 @@ function RoomActivity() {
             )}
 
             {reviewing.mode === "deny" && (
-              <textarea
-                className="ra-modal-note"
-                rows={3}
-                placeholder="Reason for denial…"
-                value={denyReason}
-                onChange={(e) => setDenyReason(e.target.value)}
-              />
+              <textarea className="ra-modal-note" rows={3} placeholder="Reason for denial…"
+                value={denyReason} onChange={(e) => setDenyReason(e.target.value)} />
             )}
 
             <div className="ra-modal-actions">
@@ -554,10 +533,7 @@ function ReviewCard({ item, onReview }) {
       </div>
 
       {item.reason && (
-        <div className="ra-review-reason">
-          <i className="fa-solid fa-note-sticky"></i>
-          <span>{item.reason}</span>
-        </div>
+        <div className="ra-review-reason"><i className="fa-solid fa-note-sticky"></i><span>{item.reason}</span></div>
       )}
 
       {item.deniedReason && (

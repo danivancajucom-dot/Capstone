@@ -2,10 +2,7 @@ import "./room-usage-tracking.css";
 
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  collection,
-  getDocs,
-} from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 import { db } from "../../firebase";
 
@@ -27,13 +24,70 @@ const SCHOOL_HEADER = {
 
 const DAY_ABBR = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
-const todayString = () =>
-  new Date().toISOString().split("T")[0];
+const todayString = () => new Date().toISOString().split("T")[0];
+
+// ─── Date picker helpers ────────────────────────────────────────────
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const toDateInputValue = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const addDaysLocal = (dateStr, days) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toDateInputValue(d);
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "-";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+  return cells;
+};
 
 const getDayAbbrev = (dateStr) => {
-  const d = dateStr
-    ? new Date(`${dateStr}T00:00:00`)
-    : new Date();
+  const d = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
   return DAY_ABBR[d.getDay()];
 };
 
@@ -101,7 +155,7 @@ const normalizeEvent = (e) => ({
   startTime: e.startTime,
   endTime: e.endTime,
   subject: e.title || e.purpose || "Room Activity",
-  facultyName: e.faculty || "Department Head",
+  facultyName: e.faculty || "Admin",
   section: "",
   organization: null,
 });
@@ -129,6 +183,7 @@ const normalizeRelease = (r) => ({
   scheduleId: r.scheduleId,
   roomId: r.roomId,
   date: r.date,
+  effectiveEndTime: r.effectiveEndTime || null,
 });
 
 const normalizeReassignment = (r) => ({
@@ -163,16 +218,27 @@ export default function RoomUsageTracking() {
   const [lastUser, setLastUser] = useState(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // ✅ for Refresh button
   const [upcomingSchedules, setUpcomingSchedules] = useState([]);
   const [analytics, setAnalytics] = useState({
     totalSchedules: 0,
     completed: 0,
     ongoing: 0,
     upcoming: 0,
-    utilization: 0,
   });
   const [exporting, setExporting] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  // ─── Room picker popover state ─────────────────────────────
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+
+  // ─── Date picker popover state ─────────────────────────────
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
 
   // ─── Toast state ──────────────────────────────────────────────────
   const [toast, setToast] = useState({
@@ -191,10 +257,33 @@ export default function RoomUsageTracking() {
 
   const isToday = (date || todayString()) === todayString();
 
+  // ─── Filtered room list (for search) ───────────────────────
+  const filteredRooms = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return rooms;
+    return rooms.filter((r) => {
+      const name = (r.roomName || r.name || "").toLowerCase();
+      const floor = String(r.floor || "").toLowerCase();
+      const building = String(r.building || r.bldg || "").toLowerCase();
+      return (
+        name.includes(q) || floor.includes(q) || building.includes(q)
+      );
+    });
+  }, [rooms, roomSearch]);
+
+  // ─── Currently selected room object ───────────────────────
+  const selectedRoomObj = useMemo(
+    () => rooms.find((r) => (r.roomName || r.name) === room) || null,
+    [rooms, room]
+  );
+
   useEffect(() => {
     loadRooms();
-    const interval = setInterval(() => { loadRooms(); }, 30000);
+    const interval = setInterval(() => {
+      loadRooms(true); // silent refresh
+    }, 30000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -202,12 +291,29 @@ export default function RoomUsageTracking() {
     trackRoom();
     buildHistory();
     buildAnalytics();
-  }, [room, date, allSchedules, allEvents, allReservations, allReleases, allReassignments]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    room,
+    date,
+    allSchedules,
+    allEvents,
+    allReservations,
+    allReleases,
+    allReassignments,
+  ]);
 
-  useEffect(() => { setHistoryPage(1); }, [room]);
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [room]);
 
-  const loadRooms = async () => {
-    setLoading(true);
+  // ✅ loadRooms(silent) — silent=true means background refresh (no spinner)
+  const loadRooms = async (silent = false) => {
+    if (!silent) {
+      setRefreshing(true);
+    }
+    // Show initial loading only on very first mount
+    if (rooms.length === 0) setLoading(true);
+
     try {
       const roomSnap = await getDocs(collection(db, "rooms"));
       const roomList = [];
@@ -217,31 +323,40 @@ export default function RoomUsageTracking() {
         const roomData = { id: roomDoc.id, ...roomDoc.data() };
         roomList.push(roomData);
 
-        const scheduleSnap = await getDocs(collection(db, "rooms", roomDoc.id, "schedules"));
-        scheduleSnap.forEach(doc => {
+        const scheduleSnap = await getDocs(
+          collection(db, "rooms", roomDoc.id, "schedules")
+        );
+        scheduleSnap.forEach((doc) => {
           const data = doc.data();
           if (data.initialized) return;
-          scheduleList.push(normalizeSchedule({
-            id: doc.id,
-            roomId: roomDoc.id,
-            roomName: roomData.roomName || roomData.name,
-            ...data,
-          }));
+          scheduleList.push(
+            normalizeSchedule({
+              id: doc.id,
+              roomId: roomDoc.id,
+              roomName: roomData.roomName || roomData.name,
+              ...data,
+            })
+          );
         });
       }
 
       const eventSnap = await getDocs(collection(db, "events"));
-      const eventList = eventSnap.docs.map((d) => normalizeEvent({ id: d.id, ...d.data() }));
+      const eventList = eventSnap.docs.map((d) =>
+        normalizeEvent({ id: d.id, ...d.data() })
+      );
 
-      const reservationSnap = await getDocs(collection(db, "reservationRequests"));
+      const reservationSnap = await getDocs(
+        collection(db, "reservationRequests")
+      );
       const reservationList = reservationSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((r) => String(r.status || "").toLowerCase() === "approved")
         .map((r) => normalizeReservation(r));
 
       const releaseSnap = await getDocs(collection(db, "roomReleases"));
-      const releaseList = releaseSnap.docs
-        .map((d) => normalizeRelease({ id: d.id, ...d.data() }));
+      const releaseList = releaseSnap.docs.map((d) =>
+        normalizeRelease({ id: d.id, ...d.data() })
+      );
 
       const reassignSnap = await getDocs(collection(db, "roomReassignments"));
       const reassignList = reassignSnap.docs
@@ -256,24 +371,38 @@ export default function RoomUsageTracking() {
       setAllReleases(releaseList);
       setAllReassignments(reassignList);
 
-      setRoom(prev => {
+      setRoom((prev) => {
         if (prev) return prev;
         return roomList.length ? roomList[0].roomName || roomList[0].name : "";
       });
+
+      // ✅ Success feedback only for manual refresh
+      if (!silent) {
+        showToast(
+          "success",
+          "Data Refreshed",
+          `Loaded ${roomList.length} rooms successfully.`
+        );
+      }
     } catch (err) {
       console.log(err);
+      if (!silent) {
+        showToast("error", "Refresh Failed", "Could not reload data.");
+      }
     }
     setLoading(false);
+    if (!silent) {
+      setRefreshing(false);
+    }
   };
 
   const getOccurrencesForDate = (targetDate) => {
     const dayAbbrev = getDayAbbrev(targetDate);
 
-    const releaseKeys = new Set(
-      allReleases
-        .filter((r) => r.date === targetDate)
-        .map((r) => `${r.scheduleId}_${r.date}`)
-    );
+    const releaseMap = new Map();
+    allReleases
+      .filter((r) => r.date === targetDate)
+      .forEach((r) => releaseMap.set(`${r.scheduleId}_${r.date}`, r));
 
     const reassignAwayKeys = new Set(
       allReassignments
@@ -281,16 +410,41 @@ export default function RoomUsageTracking() {
         .map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    let scheduleOccurrences = allSchedules
+    const scheduleOccurrences = allSchedules
       .filter((s) => s.roomName === room && s.day === dayAbbrev)
-      .filter((s) => {
+      .map((s) => {
         const key = `${s.scheduleId}_${targetDate}`;
-        return !releaseKeys.has(key) && !reassignAwayKeys.has(key);
-      })
-      .map((s) => ({ ...s, date: targetDate }));
 
-    const eventOccurrences = allEvents.filter((e) => e.roomName === room && e.date === targetDate);
-    const reservationOccurrences = allReservations.filter((r) => r.roomName === room && r.date === targetDate);
+        if (reassignAwayKeys.has(key)) return null;
+
+        const releaseInfo = releaseMap.get(key);
+
+        if (releaseInfo) {
+          if (!releaseInfo.effectiveEndTime) return null;
+
+          const endMin = timeToMinutes(releaseInfo.effectiveEndTime);
+          const startMin = timeToMinutes(s.startTime);
+          if (endMin <= startMin) return null;
+
+          return {
+            ...s,
+            endTime: releaseInfo.effectiveEndTime,
+            date: targetDate,
+            isReleased: true,
+            releasedAtTime: releaseInfo.effectiveEndTime,
+          };
+        }
+
+        return { ...s, date: targetDate };
+      })
+      .filter(Boolean);
+
+    const eventOccurrences = allEvents.filter(
+      (e) => e.roomName === room && e.date === targetDate
+    );
+    const reservationOccurrences = allReservations.filter(
+      (r) => r.roomName === room && r.date === targetDate
+    );
 
     const reassignInto = allReassignments
       .filter((r) => r.date === targetDate && r.roomName === room)
@@ -303,8 +457,12 @@ export default function RoomUsageTracking() {
         roomName: r.roomName,
       }));
 
-    return [...scheduleOccurrences, ...eventOccurrences, ...reservationOccurrences, ...reassignInto]
-      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+    return [
+      ...scheduleOccurrences,
+      ...eventOccurrences,
+      ...reservationOccurrences,
+      ...reassignInto,
+    ].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   };
 
   const trackRoom = () => {
@@ -323,7 +481,9 @@ export default function RoomUsageTracking() {
           current = item;
           next = combined[i + 1] || null;
         }
-        if (start > now) { upcoming.push(item); }
+        if (start > now) {
+          upcoming.push(item);
+        }
       });
     } else {
       upcoming.push(...combined);
@@ -351,14 +511,16 @@ export default function RoomUsageTracking() {
     let [h, m] = clock.split(":").map(Number);
     if (period === "PM" && h !== 12) h += 12;
     if (period === "AM" && h === 12) h = 0;
-    return new Date(`${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+    return new Date(
+      `${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
+    );
   };
 
   const buildHistory = () => {
     const currentDate = date || todayString();
     const allOccurrences = getOccurrencesForDate(currentDate);
     const historyData = allOccurrences
-      .filter(item => item.kind === "schedule" || item.kind === "reassignment")
+      .filter((item) => item.kind === "schedule" || item.kind === "reassignment")
       .sort((a, b) => {
         const aEnd = new Date(`${a.date}T${a.endTime}`);
         const bEnd = new Date(`${b.date}T${b.endTime}`);
@@ -367,25 +529,34 @@ export default function RoomUsageTracking() {
 
     const otherHistory = [
       ...allEvents.filter((e) => e.roomName === room && e.date === currentDate),
-      ...allReservations.filter((r) => r.roomName === room && r.date === currentDate),
+      ...allReservations.filter(
+        (r) => r.roomName === room && r.date === currentDate
+      ),
     ];
 
-    const fullHistory = [...historyData, ...otherHistory]
-      .sort((a, b) => {
-        const aEnd = new Date(`${a.date}T${a.endTime}`);
-        const bEnd = new Date(`${b.date}T${b.endTime}`);
-        return bEnd - aEnd;
-      });
+    const fullHistory = [...historyData, ...otherHistory].sort((a, b) => {
+      const aEnd = new Date(`${a.date}T${a.endTime}`);
+      const bEnd = new Date(`${b.date}T${b.endTime}`);
+      return bEnd - aEnd;
+    });
 
     setHistory(fullHistory);
 
-    const ongoing = fullHistory.find(item => getStatus(item.date, item.startTime, item.endTime) === "ONGOING");
+    const ongoing = fullHistory.find(
+      (item) => getStatus(item.date, item.startTime, item.endTime) === "ONGOING"
+    );
     if (ongoing) {
       setLastUser(ongoing);
     } else {
       const completed = fullHistory
-        .filter(item => getStatus(item.date, item.startTime, item.endTime) === "COMPLETED")
-        .sort((a, b) => parseDateTime(b.date, b.endTime) - parseDateTime(a.date, a.endTime));
+        .filter(
+          (item) =>
+            getStatus(item.date, item.startTime, item.endTime) === "COMPLETED"
+        )
+        .sort(
+          (a, b) =>
+            parseDateTime(b.date, b.endTime) - parseDateTime(a.date, a.endTime)
+        );
       setLastUser(completed[0] || null);
     }
   };
@@ -393,24 +564,39 @@ export default function RoomUsageTracking() {
   const buildAnalytics = () => {
     const currentDate = date || todayString();
     const combined = getOccurrencesForDate(currentDate);
-    let completed = 0, ongoing = 0, upcoming = 0, occupiedMinutes = 0;
+    let completed = 0,
+      ongoing = 0,
+      upcoming = 0,
+      occupiedMinutes = 0;
 
-    combined.forEach(item => {
+    combined.forEach((item) => {
       const status = getStatus(currentDate, item.startTime, item.endTime);
       if (status === "COMPLETED") completed++;
       if (status === "ONGOING") ongoing++;
       if (status === "UPCOMING") upcoming++;
-      occupiedMinutes += Math.max(0, timeToMinutes(item.endTime) - timeToMinutes(item.startTime));
+      occupiedMinutes += Math.max(
+        0,
+        timeToMinutes(item.endTime) - timeToMinutes(item.startTime)
+      );
     });
 
-    const utilization = Math.min(100, Math.round((occupiedMinutes / (12 * 60)) * 100));
-    setAnalytics({ totalSchedules: combined.length, completed, ongoing, upcoming, utilization });
+    
+    setAnalytics({
+      totalSchedules: combined.length,
+      completed,
+      ongoing,
+      upcoming,
+    });
   };
 
   // ─── PDF Export ──────────────────────────────────────────────────────
   const handleExportPDF = () => {
     if (history.length === 0) {
-      showToast("error", "Nothing to Export", "No history data available for this room.");
+      showToast(
+        "error",
+        "Nothing to Export",
+        "No history data available for this room."
+      );
       return;
     }
 
@@ -418,15 +604,25 @@ export default function RoomUsageTracking() {
     showToast("loading", "Generating PDF...", "Please wait.");
 
     try {
-      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "pt",
+        format: "a4",
+      });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const marginX = 40;
       const logoSize = 50;
       const centerX = pageWidth / 2;
 
-      // ── Letterhead ──
       if (SCHOOL_HEADER.universityLogoUrl) {
-        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
+        pdf.addImage(
+          SCHOOL_HEADER.universityLogoUrl,
+          "PNG",
+          marginX,
+          22,
+          logoSize,
+          logoSize
+        );
       }
       if (SCHOOL_HEADER.collegeLogoUrl) {
         pdf.addImage(
@@ -454,7 +650,6 @@ export default function RoomUsageTracking() {
       pdf.setLineWidth(1.5);
       pdf.line(marginX, 82, pageWidth - marginX, 82);
 
-      // ── Title & Filters ──
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
       pdf.setTextColor(245, 124, 0);
@@ -472,9 +667,10 @@ export default function RoomUsageTracking() {
         { align: "right" }
       );
 
-      // ── Table ──
       const rows = history.map((item) => [
-        `${item.date || "-"}\n${format12Hour(item.startTime)} - ${format12Hour(item.endTime)}`,
+        `${item.date || "-"}\n${format12Hour(item.startTime)} - ${format12Hour(
+          item.endTime
+        )}${item.isReleased ? "\n(Released early)" : ""}`,
         item.subject,
         item.facultyName,
         item.sourceLabel,
@@ -483,10 +679,17 @@ export default function RoomUsageTracking() {
 
       autoTable(pdf, {
         startY: 148,
-        head: [["Date & Time", "Subject / Event", "Requested By", "Type", "Status"]],
+        head: [
+          ["Date & Time", "Subject / Event", "Requested By", "Type", "Status"],
+        ],
         body: rows,
         theme: "grid",
-        styles: { font: "helvetica", fontSize: 9, cellPadding: 6, valign: "middle" },
+        styles: {
+          font: "helvetica",
+          fontSize: 9,
+          cellPadding: 6,
+          valign: "middle",
+        },
         headStyles: {
           fillColor: [245, 124, 0],
           textColor: [255, 255, 255],
@@ -498,7 +701,6 @@ export default function RoomUsageTracking() {
         margin: { left: marginX, right: marginX },
       });
 
-      // ── Footer ──
       const pageCount = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
@@ -519,17 +721,28 @@ export default function RoomUsageTracking() {
       }
 
       pdf.save(`room-usage-${room.replace(/\s+/g, "-")}-${todayString()}.pdf`);
-      showToast("success", "PDF Downloaded", `${history.length} records exported.`);
+      showToast(
+        "success",
+        "PDF Downloaded",
+        `${history.length} records exported.`
+      );
     } catch (err) {
       console.error("PDF export failed:", err);
-      showToast("error", "Export Failed", "Could not generate PDF. Please try again.");
+      showToast(
+        "error",
+        "Export Failed",
+        "Could not generate PDF. Please try again."
+      );
     } finally {
       setExporting(false);
     }
   };
 
   // Pagination
-  const totalHistoryPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
+  const totalHistoryPages = Math.max(
+    1,
+    Math.ceil(history.length / HISTORY_PAGE_SIZE)
+  );
   const paginatedHistory = history.slice(
     (historyPage - 1) * HISTORY_PAGE_SIZE,
     historyPage * HISTORY_PAGE_SIZE
@@ -546,45 +759,307 @@ export default function RoomUsageTracking() {
   return (
     <>
       <div className="rut-page">
-
         <div className="rut-header">
           <h1 className="rut-title">Room Usage Tracking</h1>
-          <p className="rut-subtitle">Investigate real-time occupancy and historical usage patterns for any campus facility.</p>
+          <p className="rut-subtitle">
+            Investigate real-time occupancy and historical usage patterns for
+            any campus facility.
+          </p>
         </div>
 
         <div className="rut-filter-bar">
           <div className="rut-filter-row">
+            {/* ── ROOM (custom popover) ── */}
             <div className="rut-filter-group">
               <span className="rut-filter-label">SELECT ROOM</span>
-              <div className="rut-filter-input">
-                <i className="fa-regular fa-building" />
-                <select value={room} onChange={e => setRoom(e.target.value)} className="rut-select">
-                  {rooms.map(r => (
-                    <option key={r.id} value={r.roomName || r.name}>
-                      {r.roomName || r.name}
-                    </option>
-                  ))}
-                </select>
-                <i className="fa-solid fa-chevron-down rut-chevron" />
+
+              <div className="rut-roompicker">
+                <button
+                  type="button"
+                  className={`rut-room-trigger ${
+                    showRoomPicker ? "open" : ""
+                  }`}
+                  onClick={() => {
+                    setRoomSearch("");
+                    setShowRoomPicker((v) => !v);
+                  }}
+                >
+                  <i className="fa-solid fa-door-open"></i>
+                  <span className="rut-room-trigger-text">
+                    {room || "Select a room"}
+                  </span>
+                  {selectedRoomObj?.floor && (
+                    <span className="rut-room-trigger-floor">
+                      {selectedRoomObj.floor} Floor
+                    </span>
+                  )}
+                  <i
+                    className={`fa-solid fa-chevron-down rut-room-caret ${
+                      showRoomPicker ? "open" : ""
+                    }`}
+                  ></i>
+                </button>
+
+                {showRoomPicker && (
+                  <>
+                    <div
+                      className="rut-room-clickaway"
+                      onClick={() => setShowRoomPicker(false)}
+                    ></div>
+
+                    <div className="rut-room-popover">
+                      <span className="rut-room-popover-arrow"></span>
+
+                      {/* Search */}
+                      <div className="rut-room-search-wrap">
+                        <i className="fa-solid fa-magnifying-glass"></i>
+                        <input
+                          type="text"
+                          className="rut-room-search"
+                          placeholder="Search room, floor, building..."
+                          value={roomSearch}
+                          onChange={(e) => setRoomSearch(e.target.value)}
+                          autoFocus
+                        />
+                        {roomSearch && (
+                          <button
+                            type="button"
+                            className="rut-room-search-clear"
+                            onClick={() => setRoomSearch("")}
+                            aria-label="Clear search"
+                          >
+                            <i className="fa-solid fa-xmark"></i>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* List */}
+                      <div className="rut-room-list">
+                        {filteredRooms.length === 0 ? (
+                          <div className="rut-room-empty">
+                            <i className="fa-regular fa-face-frown"></i>
+                            <span>No rooms match your search.</span>
+                          </div>
+                        ) : (
+                          filteredRooms.map((r) => {
+                            const name = r.roomName || r.name;
+                            const isActive = name === room;
+                            return (
+                              <button
+                                type="button"
+                                key={r.id}
+                                className={`rut-room-option ${
+                                  isActive ? "is-active" : ""
+                                }`}
+                                onClick={() => {
+                                  setRoom(name);
+                                  setShowRoomPicker(false);
+                                  setRoomSearch("");
+                                }}
+                              >
+                                <div className="rut-room-option-icon">
+                                  <i className="fa-solid fa-door-open"></i>
+                                </div>
+                                <div className="rut-room-option-body">
+                                  <span className="rut-room-option-name">
+                                    {name}
+                                  </span>
+                                  <span className="rut-room-option-meta">
+                                    {r.floor && (
+                                      <>
+                                        <i className="fa-solid fa-building"></i>
+                                        {r.floor} Floor
+                                      </>
+                                    )}
+                                    {r.capacity && (
+                                      <>
+                                        <span className="rut-room-dot">•</span>
+                                        <i className="fa-solid fa-users"></i>
+                                        {r.capacity} Seats
+                                      </>
+                                    )}
+                                  </span>
+                                </div>
+                                {isActive && (
+                                  <i className="fa-solid fa-circle-check rut-room-option-check"></i>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
+            {/* ── DATE (popover calendar) ── */}
             <div className="rut-filter-group">
               <span className="rut-filter-label">SELECT DATE</span>
-              <div className="rut-filter-input">
-                <i className="fa-regular fa-calendar" />
-                <input
-                  type="date"
-                  value={date}
-                  onChange={e => setDate(e.target.value)}
-                  className="rut-date-input"
-                />
+
+              <div className="rut-datepicker">
+                <button
+                  type="button"
+                  className={`rut-date-trigger ${
+                    showDatePicker ? "open" : ""
+                  }`}
+                  onClick={() => {
+                    const base = date
+                      ? new Date(`${date}T00:00:00`)
+                      : new Date();
+                    setCalendarCursor({
+                      year: base.getFullYear(),
+                      month: base.getMonth(),
+                    });
+                    setShowDatePicker((v) => !v);
+                  }}
+                >
+                  <i className="fa-regular fa-calendar"></i>
+                  <span>{date ? formatDateLong(date) : "Select a date"}</span>
+                  <i
+                    className={`fa-solid fa-chevron-down rut-date-caret ${
+                      showDatePicker ? "open" : ""
+                    }`}
+                  ></i>
+                </button>
+
+                {showDatePicker && (
+                  <>
+                    <div
+                      className="rut-date-clickaway"
+                      onClick={() => setShowDatePicker(false)}
+                    ></div>
+                    <div className="rut-date-popover">
+                      <span className="rut-date-popover-arrow"></span>
+
+                      <div className="rut-date-quick-row">
+                        <button
+                          type="button"
+                          className={
+                            date === toDateInputValue(new Date())
+                              ? "active"
+                              : ""
+                          }
+                          onClick={() => {
+                            setDate(toDateInputValue(new Date()));
+                            setShowDatePicker(false);
+                          }}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            date ===
+                            addDaysLocal(toDateInputValue(new Date()), 1)
+                              ? "active"
+                              : ""
+                          }
+                          onClick={() => {
+                            setDate(
+                              addDaysLocal(toDateInputValue(new Date()), 1)
+                            );
+                            setShowDatePicker(false);
+                          }}
+                        >
+                          Tomorrow
+                        </button>
+                      </div>
+
+                      <div className="rut-cal-header">
+                        <button
+                          type="button"
+                          className="rut-cal-nav"
+                          onClick={() =>
+                            setCalendarCursor((c) => {
+                              const m = c.month - 1;
+                              return m < 0
+                                ? { year: c.year - 1, month: 11 }
+                                : { year: c.year, month: m };
+                            })
+                          }
+                          aria-label="Previous month"
+                        >
+                          <i className="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span className="rut-cal-title">
+                          {MONTH_NAMES[calendarCursor.month]}{" "}
+                          {calendarCursor.year}
+                        </span>
+                        <button
+                          type="button"
+                          className="rut-cal-nav"
+                          onClick={() =>
+                            setCalendarCursor((c) => {
+                              const m = c.month + 1;
+                              return m > 11
+                                ? { year: c.year + 1, month: 0 }
+                                : { year: c.year, month: m };
+                            })
+                          }
+                          aria-label="Next month"
+                        >
+                          <i className="fa-solid fa-chevron-right"></i>
+                        </button>
+                      </div>
+
+                      <div className="rut-cal-weekdays">
+                        {WEEKDAY_LABELS.map((w) => (
+                          <span key={w}>{w}</span>
+                        ))}
+                      </div>
+
+                      {/* ✅ Previous dates allowed — no isPast check */}
+                      <div className="rut-cal-grid">
+                        {buildCalendarGrid(
+                          calendarCursor.year,
+                          calendarCursor.month
+                        ).map((cell, i) => {
+                          const cellStr = toDateInputValue(cell.date);
+                          const isSelected = cellStr === date;
+                          return (
+                            <button
+                              type="button"
+                              key={i}
+                              className={[
+                                "rut-cal-day",
+                                !cell.inMonth && "is-outside",
+                                isSelected && "is-selected",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                              onClick={() => {
+                                setDate(cellStr);
+                                setShowDatePicker(false);
+                              }}
+                            >
+                              {cell.day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
-            <button className="rut-track-btn" onClick={loadRooms}>
-              <i className="fa-solid fa-arrows-rotate" />
-              Refresh
+            {/* ── REFRESH (with loading state) ── */}
+            <button
+              className="rut-track-btn"
+              onClick={() => loadRooms(false)}
+              disabled={refreshing || loading}
+              title="Reload all room data from server"
+            >
+              <i
+                className={`fa-solid ${
+                  refreshing || loading
+                    ? "fa-spinner fa-spin"
+                    : "fa-arrows-rotate"
+                }`}
+              />
+              {refreshing || loading ? "Loading..." : "Refresh"}
             </button>
           </div>
 
@@ -604,10 +1079,6 @@ export default function RoomUsageTracking() {
             <div className="rut-analytics-card">
               <h3>Upcoming</h3>
               <h1>{analytics.upcoming}</h1>
-            </div>
-            <div className="rut-analytics-card utilization">
-              <h3>Utilization</h3>
-              <h1>{analytics.utilization}%</h1>
             </div>
           </div>
         </div>
@@ -635,57 +1106,93 @@ export default function RoomUsageTracking() {
                   <div className="rut-live-indicator">
                     {isToday && <span className="rut-live-dot"></span>}
                     <span className="rut-live-label">
-                      {isToday ? `Live Status : ${room}` : `Schedule for ${date} : ${room}`}
+                      {isToday
+                        ? `Live Status : ${room}`
+                        : `Schedule for ${date} : ${room}`}
                     </span>
                   </div>
-                  <span className={`rut-status-badge ${currentSchedule ? "occupied" : "vacant"}`}>
+                  <span
+                    className={`rut-status-badge ${
+                      currentSchedule ? "occupied" : "vacant"
+                    }`}
+                  >
                     {currentSchedule ? "OCCUPIED" : "VACANT"}
                   </span>
                 </div>
 
                 {currentSchedule ? (
                   <>
-                    <span className="rut-type-badge">{currentSchedule.sourceLabel}</span>
+                    <span className="rut-type-badge">
+                      {currentSchedule.sourceLabel}
+                    </span>
                     <div className="rut-live-grid">
                       <div className="rut-live-item">
                         <div className="rut-live-item-header">
-                          <div className="rut-icon-circle"><i className="fa-solid fa-book" /></div>
-                          <span className="rut-item-label">SUBJECT / PURPOSE</span>
+                          <div className="rut-icon-circle">
+                            <i className="fa-solid fa-book" />
+                          </div>
+                          <span className="rut-item-label">
+                            SUBJECT / PURPOSE
+                          </span>
                         </div>
-                        <span className="rut-item-value large">{currentSchedule.subject}</span>
+                        <span className="rut-item-value large">
+                          {currentSchedule.subject}
+                        </span>
                       </div>
                       <div className="rut-live-item">
                         <div className="rut-live-item-header">
-                          <div className="rut-icon-circle"><i className="fa-solid fa-building" /></div>
+                          <div className="rut-icon-circle">
+                            <i className="fa-solid fa-building" />
+                          </div>
                           <span className="rut-item-label">ORGANIZATION</span>
                         </div>
-                        <span className="rut-item-value">{currentSchedule.organization || "N/A"}</span>
+                        <span className="rut-item-value">
+                          {currentSchedule.organization || "N/A"}
+                        </span>
                       </div>
                       <div className="rut-live-item">
                         <div className="rut-live-item-header">
-                          <div className="rut-icon-circle"><i className="fa-solid fa-user" /></div>
-                          <span className="rut-item-label">FACULTY / REQUESTED BY</span>
+                          <div className="rut-icon-circle">
+                            <i className="fa-solid fa-user" />
+                          </div>
+                          <span className="rut-item-label">
+                            FACULTY / REQUESTED BY
+                          </span>
                         </div>
-                        <span className="rut-item-value">{currentSchedule.facultyName}</span>
+                        <span className="rut-item-value">
+                          {currentSchedule.facultyName}
+                        </span>
                       </div>
                       <div className="rut-live-item">
                         <div className="rut-live-item-header">
-                          <div className="rut-icon-circle"><i className="fa-solid fa-clock" /></div>
+                          <div className="rut-icon-circle">
+                            <i className="fa-solid fa-clock" />
+                          </div>
                           <span className="rut-item-label">TIME</span>
                         </div>
                         <span className="rut-item-value">
-                          {format12Hour(currentSchedule.startTime)} - {format12Hour(currentSchedule.endTime)}
+                          {format12Hour(currentSchedule.startTime)} -{" "}
+                          {format12Hour(currentSchedule.endTime)}
                         </span>
                       </div>
                     </div>
                     <div className="rut-progress-bar">
-                      <div className="rut-progress-fill" style={{ width: `${calculateProgress(currentSchedule)}%` }} />
+                      <div
+                        className="rut-progress-fill"
+                        style={{
+                          width: `${calculateProgress(currentSchedule)}%`,
+                        }}
+                      />
                     </div>
                   </>
                 ) : (
                   <div className="rut-empty-live">
                     <i className="fa-regular fa-circle-check"></i>
-                    <h2>{isToday ? "Room is currently available." : "No ongoing activity to show for this date."}</h2>
+                    <h2>
+                      {isToday
+                        ? "Room is currently available."
+                        : "No ongoing activity to show for this date."}
+                    </h2>
                   </div>
                 )}
               </div>
@@ -696,22 +1203,28 @@ export default function RoomUsageTracking() {
                     <i className="fa-solid fa-circle-info" />
                     <span>Room Information</span>
                   </div>
-                  {rooms.filter(r => (r.roomName || r.name) === room).map(r => (
-                    <div key={r.id}>
-                      <div className="rut-specs-row">
-                        <span className="rut-specs-key">Capacity</span>
-                        <span className="rut-specs-val">{r.capacity || "-"}</span>
+                  {rooms
+                    .filter((r) => (r.roomName || r.name) === room)
+                    .map((r) => (
+                      <div key={r.id}>
+                        <div className="rut-specs-row">
+                          <span className="rut-specs-key">Capacity</span>
+                          <span className="rut-specs-val">
+                            {r.capacity || "-"}
+                          </span>
+                        </div>
+                        <div className="rut-specs-row">
+                          <span className="rut-specs-key">Type</span>
+                          <span className="rut-specs-val">
+                            {r.roomType || "-"}
+                          </span>
+                        </div>
+                        <div className="rut-specs-row">
+                          <span className="rut-specs-key">Floor</span>
+                          <span className="rut-specs-val">{r.floor || "-"}</span>
+                        </div>
                       </div>
-                      <div className="rut-specs-row">
-                        <span className="rut-specs-key">Type</span>
-                        <span className="rut-specs-val">{r.roomType || "-"}</span>
-                      </div>
-                      <div className="rut-specs-row">
-                        <span className="rut-specs-key">Floor</span>
-                        <span className="rut-specs-val">{r.floor || "-"}</span>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
 
                 <div className="rut-next-card">
@@ -719,16 +1232,28 @@ export default function RoomUsageTracking() {
                     {isToday ? "TODAY'S UPCOMING" : `SCHEDULE FOR ${date}`}
                   </span>
                   {upcomingSchedules.length === 0 ? (
-                    <div className="rut-no-upcoming">No schedules found for this day.</div>
+                    <div className="rut-no-upcoming">
+                      No schedules found for this day.
+                    </div>
                   ) : (
-                    upcomingSchedules.map(schedule => (
-                      <div key={`${schedule.kind}-${schedule.id}`} className="rut-upcoming-item">
-                        <div className="rut-upcoming-subject">{schedule.subject}</div>
-                        <div className="rut-upcoming-info">
-                          {format12Hour(schedule.startTime)} - {format12Hour(schedule.endTime)}
+                    upcomingSchedules.map((schedule) => (
+                      <div
+                        key={`${schedule.kind}-${schedule.id}`}
+                        className="rut-upcoming-item"
+                      >
+                        <div className="rut-upcoming-subject">
+                          {schedule.subject}
                         </div>
-                        <div className="rut-upcoming-info">{schedule.facultyName}</div>
-                        <div className="rut-upcoming-info rut-upcoming-tag">{schedule.sourceLabel}</div>
+                        <div className="rut-upcoming-info">
+                          {format12Hour(schedule.startTime)} -{" "}
+                          {format12Hour(schedule.endTime)}
+                        </div>
+                        <div className="rut-upcoming-info">
+                          {schedule.facultyName}
+                        </div>
+                        <div className="rut-upcoming-info rut-upcoming-tag">
+                          {schedule.sourceLabel}
+                        </div>
                       </div>
                     ))
                   )}
@@ -739,7 +1264,9 @@ export default function RoomUsageTracking() {
 
           {activeTab === "history" && (
             <div className="rut-live-card">
-              <h2 className="rut-history-last-title">Historical Room Usage</h2>
+              <h2 className="rut-history-last-title">
+                Historical Room Usage
+              </h2>
               <div className="rut-last-user">
                 <strong className="rut-last-user-title">Last User</strong>
                 {lastUser ? (
@@ -747,8 +1274,13 @@ export default function RoomUsageTracking() {
                     <span>{lastUser.facultyName}</span>
                     <span>{lastUser.subject}</span>
                     <span>{lastUser.date}</span>
-                    <span>{format12Hour(lastUser.startTime)} - {format12Hour(lastUser.endTime)}</span>
-                    <span className="rut-type-badge">{lastUser.sourceLabel}</span>
+                    <span>
+                      {format12Hour(lastUser.startTime)} -{" "}
+                      {format12Hour(lastUser.endTime)}
+                    </span>
+                    <span className="rut-type-badge">
+                      {lastUser.sourceLabel}
+                    </span>
                   </div>
                 ) : (
                   <p className="rut-last-user-empty">No previous usage.</p>
@@ -767,7 +1299,11 @@ export default function RoomUsageTracking() {
               onClick={handleExportPDF}
               disabled={exporting || history.length === 0}
             >
-              <i className={`fa-solid ${exporting ? "fa-spinner fa-spin" : "fa-download"}`} />
+              <i
+                className={`fa-solid ${
+                  exporting ? "fa-spinner fa-spin" : "fa-download"
+                }`}
+              />
               {exporting ? "Generating..." : "Export PDF"}
             </button>
           </div>
@@ -792,28 +1328,51 @@ export default function RoomUsageTracking() {
                     </td>
                   </tr>
                 )}
-                {paginatedHistory.map(schedule => (
+                {paginatedHistory.map((schedule) => (
                   <tr key={`${schedule.kind}-${schedule.id}`}>
                     <td>
                       <div className="rut-date-cell">
                         <span className="rut-date">{schedule.date}</span>
                         <span className="rut-time">
-                          {format12Hour(schedule.startTime)} - {format12Hour(schedule.endTime)}
+                          {format12Hour(schedule.startTime)} -{" "}
+                          {format12Hour(schedule.endTime)}
                         </span>
+                        {schedule.isReleased && (
+                          <span
+                            className="rut-released-tag"
+                            title={`Released at ${schedule.releasedAtTime}`}
+                          >
+                            Released early
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="rut-subject">{schedule.subject}</td>
                     <td>{schedule.facultyName}</td>
-                    <td><span className="rut-type-badge">{schedule.sourceLabel}</span></td>
                     <td>
-                      <span className={`rut-badge ${getStatus(schedule.date, schedule.startTime, schedule.endTime).toLowerCase()}`}>
-                        {getStatus(schedule.date, schedule.startTime, schedule.endTime)}
+                      <span className="rut-type-badge">
+                        {schedule.sourceLabel}
                       </span>
                     </td>
                     <td>
-                     <button
-                      className="rut-action-btn"
-                      onClick={() => setSelectedRecord(schedule)}
+                      <span
+                        className={`rut-badge ${getStatus(
+                          schedule.date,
+                          schedule.startTime,
+                          schedule.endTime
+                        ).toLowerCase()}`}
+                      >
+                        {getStatus(
+                          schedule.date,
+                          schedule.startTime,
+                          schedule.endTime
+                        )}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className="rut-action-btn"
+                        onClick={() => setSelectedRecord(schedule)}
                       >
                         <i className="fa-solid fa-eye" />
                       </button>
@@ -826,41 +1385,59 @@ export default function RoomUsageTracking() {
 
           <div className="rut-pagination-row">
             <span className="rut-pagination-info">
-              Showing {history.length === 0 ? 0 : (historyPage - 1) * HISTORY_PAGE_SIZE + 1} to{" "}
-              {Math.min(historyPage * HISTORY_PAGE_SIZE, history.length)} of {history.length} records
+              Showing{" "}
+              {history.length === 0
+                ? 0
+                : (historyPage - 1) * HISTORY_PAGE_SIZE + 1}{" "}
+              to {Math.min(historyPage * HISTORY_PAGE_SIZE, history.length)} of{" "}
+              {history.length} records
             </span>
             <div className="rut-pagination-buttons">
               <button
                 className="rut-pagination-nav"
                 disabled={historyPage === 1}
-                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
               >
                 <i className="fa-solid fa-chevron-left" />
               </button>
 
               {renderHistoryPages()[0] > 1 && (
                 <>
-                  <button className="rut-pagination-page" onClick={() => setHistoryPage(1)}>1</button>
-                  {renderHistoryPages()[0] > 2 && <span className="rut-pagination-ellipsis">...</span>}
+                  <button
+                    className="rut-pagination-page"
+                    onClick={() => setHistoryPage(1)}
+                  >
+                    1
+                  </button>
+                  {renderHistoryPages()[0] > 2 && (
+                    <span className="rut-pagination-ellipsis">...</span>
+                  )}
                 </>
               )}
 
-              {renderHistoryPages().map(page => (
+              {renderHistoryPages().map((page) => (
                 <button
                   key={page}
-                  className={`rut-pagination-page ${historyPage === page ? "is-active" : ""}`}
+                  className={`rut-pagination-page ${
+                    historyPage === page ? "is-active" : ""
+                  }`}
                   onClick={() => setHistoryPage(page)}
                 >
                   {page}
                 </button>
               ))}
 
-              {renderHistoryPages()[renderHistoryPages().length - 1] < totalHistoryPages && (
+              {renderHistoryPages()[renderHistoryPages().length - 1] <
+                totalHistoryPages && (
                 <>
-                  {renderHistoryPages()[renderHistoryPages().length - 1] < totalHistoryPages - 1 && (
+                  {renderHistoryPages()[renderHistoryPages().length - 1] <
+                    totalHistoryPages - 1 && (
                     <span className="rut-pagination-ellipsis">...</span>
                   )}
-                  <button className="rut-pagination-page" onClick={() => setHistoryPage(totalHistoryPages)}>
+                  <button
+                    className="rut-pagination-page"
+                    onClick={() => setHistoryPage(totalHistoryPages)}
+                  >
                     {totalHistoryPages}
                   </button>
                 </>
@@ -869,7 +1446,9 @@ export default function RoomUsageTracking() {
               <button
                 className="rut-pagination-nav"
                 disabled={historyPage >= totalHistoryPages}
-                onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                onClick={() =>
+                  setHistoryPage((p) => Math.min(totalHistoryPages, p + 1))
+                }
               >
                 <i className="fa-solid fa-chevron-right" />
               </button>
@@ -879,11 +1458,19 @@ export default function RoomUsageTracking() {
       </div>
 
       {selectedRecord && (
-        <div className="rut-modal-overlay" onClick={() => setSelectedRecord(null)}>
+        <div
+          className="rut-modal-overlay"
+          onClick={() => setSelectedRecord(null)}
+        >
           <div className="rut-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="rut-modal-header">
-              <span className="rut-type-badge">{selectedRecord.sourceLabel}</span>
-              <button className="rut-modal-close" onClick={() => setSelectedRecord(null)}>
+              <span className="rut-type-badge">
+                {selectedRecord.sourceLabel}
+              </span>
+              <button
+                className="rut-modal-close"
+                onClick={() => setSelectedRecord(null)}
+              >
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
@@ -893,11 +1480,15 @@ export default function RoomUsageTracking() {
             <div className="rut-modal-grid">
               <div className="rut-modal-field">
                 <span className="rut-modal-label">REQUESTED BY</span>
-                <span className="rut-modal-value">{selectedRecord.facultyName}</span>
+                <span className="rut-modal-value">
+                  {selectedRecord.facultyName}
+                </span>
               </div>
               <div className="rut-modal-field">
                 <span className="rut-modal-label">SECTION</span>
-                <span className="rut-modal-value">{selectedRecord.section || "-"}</span>
+                <span className="rut-modal-value">
+                  {selectedRecord.section || "-"}
+                </span>
               </div>
               <div className="rut-modal-field">
                 <span className="rut-modal-label">DATE</span>
@@ -906,15 +1497,23 @@ export default function RoomUsageTracking() {
               <div className="rut-modal-field">
                 <span className="rut-modal-label">TIME</span>
                 <span className="rut-modal-value">
-                  {format12Hour(selectedRecord.startTime)} - {format12Hour(selectedRecord.endTime)}
+                  {format12Hour(selectedRecord.startTime)} -{" "}
+                  {format12Hour(selectedRecord.endTime)}
                 </span>
               </div>
+              {selectedRecord.isReleased && (
+                <div className="rut-modal-field">
+                  <span className="rut-modal-label">RELEASED AT</span>
+                  <span className="rut-modal-value">
+                    {selectedRecord.releasedAtTime}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ─── Toast ────────────────────────────────────────────────────── */}
       <Toast
         show={toast.show}
         type={toast.type}

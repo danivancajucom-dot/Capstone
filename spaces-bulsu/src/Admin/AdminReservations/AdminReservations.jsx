@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import "./AdminViewReservationCancelled";
+import "./admin-reservations.css";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
 import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
@@ -13,7 +13,52 @@ const PAGE_SIZE = 9;
 const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
 const normalizeRoom = (name) => name?.toLowerCase().trim().replace(/\s+/g, '') || "";
 
-// ─── Empty icon (SVG) ──────────────────────────────────────────────────
+// ─── Date picker helpers ────────────────────────────────────────────
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const toDateInputValue = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "-";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+};
+
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({ day: nextIndex, inMonth: false, date: new Date(year, month + 1, nextIndex) });
+    if (cells.length >= 42) break;
+  }
+  return cells;
+};
+
+// ─── Empty icon ──────────────────────────────────────────────────────
 const EmptyIcon = () => (
   <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect x="3" y="5" width="18" height="16" rx="2" stroke="#CBD5E1" strokeWidth="1.5" />
@@ -24,7 +69,6 @@ const EmptyIcon = () => (
   </svg>
 );
 
-// ─── Loading state ──────────────────────────────────────────────────────
 function LoadingState() {
   return (
     <div className="dph-empty-state">
@@ -35,20 +79,16 @@ function LoadingState() {
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────
 function EmptyState({ label }) {
   return (
     <div className="dph-empty-state">
       <EmptyIcon />
       <p className="dph-empty-title">No {label} reservations</p>
-      <p className="dph-empty-subtitle">
-        Requests will show up here as soon as they come in.
-      </p>
+      <p className="dph-empty-subtitle">Requests will show up here as soon as they come in.</p>
     </div>
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────
 function AdminReservations() {
   const [activeTab, setActiveTab] = useState("Pending");
   const navigate = useNavigate();
@@ -56,14 +96,23 @@ function AdminReservations() {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // ─── Filter/sort state ─────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRoom, setFilterRoom] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  // ─── Real‑time listener ──────────────────────────────────────────────
+  // ── Room picker ──
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+
+  // ── Date picker ──
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
   useEffect(() => {
     const q = query(collection(db, "reservationRequests"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(
@@ -74,18 +123,15 @@ function AdminReservations() {
         setLoading(false);
       },
       (error) => {
-        console.error("🔥 Firestore error:", error);
+        console.error("Firestore error:", error);
         setLoading(false);
       }
     );
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [activeTab]);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeTab]);
 
-  // ─── Status mapping ──────────────────────────────────────────────────
   const statusMap = {
     Pending: "pending",
     Approved: "approved",
@@ -93,59 +139,41 @@ function AdminReservations() {
     Cancelled: "cancelled",
   };
 
-  // ─── Step 1: Filter by tab (status) ─────────────────────────────────
   const tabFiltered = reservations.filter(
     (r) => normalizeStatus(r.status) === statusMap[activeTab]
   );
 
-  // ─── Step 2: Apply search, room, date filters ──────────────────────
   const trimmedSearch = searchTerm.trim().toLowerCase();
 
   const filtered = tabFiltered.filter((r) => {
-    // Search by faculty/requester name
     const name = (r.facultyName || r.requesterName || "").toLowerCase();
     if (trimmedSearch && !name.includes(trimmedSearch)) return false;
-
-    // Room filter – normalized
     const roomNameNormalized = normalizeRoom(r.roomName);
     const filterRoomNormalized = normalizeRoom(filterRoom);
     if (filterRoom && roomNameNormalized !== filterRoomNormalized) return false;
-
-    // Date filter
     if (filterDate && r.date !== filterDate) return false;
-
     return true;
   });
 
-  // ─── Step 3: Sort ──────────────────────────────────────────────────
   const sorted = [...filtered].sort((a, b) => {
     let aVal, bVal;
     switch (sortBy) {
-      case "date":
-        aVal = a.date || "";
-        bVal = b.date || "";
-        break;
-      case "room":
-        aVal = normalizeRoom(a.roomName);
-        bVal = normalizeRoom(b.roomName);
-        break;
+      case "date": aVal = a.date || ""; bVal = b.date || ""; break;
+      case "room": aVal = normalizeRoom(a.roomName); bVal = normalizeRoom(b.roomName); break;
       case "faculty":
         aVal = (a.facultyName || a.requesterName || "").toLowerCase();
         bVal = (b.facultyName || b.requesterName || "").toLowerCase();
         break;
-      default:
-        return 0;
+      default: return 0;
     }
     if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
     if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
     return 0;
   });
 
-  // ─── Step 4: Paginate ──────────────────────────────────────────────
   const visibleReservations = sorted.slice(0, visibleCount);
   const hasMore = visibleCount < sorted.length;
 
-  // ─── Counts for tabs (unfiltered) ──────────────────────────────────
   const counts = {
     Pending: reservations.filter((r) => normalizeStatus(r.status) === "pending").length,
     Approved: reservations.filter((r) => normalizeStatus(r.status) === "approved").length,
@@ -153,22 +181,34 @@ function AdminReservations() {
     Cancelled: reservations.filter((r) => normalizeStatus(r.status) === "cancelled").length,
   };
 
-  // ─── Unique room names for filter dropdown (normalized) ────────────
-  const roomMap = new Map();
-  reservations.forEach((r) => {
-    const original = (r.roomName || "").trim();
-    if (!original) return;
-    const normalized = normalizeRoom(original);
-    if (!roomMap.has(normalized)) {
-      roomMap.set(normalized, original);
-    }
-  });
-  const roomOptions = Array.from(roomMap.entries()).map(([normalized, original]) => ({
-    normalized,
-    original,
-  }));
+  const roomMap = useMemo(() => {
+    const map = new Map();
+    reservations.forEach((r) => {
+      const original = (r.roomName || "").trim();
+      if (!original) return;
+      const normalized = normalizeRoom(original);
+      if (!map.has(normalized)) map.set(normalized, original);
+    });
+    return map;
+  }, [reservations]);
 
-  // ─── Clear all filters ──────────────────────────────────────────────
+  const roomOptions = useMemo(
+    () => Array.from(roomMap.entries()).map(([normalized, original]) => ({ normalized, original })),
+    [roomMap]
+  );
+
+  const filteredRoomOptions = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return roomOptions;
+    return roomOptions.filter((o) => o.original.toLowerCase().includes(q));
+  }, [roomOptions, roomSearch]);
+
+  const selectedRoomLabel = useMemo(() => {
+    if (!filterRoom) return "All Rooms";
+    const found = roomOptions.find((o) => o.normalized === filterRoom);
+    return found ? found.original : filterRoom;
+  }, [filterRoom, roomOptions]);
+
   const clearFilters = () => {
     setSearchTerm("");
     setFilterRoom("");
@@ -177,52 +217,35 @@ function AdminReservations() {
     setSortOrder("desc");
   };
 
-  // ─── Render helpers ──────────────────────────────────────────────────
   const isGridTab = activeTab !== "Pending";
 
   const renderList = () => {
     if (loading) return <LoadingState />;
-    if (sorted.length === 0) {
-      return <EmptyState label={activeTab.toLowerCase()} />;
-    }
+    if (sorted.length === 0) return <EmptyState label={activeTab.toLowerCase()} />;
 
     if (activeTab === "Pending") {
       return visibleReservations.map((reservation) => (
-        <ReservationCard
-          key={reservation.id}
-          reservation={reservation}
-          basePath="/admin/view-reservation"
-          readOnly={true}
-        />
+        <ReservationCard key={reservation.id} reservation={reservation}
+          basePath="/admin/view-reservation" readOnly={true} />
       ));
     }
 
     let viewPath;
-    if (activeTab === "Approved") {
-      viewPath = "/admin/view-reservation-approved";
-    } else if (activeTab === "Denied") {
-      viewPath = "/admin/view-reservation-denied";
-    } else {
-      viewPath = "/admin/view-reservation-cancelled";
-    }
+    if (activeTab === "Approved") viewPath = "/admin/view-reservation-approved";
+    else if (activeTab === "Denied") viewPath = "/admin/view-reservation-denied";
+    else viewPath = "/admin/view-reservation-cancelled";
 
     return visibleReservations.map((reservation) => (
-      <ApprovedAndDeniedCard
-        key={reservation.id}
-        reservation={reservation}
-        compact={true}
-        readOnly={true}
-        onClick={() => navigate(viewPath, { state: { reservation } })}
-      />
+      <ApprovedAndDeniedCard key={reservation.id} reservation={reservation}
+        compact={true} readOnly={true}
+        onClick={() => navigate(viewPath, { state: { reservation } })} />
     ));
   };
 
   const isEmpty = !loading && sorted.length === 0;
 
-  // ─── Render ──────────────────────────────────────────────────────────
   return (
     <div className="dph-reservations">
-      {/* ─── Header ────────────────────────────────────────────── */}
       <div className="dph-reservations-header">
         <h1>Reservation Requests</h1>
         <p className="dph-reservations-subtitle">
@@ -230,62 +253,161 @@ function AdminReservations() {
         </p>
       </div>
 
-      {/* ─── Filter Bar (outside white box) ──────────────────── */}
       <div className="dph-filter-bar-outer">
         <div className="dph-filter-row">
           <div className="dph-filter-group">
             <i className="fa-solid fa-magnifying-glass"></i>
-            <input
-              type="text"
-              placeholder="Search by faculty..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="dph-filter-input"
-            />
+            <input type="text" placeholder="Search by faculty..." value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)} className="dph-filter-input" />
           </div>
 
-          <div className="dph-filter-group">
-            <i className="fa-solid fa-building"></i>
-            <select
-              value={filterRoom}
-              onChange={(e) => setFilterRoom(e.target.value)}
-              className="dph-filter-select"
-            >
-              <option value="">All Rooms</option>
-              {roomOptions.map(({ normalized, original }) => (
-                <option key={normalized} value={normalized}>
-                  {original}
-                </option>
-              ))}
-            </select>
+          {/* ROOM PICKER */}
+          <div className="dph-filter-group dph-picker-group">
+            <div className="adr-roompicker">
+              <button type="button"
+                className={`adr-room-trigger ${showRoomPicker ? "open" : ""}`}
+                onClick={() => { setRoomSearch(""); setShowRoomPicker((v) => !v); }}>
+                <i className="fa-solid fa-building"></i>
+                <span className="adr-room-trigger-text">{selectedRoomLabel}</span>
+                <i className={`fa-solid fa-chevron-down adr-room-caret ${showRoomPicker ? "open" : ""}`}></i>
+              </button>
+
+              {showRoomPicker && (
+                <>
+                  <div className="adr-picker-clickaway" onClick={() => setShowRoomPicker(false)}></div>
+                  <div className="adr-room-popover">
+                    <span className="adr-popover-arrow"></span>
+
+                    <div className="adr-search-wrap">
+                      <i className="fa-solid fa-magnifying-glass"></i>
+                      <input type="text" className="adr-search" placeholder="Search room..."
+                        value={roomSearch} onChange={(e) => setRoomSearch(e.target.value)} autoFocus />
+                      {roomSearch && (
+                        <button type="button" className="adr-search-clear" onClick={() => setRoomSearch("")}>
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="adr-room-list">
+                      <button type="button"
+                        className={`adr-room-option ${!filterRoom ? "is-active" : ""}`}
+                        onClick={() => { setFilterRoom(""); setShowRoomPicker(false); setRoomSearch(""); }}>
+                        <div className="adr-room-option-icon"><i className="fa-solid fa-layer-group"></i></div>
+                        <span className="adr-room-option-name">All Rooms</span>
+                        {!filterRoom && <i className="fa-solid fa-circle-check adr-room-option-check"></i>}
+                      </button>
+
+                      {filteredRoomOptions.length === 0 && roomSearch ? (
+                        <div className="adr-picker-empty">
+                          <i className="fa-regular fa-face-frown"></i>
+                          <span>No rooms match.</span>
+                        </div>
+                      ) : (
+                        filteredRoomOptions.map(({ normalized, original }) => {
+                          const isActive = normalized === filterRoom;
+                          return (
+                            <button type="button" key={normalized}
+                              className={`adr-room-option ${isActive ? "is-active" : ""}`}
+                              onClick={() => { setFilterRoom(normalized); setShowRoomPicker(false); setRoomSearch(""); }}>
+                              <div className="adr-room-option-icon"><i className="fa-solid fa-door-open"></i></div>
+                              <span className="adr-room-option-name">{original}</span>
+                              {isActive && <i className="fa-solid fa-circle-check adr-room-option-check"></i>}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="dph-filter-group">
-            <i className="fa-regular fa-calendar"></i>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="dph-filter-input"
-            />
+          {/* DATE PICKER */}
+          <div className="dph-filter-group dph-picker-group">
+            <div className="adr-datepicker">
+              <button type="button"
+                className={`adr-date-trigger ${showDatePicker ? "open" : ""}`}
+                onClick={() => {
+                  const base = filterDate ? new Date(`${filterDate}T00:00:00`) : new Date();
+                  setCalendarCursor({ year: base.getFullYear(), month: base.getMonth() });
+                  setShowDatePicker((v) => !v);
+                }}>
+                <i className="fa-regular fa-calendar"></i>
+                <span>{filterDate ? formatDateLong(filterDate) : "All Dates"}</span>
+                <i className={`fa-solid fa-chevron-down adr-date-caret ${showDatePicker ? "open" : ""}`}></i>
+              </button>
+
+              {showDatePicker && (
+                <>
+                  <div className="adr-picker-clickaway" onClick={() => setShowDatePicker(false)}></div>
+                  <div className="adr-date-popover">
+                    <span className="adr-popover-arrow"></span>
+
+                    <div className="adr-date-quick-row">
+                      <button type="button" className={!filterDate ? "active" : ""}
+                        onClick={() => { setFilterDate(""); setShowDatePicker(false); }}>
+                        All Dates
+                      </button>
+                      <button type="button"
+                        className={filterDate === toDateInputValue(new Date()) ? "active" : ""}
+                        onClick={() => { setFilterDate(toDateInputValue(new Date())); setShowDatePicker(false); }}>
+                        Today
+                      </button>
+                    </div>
+
+                    <div className="adr-cal-header">
+                      <button type="button" className="adr-cal-nav" onClick={() =>
+                        setCalendarCursor((c) => {
+                          const m = c.month - 1;
+                          return m < 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: m };
+                        })}>
+                        <i className="fa-solid fa-chevron-left"></i>
+                      </button>
+                      <span className="adr-cal-title">{MONTH_NAMES[calendarCursor.month]} {calendarCursor.year}</span>
+                      <button type="button" className="adr-cal-nav" onClick={() =>
+                        setCalendarCursor((c) => {
+                          const m = c.month + 1;
+                          return m > 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: m };
+                        })}>
+                        <i className="fa-solid fa-chevron-right"></i>
+                      </button>
+                    </div>
+
+                    <div className="adr-cal-weekdays">
+                      {WEEKDAY_LABELS.map((w) => <span key={w}>{w}</span>)}
+                    </div>
+
+                    <div className="adr-cal-grid">
+                      {buildCalendarGrid(calendarCursor.year, calendarCursor.month).map((cell, i) => {
+                        const cellStr = toDateInputValue(cell.date);
+                        const isSelected = cellStr === filterDate;
+                        return (
+                          <button type="button" key={i}
+                            className={["adr-cal-day", !cell.inMonth && "is-outside", isSelected && "is-selected"].filter(Boolean).join(" ")}
+                            onClick={() => { setFilterDate(cellStr); setShowDatePicker(false); }}>
+                            {cell.day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="dph-filter-group dph-sort-group">
             <i className="fa-solid fa-arrow-up-wide-short"></i>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="dph-filter-select"
-            >
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="dph-filter-select">
               <option value="date">Sort by Date</option>
               <option value="room">Sort by Room</option>
               <option value="faculty">Sort by Faculty</option>
             </select>
-            <button
-              className="dph-sort-order-btn"
+            <button className="dph-sort-order-btn"
               onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
-              title={sortOrder === "asc" ? "Ascending" : "Descending"}
-            >
+              title={sortOrder === "asc" ? "Ascending" : "Descending"}>
               <i className={`fa-solid fa-arrow-${sortOrder === "asc" ? "up" : "down"}`}></i>
             </button>
           </div>
@@ -295,16 +417,11 @@ function AdminReservations() {
           </button>
         </div>
 
-        {/* Active filters summary */}
         {(searchTerm || filterRoom || filterDate) && (
           <div className="dph-filter-summary">
             <span>Active filters:</span>
             {searchTerm && <span className="dph-filter-tag">Faculty: {searchTerm}</span>}
-            {filterRoom && (
-              <span className="dph-filter-tag">
-                Room: {roomOptions.find(o => o.normalized === filterRoom)?.original || filterRoom}
-              </span>
-            )}
+            {filterRoom && <span className="dph-filter-tag">Room: {selectedRoomLabel}</span>}
             {filterDate && <span className="dph-filter-tag">Date: {filterDate}</span>}
             <span className="dph-filter-result-count">
               {sorted.length} result{sorted.length !== 1 ? "s" : ""}
@@ -313,20 +430,13 @@ function AdminReservations() {
         )}
       </div>
 
-      {/* ─── White box with tabs + content ────────────────────── */}
       <div className="dph-white-box-reservations">
         <div className="dph-reservations-nav">
           {TABS.map((tab) => (
-            <div
-              key={tab}
+            <div key={tab}
               className={`dph-reservations-nav-item ${activeTab === tab ? "active" : ""}`}
-              onClick={() => setActiveTab(tab)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") setActiveTab(tab);
-              }}
-            >
+              onClick={() => setActiveTab(tab)} role="button" tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setActiveTab(tab); }}>
               {tab}
               {!loading && <span className="dph-reservations-nav-count">{counts[tab]}</span>}
             </div>
@@ -334,20 +444,14 @@ function AdminReservations() {
         </div>
         <hr className="dph-reservations-nav-divider" />
 
-        <div
-          className={`dph-reservations-content ${
-            isGridTab && !loading ? "dph-reservations-content--grid" : ""
-          } ${loading || isEmpty ? "dph-reservations-content--empty" : ""}`}
-        >
+        <div className={`dph-reservations-content ${isGridTab && !loading ? "dph-reservations-content--grid" : ""} ${loading || isEmpty ? "dph-reservations-content--empty" : ""}`}>
           {renderList()}
         </div>
 
         {!loading && hasMore && (
           <div className="dph-load-more-reservations">
-            <button
-              className="dph-load-more-btn-reservations"
-              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            >
+            <button className="dph-load-more-btn-reservations"
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
               Load More ({sorted.length - visibleCount} remaining)
             </button>
           </div>
