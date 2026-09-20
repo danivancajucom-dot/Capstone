@@ -1,15 +1,33 @@
 import "./admin-view-reservation.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase";
 import { auth } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
+
+// ─── Helper: find user by name (fallback kung walang userId) ───────────
+const findUserByName = async (name) => {
+  if (!name) return null;
+  const usersSnap = await getDocs(collection(db, "users"));
+  const normalized = name.trim().toLowerCase();
+  for (const userDoc of usersSnap.docs) {
+    const data = userDoc.data();
+    const fullName = `${data.firstName || ""} ${data.lastName || ""}`
+      .trim()
+      .toLowerCase();
+    if (fullName === normalized) return { id: userDoc.id, ...data };
+  }
+  return null;
+};
 
 function AdminViewReservation() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const reservation = state?.reservation;
+
+  // ─── Requester photo state ─────────────────────────────────────
+  const [requesterPhoto, setRequesterPhoto] = useState(null);
 
   const toastTimeoutRef = useRef(null);
   const [toast, setToast] = useState({
@@ -39,6 +57,61 @@ function AdminViewReservation() {
     };
   }, []);
 
+  // ─── Fetch requester photo ─────────────────────────────────────
+  useEffect(() => {
+    const fetchRequesterPhoto = async () => {
+      if (!reservation) return;
+
+      try {
+        // 1. Check muna kung nasa reservation document mismo yung photo
+        const inlinePhoto =
+          reservation.userPhoto ||
+          reservation.requesterPhoto ||
+          reservation.facultyPhoto ||
+          reservation.photoUrl;
+
+        if (inlinePhoto) {
+          setRequesterPhoto(inlinePhoto);
+          return;
+        }
+
+        // 2. Fallback: hanapin yung user sa `users` collection
+        let userId = reservation.userId;
+
+        if (!userId && (reservation.facultyName || reservation.requesterName)) {
+          const user = await findUserByName(
+            reservation.facultyName || reservation.requesterName
+          );
+          if (user) userId = user.id;
+        }
+
+        if (!userId) return;
+
+        const userSnap = await getDoc(doc(db, "users", userId));
+        if (!userSnap.exists()) return;
+
+        const userData = userSnap.data();
+
+        // ✅ photoUrl muna (ito yung exact field sa FacultyProfile.jsx)
+        const photo =
+          userData.photoUrl ||         // ← ito yung tama
+          userData.photoURL ||
+          userData.profilePhoto ||
+          userData.photo ||
+          userData.profilePicture ||
+          userData.avatar ||
+          userData.imageUrl ||
+          null;
+
+        if (photo) setRequesterPhoto(photo);
+      } catch (err) {
+        console.error("Failed to fetch requester photo:", err);
+      }
+    };
+
+    fetchRequesterPhoto();
+  }, [reservation]);
+
   // ─── Redirect if no reservation ──────────────────────────────────────
   if (!reservation) {
     return (
@@ -54,7 +127,9 @@ function AdminViewReservation() {
     if (!start || !end) return "N/A";
     const [startHour, startMin] = start.split(":").map(Number);
     const [endHour, endMin] = end.split(":").map(Number);
-    const diffMs = new Date().setHours(endHour, endMin, 0) - new Date().setHours(startHour, startMin, 0);
+    const diffMs =
+      new Date().setHours(endHour, endMin, 0) -
+      new Date().setHours(startHour, startMin, 0);
     if (diffMs <= 0) return "N/A";
     const totalMinutes = Math.floor(diffMs / 60000);
     const hours = Math.floor(totalMinutes / 60);
@@ -64,10 +139,9 @@ function AdminViewReservation() {
     return `${minutes} min`;
   };
 
-  const createdDate =
-    reservation.createdAt?.seconds
-      ? new Date(reservation.createdAt.seconds * 1000)
-      : new Date(reservation.createdAt);
+  const createdDate = reservation.createdAt?.seconds
+    ? new Date(reservation.createdAt.seconds * 1000)
+    : new Date(reservation.createdAt);
 
   const duration = getDuration(reservation.startTime, reservation.endTime);
 
@@ -90,7 +164,20 @@ function AdminViewReservation() {
           <div className="dh-reservation-header">
             <div className="dh-reservation-header-left">
               <div className="dh-reservation-profile">
-                <i className="fa-solid fa-user"></i>
+                {requesterPhoto ? (
+                  <img
+                    src={requesterPhoto}
+                    alt={
+                      reservation.facultyName ||
+                      reservation.requesterName ||
+                      "Requester"
+                    }
+                    className="dh-reservation-profile-img"
+                    onError={() => setRequesterPhoto(null)}
+                  />
+                ) : (
+                  <i className="fa-solid fa-user"></i>
+                )}
               </div>
               <span className="dh-reservation-faculty-name">
                 {reservation.facultyName || reservation.requesterName || "Unknown"}
@@ -99,8 +186,20 @@ function AdminViewReservation() {
 
             {/* ── Status badge (always shown, no actions) ── */}
             <div className="dh-reservation-header-right">
-              <div className={`dh-reservation-status-badge ${isApproved ? "approved" : isDenied ? "denied" : "pending"}`}>
-                <i className={`fa-solid ${isApproved ? "fa-check" : isDenied ? "fa-xmark" : "fa-clock"}`}></i>
+              <div
+                className={`dh-reservation-status-badge ${
+                  isApproved ? "approved" : isDenied ? "denied" : "pending"
+                }`}
+              >
+                <i
+                  className={`fa-solid ${
+                    isApproved
+                      ? "fa-check"
+                      : isDenied
+                      ? "fa-xmark"
+                      : "fa-clock"
+                  }`}
+                ></i>
                 {reservation.status || "Pending"}
               </div>
             </div>
@@ -158,7 +257,8 @@ function AdminViewReservation() {
 
                 {reservation.audienceType === "Organization" && (
                   <p>
-                    <strong>Organization:</strong> {reservation.attendees?.organization}
+                    <strong>Organization:</strong>{" "}
+                    {reservation.attendees?.organization}
                   </p>
                 )}
 
@@ -170,7 +270,8 @@ function AdminViewReservation() {
 
                 {reservation.audienceType === "Others" && (
                   <p>
-                    <strong>Attendees:</strong> {reservation.attendees?.otherAudience}
+                    <strong>Attendees:</strong>{" "}
+                    {reservation.attendees?.otherAudience}
                   </p>
                 )}
                 <p>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import "./admin-dashboard.css";
 import { useNavigate } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
@@ -6,6 +6,126 @@ import { db } from "../../firebase";
 import classroomImg from "../../assets/Classroom.jpeg";
 
 const ROOMS_PER_PAGE = 8;
+
+// ═════════════════════════════════════════════════════════════════════
+// INLINE SEARCH SELECT — popover with search (from Room Usage Tracking)
+// ═════════════════════════════════════════════════════════════════════
+function InlineSearchSelect({
+  value,
+  onChange,
+  options = [],
+  placeholder = "Select...",
+  searchPlaceholder = "Search...",
+  icon = "fa-solid fa-door-open",
+  emptyText = "No options found",
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handle = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  const selected = options.find((o) => o.value === value) || null;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(
+      (o) =>
+        (o.label || "").toLowerCase().includes(q) ||
+        (o.meta || "").toLowerCase().includes(q)
+    );
+  }, [options, search]);
+
+  const toggle = () => {
+    setSearch("");
+    setOpen((v) => !v);
+  };
+
+  return (
+    <div className="ash-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`ash-trigger ${open ? "open" : ""}`}
+        onClick={toggle}
+      >
+        <i className={selected?.icon || icon}></i>
+        <span className={`ash-text ${!selected ? "is-placeholder" : ""}`}>
+          {selected?.label || placeholder}
+        </span>
+        <i className={`fa-solid fa-chevron-down ash-caret ${open ? "open" : ""}`}></i>
+      </button>
+
+      {open && (
+        <div className="ash-popover">
+          <span className="ash-arrow"></span>
+
+          <div className="ash-search-wrap">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              className="ash-search"
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <button
+                type="button"
+                className="ash-search-clear"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            )}
+          </div>
+
+          <div className="ash-list">
+            {filtered.length === 0 ? (
+              <div className="ash-empty">
+                <i className="fa-regular fa-face-frown"></i>
+                <span>{emptyText}</span>
+              </div>
+            ) : (
+              filtered.map((o) => {
+                const isActive = o.value === value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className={`ash-option ${isActive ? "is-active" : ""}`}
+                    onClick={() => {
+                      onChange(o.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <div className="ash-option-icon">
+                      <i className={o.icon || icon}></i>
+                    </div>
+                    <div className="ash-option-body">
+                      <span className="ash-option-label">{o.label}</span>
+                      {o.meta && <span className="ash-option-meta">{o.meta}</span>}
+                    </div>
+                    {isActive && (
+                      <i className="fa-solid fa-circle-check ash-option-check"></i>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 const getCurrentDay = () => {
@@ -444,6 +564,31 @@ export default function AdminDashboard() {
     roomActivitiesToday: "Room activities scheduled for today (created by Department Head).",
   };
 
+  // ─── Picker options ───────────────────────────────────────────────────
+  const buildingPickerOptions = useMemo(
+    () =>
+      buildingOptions.map((b) => ({
+        value: b,
+        label: b,
+        icon:
+          b === "All Buildings"
+            ? "fa-solid fa-building-columns"
+            : "fa-solid fa-building",
+      })),
+    [buildingOptions]
+  );
+
+  const floorPickerOptions = useMemo(
+    () =>
+      floorOptions.map((f) => ({
+        value: f,
+        label: f,
+        icon:
+          f === "All Floors" ? "fa-solid fa-layer-group" : "fa-solid fa-stairs",
+      })),
+    [floorOptions]
+  );
+
   // ─── Render ────────────────────────────────────────────────────────────
   return (
     <div className="dept-db-dashboard">
@@ -501,34 +646,30 @@ export default function AdminDashboard() {
           {(buildingOptions.length > 1 || floorOptions.length > 1) && (
             <div className="dept-db-filter-inline">
               {buildingOptions.length > 1 && (
-                <div className="dept-db-select">
-                  <i className="fa-solid fa-building"></i>
-                  <select
+                <div className="dept-db-picker-cell">
+                  <InlineSearchSelect
                     value={activeBuilding}
-                    onChange={(e) => setActiveBuilding(e.target.value)}
-                    aria-label="Filter by building"
-                  >
-                    {buildingOptions.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                  <i className="fa-solid fa-angle-down dept-db-select-chev"></i>
+                    onChange={setActiveBuilding}
+                    options={buildingPickerOptions}
+                    placeholder="All Buildings"
+                    searchPlaceholder="Search building..."
+                    icon="fa-solid fa-building"
+                    emptyText="No buildings found"
+                  />
                 </div>
               )}
 
               {floorOptions.length > 1 && (
-                <div className="dept-db-select">
-                  <i className="fa-solid fa-layer-group"></i>
-                  <select
+                <div className="dept-db-picker-cell">
+                  <InlineSearchSelect
                     value={activeFloor}
-                    onChange={(e) => setActiveFloor(e.target.value)}
-                    aria-label="Filter by floor"
-                  >
-                    {floorOptions.map((f) => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                  <i className="fa-solid fa-angle-down dept-db-select-chev"></i>
+                    onChange={setActiveFloor}
+                    options={floorPickerOptions}
+                    placeholder="All Floors"
+                    searchPlaceholder="Search floor..."
+                    icon="fa-solid fa-layer-group"
+                    emptyText="No floors found"
+                  />
                 </div>
               )}
 
@@ -626,7 +767,7 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* ─── RECENT ACTIVITY PANEL (independent styles) ─── */}
+        {/* ─── RECENT ACTIVITY PANEL ─── */}
         <div className="dept-db-panel dept-db-activity-panel">
           <div className="dept-db-activity-header">
             <i className="fa-solid fa-calendar-days"></i>

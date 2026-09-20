@@ -1,8 +1,4 @@
-import {
-  addDoc,
-  collection,
-  serverTimestamp,
-} from "firebase/firestore";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 
 export const createNotification = async ({
@@ -14,15 +10,27 @@ export const createNotification = async ({
   badge = "",
   sender = "System",
 
-  // bagong fields
+  // reservation-related
   reservationId = null,
   ownerType = "",
+
+  // security-related (NEW)
+  email = null,
+  attemptCount = null,
+  reason = null,
+  reassignmentId = null,
 }) => {
   await addDoc(collection(db, "notifications"), {
     userId,
     ownerType,
 
     reservationId,
+    reassignmentId,
+
+    // security context
+    email,
+    attemptCount,
+    reason,
 
     title,
     message,

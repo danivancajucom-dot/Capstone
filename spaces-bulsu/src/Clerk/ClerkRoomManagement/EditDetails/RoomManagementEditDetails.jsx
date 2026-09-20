@@ -7,6 +7,26 @@ import "./room-management-edit-details.css";
 import SavePopup from "../../../Popup/SavePopup/SavePopup";
 import Toast from "../../../Popup/Toast/Toast";
 
+/* ─── Cloudinary config (same as AddRoom / SubmitIssueModal) ─── */
+const CLOUDINARY_CLOUD_NAME    = "dqn1s5ujs";
+const CLOUDINARY_UPLOAD_PRESET = "SpaceSCICT";
+
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  fd.append("folder", "spaces/rooms");
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: "POST", body: fd }
+  );
+  if (!res.ok) throw new Error("Photo upload failed.");
+  const data = await res.json();
+  return data.secure_url;
+}
+
+const MAX_PHOTO_MB = 5;
+
 const ROOM_TYPES = [
   "Computer Lab",
   "Lecture Room",
@@ -86,6 +106,14 @@ function RoomManagementEditDetails() {
     computer: false,
     smartBoard: false,
   });
+
+  /* ─── Photo state ─────────────────────────────────────── */
+  const [photoFile, setPhotoFile]             = useState(null);
+  const [photoPreview, setPhotoPreview]       = useState("");
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState("");
+  const [removePhoto, setRemovePhoto]         = useState(false);
+  const photoInputRef = useRef(null);
+
   const [confirmModalType, setConfirmModalType] = useState(null);
 
   // ─── Toast state ──────────────────────────────────────────────────────
@@ -138,6 +166,11 @@ function RoomManagementEditDetails() {
           computer: data.equipment?.computer || false,
           smartBoard: data.equipment?.smartBoard || false,
         });
+
+        // ✅ Load existing photo (kung meron)
+        setExistingPhotoUrl(data.photoUrl || "");
+        setPhotoPreview(data.photoUrl || "");
+
         setOriginalRoom({
           roomName: data.roomName || "",
           capacity: data.capacity || 0,
@@ -145,6 +178,7 @@ function RoomManagementEditDetails() {
           floor: data.floor || "",
           building: data.building || "",
           equipment: data.equipment || {},
+          photoUrl: data.photoUrl || "",
         });
         setLoading(false);
       } catch (error) {
@@ -156,6 +190,52 @@ function RoomManagementEditDetails() {
     loadRoom();
   }, [id, navigate]);
 
+  /* ─── Photo handlers ─────────────────────────────────── */
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("error", "Invalid file", "Please choose an image file (JPG, PNG, WEBP).");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+      showToast("error", "File too large", `Max photo size is ${MAX_PHOTO_MB}MB.`);
+      e.target.value = "";
+      return;
+    }
+
+    if (photoPreview && photoPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setRemovePhoto(false);
+    e.target.value = "";
+  };
+
+  const handleRemovePhoto = () => {
+    if (photoPreview && photoPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhotoFile(null);
+    setPhotoPreview("");
+    setExistingPhotoUrl("");
+    setRemovePhoto(true);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
+
+  // Cleanup blob on unmount
+  useEffect(() => {
+    return () => {
+      if (photoPreview && photoPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleEquipment = (equipmentId) => {
     setEquipment((prev) => ({ ...prev, [equipmentId]: !prev[equipmentId] }));
   };
@@ -166,10 +246,8 @@ function RoomManagementEditDetails() {
 
   const closeConfirmModal = () => setConfirmModalType(null);
   const handleSaveClick = () => setConfirmModalType("save");
-  const handleCancelClick = () => setConfirmModalType("cancel");
 
   const handleSaveRoom = async () => {
-    // Show loading toast
     showToast("loading", "Updating Room...", "Please wait...");
 
     try {
@@ -187,6 +265,21 @@ function RoomManagementEditDetails() {
 
       const buildingFinal = isOtherBuilding ? buildingCustom.trim() : building;
 
+      /* ── 1) Upload bagong photo kung meron (optional) ── */
+      let newPhotoUrl = existingPhotoUrl || "";
+      if (photoFile) {
+        try {
+          newPhotoUrl = await uploadToCloudinary(photoFile);
+        } catch (uploadErr) {
+          console.error("Cloudinary upload failed:", uploadErr);
+          showToast("error", "Photo upload failed", "Room will be updated without changing the photo.");
+          newPhotoUrl = existingPhotoUrl || "";
+        }
+      } else if (removePhoto) {
+        newPhotoUrl = "";
+      }
+
+      /* ── 2) Update room doc ── */
       await updateDoc(doc(db, "rooms", id), {
         roomName,
         capacity,
@@ -194,6 +287,7 @@ function RoomManagementEditDetails() {
         floor,
         building: buildingFinal,
         equipment,
+        photoUrl: newPhotoUrl || null,
       });
 
       await logActivity({
@@ -213,11 +307,11 @@ function RoomManagementEditDetails() {
             floor,
             building: buildingFinal,
             equipment,
+            photoUrl: newPhotoUrl || null,
           },
         },
       });
 
-      // Show success toast and navigate after a short delay
       showToast("success", "Room Updated", `${roomName} has been updated successfully.`);
       setTimeout(() => {
         navigate("/clerk/room-management");
@@ -307,6 +401,60 @@ function RoomManagementEditDetails() {
             <button type="button" className="capacity-btn" onClick={() => adjustCapacity(-1)}>−</button>
             <span className="capacity-value">{capacity}</span>
             <button type="button" className="capacity-btn capacity-btn-plus" onClick={() => adjustCapacity(1)}>+</button>
+          </div>
+        </div>
+
+        {/* ─── Room Photo (Optional) ─────────────────── */}
+        <div className="form-row full">
+          <label>
+            Room Photo <span className="photo-optional-tag">Optional</span>
+          </label>
+
+          <div className="photo-upload-wrap">
+            <div className="photo-upload-preview">
+              {photoPreview ? (
+                <img src={photoPreview} alt="Room preview" />
+              ) : (
+                <div className="photo-upload-preview-placeholder">
+                  <i className="fa-regular fa-image"></i>
+                  <span>No image</span>
+                </div>
+              )}
+            </div>
+
+            <div className="photo-upload-controls">
+              <button
+                type="button"
+                className="photo-upload-btn"
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <i className="fa-solid fa-arrow-up-from-bracket"></i>
+                {photoFile ? "Change photo" : photoPreview ? "Replace photo" : "Upload photo"}
+              </button>
+
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoSelect}
+                style={{ display: "none" }}
+              />
+
+              {photoPreview && (
+                <button
+                  type="button"
+                  className="photo-remove-btn"
+                  onClick={handleRemovePhoto}
+                >
+                  <i className="fa-solid fa-trash-can"></i>
+                  Remove photo
+                </button>
+              )}
+
+              <span className="photo-hint">
+                JPG, PNG, o WEBP. Max {MAX_PHOTO_MB}MB. If it has no image, room name will be displayed.
+              </span>
+            </div>
           </div>
         </div>
 

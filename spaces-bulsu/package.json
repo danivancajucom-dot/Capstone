@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n \"FRONTEND,BACKEND\" -c \"cyan,orange\" \"npm:dev:frontend\" \"npm:dev:backend\"",
+    "dev:frontend": "vite",
+    "dev:backend": "node src/backend/index.js",
     "build": "vite build",
-    "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {

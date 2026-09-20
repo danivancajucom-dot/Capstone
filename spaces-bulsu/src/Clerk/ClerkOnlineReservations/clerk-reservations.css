@@ -905,3 +905,11 @@
   from { opacity: 0; transform: translateY(-4px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+/* ─── Tighter card spacing inside the reservations content ─── */
+.clerk-reservations-content {
+  gap: 0;
+}
+
+.clerk-reservations-content .reservation-card {
+  margin: 6px 20px;
+}

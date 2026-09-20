@@ -1,11 +1,32 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./reservation-card.css";
 import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import DenialPopup from "../../Popup/DenialPopup/DenialPopup";
-import { doc, updateDoc } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  getDoc,
+  getDocs,
+  collection,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../../firebase";
-import classroomImg from "../../assets/Classroom.jpeg";
+
+// ─── Status config: label, icon, css modifier ─────────────────────
+const STATUS_CONFIG = {
+  pending:   { label: "Pending",   icon: "fa-clock",       modifier: "pending" },
+  approved:  { label: "Approved",  icon: "fa-circle-check", modifier: "approved" },
+  rejected:  { label: "Denied",    icon: "fa-circle-xmark", modifier: "denied" },
+  denied:    { label: "Denied",    icon: "fa-circle-xmark", modifier: "denied" },
+  cancelled: { label: "Cancelled", icon: "fa-ban",          modifier: "cancelled" },
+};
+
+const getStatusConfig = (status) => {
+  const key = status?.toLowerCase().trim() || "pending";
+  return STATUS_CONFIG[key] || STATUS_CONFIG.pending;
+};
 
 function ReservationCard({
   reservation,
@@ -15,6 +36,12 @@ function ReservationCard({
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [showDenial, setShowDenial] = useState(false);
+
+  // ─── Room photo state ─────────────────────────────────────────
+  const [roomPhoto, setRoomPhoto] = useState(null);
+
+  // ─── Status config para sa badge ──────────────────────────────
+  const statusConfig = getStatusConfig(reservation?.status);
 
   const approveReservation = async () => {
     try {
@@ -39,6 +66,54 @@ function ReservationCard({
     }
   };
 
+  // ─── Fetch room photo ─────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchRoomPhoto = async () => {
+      if (!reservation) return;
+
+      try {
+        let roomData = null;
+
+        // Approach 1: via roomId (fastest)
+        if (reservation.roomId) {
+          const roomSnap = await getDoc(doc(db, "rooms", reservation.roomId));
+          if (roomSnap.exists()) {
+            roomData = roomSnap.data();
+          }
+        }
+
+        // Approach 2: fallback by roomName
+        if (!roomData && reservation.roomName) {
+          const q = query(
+            collection(db, "rooms"),
+            where("roomName", "==", reservation.roomName.trim())
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            roomData = snap.docs[0].data();
+          }
+        }
+
+        if (!roomData) return;
+
+        const photo = roomData.photoUrl;
+        if (photo && !cancelled) {
+          setRoomPhoto(photo);
+        }
+      } catch (err) {
+        console.error("Failed to fetch room photo:", err);
+      }
+    };
+
+    fetchRoomPhoto();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reservation]);
+
   return (
     <>
       <div
@@ -55,12 +130,14 @@ function ReservationCard({
             <span className="reservation-room-badge">
               {reservation.roomName}
             </span>
-            {/* ── Show pending badge when readOnly ── */}
-            {readOnly && (
-              <span className="reservation-status-badge pending">
-                <i className="fa-solid fa-clock"></i> Pending
-              </span>
-            )}
+
+            {/* ✅ Dynamic status badge — laging lumalabas */}
+            <span
+              className={`reservation-status-badge ${statusConfig.modifier}`}
+            >
+              <i className={`fa-solid ${statusConfig.icon}`}></i>
+              {statusConfig.label}
+            </span>
           </div>
 
           <h3 className="reservation-name">
@@ -76,7 +153,7 @@ function ReservationCard({
             </span>
           </div>
 
-          {/* ─── Only show buttons if NOT readOnly ─── */}
+          {/* Actions — Pending lang (kapag hindi readOnly) */}
           {!readOnly && (
             <div className="reservation-actions">
               <button
@@ -105,8 +182,20 @@ function ReservationCard({
           <span className="reservation-time-ago">
             {reservation.createdAt?.toDate?.().toLocaleDateString()}
           </span>
+
           <div className="reservation-image">
-            <img src={classroomImg} alt="Room" />
+            {roomPhoto ? (
+              <img
+                src={roomPhoto}
+                alt={reservation.roomName || "Room"}
+                onError={() => setRoomPhoto(null)}
+              />
+            ) : (
+              <div className="reservation-image-placeholder">
+                <i className="fa-solid fa-door-open"></i>
+                <span>{reservation.roomName || "No Room"}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

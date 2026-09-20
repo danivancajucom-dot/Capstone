@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import "./submit-issue-modal.css";
 import { auth, db } from "../../firebase";
 import { collection, addDoc, getDoc, getDocs, doc, serverTimestamp } from "firebase/firestore";
@@ -55,6 +55,13 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
   const [previewUrls, setPreviewUrls]   = useState([]);
   const fileInputRef = useRef(null);
 
+  // ── Room picker popover state ────────────────────────────
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+
+  // ── Preview modal state ──────────────────────────────────
+  const [showPreview, setShowPreview] = useState(false);
+
   const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
@@ -83,9 +90,41 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
       setPhotoFiles([]);
       setPreviewUrls([]);
       setUploadProgress({ done: 0, total: 0 });
+      setShowRoomPicker(false);
+      setRoomSearch("");
+      setShowPreview(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, presetRoomId]);
+
+  // ─── Selected room object ────────────────────────────────
+  const selectedRoom = useMemo(
+    () => rooms.find(r => r.id === form.roomId) || null,
+    [rooms, form.roomId]
+  );
+
+  // ─── Filtered room list (for search) ─────────────────────
+  const filteredRooms = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return rooms;
+    return rooms.filter(r => {
+      const name = (r.roomName || "").toLowerCase();
+      const floor = String(r.floor || "").toLowerCase();
+      const building = String(r.building || r.bldg || "").toLowerCase();
+      return name.includes(q) || floor.includes(q) || building.includes(q);
+    });
+  }, [rooms, roomSearch]);
+
+  // ─── Selected category label for preview ─────────────────
+  const selectedCategoryMeta = useMemo(
+    () => CATEGORIES.find(c => c.value === form.category) || null,
+    [form.category]
+  );
+
+  const selectedSeverityMeta = useMemo(
+    () => SEVERITIES.find(s => s.value === form.severity) || SEVERITIES[1],
+    [form.severity]
+  );
 
   const handlePhotosChange = (e) => {
     const files = Array.from(e.target.files || []);
@@ -116,7 +155,6 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
     setPhotoFiles(prev => [...prev, ...accepted]);
     setPreviewUrls(prev => [...prev, ...accepted.map(f => URL.createObjectURL(f))]);
 
-    // reset input so same file can be re-selected
     e.target.value = "";
   };
 
@@ -129,12 +167,18 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
     });
   };
 
-  const handleSubmit = async () => {
+  // ─── Validate and open preview ───────────────────────────
+  const handleSubmitClick = () => {
     if (!form.roomId) return showToast("error", "Select Room", "Please select the room.");
     if (!form.category) return showToast("error", "Select Category", "Please choose a category.");
     if (!form.description.trim() || form.description.trim().length < 5)
       return showToast("error", "Description Required", "Please describe the issue (min 5 characters).");
 
+    setShowPreview(true);
+  };
+
+  // ─── Actual submit (from preview modal) ─────────────────
+  const handleConfirmSubmit = async () => {
     setSubmitting(true);
     try {
       const user = auth.currentUser;
@@ -144,8 +188,6 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
       const ud = userSnap.exists() ? userSnap.data() : {};
       const reporterName = `${ud.firstName || ""} ${ud.lastName || ""}`.trim() || user.email;
       const reporterRole = ud.role || "";
-
-      const selectedRoom = rooms.find(r => r.id === form.roomId);
 
       // Upload all photos
       const photoUrls = [];
@@ -171,12 +213,12 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
         category:       form.category,
         severity:       form.severity,
         description:    form.description.trim(),
-        photoUrls,                             // ✅ array ng lahat ng larawan
-        photoUrl: photoUrls[0] || "",          // ✅ legacy: unang photo
+        photoUrls,
+        photoUrl: photoUrls[0] || "",
         reporterId:     user.uid,
         reporterName,
         reporterRole,
-        status:         "Pending",             // ✅ bagong flow: Pending → Admin acknowledges
+        status:         "Pending",
         clerkNotes:     "",
         acknowledgedBy: "",
         acknowledgedAt: null,
@@ -185,8 +227,12 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
         createdAt:      serverTimestamp(),
       });
 
-      showToast("success", "Issue Reported", "Your report has been submitted to the Admin.");
-      onSubmitted?.();
+      showToast(
+        "success",
+        "Issue Reported ✓",
+        "Your report was sent to the Admin. Please wait for their acknowledgment. Thank you for reporting!"
+      );      onSubmitted?.();
+      setShowPreview(false);
       setTimeout(() => onClose?.(), 800);
     } catch (err) {
       console.error(err);
@@ -216,25 +262,127 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
           </div>
 
           <div className="sim-body">
-            {/* Room */}
+            {/* ═════════ ROOM PICKER (custom popover) ═════════ */}
             <div className="sim-field">
               <label>Room <span className="sim-required">*</span></label>
-              <div className="sim-select-wrap">
-                <i className="fa-solid fa-door-open sim-select-icon" />
-                <select
-                  value={form.roomId}
-                  onChange={e => setForm(f => ({ ...f, roomId: e.target.value }))}
+
+              <div className="sim-roompicker">
+                <button
+                  type="button"
+                  className={`sim-room-trigger ${showRoomPicker ? "open" : ""}`}
+                  onClick={() => {
+                    if (loadingRooms || presetRoomId) return;
+                    setRoomSearch("");
+                    setShowRoomPicker((v) => !v);
+                  }}
                   disabled={loadingRooms || !!presetRoomId}
-                  className="sim-select"
                 >
-                  <option value="">{loadingRooms ? "Loading rooms..." : "Select a room"}</option>
-                  {rooms.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.roomName}{r.floor ? ` — ${r.floor}` : ""}
-                    </option>
-                  ))}
-                </select>
-                <i className="fa-solid fa-angle-down sim-select-chev" />
+                  <i className="fa-solid fa-door-open"></i>
+                  <span className="sim-room-trigger-text">
+                    {loadingRooms
+                      ? "Loading rooms..."
+                      : selectedRoom
+                      ? `${selectedRoom.roomName}${selectedRoom.floor ? ` — ${selectedRoom.floor}` : ""}`
+                      : "Select a room"}
+                  </span>
+                  {selectedRoom?.floor && (
+                    <span className="sim-room-trigger-floor">
+                      {selectedRoom.floor}
+                    </span>
+                  )}
+                  <i
+                    className={`fa-solid fa-chevron-down sim-room-caret ${
+                      showRoomPicker ? "open" : ""
+                    }`}
+                  ></i>
+                </button>
+
+                {showRoomPicker && (
+                  <>
+                    <div
+                      className="sim-room-clickaway"
+                      onClick={() => setShowRoomPicker(false)}
+                    ></div>
+                    <div className="sim-room-popover">
+                      <span className="sim-room-popover-arrow"></span>
+
+                      <div className="sim-room-search-wrap">
+                        <i className="fa-solid fa-magnifying-glass"></i>
+                        <input
+                          type="text"
+                          className="sim-room-search"
+                          placeholder="Search room, floor, building..."
+                          value={roomSearch}
+                          onChange={(e) => setRoomSearch(e.target.value)}
+                          autoFocus
+                        />
+                        {roomSearch && (
+                          <button
+                            type="button"
+                            className="sim-room-search-clear"
+                            onClick={() => setRoomSearch("")}
+                          >
+                            <i className="fa-solid fa-xmark"></i>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="sim-room-list">
+                        {filteredRooms.length === 0 ? (
+                          <div className="sim-room-empty">
+                            <i className="fa-regular fa-face-frown"></i>
+                            <span>No rooms match your search.</span>
+                          </div>
+                        ) : (
+                          filteredRooms.map((r) => {
+                            const isActive = r.id === form.roomId;
+                            return (
+                              <button
+                                type="button"
+                                key={r.id}
+                                className={`sim-room-option ${
+                                  isActive ? "is-active" : ""
+                                }`}
+                                onClick={() => {
+                                  setForm((f) => ({ ...f, roomId: r.id }));
+                                  setShowRoomPicker(false);
+                                  setRoomSearch("");
+                                }}
+                              >
+                                <div className="sim-room-option-icon">
+                                  <i className="fa-solid fa-door-open"></i>
+                                </div>
+                                <div className="sim-room-option-body">
+                                  <span className="sim-room-option-name">
+                                    {r.roomName}
+                                  </span>
+                                  <span className="sim-room-option-meta">
+                                    {r.floor && (
+                                      <>
+                                        <i className="fa-solid fa-building"></i>
+                                        {r.floor}
+                                      </>
+                                    )}
+                                    {r.capacity && (
+                                      <>
+                                        <span className="sim-room-dot">•</span>
+                                        <i className="fa-solid fa-users"></i>
+                                        {r.capacity} Seats
+                                      </>
+                                    )}
+                                  </span>
+                                </div>
+                                {isActive && (
+                                  <i className="fa-solid fa-circle-check sim-room-option-check"></i>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -351,7 +499,7 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
             </button>
             <button
               className="sim-btn submit"
-              onClick={handleSubmit}
+              onClick={handleSubmitClick}
               disabled={submitting || uploading}
             >
               {submitting || uploading
@@ -362,6 +510,137 @@ export default function SubmitIssueModal({ open, onClose, onSubmitted, presetRoo
           </div>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          PREVIEW MODAL — review before submitting
+         ═══════════════════════════════════════════════════════ */}
+      {showPreview && (
+        <div
+          className="sim-preview-overlay"
+          onClick={() => !submitting && setShowPreview(false)}
+        >
+          <div
+            className="sim-preview-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sim-preview-header">
+              <div className="sim-preview-icon">
+                <i className="fa-solid fa-clipboard-check"></i>
+              </div>
+              <h3>Review Your Report</h3>
+              <p className="sim-preview-subtitle">
+                Please check the details below before submitting.
+              </p>
+            </div>
+
+            <div className="sim-preview-body">
+              {/* Room */}
+              <div className="sim-preview-row">
+                <span className="sim-preview-label">Room</span>
+                <span className="sim-preview-value">
+                  {selectedRoom?.roomName || "—"}
+                  {selectedRoom?.floor ? ` — ${selectedRoom.floor}` : ""}
+                </span>
+              </div>
+
+              {/* Category */}
+              <div className="sim-preview-row">
+                <span className="sim-preview-label">Category</span>
+                <span className="sim-preview-value">
+                  {selectedCategoryMeta ? (
+                    <>
+                      <i
+                        className={`fa-solid ${selectedCategoryMeta.icon}`}
+                        style={{ marginRight: 6, color: "#f57c00" }}
+                      />
+                      {selectedCategoryMeta.label}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </span>
+              </div>
+
+              {/* Severity */}
+              <div className="sim-preview-row">
+                <span className="sim-preview-label">Severity</span>
+                <span
+                  className="sim-preview-sev"
+                  style={{ "--sev-color": selectedSeverityMeta.color }}
+                >
+                  <span className="sim-preview-sev-dot" />
+                  {selectedSeverityMeta.label}
+                </span>
+              </div>
+
+              {/* Description */}
+              <div className="sim-preview-row sim-preview-row--stacked">
+                <span className="sim-preview-label">Description</span>
+                <span className="sim-preview-value sim-preview-description">
+                  {form.description || "—"}
+                </span>
+              </div>
+
+              {/* Photos */}
+              {previewUrls.length > 0 && (
+                <div className="sim-preview-row sim-preview-row--stacked">
+                  <span className="sim-preview-label">
+                    Photos ({previewUrls.length})
+                  </span>
+                  <div className="sim-preview-photo-grid">
+                    {previewUrls.map((url, i) => (
+                      <div key={i} className="sim-preview-photo-cell">
+                        <img src={url} alt={`Preview ${i + 1}`} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Status note */}
+              <div className="sim-preview-note">
+                <i className="fa-solid fa-circle-info"></i>
+                <span>
+                  After submitting, please wait for the <strong>Admin to acknowledge</strong>{" "}
+                  your report before it can be resolved. You'll be notified once it's
+                  reviewed.
+                </span>
+              </div>
+
+              <div className="sim-preview-thanks">
+                <i className="fa-solid fa-heart"></i>
+                <span>Thank you for helping us keep our rooms in good condition!</span>
+              </div>
+            </div>
+
+            <div className="sim-preview-actions">
+              <button
+                className="sim-preview-back-btn"
+                onClick={() => setShowPreview(false)}
+                disabled={submitting}
+              >
+                <i className="fa-solid fa-pen-to-square"></i>
+                Edit Report
+              </button>
+              <button
+                className={`sim-preview-confirm-btn ${submitting ? "disabled" : ""}`}
+                onClick={handleConfirmSubmit}
+                disabled={submitting || uploading}
+              >
+                {submitting || uploading ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin"></i> Submitting...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-circle-check"></i> Confirm & Submit
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast
         show={toast.show} type={toast.type} title={toast.title} message={toast.message}

@@ -628,6 +628,7 @@ function ClerkViewAcademicSchedule() {
               <LRRoomCard
                 key={room.id}
                 roomName={room.roomName}
+                photoUrl={room.photoUrl} 
                 floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}
@@ -637,10 +638,7 @@ function ClerkViewAcademicSchedule() {
                 currentSchedule={room.currentSchedule}
                 onClick={() =>
                   navigate("/clerk/schedule-room-card", {
-                    state: {
-                      roomId: room.id,
-                      room,
-                    },
+                    state: { roomId: room.id, room },
                   })
                 }
               />

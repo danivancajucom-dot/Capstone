@@ -86,6 +86,9 @@ function RoomCard({
   const equipmentList = normalizeEquipment(room.equipment);
   const MAX_VISIBLE = 4;
 
+  /* ✅ Photo support — gamitin ang photoUrl (Cloudinary) */
+  const photoUrl = room.photoUrl;
+
   return (
     <div className="room-card">
       <div className={`room-status-badge ${statusClass}`}>
@@ -102,10 +105,12 @@ function RoomCard({
       )}
 
       <div className="room-card-image">
-        {room.image ? (
-          <img src={room.image} alt={room.roomName} />
+        {photoUrl ? (
+          <img src={photoUrl} alt={room.roomName || "Room"} loading="lazy" />
         ) : (
-          <i className="fa-solid fa-door-open"></i>
+          <div className="room-card-image-fallback">
+            <span>{room.roomName || "Room"}</span>
+          </div>
         )}
       </div>
 

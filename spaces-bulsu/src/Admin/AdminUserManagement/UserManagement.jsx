@@ -156,9 +156,12 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
   const [sending, setSending] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [resetTarget, setResetTarget] = useState(null);
+  const [unblockTarget, setUnblockTarget] = useState(null);
   const [sortBy, setSortBy] = useState("name-asc");
   const [roleFilter, setRoleFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [deleting, setDeleting] = useState(false);
+  const [unblocking, setUnblocking] = useState(false);
 
   const handleDeleteUser = (user) => setDeleteTarget(user);
 
@@ -215,9 +218,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  useEffect(() => { fetchUsers(); }, []);
 
   const roleCounts = ROLES.reduce((acc, r) => {
     acc[r] = users.filter((u) => u.role === r).length;
@@ -226,7 +227,8 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
 
   const totalCount = users.length;
   const activeCount = users.filter((u) => u.status === "Active").length;
-  const disabledCount = totalCount - activeCount;
+  const disabledCount = users.filter((u) => u.status === "Disabled").length;
+  const blockedCount = users.filter((u) => u.status === "Blocked").length;
 
   const filtered = users
     .filter(
@@ -236,6 +238,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         u.role?.toLowerCase().includes(search.toLowerCase())
     )
     .filter((u) => roleFilter === "All" || u.role === roleFilter)
+    .filter((u) => statusFilter === "All" || u.status === statusFilter)
     .sort((a, b) => {
       const nameA = `${a.firstName ?? ""} ${a.lastName ?? ""}`.trim().toLowerCase();
       const nameB = `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim().toLowerCase();
@@ -268,6 +271,50 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
     }
   };
 
+  const handleUnblock = (user) => setUnblockTarget(user);
+
+  const confirmUnblock = async () => {
+    if (!unblockTarget) return;
+    setUnblocking(true);
+    const user = unblockTarget;
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        status: "Active",
+        loginAttempts: 0,
+        blockReason: "",
+        blockedAt: null,
+        blockedUntil: null,
+        lastFailedAt: null,
+        lastFailedReason: "",
+        lastFailedRole: "",
+      });
+
+      await logActivity({
+        userId: user.id,
+        user: getFullName(user),
+        role: user.role,
+        action: "Unblocked User Account",
+        actionType: "success",
+        target: user.email,
+        status: "SUCCESS",
+      });
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id
+            ? { ...u, status: "Active", loginAttempts: 0, blockReason: "", blockedUntil: null }
+            : u
+        )
+      );
+      showToast("success", "User Unblocked", `${getFullName(user)} can now log in again.`);
+    } catch (e) {
+      showToast("error", "Unblock Failed", e.message);
+    } finally {
+      setUnblocking(false);
+      setUnblockTarget(null);
+    }
+  };
+
   const requestResetPassword = (user) => setResetTarget(user);
 
   const confirmResetPassword = async () => {
@@ -297,6 +344,12 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
     }
   };
 
+  const formatBlockedUntil = (blockedUntil) => {
+    const d = blockedUntil?.toDate?.();
+    if (!d) return null;
+    return d.toLocaleString();
+  };
+
   return (
     <div className="um-page">
       <div className="um-header">
@@ -309,7 +362,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         </button>
       </div>
 
-      <div className="um-stats-row">
+      <div className="um-stats-row um-stats-row-4">
         <div className="um-stat-card">
           <div className="um-stat-icon"><i className="fa-solid fa-users" /></div>
           <div>
@@ -331,6 +384,14 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
           <div>
             <div className="um-stat-value">{disabledCount}</div>
             <div className="um-stat-label">Disabled</div>
+          </div>
+        </div>
+
+        <div className="um-stat-card">
+          <div className="um-stat-icon is-blocked"><i className="fa-solid fa-lock" /></div>
+          <div>
+            <div className="um-stat-value">{blockedCount}</div>
+            <div className="um-stat-label">Blocked</div>
           </div>
         </div>
       </div>
@@ -367,6 +428,34 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         })}
       </div>
 
+      {/* Status filter chips */}
+      <div className="um-chip-row um-status-chip-row">
+        <button
+          className={`um-chip ${statusFilter === "All" ? "active" : ""}`}
+          onClick={() => setStatusFilter("All")}
+        >
+          Any Status
+        </button>
+        <button
+          className={`um-chip ${statusFilter === "Active" ? "active" : ""}`}
+          onClick={() => setStatusFilter("Active")}
+        >
+          Active
+        </button>
+        <button
+          className={`um-chip ${statusFilter === "Disabled" ? "active" : ""}`}
+          onClick={() => setStatusFilter("Disabled")}
+        >
+          Disabled
+        </button>
+        <button
+          className={`um-chip ${statusFilter === "Blocked" ? "active" : ""}`}
+          onClick={() => setStatusFilter("Blocked")}
+        >
+          Blocked {blockedCount > 0 && <span className="um-chip-count">{blockedCount}</span>}
+        </button>
+      </div>
+
       <div className="um-table-card">
         {loading ? (
           <div className="um-loading-state">
@@ -395,11 +484,15 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
                 filtered.map((u) => {
                   const rc = ROLE_COLORS[u.role] || { bg: "#f3f4f6", text: "#374151" };
                   const fullName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
+                  const isBlocked = u.status === "Blocked";
+                  const isDisabled = u.status === "Disabled";
+                  const blockedUntilStr = formatBlockedUntil(u.blockedUntil);
+
                   return (
                     <tr key={u.id}>
                       <td>
                         <div className="um-user-cell">
-                          <div className={`um-avatar ${u.status === "Disabled" ? "disabled" : ""}`}>
+                          <div className={`um-avatar ${isDisabled ? "disabled" : ""} ${isBlocked ? "blocked" : ""}`}>
                             {fullName.charAt(0).toUpperCase() || "?"}
                           </div>
                           <span className="um-name">{fullName || "—"}</span>
@@ -412,28 +505,59 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
                         </span>
                       </td>
                       <td>
-                        <span className={`um-status ${u.status?.toLowerCase()}`}>
+                        <span
+                          className={`um-status ${u.status?.toLowerCase()}`}
+                          title={isBlocked ? (u.blockReason || "Account blocked") : undefined}
+                        >
                           <span className="um-status-dot" />
                           {u.status}
                         </span>
+                        {isBlocked && blockedUntilStr && (
+                          <div className="um-block-info">
+                            <i className="fa-solid fa-clock" /> Auto-unblock: {blockedUntilStr}
+                          </div>
+                        )}
+                        {isBlocked && !blockedUntilStr && (
+                          <div className="um-block-info">
+                            <i className="fa-solid fa-triangle-exclamation" /> Requires manual unblock
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div className="um-actions">
+                          {/* Unblock button — lalabas lang kapag Blocked */}
+                          {isBlocked && (
+                            <button
+                              className="um-action-icon unlock"
+                              title="Unblock this account"
+                              onClick={() => handleUnblock(u)}
+                            >
+                              <i className="fa-solid fa-lock-open" />
+                            </button>
+                          )}
+
                           <button className="um-action-icon danger" title="Delete User" onClick={() => handleDeleteUser(u)}>
                             <i className="fa-solid fa-trash" />
                           </button>
-                          <button className="um-action-icon" title="Send password reset email" onClick={() => requestResetPassword(u)} disabled={sending === u.id}>
+
+                          <button
+                            className="um-action-icon"
+                            title="Send password reset email"
+                            onClick={() => requestResetPassword(u)}
+                            disabled={sending === u.id}
+                          >
                             <i className={`fa-solid ${sending === u.id ? "fa-spinner fa-spin" : "fa-rotate-right"}`} />
                           </button>
+
                           {u.status === "Active" ? (
                             <button className="um-action-icon danger" title="Disable" onClick={() => handleToggleStatus(u)}>
                               <i className="fa-solid fa-ban" />
                             </button>
-                          ) : (
+                          ) : u.status === "Disabled" ? (
                             <button className="um-action-icon success" title="Enable" onClick={() => handleToggleStatus(u)}>
                               <i className="fa-solid fa-circle-check" />
                             </button>
-                          )}
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -486,6 +610,32 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
             <div className="um-modal-actions">
               <button className="um-modal-cancel" onClick={() => setResetTarget(null)}>Cancel</button>
               <button className="um-modal-confirm" onClick={confirmResetPassword}>Send Email</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unblockTarget && (
+        <div className="um-modal-overlay">
+          <div className="um-modal">
+            <div className="um-modal-icon is-success"><i className="fa-solid fa-lock-open" /></div>
+            <h3 className="um-modal-title">Unblock Account</h3>
+            <p className="um-modal-text">
+              Unblock<br /><strong>{unblockTarget.email}</strong>?<br /><br />
+              This will reset the failed login counter, clear the block reason,
+              and allow the user to log in again immediately.
+            </p>
+            {unblockTarget.blockReason && (
+              <div className="um-modal-note">
+                <i className="fa-solid fa-circle-info" />
+                <span>{unblockTarget.blockReason}</span>
+              </div>
+            )}
+            <div className="um-modal-actions">
+              <button className="um-modal-cancel" onClick={() => setUnblockTarget(null)} disabled={unblocking}>Cancel</button>
+              <button className="um-modal-confirm is-success" onClick={confirmUnblock} disabled={unblocking}>
+                {unblocking ? (<><i className="fa-solid fa-spinner fa-spin" /> Unblocking…</>) : ("Yes, Unblock")}
+              </button>
             </div>
           </div>
         </div>

@@ -143,3 +143,14 @@
 .clerk-conflict-check-box {
   background-color: #FFFBEB;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   FACULTY AVATAR PHOTO
+   ═══════════════════════════════════════════════════════════ */
+.clerk-reservation-profile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}

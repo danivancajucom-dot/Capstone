@@ -9,11 +9,12 @@ import {
   collection,
   query,
   where,
-  getDocs
+  getDocs,
 } from "firebase/firestore";
 import { logActivity } from "../../utils/logActivity";
 import { auth } from "../../firebase";
 import { db } from "../../firebase";
+import Toast from "../../Popup/Toast/Toast";
 import "./faculty-room-reassignment.css";
 
 export default function FacultyRoomReassignment() {
@@ -22,20 +23,43 @@ export default function FacultyRoomReassignment() {
 
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
 
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
+  // ── Toast state ──────────────────────────────────────────────
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+  const showToast = (type, title, message) => {
+    setToast({ show: true, type, title, message });
+    if (type !== "loading") {
+      setTimeout(
+        () => setToast((prev) => ({ ...prev, show: false })),
+        4000
+      );
+    }
+  };
+
   const isExpired = () => {
     if (!assignment) return false;
-    const scheduleDate = new Date(`${assignment.date}T${assignment.endTime}`);
+    const scheduleDate = new Date(
+      `${assignment.date}T${assignment.endTime}`
+    );
     return new Date() > scheduleDate;
   };
 
   useEffect(() => {
     const loadAssignment = async () => {
       try {
-        const snap = await getDoc(doc(db, "roomReassignments", assignmentId));
+        const snap = await getDoc(
+          doc(db, "roomReassignments", assignmentId)
+        );
         if (snap.exists()) {
           setAssignment({ id: snap.id, ...snap.data() });
         }
@@ -47,17 +71,21 @@ export default function FacultyRoomReassignment() {
     loadAssignment();
   }, [assignmentId]);
 
+  // ─── Send notifications ───────────────────────────────────────
   const sendDecisionNotifications = async (decision) => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
     const facultySnap = await getDoc(doc(db, "users", currentUser.uid));
     const faculty = facultySnap.data() || {};
-    const facultyName = `${faculty.firstName || ""} ${faculty.lastName || ""}`.trim();
+    const facultyName = `${faculty.firstName || ""} ${
+      faculty.lastName || ""
+    }`.trim();
 
     const isAccepted = decision === "accepted";
     const verb = isAccepted ? "accepted" : "declined";
 
+    // Self notification (record)
     await addDoc(collection(db, "notifications"), {
       userId: currentUser.uid,
       ownerType: "faculty",
@@ -65,15 +93,18 @@ export default function FacultyRoomReassignment() {
       reassignmentId: assignment.id,
       title: "Room Reassignment",
       message: `You ${verb} the room reassignment for ${assignment.courseTitle}.`,
-      type: "approved",
+      type: "room-reassignment-status",
       badge: decision.toUpperCase(),
       unread: true,
       archived: false,
       createdAt: serverTimestamp(),
     });
 
-    // Admins
-    const adminQuery = query(collection(db, "users"), where("role", "==", "Admin"));
+    // Notify Admins
+    const adminQuery = query(
+      collection(db, "users"),
+      where("role", "==", "Admin")
+    );
     const adminSnap = await getDocs(adminQuery);
     for (const admin of adminSnap.docs) {
       await addDoc(collection(db, "notifications"), {
@@ -91,13 +122,16 @@ export default function FacultyRoomReassignment() {
       });
     }
 
+    // Notify Clerk
     if (assignment.requestedById) {
       await addDoc(collection(db, "notifications"), {
         userId: assignment.requestedById,
         ownerType: "clerk",
         assignmentId: assignment.id,
         reassignmentId: assignment.id,
-        title: isAccepted ? "Faculty Accepted Reassignment" : "Faculty Declined Reassignment",
+        title: isAccepted
+          ? "Faculty Accepted Reassignment"
+          : "Faculty Declined Reassignment",
         message: `${facultyName} ${verb} the reassignment for ${assignment.courseTitle} (${assignment.oldRoomName} → ${assignment.newRoomName}).`,
         type: "room-reassignment-status",
         badge: isAccepted ? "ACCEPTED" : "DECLINED",
@@ -108,19 +142,29 @@ export default function FacultyRoomReassignment() {
     }
   };
 
+  // ─── Accept ───────────────────────────────────────────────────
   const approveAssignment = async () => {
-    try {
-      if (isExpired()) {
-        alert("This room reassignment has already expired.");
-        return;
-      }
+    if (processing) return;
+    if (isExpired()) {
+      showToast(
+        "error",
+        "Expired",
+        "This room reassignment has already expired."
+      );
+      return;
+    }
 
+    setProcessing(true);
+    showToast("loading", "Accepting", "Saving your response...");
+
+    try {
       await updateDoc(doc(db, "roomReassignments", assignment.id), {
         status: "accepted",
         acceptedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
+      // ✅ Resolve the conflict on accept
       if (assignment.eventId) {
         await updateDoc(doc(db, "events", assignment.eventId), {
           conflictResolved: true,
@@ -145,20 +189,40 @@ export default function FacultyRoomReassignment() {
         details: { decision: "accepted" },
       });
 
-      alert("Room reassignment accepted.");
-      navigate("/faculty");
+      showToast(
+        "success",
+        "Accepted",
+        "Room reassignment accepted successfully."
+      );
+      setTimeout(() => navigate("/faculty"), 1200);
     } catch (err) {
       console.log(err);
+      showToast(
+        "error",
+        "Failed",
+        "Could not accept the reassignment. Please try again."
+      );
+    } finally {
+      setProcessing(false);
     }
   };
 
+  // ─── Decline ──────────────────────────────────────────────────
   const rejectAssignment = async () => {
-    try {
-      if (isExpired()) {
-        alert("This room reassignment has already expired.");
-        return;
-      }
+    if (processing) return;
+    if (isExpired()) {
+      showToast(
+        "error",
+        "Expired",
+        "This room reassignment has already expired."
+      );
+      return;
+    }
 
+    setProcessing(true);
+    showToast("loading", "Declining", "Saving your response...");
+
+    try {
       const reason = rejectReason.trim() || "No reason provided";
 
       await updateDoc(doc(db, "roomReassignments", assignment.id), {
@@ -168,14 +232,14 @@ export default function FacultyRoomReassignment() {
         updatedAt: serverTimestamp(),
       });
 
-      if (assignment.eventId) {
-        await updateDoc(doc(db, "events", assignment.eventId), {
-          conflictResolved: true,
-          resolution: "rejected",
-          resolutionReason: reason,
-          resolvedAt: serverTimestamp(),
-        });
-      }
+      // ✅ DO NOT resolve the event here.
+      // The conflict stays unresolved until the Admin decides to
+      // cancel the class. This lets the Admin see the declined
+      // reassignment in the "Declined" tab and take final action.
+      //
+      // NOTE: We intentionally do NOT set `conflictResolved: true`
+      // on the event. That will be handled by the Admin's
+      // "Cancel Class" action later.
 
       await sendDecisionNotifications("declined");
 
@@ -192,11 +256,22 @@ export default function FacultyRoomReassignment() {
         details: { reason },
       });
 
-      alert("Room reassignment declined.");
       setShowRejectModal(false);
-      navigate("/faculty");
+      showToast(
+        "success",
+        "Declined",
+        "Room reassignment declined. Admin will review and take action."
+      );
+      setTimeout(() => navigate("/faculty"), 1500);
     } catch (err) {
       console.log(err);
+      showToast(
+        "error",
+        "Failed",
+        "Could not decline the reassignment. Please try again."
+      );
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -223,7 +298,8 @@ export default function FacultyRoomReassignment() {
         <div className="faculty-room-header">
           <h1>Room Reassignment Request</h1>
           <p>
-            The Admin has proposed a temporary room change for one of your classes.
+            The Admin has proposed a temporary room change for one of your
+            classes.
           </p>
         </div>
 
@@ -271,18 +347,40 @@ export default function FacultyRoomReassignment() {
         <div className="faculty-room-note">
           <i className="fa-solid fa-circle-info"></i>
           <span>
-            This reassignment only applies to this scheduled class.
-            Your regular weekly room assignment will remain unchanged.
+            This reassignment only applies to this scheduled class. Your
+            regular weekly room assignment will remain unchanged.
           </span>
         </div>
 
         {!isExpired() ? (
           <div className="faculty-room-actions">
-            <button className="reject-btn" onClick={() => setShowRejectModal(true)}>
-              Reject
+            <button
+              className="reject-btn"
+              onClick={() => setShowRejectModal(true)}
+              disabled={processing}
+            >
+              {processing ? (
+                <>
+                  <i className="fa-solid fa-circle-notch fa-spin"></i>{" "}
+                  Processing...
+                </>
+              ) : (
+                "Reject"
+              )}
             </button>
-            <button className="approve-btn" onClick={approveAssignment}>
-              Accept Room
+            <button
+              className="approve-btn"
+              onClick={approveAssignment}
+              disabled={processing}
+            >
+              {processing ? (
+                <>
+                  <i className="fa-solid fa-circle-notch fa-spin"></i>{" "}
+                  Processing...
+                </>
+              ) : (
+                "Accept Room"
+              )}
             </button>
           </div>
         ) : (
@@ -292,23 +390,34 @@ export default function FacultyRoomReassignment() {
               marginTop: 30,
               background: "#fef2f2",
               border: "1px solid #fecaca",
-              color: "#991b1b"
+              color: "#991b1b",
             }}
           >
             <i className="fa-solid fa-clock"></i>
             <span>
-              This room reassignment has already ended. The response period is now closed.
+              This room reassignment has already ended. The response period is
+              now closed.
             </span>
           </div>
         )}
       </div>
 
       {showRejectModal && (
-        <div className="faculty-room-modal-overlay" onClick={() => setShowRejectModal(false)}>
-          <div className="faculty-room-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="faculty-room-modal-overlay"
+          onClick={() => !processing && setShowRejectModal(false)}
+        >
+          <div
+            className="faculty-room-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="faculty-room-modal-header">
               <h3>Reject Room Reassignment</h3>
-              <button className="faculty-room-modal-close" onClick={() => setShowRejectModal(false)}>
+              <button
+                className="faculty-room-modal-close"
+                onClick={() => setShowRejectModal(false)}
+                disabled={processing}
+              >
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
@@ -321,14 +430,23 @@ export default function FacultyRoomReassignment() {
                   className="faculty-room-reason-select"
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
+                  disabled={processing}
                 >
                   <option value="">Select a reason (optional)</option>
                   <option value="Schedule conflict">Schedule conflict</option>
                   <option value="Room not suitable">Room not suitable</option>
-                  <option value="Already have a class">Already have a class</option>
-                  <option value="Equipment not available">Equipment not available</option>
-                  <option value="Too far from my office">Too far from my office</option>
-                  <option value="Need a different room capacity">Need a different room capacity</option>
+                  <option value="Already have a class">
+                    Already have a class
+                  </option>
+                  <option value="Equipment not available">
+                    Equipment not available
+                  </option>
+                  <option value="Too far from my office">
+                    Too far from my office
+                  </option>
+                  <option value="Need a different room capacity">
+                    Need a different room capacity
+                  </option>
                 </select>
               </div>
 
@@ -340,25 +458,52 @@ export default function FacultyRoomReassignment() {
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
+                  disabled={processing}
                 />
               </div>
 
               <div className="faculty-room-reason-note">
                 <i className="fa-solid fa-info-circle"></i>
-                <span>Your reason will be shared with the Admin for clarity.</span>
+                <span>
+                  Your reason will be shared with the Admin for clarity. The
+                  conflict will remain open until the Admin reviews it.
+                </span>
               </div>
             </div>
             <div className="faculty-room-modal-footer">
-              <button className="faculty-room-modal-cancel" onClick={() => setShowRejectModal(false)}>
+              <button
+                className="faculty-room-modal-cancel"
+                onClick={() => setShowRejectModal(false)}
+                disabled={processing}
+              >
                 Cancel
               </button>
-              <button className="faculty-room-modal-confirm" onClick={rejectAssignment}>
-                Confirm Reject
+              <button
+                className="faculty-room-modal-confirm"
+                onClick={rejectAssignment}
+                disabled={processing}
+              >
+                {processing ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin"></i>{" "}
+                    Declining...
+                  </>
+                ) : (
+                  "Confirm Reject"
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+      />
     </div>
   );
 }

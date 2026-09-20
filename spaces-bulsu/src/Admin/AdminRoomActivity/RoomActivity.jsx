@@ -15,8 +15,6 @@ const TABS = [
   { key: "all",           label: "All Requests" },
   { key: "pending_admin", label: "Needs Review" },
   { key: "approved",      label: "Approved" },
-  { key: "denied",        label: "Denied" },
-  { key: "cancelled",     label: "Cancelled" },
 ];
 
 const SORT_OPTIONS = [
@@ -57,7 +55,6 @@ function RoomActivity() {
   const [reviewing, setReviewing] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState({});
-  const [denyReason, setDenyReason] = useState("");
   const [processing, setProcessing] = useState(false);
 
   const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
@@ -86,8 +83,6 @@ function RoomActivity() {
   const counts = useMemo(() => ({
     pending_admin: items.filter((i) => i.status === "pending_admin").length,
     approved:      items.filter((i) => i.status === "approved").length,
-    denied:        items.filter((i) => i.status === "denied").length,
-    cancelled:     items.filter((i) => i.status === "cancelled").length,
     all:           items.length,
   }), [items]);
 
@@ -133,8 +128,8 @@ function RoomActivity() {
   const hasActiveFilters = searchTerm || roomFilter || sortOrder !== "newest";
   const clearAllFilters = () => { setSearchTerm(""); setRoomFilter(""); setSortOrder("newest"); };
 
-  const startReview = (item, mode) => {
-    setReviewing({ item, mode });
+  const startReview = (item) => {
+    setReviewing({ item });
     setEditMode(false);
     setDraft({
       title: item.title || "",
@@ -145,7 +140,6 @@ function RoomActivity() {
       endTime: item.endTime || "",
       reason: item.reason || "",
     });
-    setDenyReason("");
   };
 
   const handleApprove = async () => {
@@ -227,48 +221,6 @@ function RoomActivity() {
     }
   };
 
-  const handleDeny = async () => {
-    if (!reviewing) return;
-    const { item } = reviewing;
-    if (!denyReason.trim()) { showToast("error", "Reason Required", "Please provide a reason."); return; }
-    setProcessing(true);
-    try {
-      const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-      const me = userDoc.data();
-      const myName = `${me.firstName} ${me.lastName}`;
-
-      await updateDoc(doc(db, "roomActivityRequests", item.id), {
-        status: "denied", deniedReason: denyReason.trim(),
-        deniedById: auth.currentUser.uid, deniedByName: myName,
-        deniedAt: serverTimestamp(), updatedAt: serverTimestamp(),
-      });
-
-      if (item.requestedById) {
-        await addDoc(collection(db, "notifications"), {
-          userId: item.requestedById, ownerType: "clerk",
-          activityRequestId: item.id, title: "Room Activity Denied",
-          message: `"${item.title}" was denied. Reason: ${denyReason.trim()}`,
-          type: "room-activity-status", unread: true, archived: false, badge: "INFO",
-          createdAt: serverTimestamp(),
-        });
-      }
-
-      await logActivity({
-        user: myName, role: me.role,
-        action: "Denied room activity request", actionType: "deny",
-        target: `${item.title} (${item.roomName})`, status: "SUCCESS",
-      });
-
-      showToast("success", "Denied", "The clerk has been notified.");
-      setReviewing(null);
-    } catch (err) {
-      console.error(err);
-      showToast("error", "Failed", "Could not deny request.");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
   return (
     <>
       <div className="ra-review-page">
@@ -276,7 +228,7 @@ function RoomActivity() {
           <div>
             <h1 className="ra-review-title">Room Activity Requests</h1>
             <p className="ra-review-subtitle">
-              Review requests submitted by the Clerk. Approve (with optional edits), or deny with a reason.
+              Review requests submitted by the Clerk. Approve with optional edits before finalizing.
             </p>
           </div>
         </div>
@@ -397,8 +349,7 @@ function RoomActivity() {
             </div>
           ) : (
             paginated.map((item) => (
-              <ReviewCard key={item.id} item={item}
-                onReview={(mode) => startReview(item, mode)} />
+              <ReviewCard key={item.id} item={item} onReview={() => startReview(item)} />
             ))
           )}
         </div>
@@ -426,63 +377,46 @@ function RoomActivity() {
       {reviewing && (
         <div className="ra-modal-overlay">
           <div className="ra-modal ra-modal-wide">
-            <div className={`ra-modal-icon ${reviewing.mode === "deny" ? "is-deny" : ""}`}>
-              <i className={`fa-solid ${reviewing.mode === "deny" ? "fa-circle-xmark" : "fa-circle-check"}`}></i>
+            <div className="ra-modal-icon">
+              <i className="fa-solid fa-circle-check"></i>
             </div>
             <h3 className="ra-modal-title">
-              {reviewing.mode === "deny" ? "Deny Request" : (editMode ? "Edit & Approve" : "Approve Request")}
+              {editMode ? "Edit & Approve" : "Approve Request"}
             </h3>
             <p className="ra-modal-text">
-              {reviewing.mode === "deny"
-                ? "Provide a reason. The clerk will be notified."
-                : "You can adjust details before approving. Only affected faculty will be notified."}
+              You can adjust details before approving. Only affected faculty will be notified.
             </p>
 
-            {reviewing.mode === "approve" && (
-              <>
-                <button className="ra-edit-toggle" onClick={() => setEditMode((v) => !v)}>
-                  <i className={`fa-solid ${editMode ? "fa-eye" : "fa-pen-to-square"}`}></i>
-                  {editMode ? "Preview only" : "Edit before approving"}
-                </button>
+            <button className="ra-edit-toggle" onClick={() => setEditMode((v) => !v)}>
+              <i className={`fa-solid ${editMode ? "fa-eye" : "fa-pen-to-square"}`}></i>
+              {editMode ? "Preview only" : "Edit before approving"}
+            </button>
 
-                {editMode ? (
-                  <div className="ra-edit-grid">
-                    <label>Title<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
-                    <label>Room<input value={draft.roomName} onChange={(e) => setDraft({ ...draft, roomName: e.target.value })} /></label>
-                    <label>Date<input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} /></label>
-                    <div className="ra-row-2">
-                      <label>Start<input type="time" value={draft.startTime} onChange={(e) => setDraft({ ...draft, startTime: e.target.value })} /></label>
-                      <label>End<input type="time" value={draft.endTime} onChange={(e) => setDraft({ ...draft, endTime: e.target.value })} /></label>
-                    </div>
-                    <label>Reason<textarea rows={3} value={draft.reason} onChange={(e) => setDraft({ ...draft, reason: e.target.value })} /></label>
-                  </div>
-                ) : (
-                  <div className="ra-modal-summary">
-                    <div className="ra-modal-summary-row"><i className="fa-solid fa-bookmark"></i><span>{draft.title || "Untitled"}</span></div>
-                    <div className="ra-modal-summary-row"><i className="fa-solid fa-door-open"></i><span>{draft.roomName}</span></div>
-                    <div className="ra-modal-summary-row"><i className="fa-regular fa-calendar"></i><span>{fmtDate(draft.date)}</span></div>
-                    <div className="ra-modal-summary-row"><i className="fa-regular fa-clock"></i><span>{fmt12(draft.startTime)} – {fmt12(draft.endTime)}</span></div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {reviewing.mode === "deny" && (
-              <textarea className="ra-modal-note" rows={3} placeholder="Reason for denial…"
-                value={denyReason} onChange={(e) => setDenyReason(e.target.value)} />
+            {editMode ? (
+              <div className="ra-edit-grid">
+                <label>Title<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
+                <label>Room<input value={draft.roomName} onChange={(e) => setDraft({ ...draft, roomName: e.target.value })} /></label>
+                <label>Date<input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} /></label>
+                <div className="ra-row-2">
+                  <label>Start<input type="time" value={draft.startTime} onChange={(e) => setDraft({ ...draft, startTime: e.target.value })} /></label>
+                  <label>End<input type="time" value={draft.endTime} onChange={(e) => setDraft({ ...draft, endTime: e.target.value })} /></label>
+                </div>
+                <label>Reason<textarea rows={3} value={draft.reason} onChange={(e) => setDraft({ ...draft, reason: e.target.value })} /></label>
+              </div>
+            ) : (
+              <div className="ra-modal-summary">
+                <div className="ra-modal-summary-row"><i className="fa-solid fa-bookmark"></i><span>{draft.title || "Untitled"}</span></div>
+                <div className="ra-modal-summary-row"><i className="fa-solid fa-door-open"></i><span>{draft.roomName}</span></div>
+                <div className="ra-modal-summary-row"><i className="fa-regular fa-calendar"></i><span>{fmtDate(draft.date)}</span></div>
+                <div className="ra-modal-summary-row"><i className="fa-regular fa-clock"></i><span>{fmt12(draft.startTime)} – {fmt12(draft.endTime)}</span></div>
+              </div>
             )}
 
             <div className="ra-modal-actions">
               <button className="ra-modal-cancel" onClick={() => setReviewing(null)} disabled={processing}>Cancel</button>
-              {reviewing.mode === "deny" ? (
-                <button className="ra-modal-confirm is-deny" onClick={handleDeny} disabled={processing}>
-                  {processing ? "Denying…" : "Deny Request"}
-                </button>
-              ) : (
-                <button className="ra-modal-confirm" onClick={handleApprove} disabled={processing}>
-                  {processing ? "Approving…" : "Approve Request"}
-                </button>
-              )}
+              <button className="ra-modal-confirm" onClick={handleApprove} disabled={processing}>
+                {processing ? "Approving…" : "Approve Request"}
+              </button>
             </div>
           </div>
         </div>
@@ -536,20 +470,10 @@ function ReviewCard({ item, onReview }) {
         <div className="ra-review-reason"><i className="fa-solid fa-note-sticky"></i><span>{item.reason}</span></div>
       )}
 
-      {item.deniedReason && (
-        <div className="ra-review-reason is-denied">
-          <i className="fa-solid fa-circle-xmark"></i>
-          <span>Denied: {item.deniedReason}</span>
-        </div>
-      )}
-
       {item.status === "pending_admin" && (
         <div className="ra-review-actions">
-          <button className="ra-review-btn is-approve" onClick={() => onReview("approve")}>
+          <button className="ra-review-btn is-approve" onClick={onReview}>
             <i className="fa-solid fa-circle-check"></i> Review & Approve
-          </button>
-          <button className="ra-review-btn is-deny" onClick={() => onReview("deny")}>
-            <i className="fa-solid fa-circle-xmark"></i> Deny
           </button>
         </div>
       )}
