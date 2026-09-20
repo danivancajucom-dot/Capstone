@@ -12,7 +12,7 @@ import {
   updatePassword,
 } from "firebase/auth";
 import Toast from "../../Popup/Toast/Toast";
-import OtpInput from "../../components/OtpInput/OtpInput";
+import OtpInput from "../../Components/OtpInput/OtpInput";
 import {
   createAndSendCode,
   verifyCode,
