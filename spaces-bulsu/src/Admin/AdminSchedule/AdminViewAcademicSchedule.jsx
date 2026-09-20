@@ -485,6 +485,7 @@ function AdminViewAcademicSchedule() {
               <LRRoomCard
                 key={room.id}
                 roomName={room.roomName}
+                photoUrl={room.photoUrl}      
                 floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}

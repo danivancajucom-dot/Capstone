@@ -40,6 +40,9 @@ function ClerkViewReservation() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // ─── Requester photo state ─────────────────────────────────────────
+  const [requesterPhoto, setRequesterPhoto] = useState(null);
+
   const toastTimeoutRef = useRef(null);
 
   const [toast, setToast] = useState({
@@ -68,6 +71,58 @@ function ClerkViewReservation() {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, []);
+
+  // ─── Fetch requester photo ─────────────────────────────────────────
+  useEffect(() => {
+    const fetchRequesterPhoto = async () => {
+      if (!reservation) return;
+
+      try {
+        // 1. Check muna kung nasa reservation document mismo yung photo
+        const inlinePhoto =
+          reservation.userPhoto ||
+          reservation.requesterPhoto ||
+          reservation.facultyPhoto ||
+          reservation.photoURL;
+
+        if (inlinePhoto) {
+          setRequesterPhoto(inlinePhoto);
+          return;
+        }
+
+        // 2. Fallback: hanapin yung user sa `users` collection
+        let userId = reservation.userId;
+
+        if (!userId && (reservation.facultyName || reservation.requesterName)) {
+          const user = await findUserByName(
+            reservation.facultyName || reservation.requesterName
+          );
+          if (user) userId = user.id;
+        }
+
+        if (!userId) return;
+
+        const userSnap = await getDoc(doc(db, "users", userId));
+        if (!userSnap.exists()) return;
+
+        const userData = userSnap.data();
+        setRequesterPhoto(
+            userData.photoUrl ||   
+            userData.photoURL ||
+            userData.profilePhoto ||
+            userData.photo ||
+            userData.profilePicture ||
+            userData.avatar ||
+            userData.imageUrl ||
+            null
+        );
+      } catch (err) {
+        console.error("Failed to fetch requester photo:", err);
+      }
+    };
+
+    fetchRequesterPhoto();
+  }, [reservation]);
 
   if (!reservation) {
     return (
@@ -375,7 +430,16 @@ function ClerkViewReservation() {
           <div className="clerk-reservation-header">
             <div className="clerk-reservation-header-left">
               <div className="clerk-reservation-profile">
-                <i className="fa-solid fa-user"></i>
+                {requesterPhoto ? (
+                  <img
+                    src={requesterPhoto}
+                    alt={reservation.facultyName || reservation.requesterName || "Requester"}
+                    className="clerk-reservation-profile-img"
+                    onError={() => setRequesterPhoto(null)}
+                  />
+                ) : (
+                  <i className="fa-solid fa-user"></i>
+                )}
               </div>
               <span className="clerk-reservation-faculty-name">
                 {reservation.facultyName || reservation.requesterName || "Unknown"}

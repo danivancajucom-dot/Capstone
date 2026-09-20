@@ -400,3 +400,136 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Room Photo Upload (Optional) ─────────────────────── */
+.room-details-page .photo-optional-tag {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  background: #f4f3f0;
+  border: 1px solid #e2e1de;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.room-details-page .photo-upload-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.room-details-page .photo-upload-preview {
+  width: 140px;
+  height: 140px;
+  border-radius: 12px;
+  border: 1.5px solid #e5e7eb;
+  background: #F8F7F5;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.room-details-page .photo-upload-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ✅ Gray background, orange text, mas malaki */
+.room-details-page .photo-upload-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  background: #F1F5F9;
+  overflow: hidden;
+}
+
+.room-details-page .photo-upload-preview-placeholder i {
+  font-size: 34px;
+  color: #f57c00;
+}
+
+.room-details-page .photo-upload-preview-placeholder span {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f57c00;
+  letter-spacing: 0.3px;
+}
+
+.room-details-page .photo-upload-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 220px;
+  justify-content: center;
+}
+
+.room-details-page .photo-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: 1.5px dashed #d1cfc9;
+  border-radius: 10px;
+  background: #F8F7F5;
+  color: #374151;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.room-details-page .photo-upload-btn:hover {
+  border-color: #f57c00;
+  color: #f57c00;
+  background: #fff8f2;
+}
+
+.room-details-page .photo-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 9px;
+  background: #fee2e2;
+  color: #dc2626;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  align-self: flex-start;
+}
+
+.room-details-page .photo-remove-btn:hover { background: #fecaca; }
+
+.room-details-page .photo-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .room-details-page .photo-upload-controls {
+    min-width: 100%;
+  }
+}

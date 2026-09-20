@@ -1,5 +1,5 @@
 // ============================================================
-// FILE: FacultySubmitReservation.jsx (improved date & time UI)
+// FILE: FacultySubmitReservation.jsx (with preview modal)
 // ============================================================
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -55,11 +55,9 @@ const MONTH_NAMES = [
 ];
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-// Builds a 6-row calendar grid (42 cells) for the given month, padded with
-// the trailing days of the previous/next month so every row is full.
 const buildCalendarGrid = (year, month) => {
   const firstOfMonth = new Date(year, month, 1);
-  const startOffset = firstOfMonth.getDay(); // 0=Sun
+  const startOffset = firstOfMonth.getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrevMonth = new Date(year, month, 0).getDate();
 
@@ -86,7 +84,6 @@ const buildCalendarGrid = (year, month) => {
   return cells;
 };
 
-// ─── Time options (30-min steps from 7:00 AM to 8:00 PM) ────
 const buildTimeOptions = () => {
   const options = [];
   for (let m = 7 * 60; m <= 20 * 60; m += 30) {
@@ -99,7 +96,6 @@ const buildTimeOptions = () => {
 };
 const TIME_OPTIONS = buildTimeOptions();
 
-// ─── Preset 1.5-hour class slots ────────────────────────────
 const PRESET_SLOTS = [
   { label: "7:00 – 8:30 AM",   start: "07:00", end: "08:30" },
   { label: "8:30 – 10:00 AM",  start: "08:30", end: "10:00" },
@@ -110,6 +106,15 @@ const PRESET_SLOTS = [
   { label: "4:00 – 5:30 PM",   start: "16:00", end: "17:30" },
   { label: "5:30 – 7:00 PM",   start: "17:30", end: "19:00" },
 ];
+
+// ─── Equipment label lookup (for preview) ─────────────────
+const EQUIPMENT_LABELS = {
+  projector: "Projector",
+  tvDisplay: "TV Display",
+  ac: "AC",
+  computer: "Computer",
+  smartBoard: "Smart Board",
+};
 
 function FacultySubmitReservation() {
   const navigate = useNavigate();
@@ -122,14 +127,12 @@ function FacultySubmitReservation() {
   const [endTime, setEndTime] = useState("");
   const [showCustomTime, setShowCustomTime] = useState(false);
 
-  // ─── Date picker popover state ─────────────────────────────
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calendarCursor, setCalendarCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
-  // ─── Time picker popover state ─────────────────────────────
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
@@ -148,7 +151,8 @@ function FacultySubmitReservation() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [showConfirm, setShowConfirm] = useState(false);
+  // ✅ Renamed from showConfirm → showPreview
+  const [showPreview, setShowPreview] = useState(false);
 
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -165,8 +169,6 @@ function FacultySubmitReservation() {
 
   const [releasedKeys, setReleasedKeys] = useState(new Set());
 
-  // ─── Live clock tick — refreshes every 30s so "past time" checks
-  // for today's date stay accurate without needing a page reload ───
   const [nowTick, setNowTick] = useState(() => new Date());
 
   useEffect(() => {
@@ -195,7 +197,6 @@ function FacultySubmitReservation() {
     );
   };
 
-  // ─── Check if user already has a reservation at same time ───
   const checkUserConflict = async () => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) return null;
@@ -613,7 +614,7 @@ function FacultySubmitReservation() {
         userId: auth.currentUser.uid,
       });
 
-      setShowConfirm(false);
+      setShowPreview(false);
 
       setSubmittedReservation({
         courseTitle,
@@ -632,6 +633,7 @@ function FacultySubmitReservation() {
       setToast((prev) => ({ ...prev, show: false }));
       setShowSuccessModal(true);
 
+      // Reset form
       setCourseTitle("");
       setAudienceType("");
       setCourse("");
@@ -667,12 +669,12 @@ function FacultySubmitReservation() {
       showToast("error", "Validation Error", firstError);
       return;
     }
-    setShowConfirm(true);
+    // ✅ Show preview modal instead of plain confirm
+    setShowPreview(true);
   };
 
   const hasErrors = Object.keys(fieldErrors).length > 0;
 
-  // ─── Preset slot helpers ──────────────────────────────────
   const isPresetActive = (slot) =>
     slot.start === startTime && slot.end === endTime;
 
@@ -692,8 +694,6 @@ function FacultySubmitReservation() {
     revalidate();
   };
 
-  // ─── Real-time "past time" checks (only relevant when the
-  // selected date is today) ────────────────────────────────────
   const isDateToday = date === toDateInputValue(nowTick);
   const liveCurrentMinutes = nowTick.getHours() * 60 + nowTick.getMinutes();
 
@@ -703,9 +703,6 @@ function FacultySubmitReservation() {
   const isPastPreset = (slot) =>
     isDateToday && convertToMinutes(slot.start) <= liveCurrentMinutes;
 
-  // If the clock catches up to a previously-selected start time
-  // while the user still has today selected, clear it so they have
-  // to pick a valid, still-upcoming time.
   useEffect(() => {
     if (isDateToday && startTime && convertToMinutes(startTime) <= liveCurrentMinutes) {
       setStartTime("");
@@ -714,6 +711,31 @@ function FacultySubmitReservation() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowTick]);
+
+  // ═══════════════════════════════════════════════════════════
+  // Preview payload — computed for the preview modal
+  // ═══════════════════════════════════════════════════════════
+  const previewData = {
+    courseTitle,
+    audienceType,
+    course,
+    yearSectionGroup,
+    organization,
+    purpose:
+      purpose === "Other Activity"
+        ? customPurposeText.trim() || "Other Activity"
+        : purpose,
+    roomName: selectedRoom?.roomName || "—",
+    roomFloor: selectedRoom?.floor || "",
+    roomCapacity: selectedRoom?.capacity || "",
+    date,
+    startTime,
+    endTime,
+    equipment: selectedEquipment
+      .map((id) => EQUIPMENT_LABELS[id] || id)
+      .join(", "),
+    studentRange,
+  };
 
   // ═══════════════════════════════════════════════════════════
   // RENDER
@@ -970,7 +992,7 @@ function FacultySubmitReservation() {
                 </div>
               )}
 
-              {/* ═════════ DATE (calendar popover) ═════════ */}
+              {/* DATE */}
               <div className="faculty-submit-form-group">
                 <div className="dt-section-header">
                   <label>Date</label>
@@ -1039,7 +1061,6 @@ function FacultySubmitReservation() {
                                   : { year: c.year, month: m };
                               })
                             }
-                            aria-label="Previous month"
                           >
                             <i className="fa-solid fa-chevron-left"></i>
                           </button>
@@ -1057,7 +1078,6 @@ function FacultySubmitReservation() {
                                   : { year: c.year, month: m };
                               })
                             }
-                            aria-label="Next month"
                           >
                             <i className="fa-solid fa-chevron-right"></i>
                           </button>
@@ -1110,7 +1130,7 @@ function FacultySubmitReservation() {
                 )}
               </div>
 
-              {/* ═════════ TIME (presets + popover pickers) ═════════ */}
+              {/* TIME */}
               <div className="faculty-submit-form-group">
                 <div className="dt-section-header">
                   <label>Time</label>
@@ -1122,7 +1142,6 @@ function FacultySubmitReservation() {
                   )}
                 </div>
 
-                {/* Preset slots */}
                 <div className="time-preset-grid">
                   {PRESET_SLOTS.map((slot) => {
                     const disabled = isPastPreset(slot);
@@ -1144,7 +1163,6 @@ function FacultySubmitReservation() {
                   })}
                 </div>
 
-                {/* Custom toggle */}
                 <button
                   type="button"
                   className={`time-custom-toggle ${showCustomTime ? "open" : ""}`}
@@ -1155,7 +1173,6 @@ function FacultySubmitReservation() {
                   <i className={`fa-solid fa-chevron-down time-custom-chev ${showCustomTime ? "open" : ""}`}></i>
                 </button>
 
-                {/* Custom start/end */}
                 {showCustomTime && (
                   <div className="time-custom-grid">
                     <div className="time-custom-field">
@@ -1378,25 +1395,142 @@ function FacultySubmitReservation() {
             className={`faculty-submit-confirm-btn ${submitting ? "disabled" : ""} ${validationAttempted && hasErrors ? "has-errors" : ""}`}
             onClick={handleSubmitClick}
             disabled={submitting}
-            title={validationAttempted && hasErrors ? "Please fix the errors above" : "Submit your reservation request"}
+            title={validationAttempted && hasErrors ? "Please fix the errors above" : "Preview and submit your reservation request"}
           >
             {submitting ? "Submitting..." : "Submit Request"}
           </button>
         </div>
 
-        {showConfirm && (
-          <div className="ra-modal-overlay">
-            <div className="ra-modal">
-              <h3>Submit Reservation Request?</h3>
-              <p>Your reservation will be sent for approval.</p>
-              <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "20px" }}>
-                <button className="ra-modal-cancel" onClick={() => setShowConfirm(false)}>Cancel</button>
+        {/* ═══════════════════════════════════════════════════════
+            PREVIEW MODAL — bago mag-submit
+           ═══════════════════════════════════════════════════════ */}
+        {showPreview && (
+          <div
+            className="fsr-preview-overlay"
+            onClick={() => !submitting && setShowPreview(false)}
+          >
+            <div
+              className="fsr-preview-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="fsr-preview-header">
+                <div className="fsr-preview-icon">
+                  <i className="fa-solid fa-clipboard-check"></i>
+                </div>
+                <h3>Review Your Request</h3>
+                <p className="fsr-preview-subtitle">
+                  Please check the details below before submitting.
+                </p>
+              </div>
+
+              {/* Details */}
+              <div className="fsr-preview-body">
+                {/* Course Title */}
+                <div className="fsr-preview-row">
+                  <span className="fsr-preview-label">Course Title</span>
+                  <span className="fsr-preview-value">{previewData.courseTitle || "—"}</span>
+                </div>
+
+                {/* Audience */}
+                <div className="fsr-preview-row">
+                  <span className="fsr-preview-label">Audience</span>
+                  <span className="fsr-preview-value">
+                    {previewData.audienceType}
+                    {previewData.audienceType === "Class" && previewData.course && (
+                      <> — {previewData.course} {previewData.yearSectionGroup}</>
+                    )}
+                    {previewData.audienceType === "Organization" &&
+                      previewData.organization && (
+                        <> — {previewData.organization}</>
+                      )}
+                  </span>
+                </div>
+
+                {/* Purpose */}
+                <div className="fsr-preview-row">
+                  <span className="fsr-preview-label">Purpose</span>
+                  <span className="fsr-preview-value">{previewData.purpose || "—"}</span>
+                </div>
+
+                {/* Room */}
+                <div className="fsr-preview-row">
+                  <span className="fsr-preview-label">Room</span>
+                  <span className="fsr-preview-value">
+                    {previewData.roomName}
+                    {previewData.roomFloor ? ` — ${previewData.roomFloor} Floor` : ""}
+                    {previewData.roomCapacity ? ` (${previewData.roomCapacity} Seats)` : ""}
+                  </span>
+                </div>
+
+                {/* Date */}
+                <div className="fsr-preview-row">
+                  <span className="fsr-preview-label">Date</span>
+                  <span className="fsr-preview-value">{formatDateLong(previewData.date)}</span>
+                </div>
+
+                {/* Time */}
+                <div className="fsr-preview-row">
+                  <span className="fsr-preview-label">Time</span>
+                  <span className="fsr-preview-value">
+                    {format12Hour(previewData.startTime)} – {format12Hour(previewData.endTime)}
+                  </span>
+                </div>
+
+                {/* Equipment — only if may napili */}
+                {previewData.equipment && (
+                  <div className="fsr-preview-row">
+                    <span className="fsr-preview-label">Equipment</span>
+                    <span className="fsr-preview-value">{previewData.equipment}</span>
+                  </div>
+                )}
+
+                {/* Attendees */}
+                {previewData.studentRange && (
+                  <div className="fsr-preview-row">
+                    <span className="fsr-preview-label">
+                      {previewData.audienceType === "Organization"
+                        ? "Estimated Attendees"
+                        : "Estimated Students"}
+                    </span>
+                    <span className="fsr-preview-value">{previewData.studentRange}</span>
+                  </div>
+                )}
+
+                {/* Status note */}
+                <div className="fsr-preview-note">
+                  <i className="fa-solid fa-circle-info"></i>
+                  <span>
+                    After submitting, your request will be marked as{" "}
+                    <strong>Pending</strong> and sent to the Clerk/Admin for approval.
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="fsr-preview-actions">
                 <button
-                  className={`ra-modal-confirm ${submitting ? "disabled" : ""}`}
+                  className="fsr-preview-back-btn"
+                  onClick={() => setShowPreview(false)}
+                  disabled={submitting}
+                >
+                  <i className="fa-solid fa-pen-to-square"></i>
+                  Edit Details
+                </button>
+                <button
+                  className={`fsr-preview-confirm-btn ${submitting ? "disabled" : ""}`}
                   onClick={handleSubmit}
                   disabled={submitting}
                 >
-                  {submitting ? "Submitting..." : "Confirm"}
+                  {submitting ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin"></i> Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-circle-check"></i> Confirm & Submit
+                    </>
+                  )}
                 </button>
               </div>
             </div>

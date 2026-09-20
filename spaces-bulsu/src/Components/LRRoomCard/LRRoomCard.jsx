@@ -1,5 +1,4 @@
 import "./lr-room-card.css";
-import defaultRoomImg from "../../assets/Classroom.jpeg";
 
 const EQUIPMENT_LABELS = {
   projector: "Projector",
@@ -62,11 +61,14 @@ function normalizeEquipment(equipment) {
 
 function LRRoomCard({
   roomName,
+  photoUrl,        // ← optional photo
   floor,
   capacity,
   roomType,
   equipment,
   status,
+  latestSchedule,
+  currentSchedule,
   onClick,
 }) {
   const equipmentList = normalizeEquipment(equipment);
@@ -79,7 +81,14 @@ function LRRoomCard({
       style={{ cursor: "pointer" }}
     >
       <div className="lr-room-card-image">
-        <img src={defaultRoomImg} alt="Room" />
+        {photoUrl ? (
+          <img src={photoUrl} alt={roomName || "Room"} loading="lazy" />
+        ) : (
+          <div className="lr-room-card-image-fallback">
+            <span>{roomName || "Room"}</span>
+          </div>
+        )}
+
         {status && (
           <span
             className={`room-status-lr ${status

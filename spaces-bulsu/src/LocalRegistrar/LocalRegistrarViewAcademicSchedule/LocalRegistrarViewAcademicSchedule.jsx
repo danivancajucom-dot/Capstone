@@ -474,9 +474,13 @@ function LocalRegistrarViewAcademicSchedule() {
           ) : (
             paginatedRooms.map((room) => (
               <LRRoomCard key={room.id}
-                roomName={room.roomName} floor={room.floor}
-                capacity={room.capacity} roomType={room.roomType}
-                equipment={room.equipment} status={room.status}
+                roomName={room.roomName}
+                photoUrl={room.photoUrl}         
+                floor={room.floor}
+                capacity={room.capacity}
+                roomType={room.roomType}
+                equipment={room.equipment}
+                status={room.status}
                 onClick={() =>
                   navigate("/local-registrar/room-card", {
                     state: { roomId: room.id, room },

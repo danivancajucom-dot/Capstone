@@ -24,6 +24,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import universityLogo from "../../assets/BSU-Logo.png";
 import collegeLogo from "../../assets/CICT-Logo.png";
+import { isActiveOnDate } from "../../utils/scheduleActivePeriod";
 
 const SCHOOL_HEADER = {
   universityLogoUrl: universityLogo,
@@ -68,6 +69,30 @@ function ToggleSwitch({ checked, onClick }) {
     </button>
   );
 }
+
+// ─── Helpers ────────────────────────────────────────────────────────
+const fmt12 = (t) => {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const p = h >= 12 ? "PM" : "AM";
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${String(m).padStart(2, "0")} ${p}`;
+};
+
+const normalizeName = (name) =>
+  name
+    ?.toLowerCase()
+    .replace(/\./g, "")
+    .replace(/,/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const flipName = (name) => {
+  if (!name) return "";
+  const parts = name.split(",");
+  if (parts.length !== 2) return normalizeName(name);
+  return normalizeName(`${parts[1]} ${parts[0]}`);
+};
 
 function RoomManagementView({
   onOpenDetails,
@@ -329,7 +354,9 @@ function RoomManagementView({
     };
   }, []);
 
-  // ─── Simplified deactivation (no schedule) ────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // DEACTIVATION — Notify ALL affected schedules
+  // ══════════════════════════════════════════════════════════════
   const handleDeactivationConfirm = async () => {
     const room = rooms.find((r) => r.id === modals.roomName);
     if (!room) return;
@@ -365,61 +392,109 @@ function RoomManagementView({
         status: "SUCCESS",
       });
 
-      // ─── Notify affected faculty ──────────────────────────────
+      // ─── Identify all affected schedules ─────────────────────
+      const activeSchedules = (room.schedules || []).filter((s) => {
+        if (s.initialized) return false;
+        if (!isActiveOnDate(s, startDate)) return false;
+        return true;
+      });
+
+      // Group by faculty
       const usersSnap = await getDocs(collection(db, "users"));
-      const normalizeName = (name) =>
-        name
-          ?.toLowerCase()
-          .replace(/\./g, "")
-          .replace(/,/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
+      const facultySchedulesMap = new Map();
 
-      const flipName = (name) => {
-        if (!name) return "";
-        const parts = name.split(",");
-        if (parts.length !== 2) return normalizeName(name);
-        return normalizeName(`${parts[1]} ${parts[0]}`);
-      };
-
-      let notifiedCount = 0;
-      for (const schedule of room.schedules) {
+      for (const schedule of activeSchedules) {
         if (!schedule.faculty) continue;
-        const faculty = usersSnap.docs.find((docUser) => {
+        const facultyDoc = usersSnap.docs.find((docUser) => {
           const user = docUser.data();
           const fullname = normalizeName(`${user.firstName} ${user.lastName}`);
           return fullname === flipName(schedule.faculty);
         });
-        if (!faculty) continue;
+        if (!facultyDoc) continue;
 
-        await addDoc(collection(db, "notifications"), {
-          userId: faculty.id,
-          ownerType: "faculty",
-          title: "Room Under Maintenance",
-          message: `Room ${room.id} is currently under maintenance. Your scheduled class may be affected.`,
-          type: "room-maintenance",
-          unread: true,
-          archived: false,
-          badge: "NEW",
-          createdAt: serverTimestamp(),
-        });
-        notifiedCount++;
+        if (!facultySchedulesMap.has(facultyDoc.id)) {
+          facultySchedulesMap.set(facultyDoc.id, {
+            userData: facultyDoc.data(),
+            schedules: [],
+          });
+        }
+        facultySchedulesMap.get(facultyDoc.id).schedules.push(schedule);
       }
 
-      // Notify self (department head)
+      // Send ONE notification per faculty
+      let notifiedFacultyCount = 0;
+      let totalSchedulesNotified = 0;
+
+      for (const [facultyId, { schedules }] of facultySchedulesMap) {
+        const scheduleLines = schedules
+          .map((s) => {
+            const subject = s.subject || s.courseTitle || "Class";
+            const section = s.section ? ` (${s.section})` : "";
+            return `• ${subject}${section} — ${s.day || ""} ${fmt12(s.startTime)}–${fmt12(s.endTime)}`;
+          })
+          .join("\n");
+
+        await addDoc(collection(db, "notifications"), {
+          userId: facultyId,
+          ownerType: "faculty",
+          title: "Room Under Maintenance",
+          message:
+            `Room ${room.id} is now under maintenance. ` +
+            `The following ${schedules.length === 1 ? "class" : "classes"} may be affected:\n` +
+            `${scheduleLines}\n\n` +
+            `Please coordinate with the Clerk for a possible room reassignment.`,
+          type: "room-maintenance",
+          roomId: room.firestoreId,
+          roomName: room.id,
+          maintenanceStartDate: startDate,
+          maintenanceStartTime: startTime,
+          schedulesAffected: schedules.map((s) => ({
+            scheduleId: s.id,
+            subject: s.subject || s.courseTitle || "",
+            section: s.section || "",
+            day: s.day || "",
+            startTime: s.startTime || "",
+            endTime: s.endTime || "",
+            semester: s.semester || "",
+            schoolYear: s.schoolYear || "",
+          })),
+          unread: true,
+          archived: false,
+          badge: "URGENT",
+          createdAt: serverTimestamp(),
+        });
+
+        notifiedFacultyCount++;
+        totalSchedulesNotified += schedules.length;
+      }
+
+      // Clerk summary
       await addDoc(collection(db, "notifications"), {
         userId: firebaseUser.uid,
         ownerType: "clerk",
         title: "Room Under Maintenance",
-        message: `You placed Room ${room.id} under maintenance. ${notifiedCount} faculty schedule(s) affected and notified.`,
+        message:
+          `You placed Room ${room.id} under maintenance. ` +
+          `${notifiedFacultyCount} faculty notified — ` +
+          `${totalSchedulesNotified} schedule${totalSchedulesNotified === 1 ? "" : "s"} affected.`,
         type: "room-maintenance-status",
+        roomId: room.firestoreId,
+        roomName: room.id,
+        maintenanceStartDate: startDate,
+        maintenanceStartTime: startTime,
+        notifiedFacultyCount,
+        totalSchedulesNotified,
         unread: true,
         archived: false,
         badge: "INFO",
         createdAt: serverTimestamp(),
       });
 
-      showToast("success", "Maintenance Active", `Room ${room.id} is now under maintenance. ${notifiedCount} faculty notified.`);
+      showToast(
+        "success",
+        "Maintenance Active",
+        `Room ${room.id} is now under maintenance. ${notifiedFacultyCount} faculty notified (${totalSchedulesNotified} schedule${totalSchedulesNotified === 1 ? "" : "s"}).`
+      );
     } catch (err) {
       console.error(err);
       showToast("error", "Action Failed", "Failed to put room under maintenance.");
@@ -483,11 +558,26 @@ function RoomManagementView({
     }
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // ACTIVATION — Notify ALL affected faculty that room is BACK
+  // ══════════════════════════════════════════════════════════════
   const handleActivateConfirm = async () => {
     const room = rooms.find((r) => r.id === modals.roomName);
     if (!room) return;
+
     showToast("loading", "Activating...", `Activating room ${room.id}...`);
+
     try {
+      const firebaseUser = auth.currentUser;
+      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+      const currentUser = userSnap.data();
+      const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
+
+      const now = new Date();
+      const restoredDate = now.toISOString().split("T")[0];
+      const restoredTime = now.toTimeString().slice(0, 5);
+
+      // ─── 1. Set room back to active ──────────────────────────
       await updateDoc(doc(db, "rooms", room.firestoreId), {
         roomStatus: "active",
         maintenanceStartDate: null,
@@ -496,11 +586,6 @@ function RoomManagementView({
         maintenanceEndTime: null,
       });
 
-      const firebaseUser = auth.currentUser;
-      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-      const currentUser = userSnap.data();
-      const fullName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
-
       await logActivity({
         userId: firebaseUser.uid,
         user: fullName,
@@ -508,14 +593,118 @@ function RoomManagementView({
         action: "Activated Room",
         actionType: "success",
         target: room.id,
+        details: "Restored room from maintenance back to Active",
         status: "SUCCESS",
       });
 
-      showToast("success", "Activated", `Room ${room.id} is now active.`);
+      // ─── 2. Identify affected schedules (same logic as deactivation) ─
+      const activeSchedules = (room.schedules || []).filter((s) => {
+        if (s.initialized) return false;
+        if (!isActiveOnDate(s, restoredDate)) return false;
+        return true;
+      });
+
+      // ─── 3. Match schedules → faculty user accounts ──────────
+      const usersSnap = await getDocs(collection(db, "users"));
+      const facultySchedulesMap = new Map();
+
+      for (const schedule of activeSchedules) {
+        if (!schedule.faculty) continue;
+        const facultyDoc = usersSnap.docs.find((docUser) => {
+          const user = docUser.data();
+          const fullname = normalizeName(`${user.firstName} ${user.lastName}`);
+          return fullname === flipName(schedule.faculty);
+        });
+        if (!facultyDoc) continue;
+
+        if (!facultySchedulesMap.has(facultyDoc.id)) {
+          facultySchedulesMap.set(facultyDoc.id, {
+            userData: facultyDoc.data(),
+            schedules: [],
+          });
+        }
+        facultySchedulesMap.get(facultyDoc.id).schedules.push(schedule);
+      }
+
+      // ─── 4. Send ONE notification per faculty (room restored) ─
+      let notifiedFacultyCount = 0;
+      let totalSchedulesNotified = 0;
+
+      for (const [facultyId, { schedules }] of facultySchedulesMap) {
+        const scheduleLines = schedules
+          .map((s) => {
+            const subject = s.subject || s.courseTitle || "Class";
+            const section = s.section ? ` (${s.section})` : "";
+            return `• ${subject}${section} — ${s.day || ""} ${fmt12(s.startTime)}–${fmt12(s.endTime)}`;
+          })
+          .join("\n");
+
+        await addDoc(collection(db, "notifications"), {
+          userId: facultyId,
+          ownerType: "faculty",
+          title: "Room Available Again",
+          message:
+            `Good news! Room ${room.id} is now active and available for use again. ` +
+            `Your following ${schedules.length === 1 ? "class is" : "classes are"} back on track:\n` +
+            `${scheduleLines}\n\n` +
+            `You may resume your classes in this room as originally scheduled.`,
+          type: "room-restored",
+          roomId: room.firestoreId,
+          roomName: room.id,
+          restoredDate,
+          restoredTime,
+          schedulesAffected: schedules.map((s) => ({
+            scheduleId: s.id,
+            subject: s.subject || s.courseTitle || "",
+            section: s.section || "",
+            day: s.day || "",
+            startTime: s.startTime || "",
+            endTime: s.endTime || "",
+            semester: s.semester || "",
+            schoolYear: s.schoolYear || "",
+          })),
+          unread: true,
+          archived: false,
+          badge: "RESOLVED",
+          createdAt: serverTimestamp(),
+        });
+
+        notifiedFacultyCount++;
+        totalSchedulesNotified += schedules.length;
+      }
+
+      // ─── 5. Clerk summary ─────────────────────────────────────
+      await addDoc(collection(db, "notifications"), {
+        userId: firebaseUser.uid,
+        ownerType: "clerk",
+        title: "Room Activated",
+        message:
+          `You activated Room ${room.id}. ` +
+          `${notifiedFacultyCount} faculty notified — ` +
+          `${totalSchedulesNotified} schedule${totalSchedulesNotified === 1 ? "" : "s"} back on track.`,
+        type: "room-restored-status",
+        roomId: room.firestoreId,
+        roomName: room.id,
+        restoredDate,
+        restoredTime,
+        notifiedFacultyCount,
+        totalSchedulesNotified,
+        unread: true,
+        archived: false,
+        badge: "SUCCESS",
+        createdAt: serverTimestamp(),
+      });
+
+      showToast(
+        "success",
+        "Activated",
+        `Room ${room.id} is now active. ${notifiedFacultyCount} faculty notified (${totalSchedulesNotified} schedule${totalSchedulesNotified === 1 ? "" : "s"} restored).`
+      );
     } catch (err) {
       console.error(err);
       showToast("error", "Activation Failed", "Failed to activate room.");
     }
+
     modals.closeAll();
   };
 

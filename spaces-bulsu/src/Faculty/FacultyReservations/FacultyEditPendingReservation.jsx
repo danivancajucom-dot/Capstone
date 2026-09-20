@@ -1,6 +1,6 @@
 import "./faculty-edit-pending-reservation.css";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   doc,
   updateDoc,
@@ -11,9 +11,9 @@ import {
   addDoc,
   serverTimestamp,
   getDoc,
+  onSnapshot,
 } from "firebase/firestore";
-import { db } from "../../firebase";
-import { auth } from "../../firebase";
+import { db, auth } from "../../firebase";
 import { logActivity } from "../../utils/logActivity";
 import { isRoomUnderMaintenance } from "../../utils/Roommaintenance";
 import SavePopup from "../../Popup/SavePopup/SavePopup";
@@ -40,19 +40,62 @@ const overlap = (aStart, aEnd, bStart, bEnd) => {
   );
 };
 
-// ─── Find user by name ──────────────────────────────────────────────
-const findUserByName = async (name) => {
-  if (!name) return null;
-  const usersSnap = await getDocs(collection(db, "users"));
-  const normalized = name.trim().toLowerCase();
-  for (const doc of usersSnap.docs) {
-    const data = doc.data();
-    const fullName = `${data.firstName || ""} ${data.lastName || ""}`
-      .trim()
-      .toLowerCase();
-    if (fullName === normalized) return { id: doc.id, ...data };
+// ─── Date helpers ─────────────────────────────────────────────────────
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const toDateInputValue = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const addDaysLocal = (dateStr, days) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toDateInputValue(d);
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return "-";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", {
+    month: "long", day: "numeric", year: "numeric",
+  });
+};
+
+const buildCalendarGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrevMonth - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrevMonth - startOffset + 1 + i),
+    });
   }
-  return null;
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const nextIndex = cells.length - startOffset - daysInMonth + 1;
+    cells.push({
+      day: nextIndex,
+      inMonth: false,
+      date: new Date(year, month + 1, nextIndex),
+    });
+    if (cells.length >= 42) break;
+  }
+  return cells;
 };
 
 // ─── Send notification ──────────────────────────────────────────────
@@ -81,9 +124,10 @@ const sendNotification = async (
 function FacultyEditPendingReservation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const reservation = location.state?.reservation;
+  const reservationFromNav = location.state?.reservation;
+  const reservationId = reservationFromNav?.id;
 
-  // ─── Toast state ──────────────────────────────────────────────────
+  // ─── Toast ────────────────────────────────────────────────────────
   const [toast, setToast] = useState({
     show: false,
     type: "success",
@@ -94,13 +138,16 @@ function FacultyEditPendingReservation() {
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
     if (type !== "loading") {
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, show: false }));
-      }, 4000);
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
     }
   };
 
-  // ─── State ─────────────────────────────────────────────────────────
+  // ─── Realtime reservation ─────────────────────────────────────────
+  const [reservation, setReservation] = useState(reservationFromNav || null);
+  const [liveStatus, setLiveStatus] = useState(reservationFromNav?.status || "Pending");
+  const [loadingLive, setLoadingLive] = useState(true);
+
+  // ─── Editable fields ──────────────────────────────────────────────
   const [editableFields, setEditableFields] = useState({
     roomName: "",
     date: "",
@@ -116,14 +163,23 @@ function FacultyEditPendingReservation() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
   const [conflictError, setConflictError] = useState("");
+
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // ─── NEW: state for cancel confirmation modal ──────────────────
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
-  // ─── Read‑only fields ─────────────────────────────────────────────
+  // ─── Custom pickers state ────────────────────────────────────────
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
+  // ─── Read-only fields ─────────────────────────────────────────────
   const facultyName =
     reservation?.facultyName || reservation?.requesterName || "";
   const audienceType = reservation?.audienceType || "";
@@ -132,12 +188,91 @@ function FacultyEditPendingReservation() {
   const yearSectionGroup = reservation?.attendees?.yearSectionGroup || "";
   const organization = reservation?.attendees?.organization || "";
 
-  // ─── Load initial data ─────────────────────────────────────────────
+  // ─── Selected room object for picker trigger ─────────────────────
+  const selectedRoom = useMemo(
+    () => availableRooms.find((r) => r.roomName === editableFields.roomName) || null,
+    [availableRooms, editableFields.roomName]
+  );
+
+  // ─── Filtered room list (for search inside picker) ───────────────
+  const filteredAvailableRooms = useMemo(() => {
+    const q = roomSearch.trim().toLowerCase();
+    if (!q) return availableRooms;
+    return availableRooms.filter((r) => {
+      const name = (r.roomName || "").toLowerCase();
+      const floor = String(r.floor || "").toLowerCase();
+      const building = String(r.building || r.bldg || "").toLowerCase();
+      return name.includes(q) || floor.includes(q) || building.includes(q);
+    });
+  }, [availableRooms, roomSearch]);
+
+  // ══════════════════════════════════════════════════════════════════
+  // REALTIME LISTENER — watch the reservation document
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!reservation) {
+    if (!reservationId) {
       navigate("/faculty/reservations");
       return;
     }
+
+    setLoadingLive(true);
+
+    const unsub = onSnapshot(
+      doc(db, "reservationRequests", reservationId),
+      (snap) => {
+        if (!snap.exists()) {
+          showToast("error", "Not Found", "This reservation no longer exists.");
+          setTimeout(() => navigate("/faculty/reservations"), 1500);
+          return;
+        }
+
+        const data = { id: snap.id, ...snap.data() };
+        setReservation(data);
+        setLiveStatus(data.status || "Pending");
+
+        // If the status changed from Pending (approved/denied/cancelled by clerk/admin),
+        // show a toast and prevent further editing
+        const normalized = normalize(data.status);
+        if (normalized !== "pending") {
+          if (normalized === "approved") {
+            showToast(
+              "success",
+              "Reservation Approved",
+              "Your reservation has been approved. Redirecting...",
+            );
+          } else if (normalized === "rejected" || normalized === "denied") {
+            showToast(
+              "error",
+              "Reservation Denied",
+              "Your reservation was denied. Redirecting...",
+            );
+          } else if (normalized === "cancelled") {
+            showToast(
+              "error",
+              "Reservation Cancelled",
+              "This reservation has been cancelled. Redirecting...",
+            );
+          }
+          setTimeout(() => navigate("/faculty/reservations"), 2200);
+        }
+
+        setLoadingLive(false);
+      },
+      (err) => {
+        console.error("Realtime listener:", err);
+        setLoadingLive(false);
+      },
+    );
+
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservationId]);
+
+  // ─── Initial load of editable fields (only once) ──────────────────
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!reservation || initializedRef.current) return;
+    if (normalize(reservation.status) !== "pending") return;
 
     setEditableFields({
       roomName: reservation.roomName || "",
@@ -149,7 +284,9 @@ function FacultyEditPendingReservation() {
       requiredEquipment: reservation.requiredEquipment || [],
     });
 
+    initializedRef.current = true;
     loadAllRooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservation]);
 
   // ─── Load all rooms ────────────────────────────────────────────────
@@ -159,12 +296,6 @@ function FacultyEditPendingReservation() {
       const snap = await getDocs(collection(db, "rooms"));
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setAllRooms(data);
-      fetchAvailableRooms(
-        data,
-        editableFields.date,
-        editableFields.startTime,
-        editableFields.endTime,
-      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -172,7 +303,7 @@ function FacultyEditPendingReservation() {
     }
   };
 
-  // ─── Fetch available rooms based on purpose, date, time ───────────
+  // ─── Fetch available rooms based on date, time, purpose ───────────
   const fetchAvailableRooms = async (
     roomsList = allRooms,
     date,
@@ -191,7 +322,6 @@ function FacultyEditPendingReservation() {
       const studentRange = editableFields.studentRange;
       const requiredEquipment = editableFields.requiredEquipment;
 
-      // Fetch releases, reassignments for the date
       const [releaseSnap, reassignSnap, eventSnap, reservationSnap] =
         await Promise.all([
           getDocs(collection(db, "roomReleases")),
@@ -213,9 +343,8 @@ function FacultyEditPendingReservation() {
       const events = eventSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       const reservations = reservationSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((r) => r.id !== reservation.id); // exclude self
+        .filter((r) => r.id !== reservationId);
 
-      // Build release keys
       const releaseKeys = new Set(
         releases
           .filter((r) => r.date === date)
@@ -228,7 +357,6 @@ function FacultyEditPendingReservation() {
           .map((r) => `${r.scheduleId}_${r.date}`),
       );
 
-      // Group reassignments by new room
       const reassignIntoMap = {};
       reassignments
         .filter((r) => r.date === date && r.newRoomId)
@@ -237,14 +365,11 @@ function FacultyEditPendingReservation() {
           reassignIntoMap[r.newRoomId].push(r);
         });
 
-      // For each room, check availability
       const available = [];
 
       for (const room of roomsList) {
-        // Maintenance check
         if (isRoomUnderMaintenance(room, date, startTime, endTime)) continue;
 
-        // Fetch schedules for this room
         const scheduleSnap = await getDocs(
           collection(db, "rooms", room.id, "schedules"),
         );
@@ -252,7 +377,6 @@ function FacultyEditPendingReservation() {
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter((s) => !s.initialized && s.day === dayAbbrev);
 
-        // Check if any schedule overlaps (skip released & reassigned‑away)
         const hasScheduleConflict = schedules.some((sched) => {
           const key = `${sched.id}_${date}`;
           if (releaseKeys.has(key)) return false;
@@ -261,7 +385,6 @@ function FacultyEditPendingReservation() {
         });
         if (hasScheduleConflict) continue;
 
-        // Check events
         const hasEventConflict = events.some(
           (e) =>
             e.roomId === room.id &&
@@ -269,7 +392,6 @@ function FacultyEditPendingReservation() {
         );
         if (hasEventConflict) continue;
 
-        // Check other approved reservations
         const hasReservationConflict = reservations.some(
           (r) =>
             r.roomId === room.id &&
@@ -277,15 +399,12 @@ function FacultyEditPendingReservation() {
         );
         if (hasReservationConflict) continue;
 
-        // Check reassigned‑in (they also occupy)
         const reassignInto = reassignIntoMap[room.id] || [];
         const hasReassignConflict = reassignInto.some((r) =>
           overlap(startTime, endTime, r.startTime, r.endTime),
         );
         if (hasReassignConflict) continue;
 
-        // ─── Purpose‑based filters ──────────────────────────────────
-        // Equipment (for Hands‑on)
         if (purpose === "Hands-on" && requiredEquipment.length > 0) {
           const roomEquipment = Object.entries(room.equipment || {})
             .filter(([key, value]) => value === true)
@@ -297,7 +416,6 @@ function FacultyEditPendingReservation() {
           if (!hasAllEquipment) continue;
         }
 
-        // Capacity (for Lecture / Examination)
         if (
           (purpose === "Lecture" || purpose === "Examination") &&
           studentRange
@@ -317,16 +435,19 @@ function FacultyEditPendingReservation() {
 
       setAvailableRooms(available);
 
-      // If the current selected room is not in available, clear selection
-      if (
-        editableFields.roomName &&
-        !available.some((r) => r.roomName === editableFields.roomName)
-      ) {
-        setEditableFields((prev) => ({ ...prev, roomName: "" }));
-        setConflictError(
-          "The previously selected room is no longer available for the chosen date/time.",
-        );
-      }
+      // If the currently selected room is not available anymore, clear it
+      setEditableFields((prev) => {
+        if (
+          prev.roomName &&
+          !available.some((r) => r.roomName === prev.roomName)
+        ) {
+          setConflictError(
+            "The previously selected room is no longer available for the chosen date/time.",
+          );
+          return { ...prev, roomName: "" };
+        }
+        return prev;
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -334,7 +455,7 @@ function FacultyEditPendingReservation() {
     }
   };
 
-  // ─── Re‑fetch available rooms when date/time/purpose changes ──────
+  // ─── Re-fetch available rooms when date/time/purpose changes ──────
   useEffect(() => {
     if (
       allRooms.length > 0 &&
@@ -349,7 +470,9 @@ function FacultyEditPendingReservation() {
         editableFields.endTime,
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    allRooms,
     editableFields.date,
     editableFields.startTime,
     editableFields.endTime,
@@ -358,7 +481,7 @@ function FacultyEditPendingReservation() {
     editableFields.requiredEquipment,
   ]);
 
-  // ─── Handle form changes ──────────────────────────────────────────
+  // ─── Handle field changes ─────────────────────────────────────────
   const handleChange = (field) => (e) => {
     const value = e.target.value;
     setEditableFields((prev) => ({ ...prev, [field]: value }));
@@ -374,7 +497,7 @@ function FacultyEditPendingReservation() {
     setConflictError("");
   };
 
-  // ─── Check conflicts (for the selected room) ──────────────────────
+  // ─── Check conflicts ──────────────────────────────────────────────
   const checkConflicts = async () => {
     const { roomName, date, startTime, endTime } = editableFields;
     if (!roomName || !date || !startTime || !endTime)
@@ -387,7 +510,6 @@ function FacultyEditPendingReservation() {
       return "This room is under maintenance during the selected time.";
     }
 
-    // Check if room is actually available (already filtered, but double-check)
     if (!availableRooms.some((r) => r.roomName === roomName)) {
       return "This room is not available for the selected date/time and purpose.";
     }
@@ -395,7 +517,9 @@ function FacultyEditPendingReservation() {
     return null;
   };
 
-  // ─── Save ──────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  // SAVE — Update the reservation
+  // ══════════════════════════════════════════════════════════════════
   const handleSave = async () => {
     setSaving(true);
     showToast("loading", "Saving", "Updating reservation...");
@@ -422,12 +546,10 @@ function FacultyEditPendingReservation() {
         }
       }
 
-      // Find room ID
       const room = allRooms.find((r) => r.roomName === editableFields.roomName);
       const roomId = room ? room.id : null;
 
-      // Update reservation
-      await updateDoc(doc(db, "reservationRequests", reservation.id), {
+      await updateDoc(doc(db, "reservationRequests", reservationId), {
         roomName: editableFields.roomName,
         roomId: roomId || reservation.roomId,
         date: editableFields.date,
@@ -439,7 +561,6 @@ function FacultyEditPendingReservation() {
         updatedAt: serverTimestamp(),
       });
 
-      // ─── Activity log ─────────────────────────────────────────────
       await logActivity({
         userId: firebaseUser?.uid || "",
         user: facultyNameFull,
@@ -449,7 +570,7 @@ function FacultyEditPendingReservation() {
         target: `${editableFields.roomName} - ${courseTitle}`,
         status: "SUCCESS",
         details: {
-          reservationId: reservation.id,
+          reservationId,
           previous: {
             room: reservation.roomName,
             date: reservation.date,
@@ -467,9 +588,7 @@ function FacultyEditPendingReservation() {
         },
       });
 
-      // ─── Notifications ────────────────────────────────────────────
-
-      // 1. Faculty (self)
+      // Notify self
       if (firebaseUser?.uid) {
         await sendNotification(
           firebaseUser.uid,
@@ -481,7 +600,7 @@ function FacultyEditPendingReservation() {
         );
       }
 
-      // 2. All clerks and admins
+      // Notify clerks & admins
       const usersSnap = await getDocs(collection(db, "users"));
       const adminNotifications = [];
       usersSnap.forEach((doc) => {
@@ -504,22 +623,18 @@ function FacultyEditPendingReservation() {
       setShowSaveModal(false);
       showToast("success", "Success", "Reservation updated successfully!");
 
-      setTimeout(() => {
-        navigate("/faculty/reservations");
-      }, 1500);
+      setTimeout(() => navigate("/faculty/reservations"), 1500);
     } catch (err) {
       console.error(err);
-      showToast(
-        "error",
-        "Error",
-        err.message || "Failed to update reservation.",
-      );
+      showToast("error", "Error", err.message || "Failed to update reservation.");
     } finally {
       setSaving(false);
     }
   };
 
-  // ─── NEW: Cancel Reservation ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  // CANCEL — Cancel the reservation
+  // ══════════════════════════════════════════════════════════════════
   const handleCancelReservation = async () => {
     setCancelling(true);
     showToast("loading", "Cancelling", "Cancelling reservation...");
@@ -538,14 +653,14 @@ function FacultyEditPendingReservation() {
         }
       }
 
-      // Update reservation status to cancelled
-      await updateDoc(doc(db, "reservationRequests", reservation.id), {
+      await updateDoc(doc(db, "reservationRequests", reservationId), {
         status: "cancelled",
         cancelledAt: serverTimestamp(),
+        cancelledBy: firebaseUser?.uid || "",
+        cancelledByName: facultyNameFull,
         updatedAt: serverTimestamp(),
       });
 
-      // ─── Activity log ─────────────────────────────────────────────
       await logActivity({
         userId: firebaseUser?.uid || "",
         user: facultyNameFull,
@@ -555,7 +670,7 @@ function FacultyEditPendingReservation() {
         target: `${reservation.roomName} - ${courseTitle}`,
         status: "SUCCESS",
         details: {
-          reservationId: reservation.id,
+          reservationId,
           reservationData: {
             room: reservation.roomName,
             date: reservation.date,
@@ -566,21 +681,17 @@ function FacultyEditPendingReservation() {
         },
       });
 
-      // ─── Notifications ────────────────────────────────────────────
-
-      // 1. Faculty (self)
       if (firebaseUser?.uid) {
         await sendNotification(
           firebaseUser.uid,
           "faculty",
           "Reservation Cancelled",
-          `You have cancelled your reservation for ${reservation.roomName} on ${reservation.date}.`,
+          `You cancelled your reservation for ${reservation.roomName} on ${reservation.date}.`,
           "reservation-cancelled",
           "WARNING",
         );
       }
 
-      // 2. All clerks and admins
       const usersSnap = await getDocs(collection(db, "users"));
       const adminNotifications = [];
       usersSnap.forEach((doc) => {
@@ -603,33 +714,31 @@ function FacultyEditPendingReservation() {
       setShowCancelModal(false);
       showToast("success", "Cancelled", "Reservation cancelled successfully!");
 
-      setTimeout(() => {
-        navigate("/faculty/reservations");
-      }, 1500);
+      setTimeout(() => navigate("/faculty/reservations"), 1500);
     } catch (err) {
       console.error(err);
-      showToast(
-        "error",
-        "Error",
-        err.message || "Failed to cancel reservation.",
-      );
+      showToast("error", "Error", err.message || "Failed to cancel reservation.");
     } finally {
       setCancelling(false);
     }
   };
 
-  // ─── Redirect if no reservation ────────────────────────────────────
+  // ─── Guard: no reservation ────────────────────────────────────────
   if (!reservation) {
     return (
       <div className="faculty-edit-pending-room">
-        <h2>Reservation not found.</h2>
-        <button onClick={() => navigate("/faculty/reservations")}>Back</button>
+        <div className="fepr-loading-full">
+          <i className="fa-solid fa-circle-notch fa-spin"></i>
+          <p>Loading reservation...</p>
+        </div>
       </div>
     );
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────
+  // ─── Guard: not pending anymore ───────────────────────────────────
+  const isPending = normalize(liveStatus) === "pending";
 
+  // ─── Render ────────────────────────────────────────────────────────
   return (
     <div className="faculty-edit-pending-room">
       <i
@@ -639,7 +748,37 @@ function FacultyEditPendingReservation() {
       ></i>
 
       <div className="white-box-edit-pending">
-        <h2 className="faculty-edit-pending-title">Edit Pending Reservation</h2>
+        <div className="fepr-header">
+          <div>
+            <h2 className="faculty-edit-pending-title">
+              Edit Pending Reservation
+            </h2>
+            <p className="fepr-subtitle">
+              Update the room, schedule, or details of your pending reservation.
+            </p>
+          </div>
+          <span className="fepr-live-badge" title="Realtime updates enabled">
+            <span className="fepr-live-dot"></span>
+            Live
+          </span>
+        </div>
+
+        {loadingLive && (
+          <div className="fepr-loading-inline">
+            <i className="fa-solid fa-circle-notch fa-spin"></i>
+            Syncing with server...
+          </div>
+        )}
+
+        {!isPending && (
+          <div className="faculty-edit-conflict-banner">
+            <i className="fa-solid fa-circle-exclamation"></i>
+            <span>
+              This reservation is no longer pending (status:{" "}
+              <b>{liveStatus}</b>). Editing is disabled.
+            </span>
+          </div>
+        )}
 
         {conflictError && (
           <div className="faculty-edit-conflict-banner">
@@ -649,8 +788,7 @@ function FacultyEditPendingReservation() {
         )}
 
         <div className="faculty-edit-pending-info-grid">
-          {/* ─── Read‑only fields ──────────────────────────────────── */}
-
+          {/* ─── Read-only: Requester ────────────────────────────── */}
           <div className="faculty-edit-pending-info-box">
             <h3 className="faculty-edit-pending-info-box-title">
               <i className="fa-solid fa-user"></i> Requester
@@ -667,6 +805,7 @@ function FacultyEditPendingReservation() {
             </div>
           </div>
 
+          {/* ─── Read-only: Course & Audience ────────────────────── */}
           <div className="faculty-edit-pending-info-box">
             <h3 className="faculty-edit-pending-info-box-title">
               <i className="fa-solid fa-book"></i> Course & Audience
@@ -691,39 +830,161 @@ function FacultyEditPendingReservation() {
             </div>
           </div>
 
-          {/* ─── Editable fields ───────────────────────────────────── */}
-
+          {/* ─── Editable: Room & Schedule ───────────────────────── */}
           <div className="faculty-edit-pending-info-box editable">
             <h3 className="faculty-edit-pending-info-box-title">
               <i className="fa-solid fa-calendar-days"></i> Room & Schedule
             </h3>
             <div className="faculty-edit-pending-info-box-content">
+              {/* Custom Room Picker */}
               <div className="faculty-edit-pending-form-group">
                 <label>Room</label>
-                <select
-                  className="faculty-edit-pending-form-input"
-                  value={editableFields.roomName}
-                  onChange={handleChange("roomName")}
-                  disabled={
-                    loadingRooms || loadingAvailable || saving || cancelling
-                  }
-                >
-                  <option value="">
-                    {loadingAvailable
-                      ? "Loading available rooms..."
-                      : "Select a room"}
-                  </option>
-                  {availableRooms.map((r) => (
-                    <option key={r.id} value={r.roomName}>
-                      {r.roomName}{" "}
-                      {r.roomStatus === "maintenance"
-                        ? "(Under Maintenance)"
-                        : ""}
-                    </option>
-                  ))}
-                </select>
+
+                <div className="fepr-roompicker">
+                  <button
+                    type="button"
+                    className={`fepr-room-trigger ${
+                      showRoomPicker ? "open" : ""
+                    }`}
+                    onClick={() => {
+                      if (
+                        loadingRooms ||
+                        loadingAvailable ||
+                        saving ||
+                        cancelling ||
+                        !isPending
+                      )
+                        return;
+                      setRoomSearch("");
+                      setShowRoomPicker((v) => !v);
+                    }}
+                    disabled={
+                      loadingRooms ||
+                      loadingAvailable ||
+                      saving ||
+                      cancelling ||
+                      !isPending
+                    }
+                  >
+                    <i className="fa-solid fa-door-open"></i>
+                    <span className="fepr-room-trigger-text">
+                      {loadingAvailable
+                        ? "Checking availability..."
+                        : selectedRoom
+                        ? selectedRoom.roomName
+                        : editableFields.roomName || "Select a room"}
+                    </span>
+                    {selectedRoom?.floor && (
+                      <span className="fepr-room-trigger-floor">
+                        {selectedRoom.floor}
+                      </span>
+                    )}
+                    <i
+                      className={`fa-solid fa-chevron-down fepr-room-caret ${
+                        showRoomPicker ? "open" : ""
+                      }`}
+                    ></i>
+                  </button>
+
+                  {showRoomPicker && (
+                    <>
+                      <div
+                        className="fepr-picker-clickaway"
+                        onClick={() => setShowRoomPicker(false)}
+                      ></div>
+                      <div className="fepr-room-popover">
+                        <span className="fepr-popover-arrow"></span>
+
+                        <div className="fepr-search-wrap">
+                          <i className="fa-solid fa-magnifying-glass"></i>
+                          <input
+                            type="text"
+                            className="fepr-search"
+                            placeholder="Search room, floor, building..."
+                            value={roomSearch}
+                            onChange={(e) => setRoomSearch(e.target.value)}
+                            autoFocus
+                          />
+                          {roomSearch && (
+                            <button
+                              type="button"
+                              className="fepr-search-clear"
+                              onClick={() => setRoomSearch("")}
+                            >
+                              <i className="fa-solid fa-xmark"></i>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="fepr-room-list">
+                          {filteredAvailableRooms.length === 0 ? (
+                            <div className="fepr-picker-empty">
+                              <i className="fa-regular fa-face-frown"></i>
+                              <span>
+                                {availableRooms.length === 0
+                                  ? "No rooms available for this slot."
+                                  : "No rooms match your search."}
+                              </span>
+                            </div>
+                          ) : (
+                            filteredAvailableRooms.map((r) => {
+                              const isActive =
+                                r.roomName === editableFields.roomName;
+                              return (
+                                <button
+                                  type="button"
+                                  key={r.id}
+                                  className={`fepr-room-option ${
+                                    isActive ? "is-active" : ""
+                                  }`}
+                                  onClick={() => {
+                                    setEditableFields((prev) => ({
+                                      ...prev,
+                                      roomName: r.roomName,
+                                    }));
+                                    setShowRoomPicker(false);
+                                    setRoomSearch("");
+                                    setConflictError("");
+                                  }}
+                                >
+                                  <div className="fepr-room-option-icon">
+                                    <i className="fa-solid fa-door-open"></i>
+                                  </div>
+                                  <div className="fepr-room-option-body">
+                                    <span className="fepr-room-option-name">
+                                      {r.roomName}
+                                    </span>
+                                    <span className="fepr-room-option-meta">
+                                      {r.floor && (
+                                        <>
+                                          <i className="fa-solid fa-building"></i>
+                                          {r.floor}
+                                        </>
+                                      )}
+                                      {r.capacity && (
+                                        <>
+                                          <span className="fepr-room-dot">•</span>
+                                          <i className="fa-solid fa-users"></i>
+                                          {r.capacity} Seats
+                                        </>
+                                      )}
+                                    </span>
+                                  </div>
+                                  {isActive && (
+                                    <i className="fa-solid fa-circle-check fepr-room-option-check"></i>
+                                  )}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 {loadingAvailable && (
-                  <small style={{ color: "#6b7280", marginTop: "4px" }}>
+                  <small className="fepr-helper">
                     <i className="fa-solid fa-spinner fa-spin"></i> Checking
                     availability...
                   </small>
@@ -733,22 +994,184 @@ function FacultyEditPendingReservation() {
                   editableFields.date &&
                   editableFields.startTime &&
                   editableFields.endTime && (
-                    <small style={{ color: "#dc2626", marginTop: "4px" }}>
+                    <small className="fepr-helper fepr-helper--error">
                       No rooms available for the selected date, time, and
                       purpose.
                     </small>
                   )}
               </div>
 
+              {/* Custom Date Picker */}
               <div className="faculty-edit-pending-form-group">
                 <label>Date</label>
-                <input
-                  type="date"
-                  className="faculty-edit-pending-form-input"
-                  value={editableFields.date}
-                  onChange={handleChange("date")}
-                  disabled={saving || cancelling}
-                />
+
+                <div className="fepr-datepicker">
+                  <button
+                    type="button"
+                    className={`fepr-date-trigger ${
+                      showDatePicker ? "open" : ""
+                    }`}
+                    onClick={() => {
+                      if (saving || cancelling || !isPending) return;
+                      const base = editableFields.date
+                        ? new Date(`${editableFields.date}T00:00:00`)
+                        : new Date();
+                      setCalendarCursor({
+                        year: base.getFullYear(),
+                        month: base.getMonth(),
+                      });
+                      setShowDatePicker((v) => !v);
+                    }}
+                    disabled={saving || cancelling || !isPending}
+                  >
+                    <i className="fa-regular fa-calendar"></i>
+                    <span>
+                      {editableFields.date
+                        ? formatDateLong(editableFields.date)
+                        : "Select a date"}
+                    </span>
+                    <i
+                      className={`fa-solid fa-chevron-down fepr-date-caret ${
+                        showDatePicker ? "open" : ""
+                      }`}
+                    ></i>
+                  </button>
+
+                  {showDatePicker && (
+                    <>
+                      <div
+                        className="fepr-picker-clickaway"
+                        onClick={() => setShowDatePicker(false)}
+                      ></div>
+                      <div className="fepr-date-popover">
+                        <span className="fepr-popover-arrow"></span>
+
+                        <div className="fepr-date-quick-row">
+                          <button
+                            type="button"
+                            className={
+                              editableFields.date ===
+                              toDateInputValue(new Date())
+                                ? "active"
+                                : ""
+                            }
+                            onClick={() => {
+                              setEditableFields((prev) => ({
+                                ...prev,
+                                date: toDateInputValue(new Date()),
+                              }));
+                              setShowDatePicker(false);
+                              setConflictError("");
+                            }}
+                          >
+                            Today
+                          </button>
+                          <button
+                            type="button"
+                            className={
+                              editableFields.date ===
+                              addDaysLocal(toDateInputValue(new Date()), 1)
+                                ? "active"
+                                : ""
+                            }
+                            onClick={() => {
+                              setEditableFields((prev) => ({
+                                ...prev,
+                                date: addDaysLocal(
+                                  toDateInputValue(new Date()),
+                                  1,
+                                ),
+                              }));
+                              setShowDatePicker(false);
+                              setConflictError("");
+                            }}
+                          >
+                            Tomorrow
+                          </button>
+                        </div>
+
+                        <div className="fepr-cal-header">
+                          <button
+                            type="button"
+                            className="fepr-cal-nav"
+                            onClick={() =>
+                              setCalendarCursor((c) => {
+                                const m = c.month - 1;
+                                return m < 0
+                                  ? { year: c.year - 1, month: 11 }
+                                  : { year: c.year, month: m };
+                              })
+                            }
+                          >
+                            <i className="fa-solid fa-chevron-left"></i>
+                          </button>
+                          <span className="fepr-cal-title">
+                            {MONTH_NAMES[calendarCursor.month]}{" "}
+                            {calendarCursor.year}
+                          </span>
+                          <button
+                            type="button"
+                            className="fepr-cal-nav"
+                            onClick={() =>
+                              setCalendarCursor((c) => {
+                                const m = c.month + 1;
+                                return m > 11
+                                  ? { year: c.year + 1, month: 0 }
+                                  : { year: c.year, month: m };
+                              })
+                            }
+                          >
+                            <i className="fa-solid fa-chevron-right"></i>
+                          </button>
+                        </div>
+
+                        <div className="fepr-cal-weekdays">
+                          {WEEKDAY_LABELS.map((w) => (
+                            <span key={w}>{w}</span>
+                          ))}
+                        </div>
+
+                        <div className="fepr-cal-grid">
+                          {buildCalendarGrid(
+                            calendarCursor.year,
+                            calendarCursor.month,
+                          ).map((cell, i) => {
+                            const cellStr = toDateInputValue(cell.date);
+                            const isPast =
+                              cellStr < toDateInputValue(new Date());
+                            const isSelected =
+                              cellStr === editableFields.date;
+                            return (
+                              <button
+                                type="button"
+                                key={i}
+                                className={[
+                                  "fepr-cal-day",
+                                  !cell.inMonth && "is-outside",
+                                  isSelected && "is-selected",
+                                  isPast && "is-disabled",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                disabled={isPast}
+                                onClick={() => {
+                                  setEditableFields((prev) => ({
+                                    ...prev,
+                                    date: cellStr,
+                                  }));
+                                  setShowDatePicker(false);
+                                  setConflictError("");
+                                }}
+                              >
+                                {cell.day}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="faculty-edit-pending-time-row">
@@ -759,7 +1182,7 @@ function FacultyEditPendingReservation() {
                     className="faculty-edit-pending-form-input"
                     value={editableFields.startTime}
                     onChange={handleChange("startTime")}
-                    disabled={saving || cancelling}
+                    disabled={saving || cancelling || !isPending}
                   />
                 </div>
                 <div className="faculty-edit-pending-form-group half">
@@ -769,14 +1192,14 @@ function FacultyEditPendingReservation() {
                     className="faculty-edit-pending-form-input"
                     value={editableFields.endTime}
                     onChange={handleChange("endTime")}
-                    disabled={saving || cancelling}
+                    disabled={saving || cancelling || !isPending}
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ─── Editable: Purpose & Details ───────────────────────── */}
+          {/* ─── Editable: Purpose & Details ─────────────────────── */}
           <div className="faculty-edit-pending-info-box editable">
             <h3 className="faculty-edit-pending-info-box-title">
               <i className="fa-solid fa-pen"></i> Purpose & Details
@@ -788,7 +1211,7 @@ function FacultyEditPendingReservation() {
                   className="faculty-edit-pending-form-input"
                   value={editableFields.purpose}
                   onChange={handleChange("purpose")}
-                  disabled={saving || cancelling}
+                  disabled={saving || cancelling || !isPending}
                 >
                   <option value="">Select Purpose</option>
                   <option value="Lecture">Lecture</option>
@@ -806,7 +1229,7 @@ function FacultyEditPendingReservation() {
                     placeholder="e.g. Projector, Computer"
                     value={editableFields.requiredEquipment.join(", ")}
                     onChange={handleEquipmentChange}
-                    disabled={saving || cancelling}
+                    disabled={saving || cancelling || !isPending}
                   />
                 </div>
               )}
@@ -819,7 +1242,7 @@ function FacultyEditPendingReservation() {
                     className="faculty-edit-pending-form-input"
                     value={editableFields.studentRange}
                     onChange={handleChange("studentRange")}
-                    disabled={saving || cancelling}
+                    disabled={saving || cancelling || !isPending}
                   >
                     <option value="">Select Range</option>
                     <option value="30-50">30 - 50</option>
@@ -832,7 +1255,7 @@ function FacultyEditPendingReservation() {
             </div>
           </div>
 
-          {/* ─── Metadata ───────────────────────────────────────────── */}
+          {/* ─── Metadata ────────────────────────────────────────── */}
           <div className="faculty-edit-pending-info-box">
             <h3 className="faculty-edit-pending-info-box-title">
               <i className="fa-solid fa-circle-info"></i> Metadata
@@ -840,8 +1263,12 @@ function FacultyEditPendingReservation() {
             <div className="faculty-edit-pending-info-box-content">
               <p>
                 <strong>Status:</strong>{" "}
-                <span className="faculty-edit-pending-status-badge pending">
-                  Pending
+                <span
+                  className={`faculty-edit-pending-status-badge ${normalize(
+                    liveStatus,
+                  )}`}
+                >
+                  {liveStatus}
                 </span>
               </p>
               <p>
@@ -850,6 +1277,14 @@ function FacultyEditPendingReservation() {
                   reservation.createdAt?.seconds * 1000 || Date.now(),
                 ).toLocaleDateString()}
               </p>
+              {reservation.updatedAt?.seconds && (
+                <p>
+                  <strong>Last Updated:</strong>{" "}
+                  {new Date(
+                    reservation.updatedAt.seconds * 1000,
+                  ).toLocaleString()}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -864,13 +1299,12 @@ function FacultyEditPendingReservation() {
           Back
         </button>
 
-        {/* ─── NEW: Cancel Reservation button ────────────────────── */}
         <button
           className="faculty-edit-pending-cancel-btn"
           onClick={() => setShowCancelModal(true)}
-          disabled={saving || cancelling}
+          disabled={saving || cancelling || !isPending}
         >
-          Cancel Reservation
+          <i className="fa-solid fa-ban"></i> Cancel Reservation
         </button>
 
         <button
@@ -894,9 +1328,17 @@ function FacultyEditPendingReservation() {
             }
             setShowSaveModal(true);
           }}
-          disabled={saving || loadingAvailable || cancelling}
+          disabled={saving || loadingAvailable || cancelling || !isPending}
         >
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? (
+            <>
+              <i className="fa-solid fa-circle-notch fa-spin"></i> Saving...
+            </>
+          ) : (
+            <>
+              <i className="fa-solid fa-floppy-disk"></i> Save Changes
+            </>
+          )}
         </button>
       </div>
 
@@ -908,14 +1350,23 @@ function FacultyEditPendingReservation() {
         />
       )}
 
-      {/* ─── NEW: Cancel confirmation modal ───────────────────────── */}
+      {/* ─── Cancel confirmation modal ────────────────────────────── */}
       {showCancelModal && (
         <div className="faculty-edit-pending-modal-overlay">
           <div className="faculty-edit-pending-modal">
-            <h3>Cancel Reservation</h3>
+            <div className="fepr-modal-icon fepr-modal-icon--danger">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3>Cancel Reservation?</h3>
             <p>
-              Are you sure you want to cancel this reservation? This action
-              cannot be undone.
+              This will permanently cancel your reservation for{" "}
+              <b>{reservation.roomName}</b> on{" "}
+              <b>{formatDateLong(reservation.date)}</b> (
+              {reservation.startTime} – {reservation.endTime}).
+            </p>
+            <p className="fepr-modal-warning">
+              <i className="fa-solid fa-circle-info"></i> This action cannot be
+              undone. The Clerk and Admin will be notified.
             </p>
             <div className="faculty-edit-pending-modal-actions">
               <button
@@ -923,14 +1374,23 @@ function FacultyEditPendingReservation() {
                 onClick={() => setShowCancelModal(false)}
                 disabled={cancelling}
               >
-                No, Go Back
+                No, Keep It
               </button>
               <button
                 className="faculty-edit-pending-modal-btn danger"
                 onClick={handleCancelReservation}
                 disabled={cancelling}
               >
-                {cancelling ? "Cancelling..." : "Yes, Cancel"}
+                {cancelling ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin"></i>{" "}
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-ban"></i> Yes, Cancel
+                  </>
+                )}
               </button>
             </div>
           </div>

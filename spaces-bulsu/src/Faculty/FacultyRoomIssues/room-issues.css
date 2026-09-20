@@ -140,7 +140,7 @@
   position: relative;
   flex: 1;
   min-width: 220px;
-  max-width: 380px;
+  max-width: 100%;
 }
 .ri-search i {
   position: absolute;

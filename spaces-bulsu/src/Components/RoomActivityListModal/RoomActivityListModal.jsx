@@ -11,8 +11,6 @@ const TABS = [
   { key: "all",       label: "All Requests" },
   { key: "pending",   label: "Pending" },
   { key: "approved",  label: "Approved" },
-  { key: "declined",  label: "Declined" },
-  { key: "cancelled", label: "Cancelled" },
 ];
 
 const SORT_OPTIONS = [
@@ -58,8 +56,6 @@ export default function RoomActivityListModal({ open, onClose }) {
       ["pending_admin", "pending_reassign", "pending_faculty"].includes(r.status)
     ).length,
     approved: requests.filter((r) => r.status === "approved").length,
-    declined: requests.filter((r) => ["faculty_declined", "denied"].includes(r.status)).length,
-    cancelled: requests.filter((r) => r.status === "cancelled").length,
   }), [requests]);
 
   // Unique rooms for the filter dropdown
@@ -80,10 +76,6 @@ export default function RoomActivityListModal({ open, onClose }) {
       );
     } else if (activeTab === "approved") {
       list = list.filter((r) => r.status === "approved");
-    } else if (activeTab === "declined") {
-      list = list.filter((r) => ["faculty_declined", "denied"].includes(r.status));
-    } else if (activeTab === "cancelled") {
-      list = list.filter((r) => r.status === "cancelled");
     }
 
     // Room filter

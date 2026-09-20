@@ -2,8 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./clerk-reservations.css";
 import ReservationCard from "../../Components/ReservationCard/ReservationCard";
-import ApprovedAndDeniedCard from "../../Components/ApprovedAndDeniedCard/ApprovedAndDeniedCard";
-import { collection, query, orderBy, onSnapshot, doc, writeBatch } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  writeBatch,
+} from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 
@@ -22,8 +28,9 @@ const SCHOOL_HEADER = {
   systemName: "SpaceS CICT",
 };
 
-const TABS = ["Pending", "Approved", "Denied", "Cancelled"];
-const PAGE_SIZE = 8;
+// ─── Tabs — "All" added ────────────────────────────────────────────
+const TABS = ["All", "Pending", "Approved", "Denied", "Cancelled"];
+const PAGE_SIZE = 5;
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 const normalizeStatus = (status) => status?.toLowerCase().trim() || "";
@@ -101,6 +108,15 @@ const buildCalendarGrid = (year, month) => {
   return cells;
 };
 
+// ─── Base path resolver — depende sa status ─────────────────────
+const getBasePathForStatus = (status) => {
+  const s = normalizeStatus(status);
+  if (s === "approved") return "/clerk/view-reservation-approved";
+  if (s === "rejected") return "/clerk/view-reservation-denied";
+  if (s === "cancelled") return "/clerk/view-reservation-cancelled";
+  return "/clerk/view-online-reservation"; // pending default
+};
+
 // ─── Empty icon (SVG) ──────────────────────────────────────────────────
 const EmptyIcon = () => (
   <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -139,7 +155,7 @@ function EmptyState({ label }) {
 
 // ─── Main component ──────────────────────────────────────────────────
 function ClerkReservations() {
-  const [activeTab, setActiveTab] = useState("Pending");
+  const [activeTab, setActiveTab] = useState("All");
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -242,16 +258,21 @@ function ClerkReservations() {
     setVisibleCount(PAGE_SIZE);
   }, [activeTab]);
 
+  // ─── Status mapping — "All" has null (no filter) ─────────────────
   const statusMap = {
+    All: null,
     Pending: "pending",
     Approved: "approved",
     Denied: "rejected",
     Cancelled: "cancelled",
   };
 
-  const tabFiltered = reservations.filter(
-    (r) => normalizeStatus(r.status) === statusMap[activeTab]
-  );
+  const tabFiltered =
+    statusMap[activeTab] === null
+      ? reservations
+      : reservations.filter(
+          (r) => normalizeStatus(r.status) === statusMap[activeTab]
+        );
 
   const trimmedSearch = searchTerm.trim().toLowerCase();
 
@@ -294,7 +315,9 @@ function ClerkReservations() {
   const visibleReservations = sorted.slice(0, visibleCount);
   const hasMore = visibleCount < sorted.length;
 
+  // ─── Counts — kasama "All" ────────────────────────────────────────
   const counts = {
+    All: reservations.length,
     Pending: reservations.filter((r) => normalizeStatus(r.status) === "pending").length,
     Approved: reservations.filter((r) => normalizeStatus(r.status) === "approved").length,
     Denied: reservations.filter((r) => normalizeStatus(r.status) === "rejected").length,
@@ -324,16 +347,12 @@ function ClerkReservations() {
     [roomMap]
   );
 
-  // Filtered room list (for search inside picker)
   const filteredRoomOptions = useMemo(() => {
     const q = roomSearch.trim().toLowerCase();
     if (!q) return roomOptions;
-    return roomOptions.filter((o) =>
-      o.original.toLowerCase().includes(q)
-    );
+    return roomOptions.filter((o) => o.original.toLowerCase().includes(q));
   }, [roomOptions, roomSearch]);
 
-  // Currently selected room (original label)
   const selectedRoomLabel = useMemo(() => {
     if (!filterRoom) return "All Rooms";
     const found = roomOptions.find((o) => o.normalized === filterRoom);
@@ -486,6 +505,7 @@ function ClerkReservations() {
     setExportMenuOpen(false);
   };
 
+  // ─── renderList — ReservationCard for ALL tabs ────────────────────
   const renderList = () => {
     if (loading) {
       return Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />);
@@ -493,30 +513,21 @@ function ClerkReservations() {
     if (sorted.length === 0) {
       return <EmptyState label={activeTab.toLowerCase()} />;
     }
-    if (activeTab === "Pending") {
-      return visibleReservations.map((reservation) => (
+
+    return visibleReservations.map((reservation) => {
+      const isPending = normalizeStatus(reservation.status) === "pending";
+
+      return (
         <ReservationCard
           key={reservation.id}
           reservation={reservation}
-          basePath="/clerk/view-online-reservation"
+          basePath={getBasePathForStatus(reservation.status)}
+          readOnly={!isPending}   /* ⬅️ buttons lang kapag Pending */
         />
-      ));
-    }
-    let viewPath;
-    if (activeTab === "Approved") viewPath = "/clerk/view-reservation-approved";
-    else if (activeTab === "Denied") viewPath = "/clerk/view-reservation-denied";
-    else viewPath = "/clerk/view-reservation-cancelled";
-
-    return visibleReservations.map((reservation) => (
-      <ApprovedAndDeniedCard
-        key={reservation.id}
-        reservation={reservation}
-        onClick={() => navigate(viewPath, { state: { reservation } })}
-      />
-    ));
+      );
+    });
   };
 
-  const isGridTab = activeTab !== "Pending";
   const isEmpty = !loading && sorted.length === 0;
 
   return (
@@ -866,10 +877,11 @@ function ClerkReservations() {
         </div>
         <hr className="clerk-reservations-nav-divider" />
 
+        {/* ⬇️ Pure vertical list — wala nang grid class */}
         <div
           className={`clerk-reservations-content ${
-            isGridTab ? "clerk-reservations-content--grid" : ""
-          } ${isEmpty ? "clerk-reservations-content--empty" : ""}`}
+            isEmpty ? "clerk-reservations-content--empty" : ""
+          }`}
         >
           {renderList()}
         </div>

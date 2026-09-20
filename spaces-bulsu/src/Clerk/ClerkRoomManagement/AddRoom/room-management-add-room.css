@@ -689,3 +689,175 @@
     height: 52px;
   }
 }
+
+/* ─── Room Photo Upload ────────────────────────────────── */
+.photo-optional-tag {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  background: #f4f3f0;
+  border: 1px solid #e2e1de;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.photo-upload-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.photo-upload-preview {
+  width: 140px;
+  height: 140px;
+  border-radius: 12px;
+  border: 1.5px solid #e2e1de;
+  background: #fafaf9;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-upload-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ✅ Gray bg, orange text, malaking font */
+.photo-upload-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  background: #F1F5F9;
+  overflow: hidden;
+}
+
+.photo-upload-preview-placeholder i {
+  font-size: 34px;
+  color: #f57c00;
+}
+
+.photo-upload-preview-placeholder span {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f57c00;
+  letter-spacing: 0.3px;
+}
+
+.photo-upload-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 220px;
+  justify-content: center;
+}
+
+.photo-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: 1.5px dashed #d1cfc9;
+  border-radius: 10px;
+  background: #fafaf9;
+  color: #374151;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.photo-upload-btn:hover {
+  border-color: #f57c00;
+  color: #f57c00;
+  background: #fff8f2;
+}
+
+.photo-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 9px;
+  background: #fee2e2;
+  color: #dc2626;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  align-self: flex-start;
+}
+
+.photo-remove-btn:hover { background: #fecaca; }
+
+.photo-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+
+/* Preview modal — room photo block */
+.preview-photo {
+  width: 100%;
+  height: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f4f3f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.preview-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ✅ Gray bg, orange text, malaking font */
+.preview-photo-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  text-align: center;
+  background: #F1F5F9;
+}
+
+.preview-photo-fallback i {
+  font-size: 48px;
+  color: #f57c00;
+}
+
+.preview-photo-fallback span {
+  font-size: 24px;
+  font-weight: 800;
+  color: #f57c00;
+  letter-spacing: 0.3px;
+}

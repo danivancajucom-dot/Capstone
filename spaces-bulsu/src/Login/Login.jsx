@@ -19,6 +19,13 @@ import LoginNav from "../Components/LoginNav/LoginNav";
 import "./login.css";
 import logo from "../assets/logo.png";
 
+// ─── Security constants ────────────────────────────────────────
+const LOCKOUT_WINDOW_MS = 30 * 60 * 1000; // 30 min sliding window
+const MAX_ATTEMPTS = 5;                   // block threshold
+const WARN_ATTEMPT = 3;                   // warn admin threshold
+const AUTO_UNBLOCK_MS = 30 * 60 * 1000;   // auto-unblock after 30 min
+                                          // set to null para permanent
+
 export default function Login() {
   const [selectedRole, setSelectedRole] = useState("");
   const [email, setEmail] = useState("");
@@ -28,13 +35,16 @@ export default function Login() {
   const [redirecting, setRedirecting] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
-  // ─── Role dropdown ─────────────────────────────────────────────────
+  // ─── Role dropdown ─────────────────────────────────────────────
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const roleDropdownRef = useRef(null);
 
-  // ─── Info modal (Privacy Policy / Terms / Accessibility / Contact Support / FAQs) ─
+  // ─── Info modal (Privacy / Terms / Accessibility / Support / FAQs) ─
   const [activeModal, setActiveModal] = useState(null);
   const [openFaqIndex, setOpenFaqIndex] = useState(null);
+
+  // ─── Toast timer ref ───────────────────────────────────────────
+  const toastTimeoutRef = useRef(null);
 
   const FAQ_ITEMS = [
     {
@@ -100,7 +110,10 @@ export default function Login() {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (roleDropdownRef.current && !roleDropdownRef.current.contains(e.target)) {
+      if (
+        roleDropdownRef.current &&
+        !roleDropdownRef.current.contains(e.target)
+      ) {
         setRoleDropdownOpen(false);
       }
     };
@@ -111,6 +124,13 @@ export default function Login() {
   useEffect(() => {
     setOpenFaqIndex(null);
   }, [activeModal]);
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !loading) {
@@ -141,42 +161,69 @@ export default function Login() {
     { name: "Faculty", icon: "fa-user" },
   ];
 
+  // ─── Toast helper — with proper timer cleanup ───────────────────
   const showToast = (type, title, message) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+
     setToast({ show: true, type, title, message });
+
     if (type !== "loading") {
-      setTimeout(() => {
+      toastTimeoutRef.current = setTimeout(() => {
         setToast((prev) => ({ ...prev, show: false }));
+        toastTimeoutRef.current = null;
       }, 4000);
     }
   };
 
-  // ─── Helper: notify all Admins ──────────────────────────────
-  const notifyAdmins = async (title, message, type = "login-attempt") => {
+  // ─── Helper: notify all Admins (safe-fail) ──────────────────────
+  const notifyAdmins = async (
+    title,
+    message,
+    type = "login-attempt",
+    extra = {}
+  ) => {
     try {
       const q = query(collection(db, "users"), where("role", "==", "Admin"));
       const snap = await getDocs(q);
       const admins = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      for (const admin of admins) {
-        await addDoc(collection(db, "notifications"), {
-          userId: admin.id,
-          ownerType: "admin",
-          title,
-          message,
-          type,
-          unread: true,
-          archived: false,
-          badge: "ALERT",
-          createdAt: serverTimestamp(),
-        });
-      }
+      await Promise.all(
+        admins.map((admin) =>
+          addDoc(collection(db, "notifications"), {
+            userId: admin.id,
+            ownerType: "admin",
+            title,
+            message,
+            type,
+            unread: true,
+            archived: false,
+            badge: type === "account-blocked" ? "ALERT" : "NEW",
+            ...extra,
+            createdAt: serverTimestamp(),
+          }).catch((e) =>
+            console.warn(`[notifyAdmins] failed for ${admin.id}:`, e)
+          )
+        )
+      );
     } catch (err) {
-      console.error("Failed to notify admins:", err);
+      console.warn("Failed to notify admins:", err);
     }
   };
 
-  // ─── Helper: log activity ──────────────────────────────────────────────
-  const logActivity = async ({ userId, user, role, action, actionType, target, status, details }) => {
+  // ─── Helper: log activity (safe-fail) ───────────────────────────
+  const logActivity = async ({
+    userId,
+    user,
+    role,
+    action,
+    actionType,
+    target,
+    status,
+    details,
+  }) => {
     try {
       await addDoc(collection(db, "activityLogs"), {
         userId,
@@ -190,11 +237,123 @@ export default function Login() {
         timestamp: serverTimestamp(),
       });
     } catch (err) {
-      console.error("Activity log error:", err);
+      console.warn("Activity log error:", err);
     }
   };
 
-  // ─── Main sign-in logic ────────────────────────────────────────────────
+  // ─── Helper: record a failed attempt (FULLY safe-fail) ──────────
+  const recordFailedAttempt = async ({
+    uid,
+    userData,
+    email,
+    attemptedRole,
+    reason, // "wrong_password" | "role_mismatch" | "invalid_credentials"
+  }) => {
+    const now = Date.now();
+    const lastFailedMs =
+      userData?.lastFailedAt?.toDate?.()?.getTime?.() || 0;
+    const withinWindow = now - lastFailedMs < LOCKOUT_WINDOW_MS;
+    const prevAttempts = withinWindow ? userData?.loginAttempts || 0 : 0;
+    const nextAttempts = prevAttempts + 1;
+    const willBlock = nextAttempts >= MAX_ATTEMPTS;
+
+    // ── 1. Update user doc (own try-catch, hindi mag-throw) ──────
+    if (uid) {
+      try {
+        const updates = {
+          loginAttempts: nextAttempts,
+          lastFailedAt: serverTimestamp(),
+          lastFailedReason: reason,
+          lastFailedRole: attemptedRole,
+        };
+
+        if (willBlock) {
+          updates.status = "Blocked";
+          updates.blockedAt = serverTimestamp();
+          updates.blockReason = `Auto-blocked: ${nextAttempts} failed login attempts (${reason})`;
+          updates.blockedUntil = AUTO_UNBLOCK_MS
+            ? new Date(now + AUTO_UNBLOCK_MS)
+            : null;
+        }
+
+        await updateDoc(doc(db, "users", uid), updates);
+      } catch (e) {
+        console.warn("[recordFailedAttempt] updateDoc failed:", e);
+      }
+    }
+
+    // ── 2. Audit trail (securityLogs) — own try-catch ────────────
+    try {
+      await addDoc(collection(db, "securityLogs"), {
+        uid: uid || null,
+        email,
+        attemptedRole,
+        reason,
+        attemptNumber: nextAttempts,
+        blocked: willBlock,
+        userAgent: navigator.userAgent,
+        timestamp: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn("[recordFailedAttempt] securityLogs write failed:", e);
+    }
+
+    // ── 3. Admin notification (3rd + blocked) — own try-catch ────
+    if (nextAttempts >= WARN_ATTEMPT || willBlock) {
+      try {
+        const reasonLabel =
+          reason === "role_mismatch"
+            ? "wrong role"
+            : reason === "wrong_password"
+            ? "wrong password"
+            : "invalid credentials";
+
+        await notifyAdmins(
+          willBlock
+            ? "🚫 Account Auto-Blocked"
+            : "⚠️ Suspicious Login Activity",
+          `${email} — ${nextAttempts} failed attempts (${reasonLabel}). ` +
+            (willBlock
+              ? "Account has been blocked. " +
+                (AUTO_UNBLOCK_MS
+                  ? "Auto-unblock after 30 minutes, or manually unlock."
+                  : "Requires Admin to manually unlock.")
+              : "Please monitor."),
+          willBlock ? "account-blocked" : "login-warning",
+          { email, attemptCount: nextAttempts, reason }
+        );
+      } catch (e) {
+        console.warn("[recordFailedAttempt] notifyAdmins failed:", e);
+      }
+    }
+
+    // ── 4. Activity log — own try-catch ──────────────────────────
+    try {
+      await logActivity({
+        userId: uid,
+        user: userData
+          ? `${userData.firstName || ""} ${userData.lastName || ""}`.trim() ||
+            email
+          : email,
+        role: userData?.role || "Unknown",
+        action: willBlock ? "Account Blocked" : "Failed Login Attempt",
+        actionType: willBlock ? "failed" : "warning",
+        target: email,
+        status: willBlock ? "BLOCKED" : "WARNING",
+        details: {
+          reason,
+          attempts: nextAttempts,
+          roleAttempted: attemptedRole,
+        },
+      });
+    } catch (e) {
+      console.warn("[recordFailedAttempt] logActivity failed:", e);
+    }
+
+    return { nextAttempts, willBlock };
+  };
+
+  // ─── Main sign-in logic ─────────────────────────────────────────
   const handleSignIn = async () => {
     if (!selectedRole || !email || !password) {
       showToast("error", "Input Required", "Please fill all fields.");
@@ -202,20 +361,44 @@ export default function Login() {
     }
 
     setLoading(true);
-    showToast("loading", "Signing In", "Please wait while we verify your account.");
+    showToast(
+      "loading",
+      "Signing In",
+      "Please wait while we verify your account."
+    );
 
-    let attempts = 0;
     let userData = null;
     let uid = null;
-    let fullName = "";
 
     try {
-      // ─── 1. Find user by email ──────────────────────────────────────
-      const userQuery = query(collection(db, "users"), where("email", "==", email));
+      // ─── 1. Find user by email ──────────────────────────────────
+      const userQuery = query(
+        collection(db, "users"),
+        where("email", "==", email)
+      );
       const userSnap = await getDocs(userQuery);
 
       if (userSnap.empty) {
-        showToast("error", "Account Not Found", "No account exists with this email.");
+        // Walang account — i-log sa securityLogs (enumeration detection)
+        // fire-and-forget; hindi na hintayin
+        addDoc(collection(db, "securityLogs"), {
+          uid: null,
+          email,
+          attemptedRole: selectedRole,
+          reason: "user_not_found",
+          attemptNumber: 1,
+          blocked: false,
+          userAgent: navigator.userAgent,
+          timestamp: serverTimestamp(),
+        }).catch((e) =>
+          console.warn("[login] securityLogs write failed:", e)
+        );
+
+        showToast(
+          "error",
+          "Account Not Found",
+          "No account exists with this email."
+        );
         setLoading(false);
         return;
       }
@@ -223,43 +406,92 @@ export default function Login() {
       const userDoc = userSnap.docs[0];
       uid = userDoc.id;
       userData = userDoc.data();
-      fullName = `${userData.firstName || ""} ${userData.lastName || ""}`.trim() || email;
 
-      // ─── 2. Check if account is blocked ─────────────────────────────
+      // ─── 2. Check block status (may auto-unblock) ───────────────
       if (userData.status === "Blocked") {
-        showToast(
-          "error",
-          "Account Blocked",
-          "Your account has been blocked due to multiple failed login attempts. Please contact the Admin for assistance."
-        );
-        setLoading(false);
-        return;
+        const blockedUntil = userData.blockedUntil?.toDate?.();
+        const stillBlocked =
+          !blockedUntil || blockedUntil.getTime() > Date.now();
+
+        if (stillBlocked) {
+          showToast(
+            "error",
+            "Account Blocked",
+            "Your account has been blocked due to multiple failed login attempts. Please contact the Admin for assistance."
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Auto-unblock: nag-expire na ang cooldown
+        try {
+          await updateDoc(doc(db, "users", uid), {
+            status: "Active",
+            loginAttempts: 0,
+            blockReason: "",
+            blockedUntil: null,
+          });
+          userData = {
+            ...userData,
+            status: "Active",
+            loginAttempts: 0,
+            blockReason: "",
+            blockedUntil: null,
+          };
+        } catch (e) {
+          console.warn("[login] auto-unblock failed:", e);
+          // Tuloy pa rin — hindi ito blocking
+          userData = { ...userData, status: "Active" };
+        }
       }
 
-      // ─── 3. Check if manually disabled ──────────────────────────────
+      // ─── 3. Check if manually disabled ──────────────────────────
       if (userData.status === "Disabled") {
         showToast("error", "Account Disabled", "Your account is disabled.");
         setLoading(false);
         return;
       }
 
-      // ─── 4. Attempt Firebase sign-in ────────────────────────────────
+      // ─── 4. Attempt Firebase sign-in ────────────────────────────
       await signInWithEmailAndPassword(auth, email, password);
 
-      // ─── 5. Success – reset attempts ────────────────────────────────
-      if (userData.loginAttempts && userData.loginAttempts > 0) {
-        await updateDoc(doc(db, "users", uid), { loginAttempts: 0 });
-      }
-
-      // ─── 6. Role check ──────────────────────────────────────────────
+      // ─── 5. Role check — counted na ngayon ──────────────────────
       if (userData.role !== selectedRole) {
         await auth.signOut();
-        showToast("error", "Role Mismatch", `Not registered as ${selectedRole}`);
+
+        const { nextAttempts, willBlock } = await recordFailedAttempt({
+          uid,
+          userData,
+          email,
+          attemptedRole: selectedRole,
+          reason: "role_mismatch",
+        });
+
+        showToast(
+          "error",
+          willBlock ? "Account Blocked" : "Role Mismatch",
+          willBlock
+            ? "Your account has been blocked due to repeated failed attempts."
+            : `Not registered as ${selectedRole}. Attempt ${nextAttempts}/${MAX_ATTEMPTS}.`
+        );
         setLoading(false);
         return;
       }
 
-      // ─── 7. Proceed to dashboard ────────────────────────────────────
+      // ─── 6. Success — reset counters (safe) ─────────────────────
+      if (userData.loginAttempts && userData.loginAttempts > 0) {
+        try {
+          await updateDoc(doc(db, "users", uid), {
+            loginAttempts: 0,
+            lastFailedAt: null,
+            lastFailedReason: "",
+            lastFailedRole: "",
+          });
+        } catch (e) {
+          console.warn("[login] reset counters failed:", e);
+        }
+      }
+
       setRedirecting(true);
       showToast("success", "Login Successful", `Welcome ${userData.role}!`);
 
@@ -275,7 +507,6 @@ export default function Login() {
         setRedirecting(false);
         navigate(ROLE_ROUTES[userData.role] ?? "/");
       }, 2000);
-
     } catch (err) {
       console.error("Login error:", err);
 
@@ -288,90 +519,82 @@ export default function Login() {
       };
       const errorMessage = MSG[err.code] || "Login failed. Please try again.";
 
-      try {
-        let currentUserData = userData;
-        let currentUid = uid;
-        let currentFullName = fullName;
-
-        if (!currentUserData) {
-          const userQuery = query(collection(db, "users"), where("email", "==", email));
+      // Kung hindi pa naka-fetch ang userData, kunin muli (para sa counter)
+      if (!userData) {
+        try {
+          const userQuery = query(
+            collection(db, "users"),
+            where("email", "==", email)
+          );
           const userSnap = await getDocs(userQuery);
           if (!userSnap.empty) {
-            const userDoc = userSnap.docs[0];
-            currentUid = userDoc.id;
-            currentUserData = userDoc.data();
-            currentFullName = `${currentUserData.firstName || ""} ${currentUserData.lastName || ""}`.trim() || email;
+            const doc0 = userSnap.docs[0];
+            uid = doc0.id;
+            userData = doc0.data();
           }
+        } catch (_) {
+          // ignore
         }
+      }
 
-        if (currentUserData && currentUid) {
-          attempts = (currentUserData.loginAttempts || 0) + 1;
+      // ─── Compute next attempt — para malaman ang message ────────
+      let shownTitle = "Login Failed";
+      let shownMessage = errorMessage;
+      let willBlockNow = false;
+      let nextAttemptsNow = 1;
 
-          await updateDoc(doc(db, "users", currentUid), {
-            loginAttempts: attempts,
-            lastAttempt: serverTimestamp(),
-          });
+      if (userData && uid) {
+        const lastFailedMs =
+          userData?.lastFailedAt?.toDate?.()?.getTime?.() || 0;
+        const withinWindow = Date.now() - lastFailedMs < LOCKOUT_WINDOW_MS;
+        const prev = withinWindow ? userData.loginAttempts || 0 : 0;
+        nextAttemptsNow = prev + 1;
+        willBlockNow = nextAttemptsNow >= MAX_ATTEMPTS;
 
-          // ── 3 attempts – warning ──
-          if (attempts === 3) {
-            showToast("error", "Multiple Failed Attempts",
-              `You have 3 failed login attempts. Your account will be blocked after 5 attempts.`);
-            await notifyAdmins(
-              "⚠️ Failed Login Attempts",
-              `${currentFullName} (${email}) has ${attempts} failed login attempts.`,
-              "login-warning"
-            );
-            await logActivity({
-              userId: currentUid,
-              user: currentFullName,
-              role: currentUserData.role || "Unknown",
-              action: "Failed Login Attempt",
-              actionType: "warning",
-              target: email,
-              status: "WARNING",
-              details: { attempts, reason: "3 failed attempts" },
-            });
-          }
-
-          // ── 5 attempts – block ──
-          if (attempts >= 5) {
-            await updateDoc(doc(db, "users", currentUid), {
-              status: "Blocked",
-              blockedAt: serverTimestamp(),
-            });
-
-            showToast(
-              "error",
-              "Account Blocked",
-              "Your account has been blocked due to 5 failed login attempts. Please contact the Admin to reactivate."
-            );
-
-            await notifyAdmins(
-              "🚫 Account Blocked",
-              `${currentFullName} (${email}) has been blocked due to 5 failed login attempts.`,
-              "account-blocked"
-            );
-            await logActivity({
-              userId: currentUid,
-              user: currentFullName,
-              role: currentUserData.role || "Unknown",
-              action: "Account Blocked",
-              actionType: "failed",
-              target: email,
-              status: "BLOCKED",
-              details: { attempts, reason: "5 failed attempts" },
-            });
-          } else if (attempts === 4) {
-            showToast("error", "Warning", "One more failed attempt will block your account.");
-          } else {
-            showToast("error", "Login Failed", errorMessage);
-          }
-        } else {
-          showToast("error", "Login Failed", errorMessage);
+        if (willBlockNow) {
+          shownTitle = "Account Blocked";
+          shownMessage =
+            "Your account has been blocked due to 5 failed login attempts. Please contact the Admin.";
+        } else if (nextAttemptsNow === WARN_ATTEMPT) {
+          shownTitle = "Multiple Failed Attempts";
+          shownMessage = `Attempt ${nextAttemptsNow}/${MAX_ATTEMPTS}. Account will be blocked after ${MAX_ATTEMPTS}.`;
+        } else if (nextAttemptsNow === MAX_ATTEMPTS - 1) {
+          shownTitle = "Warning";
+          shownMessage = "One more failed attempt will block your account.";
         }
-      } catch (trackErr) {
-        console.error("Failed to track login attempts:", trackErr);
-        showToast("error", "Login Failed", errorMessage);
+      }
+
+      // ─── SHOW THE TOAST FIRST — hindi na mag-hang ───────────────
+      showToast("error", shownTitle, shownMessage);
+
+      // ─── Ngayon, i-log sa background (fire-and-forget) ──────────
+      if (userData && uid) {
+        recordFailedAttempt({
+          uid,
+          userData,
+          email,
+          attemptedRole: selectedRole,
+          reason:
+            err.code === "auth/wrong-password" ||
+            err.code === "auth/invalid-credential"
+              ? "wrong_password"
+              : "invalid_credentials",
+        }).catch((e) =>
+          console.warn("[login] recordFailedAttempt failed:", e)
+        );
+      } else {
+        addDoc(collection(db, "securityLogs"), {
+          uid: null,
+          email,
+          attemptedRole: selectedRole,
+          reason: "user_not_found",
+          attemptNumber: 1,
+          blocked: false,
+          userAgent: navigator.userAgent,
+          timestamp: serverTimestamp(),
+        }).catch((e) =>
+          console.warn("[login] securityLogs write failed:", e)
+        );
       }
     } finally {
       setLoading(false);
@@ -423,14 +646,15 @@ export default function Login() {
 
               <div className="feature-item">
                 <i className="fa-solid fa-shield-halved" />
-                <span>Secure & Reliable</span>
+                <span>Secure &amp; Reliable</span>
               </div>
             </div>
           </div>
         </div>
 
         <section className="login-panel">
-          <div className="login-card"
+          <div
+            className="login-card"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !loading) {
                 handleSignIn();
@@ -443,9 +667,7 @@ export default function Login() {
               </div>
               <div>
                 <h2>SpaceS CICT</h2>
-                <p className="card-subtitle">
-                  Sign in to access the system.
-                </p>
+                <p className="card-subtitle">Sign in to access the system.</p>
               </div>
             </div>
 
@@ -454,7 +676,9 @@ export default function Login() {
               <div className="role-dropdown" ref={roleDropdownRef}>
                 <button
                   type="button"
-                  className={`role-dropdown-trigger ${selectedRole ? "has-value" : ""} ${roleDropdownOpen ? "open" : ""}`}
+                  className={`role-dropdown-trigger ${
+                    selectedRole ? "has-value" : ""
+                  } ${roleDropdownOpen ? "open" : ""}`}
                   onClick={() => setRoleDropdownOpen((prev) => !prev)}
                   aria-haspopup="listbox"
                   aria-expanded={roleDropdownOpen}
@@ -524,7 +748,10 @@ export default function Login() {
                   placeholder=" "
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    e.target.setAttribute("data-filled", e.target.value ? "true" : "");
+                    e.target.setAttribute(
+                      "data-filled",
+                      e.target.value ? "true" : ""
+                    );
                   }}
                   onKeyDown={handleKeyDown}
                   required
@@ -535,7 +762,11 @@ export default function Login() {
                   className="password-action"
                   onClick={() => setShowPassword((prev) => !prev)}
                 >
-                  <i className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`} />
+                  <i
+                    className={`fa-solid ${
+                      showPassword ? "fa-eye-slash" : "fa-eye"
+                    }`}
+                  />
                 </button>
               </div>
             </div>
@@ -568,7 +799,9 @@ export default function Login() {
 
             <div className="support-text">
               Need help?{" "}
-              <span onClick={() => setActiveModal("support")}>Contact Support</span>
+              <span onClick={() => setActiveModal("support")}>
+                Contact Support
+              </span>
             </div>
           </div>
         </section>
@@ -590,25 +823,46 @@ export default function Login() {
           <span>© 2026 SpaceS CICT </span>
         </div>
         <div className="footer-right">
-          <button className="footer-link" onClick={() => setActiveModal("privacy")}>
+          <button
+            className="footer-link"
+            onClick={() => setActiveModal("privacy")}
+          >
             Privacy Policy
           </button>
-          <button className="footer-link" onClick={() => setActiveModal("terms")}>
+          <button
+            className="footer-link"
+            onClick={() => setActiveModal("terms")}
+          >
             Terms of Use
           </button>
-          <button className="footer-link" onClick={() => setActiveModal("accessibility")}>
+          <button
+            className="footer-link"
+            onClick={() => setActiveModal("accessibility")}
+          >
             Accessibility
           </button>
-          <button className="footer-link" onClick={() => setActiveModal("faq")}>
+          <button
+            className="footer-link"
+            onClick={() => setActiveModal("faq")}
+          >
             FAQs
           </button>
         </div>
       </footer>
 
       {activeModal && (
-        <div className="info-modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="info-modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="info-modal-close" onClick={() => setActiveModal(null)}>
+        <div
+          className="info-modal-overlay"
+          onClick={() => setActiveModal(null)}
+        >
+          <div
+            className="info-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="info-modal-close"
+              onClick={() => setActiveModal(null)}
+            >
               <i className="fa-solid fa-xmark" />
             </button>
 
@@ -619,33 +873,51 @@ export default function Login() {
                 </div>
                 <h2>About SpaceS CICT</h2>
                 <p className="info-modal-subtitle">
-                  A Web and Mobile-Based Smart Platform for Allocation of Classrooms and Efficient
-                  Scheduling.
+                  A Web and Mobile-Based Smart Platform for Allocation of
+                  Classrooms and Efficient Scheduling.
                 </p>
                 <div className="info-modal-body">
                   <p>
-                    SpaceS CICT was developed for the College of Information and Communications
-                    Technology (CICT) at Bulacan State University to replace the manual, meeting
-                    and group chat-dependent process previously used for classroom scheduling.
-                    Preparing a semester's timetable used to take 2 to 3 weeks of meetings between
-                    the dean, program chairs, and registrar — with SpaceS CICT, schedules, room
-                    activities, and reservations are all managed in one centralized platform.
+                    SpaceS CICT was developed for the College of Information and
+                    Communications Technology (CICT) at Bulacan State University
+                    to replace the manual, meeting and group chat-dependent
+                    process previously used for classroom scheduling. Preparing
+                    a semester's timetable used to take 2 to 3 weeks of meetings
+                    between the dean, program chairs, and registrar — with
+                    SpaceS CICT, schedules, room activities, and reservations
+                    are all managed in one centralized platform.
                   </p>
 
                   <h4>What It Does</h4>
                   <ul>
-                    <li>Detects double bookings and scheduling conflicts automatically, with smart room suggestions.</li>
-                    <li>Lets the Local Registrar bulk-upload official class schedules via Excel or AI-assisted PDF extraction.</li>
-                    <li>Gives Faculty a self-service way to check room availability, request rooms, and release unused ones.</li>
-                    <li>Lets Clerks handle walk-in and online reservations with real-time room status.</li>
-                    <li>Provides QR codes on classroom doors so anyone can check a room's schedule without logging in.</li>
+                    <li>
+                      Detects double bookings and scheduling conflicts
+                      automatically, with smart room suggestions.
+                    </li>
+                    <li>
+                      Lets the Local Registrar bulk-upload official class
+                      schedules via Excel or AI-assisted PDF extraction.
+                    </li>
+                    <li>
+                      Gives Faculty a self-service way to check room
+                      availability, request rooms, and release unused ones.
+                    </li>
+                    <li>
+                      Lets Clerks handle walk-in and online reservations with
+                      real-time room status.
+                    </li>
+                    <li>
+                      Provides QR codes on classroom doors so anyone can check a
+                      room's schedule without logging in.
+                    </li>
                   </ul>
 
                   <h4>Who It's For</h4>
                   <p>
-                    The platform serves four main roles — Admin, Local Registrar, Clerk,
-                    and Faculty Members — covering the 22 classrooms of CICT within Pimentel Hall,
-                    supporting the BSIT, BSIS, and BLIS programs.
+                    The platform serves four main roles — Admin, Local Registrar,
+                    Clerk, and Faculty Members — covering the 22 classrooms of
+                    CICT within Pimentel Hall, supporting the BSIT, BSIS, and
+                    BLIS programs.
                   </p>
                 </div>
               </>
@@ -662,33 +934,54 @@ export default function Login() {
                 </p>
                 <div className="info-modal-body">
                   <p>
-                    SpaceS CICT is a classroom allocation and scheduling platform built for the
-                    College of Information and Communications Technology (CICT) at Bulacan State
-                    University. We are committed to protecting the personal information of our
-                    Admins, Local Registrars, Clerks, and Faculty Members in accordance
-                    with Republic Act No. 10173, the Data Privacy Act of 2012.
+                    SpaceS CICT is a classroom allocation and scheduling
+                    platform built for the College of Information and
+                    Communications Technology (CICT) at Bulacan State
+                    University. We are committed to protecting the personal
+                    information of our Admins, Local Registrars, Clerks, and
+                    Faculty Members in accordance with Republic Act No. 10173,
+                    the Data Privacy Act of 2012.
                   </p>
 
                   <h4>Information We Collect</h4>
                   <ul>
-                    <li>Account details such as name, email address, and assigned role.</li>
-                    <li>Login activity and system usage logs for security and accountability.</li>
-                    <li>Class schedules, room reservations, and related academic records.</li>
+                    <li>
+                      Account details such as name, email address, and assigned
+                      role.
+                    </li>
+                    <li>
+                      Login activity and system usage logs for security and
+                      accountability.
+                    </li>
+                    <li>
+                      Class schedules, room reservations, and related academic
+                      records.
+                    </li>
                   </ul>
 
                   <h4>How We Use Your Information</h4>
                   <ul>
-                    <li>To authenticate accounts and provide role-based access to the system.</li>
-                    <li>To manage classroom scheduling, reservations, and conflict resolution.</li>
-                    <li>To send notifications about approvals, denials, and schedule changes.</li>
+                    <li>
+                      To authenticate accounts and provide role-based access to
+                      the system.
+                    </li>
+                    <li>
+                      To manage classroom scheduling, reservations, and conflict
+                      resolution.
+                    </li>
+                    <li>
+                      To send notifications about approvals, denials, and
+                      schedule changes.
+                    </li>
                   </ul>
 
                   <h4>Data Protection</h4>
                   <p>
-                    All account and scheduling data is stored securely and is accessible only to
-                    authorized personnel. Information is used strictly for the operational purposes
-                    of classroom allocation and scheduling within CICT and will not be shared with
-                    unauthorized third parties.
+                    All account and scheduling data is stored securely and is
+                    accessible only to authorized personnel. Information is used
+                    strictly for the operational purposes of classroom
+                    allocation and scheduling within CICT and will not be shared
+                    with unauthorized third parties.
                   </p>
                 </div>
               </>
@@ -705,30 +998,51 @@ export default function Login() {
                 </p>
                 <div className="info-modal-body">
                   <p>
-                    By logging in and using SpaceS CICT, you agree to use the platform responsibly
-                    and only for its intended purpose: managing classroom allocation, scheduling,
-                    and reservations for the College of Information and Communications Technology.
+                    By logging in and using SpaceS CICT, you agree to use the
+                    platform responsibly and only for its intended purpose:
+                    managing classroom allocation, scheduling, and reservations
+                    for the College of Information and Communications
+                    Technology.
                   </p>
 
                   <h4>Account Responsibility</h4>
                   <ul>
-                    <li>Accounts are created and managed by the Admin and must not be shared with other individuals.</li>
-                    <li>Users are responsible for keeping their login credentials confidential.</li>
-                    <li>Repeated failed login attempts may result in a temporarily blocked account for security purposes.</li>
+                    <li>
+                      Accounts are created and managed by the Admin and must not
+                      be shared with other individuals.
+                    </li>
+                    <li>
+                      Users are responsible for keeping their login credentials
+                      confidential.
+                    </li>
+                    <li>
+                      Repeated failed login attempts may result in a temporarily
+                      blocked account for security purposes.
+                    </li>
                   </ul>
 
                   <h4>Acceptable Use</h4>
                   <ul>
-                    <li>Room reservations and schedule changes must reflect genuine academic or institutional needs.</li>
-                    <li>Users must not attempt to bypass conflict detection or falsify reservation details.</li>
-                    <li>Access is limited to the features available to the user's assigned role.</li>
+                    <li>
+                      Room reservations and schedule changes must reflect genuine
+                      academic or institutional needs.
+                    </li>
+                    <li>
+                      Users must not attempt to bypass conflict detection or
+                      falsify reservation details.
+                    </li>
+                    <li>
+                      Access is limited to the features available to the user's
+                      assigned role.
+                    </li>
                   </ul>
 
                   <h4>Availability</h4>
                   <p>
-                    While the system is designed for reliable, real-time use, scheduled maintenance
-                    or unforeseen issues may occasionally affect availability. Users will be
-                    notified of major changes or disruptions when possible.
+                    While the system is designed for reliable, real-time use,
+                    scheduled maintenance or unforeseen issues may occasionally
+                    affect availability. Users will be notified of major changes
+                    or disruptions when possible.
                   </p>
                 </div>
               </>
@@ -745,25 +1059,35 @@ export default function Login() {
                 </p>
                 <div className="info-modal-body">
                   <p>
-                    SpaceS CICT is designed as a responsive web and mobile platform so that
-                    Admins, Local Registrars, Clerks, and Faculty Members can access
-                    scheduling and reservation features comfortably across desktop and mobile
-                    devices.
+                    SpaceS CICT is designed as a responsive web and mobile
+                    platform so that Admins, Local Registrars, Clerks, and
+                    Faculty Members can access scheduling and reservation
+                    features comfortably across desktop and mobile devices.
                   </p>
 
                   <h4>Design Considerations</h4>
                   <ul>
-                    <li>Clear typography, consistent color contrast, and readable layouts across pages.</li>
-                    <li>Role-based interfaces that only display features relevant to each user, reducing clutter.</li>
-                    <li>Mobile-optimized views for Faculty to check schedules and submit requests on the go.</li>
+                    <li>
+                      Clear typography, consistent color contrast, and readable
+                      layouts across pages.
+                    </li>
+                    <li>
+                      Role-based interfaces that only display features relevant
+                      to each user, reducing clutter.
+                    </li>
+                    <li>
+                      Mobile-optimized views for Faculty to check schedules and
+                      submit requests on the go.
+                    </li>
                   </ul>
 
                   <h4>Ongoing Improvements</h4>
                   <p>
-                    We continue to refine the interface based on feedback gathered from actual CICT
-                    users during system testing and evaluation. If you encounter any accessibility
-                    issue while using SpaceS CICT, please let us know through Contact Support so we
-                    can address it.
+                    We continue to refine the interface based on feedback
+                    gathered from actual CICT users during system testing and
+                    evaluation. If you encounter any accessibility issue while
+                    using SpaceS CICT, please let us know through Contact
+                    Support so we can address it.
                   </p>
                 </div>
               </>
@@ -776,21 +1100,32 @@ export default function Login() {
                 </div>
                 <h2>Contact Support</h2>
                 <p className="info-modal-subtitle">
-                  Need help signing in or using SpaceS CICT? Reach out through either email below.
+                  Need help signing in or using SpaceS CICT? Reach out through
+                  either email below.
                 </p>
                 <div className="contact-list">
-                  <a href="mailto:spaces-bulsu@outlook.com" className="contact-item">
+                  <a
+                    href="mailto:spaces-bulsu@outlook.com"
+                    className="contact-item"
+                  >
                     <i className="fa-brands fa-microsoft" />
                     <div>
                       <span className="contact-label">Outlook</span>
-                      <span className="contact-value">spaces-bulsu@outlook.com</span>
+                      <span className="contact-value">
+                        spaces-bulsu@outlook.com
+                      </span>
                     </div>
                   </a>
-                  <a href="mailto:spacescict@gmail.com" className="contact-item">
+                  <a
+                    href="mailto:spacescict@gmail.com"
+                    className="contact-item"
+                  >
                     <i className="fa-brands fa-google" />
                     <div>
                       <span className="contact-label">Gmail</span>
-                      <span className="contact-value">spacescict@gmail.com</span>
+                      <span className="contact-value">
+                        spacescict@gmail.com
+                      </span>
                     </div>
                   </a>
                 </div>
@@ -811,7 +1146,8 @@ export default function Login() {
                 </div>
                 <h2>Frequently Asked Questions</h2>
                 <p className="info-modal-subtitle">
-                  Mabilisang sagot sa mga karaniwang tanong tungkol sa SpaceS CICT.
+                  Mabilisang sagot sa mga karaniwang tanong tungkol sa SpaceS
+                  CICT.
                 </p>
                 <div className="faq-list">
                   {FAQ_ITEMS.map((item, index) => {
@@ -824,7 +1160,9 @@ export default function Login() {
                         <button
                           type="button"
                           className="faq-question"
-                          onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                          onClick={() =>
+                            setOpenFaqIndex(isOpen ? null : index)
+                          }
                         >
                           <span>{item.question}</span>
                           <i className="fa-solid fa-chevron-down faq-chevron" />

@@ -4,10 +4,28 @@ import { useNavigate } from "react-router-dom";
 import { db, auth } from "../../../firebase";
 import {
   collection, query, where, getDocs, getDoc,
-  doc, addDoc, setDoc, serverTimestamp,
+  doc, addDoc, setDoc, updateDoc, serverTimestamp,
 } from "firebase/firestore";
 import { logActivity } from "../../../utils/logActivity";
 import Toast from "../../../Popup/Toast/Toast";
+
+/* ─── Cloudinary config (same as SubmitIssueModal) ─── */
+const CLOUDINARY_CLOUD_NAME    = "dqn1s5ujs";
+const CLOUDINARY_UPLOAD_PRESET = "SpaceSCICT";
+
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  fd.append("folder", "spaces/rooms");
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: "POST", body: fd }
+  );
+  if (!res.ok) throw new Error("Photo upload failed.");
+  const data = await res.json();
+  return data.secure_url;
+}
 
 const ROOM_TYPES = ['Computer Lab', 'Lecture Room', 'Conference Room', 'Laboratory'];
 
@@ -25,6 +43,8 @@ const INITIAL_EQUIPMENT = {
   projector: false, tvDisplay: false, ac: false,
   computer: false, smartBoard: false,
 };
+
+const MAX_PHOTO_MB = 5;
 
 /* ─── Custom Dropdown ─────────────────────────────────── */
 function CustomDropdown({ placeholder, options, value, onChange, hasError }) {
@@ -82,6 +102,11 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
   const [buildingCustom, setBuildingCustom] = useState('');
   const [isOtherBuilding, setIsOtherBuilding] = useState(false);
 
+  // ⬅️ OPTIONAL PHOTO
+  const [photoFile, setPhotoFile]       = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const photoInputRef = useRef(null);
+
   const [cancelModalOpen, setCancelModalOpen]   = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
@@ -110,6 +135,43 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
 
   const adjustCapacity = (delta) =>
     setCapacity((prev) => Math.min(200, Math.max(1, Number(prev || 0) + delta)));
+
+  /* ─── Photo handlers ─────────────────────────────────── */
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("error", "Invalid file", "Please choose an image file (JPG, PNG, WEBP).");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+      showToast("error", "File too large", `Max photo size is ${MAX_PHOTO_MB}MB.`);
+      e.target.value = "";
+      return;
+    }
+
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    e.target.value = "";
+  };
+
+  const handleRemovePhoto = () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoFile(null);
+    setPhotoPreview("");
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* validation */
   const validateForm = () => {
@@ -160,6 +222,18 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
 
       const buildingFinal = isOtherBuilding ? buildingCustom.trim() : building;
 
+      /* ── 1) Upload photo to Cloudinary (optional) ── */
+      let photoUrl = "";
+      if (photoFile) {
+        try {
+          photoUrl = await uploadToCloudinary(photoFile);
+        } catch (uploadErr) {
+          console.error("Cloudinary upload failed:", uploadErr);
+          showToast("error", "Photo upload failed", "Room will be created without a photo.");
+        }
+      }
+
+      /* ── 2) Create room doc ── */
       const roomRef = await addDoc(collection(db, "rooms"), {
         roomName: roomName.trim(),
         capacity: Number(capacity),
@@ -169,8 +243,10 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
         building: buildingFinal,
         status: "AVAILABLE",
         roomStatus: "active",
+        photoUrl: photoUrl || null,
       });
 
+      /* ── 3) Metadata docs ── */
       await setDoc(doc(db, "rooms", roomRef.id, "schedules", "_metadata"), {
         initialized: true, totalSchedules: 0,
         semester: "", schoolYear: "", createdAt: serverTimestamp(),
@@ -202,9 +278,10 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
     setSuccessModalOpen(false);
     setFloor(''); setRoomName(''); setCapacity(1);
     setRoomType(''); setEquipment(INITIAL_EQUIPMENT);
-    setBuilding('Pimentel Hall');  // ⬅️ reset to default
+    setBuilding('Pimentel Hall');
     setBuildingCustom('');
     setIsOtherBuilding(false);
+    handleRemovePhoto();
     navigate("/clerk/room-management");
   };
 
@@ -340,6 +417,60 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
             )}
             {errors.building && <span className="field-error">{errors.building}</span>}
           </div>
+
+          {/* Room Photo (Optional) */}
+          <div className="field-group">
+            <label className="field-label">
+              Room Photo <span className="photo-optional-tag">Optional</span>
+            </label>
+
+            <div className="photo-upload-wrap">
+              <div className="photo-upload-preview">
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Room preview" />
+                ) : (
+                  <div className="photo-upload-preview-placeholder">
+                    <i className="fa-regular fa-image"></i>
+                    <span>No image</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="photo-upload-controls">
+                <button
+                  type="button"
+                  className="photo-upload-btn"
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  <i className="fa-solid fa-arrow-up-from-bracket"></i>
+                  {photoFile ? "Change photo" : "Upload photo"}
+                </button>
+
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoSelect}
+                  style={{ display: "none" }}
+                />
+
+                {photoFile && (
+                  <button
+                    type="button"
+                    className="photo-remove-btn"
+                    onClick={handleRemovePhoto}
+                  >
+                    <i className="fa-solid fa-trash-can"></i>
+                    Remove photo
+                  </button>
+                )}
+
+                <span className="photo-hint">
+                  JPG, PNG, o WEBP. Max {MAX_PHOTO_MB}MB. Kung walang photo, "No image" ang ipapakita.
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="section-divider" />
@@ -449,6 +580,18 @@ function RoomManagementAddRoom({ onBack = () => {}, onSuccess = () => {} }) {
             </div>
 
             <div className="preview-card">
+              {/* Preview Photo */}
+              <div className="preview-photo">
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Room preview" />
+                ) : (
+                  <div className="preview-photo-fallback">
+                    <i className="fa-regular fa-image"></i>
+                    <span>No image</span>
+                  </div>
+                )}
+              </div>
+
               <div className="preview-room-name">
                 <span className="room-name-badge">{roomName}</span>
                 {roomType && <span className="room-type-badge">{roomType}</span>}

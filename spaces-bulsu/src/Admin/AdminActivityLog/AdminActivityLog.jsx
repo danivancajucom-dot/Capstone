@@ -9,16 +9,14 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
-// NEW: PDF libraries and logos
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import universityLogo from "../../assets/BSU-Logo.png";
 import collegeLogo from "../../assets/CICT-Logo.png";
 
-const tabs = ['All Activities', 'System Changes', 'Security Events'];
+const tabs = ['All Activities', 'System Changes', 'Security Events', 'Login Attempts'];
 const ITEMS_PER_PAGE = 10;
 
-// NEW: School header constant (same as RoomUsageTracking)
 const SCHOOL_HEADER = {
   universityLogoUrl: universityLogo,
   collegeLogoUrl: collegeLogo,
@@ -27,13 +25,26 @@ const SCHOOL_HEADER = {
   systemName: "SpaceS CICT",
 };
 
+// ── Icon mapping — kasama na ang "warning" ──
 const actionIcon = (type) => {
   switch (type) {
     case 'success':  return <i className="fa-solid fa-circle-check action-icon green"></i>;
     case 'edit':     return <i className="fa-solid fa-pen action-icon blue"></i>;
     case 'denied':   return <i className="fa-solid fa-circle-xmark action-icon red"></i>;
     case 'failed':   return <i className="fa-solid fa-circle-xmark action-icon red"></i>;
-    default: return <i className="fa-solid fa-bolt action-icon orange"></i>;
+    case 'warning':  return <i className="fa-solid fa-triangle-exclamation action-icon orange"></i>;
+    default:         return <i className="fa-solid fa-bolt action-icon orange"></i>;
+  }
+};
+
+// ── Human-readable labels para sa security reasons ──
+const reasonLabel = (reason) => {
+  switch (reason) {
+    case "role_mismatch":      return "Wrong Role Attempt";
+    case "wrong_password":     return "Wrong Password";
+    case "invalid_credentials":return "Invalid Credentials";
+    case "user_not_found":     return "Unknown Email";
+    default:                   return "Failed Login";
   }
 };
 
@@ -45,8 +56,10 @@ export default function AdminActivityLog() {
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
+  const [securityLogs, setSecurityLogs] = useState([]);
   const [todayCount, setTodayCount] = useState(0);
   const [alertCount, setAlertCount] = useState(0);
+  const [blockedCount, setBlockedCount] = useState(0);
 
   const [toast, setToast] = useState({
     show: false,
@@ -63,7 +76,7 @@ export default function AdminActivityLog() {
     }
   };
 
-  // ─── Fetch logs ──────────────────────────────────────────────────────
+  // ─── Fetch activityLogs ───────────────────────────────────────────
   useEffect(() => {
     const q = query(collection(db, "activityLogs"), orderBy("timestamp", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -73,16 +86,14 @@ export default function AdminActivityLog() {
       }));
       setLogs(data);
 
-      // Today count
       const today = new Date().toDateString();
       const todayLogs = data.filter((log) =>
         log.timestamp?.toDate?.().toDateString() === today
       );
       setTodayCount(todayLogs.length);
 
-      // Alert count
       const alerts = data.filter(
-        (log) => log.actionType === "failed" || log.actionType === "denied"
+        (log) => log.actionType === "failed" || log.actionType === "denied" || log.actionType === "warning"
       );
       setAlertCount(alerts.length);
     });
@@ -90,15 +101,55 @@ export default function AdminActivityLog() {
     return () => unsubscribe();
   }, []);
 
-  // ─── Filter logic ────────────────────────────────────────────────────
+  // ─── Fetch securityLogs (detailed login attempts) ─────────────────
+  useEffect(() => {
+    const q = query(collection(db, "securityLogs"), orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setSecurityLogs(data);
+      setBlockedCount(data.filter((s) => s.blocked).length);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ─── Normalize security logs for display ──────────────────────────
+  const normalizedSecurityLogs = useMemo(() => {
+    return securityLogs.map((s) => ({
+      id: `sec_${s.id}`,
+      _kind: "security",
+      user: s.email || "Unknown",
+      role: s.attemptedRole || "Unknown",
+      action: reasonLabel(s.reason) + (s.blocked ? " (Blocked)" : ""),
+      actionType: s.blocked ? "failed" : "warning",
+      target: s.email || "—",
+      status: s.blocked ? "BLOCKED" : "WARNING",
+      timestamp: s.timestamp,
+      attemptNumber: s.attemptNumber,
+      userAgent: s.userAgent,
+      reason: s.reason,
+    }));
+  }, [securityLogs]);
+
+  // ─── Decide which source to use per tab ───────────────────────────
+  const sourceLogs = useMemo(() => {
+    if (activeTab === "Login Attempts") return normalizedSecurityLogs;
+    return logs;
+  }, [activeTab, logs, normalizedSecurityLogs]);
+
+  // ─── Filter logic ─────────────────────────────────────────────────
   const filteredLogs = useMemo(() => {
-    let result = [...logs];
+    let result = [...sourceLogs];
 
     if (activeTab === "System Changes") {
       result = result.filter(log => log.actionType === "edit" || log.actionType === "success");
     } else if (activeTab === "Security Events") {
-      result = result.filter(log => log.actionType === "failed" || log.actionType === "denied");
+      result = result.filter(log =>
+        log.actionType === "failed" ||
+        log.actionType === "denied" ||
+        log.actionType === "warning"
+      );
     }
+    // "All Activities" at "Login Attempts" — walang filter
 
     const now = new Date();
     let cutoffDate = null;
@@ -132,6 +183,7 @@ export default function AdminActivityLog() {
       if (actionLower === "approved") targetType = "success";
       else if (actionLower === "denied") targetType = "denied";
       else if (actionLower === "failed") targetType = "failed";
+      else if (actionLower === "warning") targetType = "warning";
       else targetType = actionLower;
 
       result = result.filter((log) =>
@@ -140,24 +192,17 @@ export default function AdminActivityLog() {
     }
 
     return result;
-  }, [logs, activeTab, dateRange, userRole, actionType]);
+  }, [sourceLogs, activeTab, dateRange, userRole, actionType]);
 
-  // ─── Pagination ──────────────────────────────────────────────────────
+  // ─── Pagination ───────────────────────────────────────────────────
   const totalItems = filteredLogs.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
   const paginatedLogs = filteredLogs.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, dateRange, userRole, actionType]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [totalPages]);
+  useEffect(() => { setCurrentPage(1); }, [activeTab, dateRange, userRole, actionType]);
+  useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [totalPages]);
 
   const renderPageNumbers = () => {
     const pages = [];
@@ -168,13 +213,13 @@ export default function AdminActivityLog() {
   };
   const pageNumbers = renderPageNumbers();
 
-  // ─── Export CSV ──────────────────────────────────────────────────────
+  // ─── Export CSV ───────────────────────────────────────────────────
   const exportCSV = async () => {
     try {
       showToast("Exporting CSV...", "loading");
       await new Promise(res => setTimeout(res, 800));
       const headers = ["User", "Role", "Action", "Target", "Date", "Status"];
-      const rows = logs.map(log => {
+      const rows = filteredLogs.map(log => {
         const date = log.timestamp?.toDate?.().toLocaleDateString?.() || "";
         return [
           log.user || "",
@@ -192,7 +237,7 @@ export default function AdminActivityLog() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "activity_logs.csv";
+      a.download = `activity_logs_${activeTab.replace(/\s+/g, "_").toLowerCase()}.csv`;
       a.click();
       showToast("Export successful!", "success");
     } catch (err) {
@@ -201,7 +246,7 @@ export default function AdminActivityLog() {
     }
   };
 
-  // ─── NEW: Export PDF ────────────────────────────────────────────────
+  // ─── Export PDF ───────────────────────────────────────────────────
   const handleExportPDF = () => {
     if (filteredLogs.length === 0) {
       showToast("No logs to export.", "error");
@@ -217,19 +262,11 @@ export default function AdminActivityLog() {
       const logoSize = 50;
       const centerX = pageWidth / 2;
 
-      // ---- Letterhead ----
       if (SCHOOL_HEADER.universityLogoUrl) {
         pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 22, logoSize, logoSize);
       }
       if (SCHOOL_HEADER.collegeLogoUrl) {
-        pdf.addImage(
-          SCHOOL_HEADER.collegeLogoUrl,
-          "PNG",
-          pageWidth - marginX - logoSize,
-          22,
-          logoSize,
-          logoSize
-        );
+        pdf.addImage(SCHOOL_HEADER.collegeLogoUrl, "PNG", pageWidth - marginX - logoSize, 22, logoSize, logoSize);
       }
 
       pdf.setFont("helvetica", "bold");
@@ -247,29 +284,21 @@ export default function AdminActivityLog() {
       pdf.setLineWidth(1.5);
       pdf.line(marginX, 82, pageWidth - marginX, 82);
 
-      // ---- Title & filters ----
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
       pdf.setTextColor(245, 124, 0);
-      pdf.text("Activity Log Report", marginX, 104);
+      pdf.text(`Activity Log — ${activeTab}`, marginX, 104);
 
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
       pdf.setTextColor(107, 114, 128);
-      pdf.text(`Filters: ${activeTab} | ${dateRange} | ${userRole} | ${actionType}`, marginX, 120);
-      pdf.text(
-        `Generated: ${new Date().toLocaleString()}`,
-        pageWidth - marginX,
-        120,
-        { align: "right" }
-      );
+      pdf.text(`Filters: ${dateRange} | ${userRole} | ${actionType}`, marginX, 120);
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - marginX, 120, { align: "right" });
 
-      // ---- Table ----
       const rows = filteredLogs.map((log) => {
         const date = log.timestamp?.toDate?.().toLocaleDateString?.() || "N/A";
         const time = log.timestamp?.toDate?.().toLocaleTimeString?.([], {
-          hour: "2-digit",
-          minute: "2-digit",
+          hour: "2-digit", minute: "2-digit",
         }) || "";
         return [
           log.user || "-",
@@ -287,38 +316,23 @@ export default function AdminActivityLog() {
         body: rows,
         theme: "grid",
         styles: { font: "helvetica", fontSize: 8, cellPadding: 5, valign: "middle" },
-        headStyles: {
-          fillColor: [245, 124, 0],
-          textColor: [255, 255, 255],
-          fontStyle: "bold",
-          fontSize: 8,
-        },
+        headStyles: { fillColor: [245, 124, 0], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
         bodyStyles: { textColor: [26, 26, 26] },
         alternateRowStyles: { fillColor: [253, 246, 240] },
         margin: { left: marginX, right: marginX },
       });
 
-      // ---- Footer ----
       const pageCount = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(8);
         pdf.setTextColor(150, 150, 150);
-        pdf.text(
-          `Page ${i} of ${pageCount}`,
-          pageWidth - marginX,
-          pdf.internal.pageSize.getHeight() - 20,
-          { align: "right" }
-        );
-        pdf.text(
-          `${SCHOOL_HEADER.systemName} — Confidential`,
-          marginX,
-          pdf.internal.pageSize.getHeight() - 20
-        );
+        pdf.text(`Page ${i} of ${pageCount}`, pageWidth - marginX, pdf.internal.pageSize.getHeight() - 20, { align: "right" });
+        pdf.text(`${SCHOOL_HEADER.systemName} — Confidential`, marginX, pdf.internal.pageSize.getHeight() - 20);
       }
 
-      pdf.save(`activity-log-${new Date().toISOString().slice(0,10)}.pdf`);
+      pdf.save(`activity-log-${activeTab.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0,10)}.pdf`);
       showToast("PDF exported successfully!", "success");
     } catch (err) {
       console.error("PDF export failed:", err);
@@ -326,11 +340,8 @@ export default function AdminActivityLog() {
     }
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────
-
   return (
     <div className="activity-log">
-      {/* PAGE HEADER */}
       <div className="log-page-header">
         <div className="log-title-row">
           <button className="dh-al-back-btn" onClick={() => navigate("/admin")}>
@@ -349,7 +360,6 @@ export default function AdminActivityLog() {
             <i className="fa-solid fa-download"></i>
             Export CSV
           </button>
-          {/* Updated PDF button with handler */}
           <button className="action-btn filled" onClick={handleExportPDF}>
             <i className="fa-solid fa-download"></i>
             Export PDF
@@ -366,7 +376,7 @@ export default function AdminActivityLog() {
           <div>
             <p className="log-stat-label">TOTAL ACTIONS TODAY</p>
             <h2 className="log-stat-value">{todayCount}</h2>
-            <span className="log-stat-change green">↑ 12% from yesterday</span>
+            <span className="log-stat-change green">Live from activity logs</span>
           </div>
         </div>
 
@@ -382,13 +392,13 @@ export default function AdminActivityLog() {
         </div>
 
         <div className="log-stat-card">
-          <div className="log-stat-icon orange-alt">
-            <i className="fa-solid fa-bars-staggered"></i>
+          <div className="log-stat-icon" style={{ background: "#fff0f0", color: "#dc2626" }}>
+            <i className="fa-solid fa-ban"></i>
           </div>
           <div>
-            <p className="log-stat-label">LOG RETENTION</p>
-            <h2 className="log-stat-value">365 <span className="unit">DAYS</span></h2>
-            <span className="log-stat-change gray">Not expires: Jan 1, 2026</span>
+            <p className="log-stat-label">BLOCKED LOGINS</p>
+            <h2 className="log-stat-value" style={{ color: "#dc2626" }}>{blockedCount}</h2>
+            <span className="log-stat-change gray">Auto-blocked accounts</span>
           </div>
         </div>
       </div>
@@ -431,6 +441,7 @@ export default function AdminActivityLog() {
                 <option>Admin</option>
                 <option>Faculty</option>
                 <option>Clerk</option>
+                <option>Local Registrar</option>
               </select>
               <i className="fa-solid fa-chevron-down chev"></i>
             </div>
@@ -444,6 +455,7 @@ export default function AdminActivityLog() {
                 <option>Approved</option>
                 <option>Denied</option>
                 <option>Failed</option>
+                <option>Warning</option>
               </select>
               <i className="fa-solid fa-chevron-down chev"></i>
             </div>
@@ -451,9 +463,7 @@ export default function AdminActivityLog() {
 
           <button
             className="apply-btn-dph"
-            onClick={() => {
-              showToast("Filters applied", "success");
-            }}
+            onClick={() => showToast("Filters applied", "success")}
           >
             Apply Filters
           </button>
@@ -483,8 +493,7 @@ export default function AdminActivityLog() {
               {paginatedLogs.map((log) => {
                 const date = log.timestamp?.toDate?.().toLocaleDateString?.() || "N/A";
                 const time = log.timestamp?.toDate?.().toLocaleTimeString?.([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
+                  hour: "2-digit", minute: "2-digit",
                 }) || "";
 
                 return (
@@ -493,8 +502,9 @@ export default function AdminActivityLog() {
                       <div className="user-cell">
                         <div className="user-avatar">
                           {(log.user || "")
-                            .split(" ")
+                            .split(/[\s@]+/)
                             .filter(Boolean)
+                            .slice(0, 2)
                             .map(n => n[0])
                             .join("")
                             .toUpperCase()}
@@ -510,10 +520,20 @@ export default function AdminActivityLog() {
                       <div className="action-cell">
                         {actionIcon(log.actionType)}
                         <span>{log.action}</span>
+                        {log._kind === "security" && log.attemptNumber && (
+                          <span className="attempt-pill">#{log.attemptNumber}</span>
+                        )}
                       </div>
                     </td>
 
-                    <td className="target-cell">{log.target}</td>
+                    <td className="target-cell">
+                      {log.target}
+                      {log._kind === "security" && log.userAgent && (
+                        <span className="ua-hint" title={log.userAgent}>
+                          <i className="fa-solid fa-circle-info"></i>
+                        </span>
+                      )}
+                    </td>
 
                     <td className="date-cell">
                       <p>{date}</p>
@@ -590,9 +610,7 @@ export default function AdminActivityLog() {
           show={toast.show}
           type={toast.type}
           message={toast.message}
-          onClose={() =>
-            setToast({ show: false, type: "", message: "" })
-          }
+          onClose={() => setToast({ show: false, type: "", message: "" })}
         />
       </div>
     </div>

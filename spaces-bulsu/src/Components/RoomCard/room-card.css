@@ -67,8 +67,6 @@
   background: #f59e0b;
 }
 
-/* ─── Rest of the styles (unchanged) ─── */
-
 .room-card-image {
   width: 110px;
   height: 110px;
@@ -78,11 +76,7 @@
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
-}
-
-.room-card-image i {
-  font-size: 42px;
-  color: #F97316;
+  overflow: hidden;   /* ✅ para hindi lumabas ang image sa rounded corners */
 }
 
 .room-card-image img {
@@ -90,6 +84,33 @@
   height: 100%;
   object-fit: cover;
   border-radius: 14px;
+  display: block;
+}
+
+.room-card-image-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  text-align: center;
+  background: #F1F5F9;
+  overflow: hidden;
+}
+
+.room-card-image-fallback span {
+  font-size: 16px;
+  font-weight: 800;
+  color: #f57c00;
+  letter-spacing: 0.2px;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.room-card-image-fallback i {
+  font-size: 26px;
+  color: #f57c00;
 }
 
 .room-card-content {

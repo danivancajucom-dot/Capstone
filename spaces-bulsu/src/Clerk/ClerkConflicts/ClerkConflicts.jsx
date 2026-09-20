@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════════════
 import "./clerk-conflicts.css";
 import ConflictCard from "../../Components/ConflictCard/ConflictCard";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, getDocs, onSnapshot } from "firebase/firestore"; // ⬅️ onSnapshot idinagdag
+import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 import jsPDF from "jspdf";
@@ -20,6 +20,16 @@ const SCHOOL_HEADER = {
   collegeName: "College of Information and Communications Technology",
   systemName: "SpaceS CICT",
 };
+
+// ─── Sort options ──────────────────────────────────────────────────
+const SORT_OPTIONS = [
+  { key: "newest",    label: "Newest First" },
+  { key: "oldest",    label: "Oldest First" },
+  { key: "date_asc",  label: "Schedule Date ↑" },
+  { key: "date_desc", label: "Schedule Date ↓" },
+];
+
+const ITEMS_PER_PAGE = 6;
 
 const semesterRank = (sem = "") => {
   const s = sem.toLowerCase();
@@ -59,6 +69,11 @@ function ClerkConflicts() {
   const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  // ── Search + Sort + Pagination state ────────────────────────
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [chooser, setChooser] = useState(null);
 
@@ -143,6 +158,7 @@ function ClerkConflicts() {
               status: "",
               resolution: event.resolution || null,
               resolutionReason: event.resolutionReason || null,
+              createdAt: event.createdAt || null,
             };
 
             if (event.conflictResolved) {
@@ -173,16 +189,10 @@ function ClerkConflicts() {
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════════
-  // REALTIME: subscribe sa events + roomReassignments + rooms
-  // Kapag may nagbago (faculty response, admin approve/cancel, etc.),
-  // automatic na magre-recompute ang conflict list.
-  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     let isMounted = true;
     let timeoutId = null;
 
-    // Debounced refresh — pinipigilan ang maraming simultaneous fetches
     const scheduleRefresh = () => {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
@@ -190,25 +200,14 @@ function ClerkConflicts() {
       }, 250);
     };
 
-    // Initial load
     loadConflicts();
 
-    // Subscribe sa mga collection na nakakaapekto sa conflicts
-    const unsubEvents = onSnapshot(
-      collection(db, "events"),
-      scheduleRefresh,
-      (err) => console.error("events listener:", err)
-    );
-    const unsubRooms = onSnapshot(
-      collection(db, "rooms"),
-      scheduleRefresh,
-      (err) => console.error("rooms listener:", err)
-    );
-    const unsubReassign = onSnapshot(
-      collection(db, "roomReassignments"),
-      scheduleRefresh,
-      (err) => console.error("roomReassignments listener:", err)
-    );
+    const unsubEvents = onSnapshot(collection(db, "events"), scheduleRefresh,
+      (err) => console.error("events listener:", err));
+    const unsubRooms = onSnapshot(collection(db, "rooms"), scheduleRefresh,
+      (err) => console.error("rooms listener:", err));
+    const unsubReassign = onSnapshot(collection(db, "roomReassignments"), scheduleRefresh,
+      (err) => console.error("roomReassignments listener:", err));
 
     return () => {
       isMounted = false;
@@ -220,15 +219,94 @@ function ClerkConflicts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reset page kapag nagbago ang tab/search/sort
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm, sortOrder]);
+
   const handleResolved = () => {
-    // Hindi na kailangan i-refresh — realtime na ang listeners
     showToast("success", "Updated", "Conflict list will refresh automatically.");
   };
 
-  const displayConflicts =
-    activeTab === "all" ? conflicts :
-    activeTab === "pending" ? pendingList :
-    activeTab === "unresolved" ? unresolved : resolved;
+  // ── Base list per active tab ─────────────────────────────────
+  const baseList = useMemo(() => {
+    if (activeTab === "all") return conflicts;
+    if (activeTab === "pending") return pendingList;
+    if (activeTab === "unresolved") return unresolved;
+    return resolved;
+  }, [activeTab, conflicts, pendingList, unresolved, resolved]);
+
+  // ── Apply search + sort (BUONG filtered list) ────────────────
+  const filteredConflicts = useMemo(() => {
+    let list = [...baseList];
+
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter((c) => {
+        const haystack = [
+          c.roomName,
+          c.oldRoomName,
+          c.newRoomName,
+          c.floor,
+          c.faculty,
+          c.facultyName,
+          c.courseTitle,
+          c.subject,
+          c.section,
+          c.activityTitle,
+          c.eventTitle,
+          c.day,
+          c.date,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+
+    const getCreatedAtMs = (item) => {
+      if (item.createdAt?.seconds) return item.createdAt.seconds * 1000;
+      if (item.createdAt?.toDate) return item.createdAt.toDate().getTime();
+      if (typeof item.createdAt === "number") return item.createdAt;
+      return 0;
+    };
+
+    if (sortOrder === "newest") {
+      list.sort((a, b) => {
+        const ac = getCreatedAtMs(a);
+        const bc = getCreatedAtMs(b);
+        if (ac || bc) return bc - ac;
+        return String(b.date || "").localeCompare(String(a.date || ""));
+      });
+    } else if (sortOrder === "oldest") {
+      list.sort((a, b) => {
+        const ac = getCreatedAtMs(a);
+        const bc = getCreatedAtMs(b);
+        if (ac || bc) return ac - bc;
+        return String(a.date || "").localeCompare(String(b.date || ""));
+      });
+    } else if (sortOrder === "date_asc") {
+      list.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    } else if (sortOrder === "date_desc") {
+      list.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    }
+
+    return list;
+  }, [baseList, searchTerm, sortOrder]);
+
+  // ── Pagination math ─────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(filteredConflicts.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * ITEMS_PER_PAGE;
+  const paginatedConflicts = filteredConflicts.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+  const hasActiveFilters = searchTerm.trim() || sortOrder !== "newest";
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setSortOrder("newest");
+  };
 
   const emptyMessage = {
     all: "No active conflicts.",
@@ -246,13 +324,16 @@ function ClerkConflicts() {
   // ── export helpers ──
   const csvEscape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const handleExportCSV = () => {
-    if (!displayConflicts.length) { showToast("error", "Nothing to Export", "No rows in this view."); return; }
+    if (!filteredConflicts.length) { showToast("error", "Nothing to Export", "No rows in this view."); return; }
     const headers = ["Room","Floor","Course","Faculty","Section","Day","Date","Class Time","Activity","Overlap Time","Status"];
-    const rows = displayConflicts.map((c) => [
-      c.roomName, c.floor || "", c.courseTitle || c.subject || "", c.faculty || "",
+    const rows = filteredConflicts.map((c) => [
+      c.roomName || c.oldRoomName || c.newRoomName || "",
+      c.floor || "",
+      c.courseTitle || c.subject || "",
+      c.faculty || c.facultyName || "",
       c.section || "", c.day || "", c.date || "",
       `${c.startTime || ""}-${c.endTime || ""}`,
-      c.activityTitle || c.title || "",
+      c.activityTitle || c.eventTitle || c.title || "",
       `${c.conflictStartTime || ""}-${c.conflictEndTime || ""}`,
       c.status || "",
     ]);
@@ -264,12 +345,12 @@ function ClerkConflicts() {
     a.download = `conflict-report-${activeTab}-${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast("success", "Exported", `${displayConflicts.length} row(s) as CSV.`);
+    showToast("success", "Exported", `${filteredConflicts.length} row(s) as CSV.`);
     setExportMenuOpen(false);
   };
 
   const handleExportPDF = () => {
-    if (!displayConflicts.length) { showToast("error", "Nothing to Export", "No rows in this view."); return; }
+    if (!filteredConflicts.length) { showToast("error", "Nothing to Export", "No rows in this view."); return; }
     showToast("loading", "Generating PDF...", "Please wait.");
     try {
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
@@ -291,14 +372,17 @@ function ClerkConflicts() {
       pdf.setFont("helvetica", "bold"); pdf.setFontSize(16); pdf.setTextColor(245,124,0);
       pdf.text(`Conflict Report — ${activeTab.toUpperCase()}`, mX, 104);
       pdf.setFont("helvetica", "normal"); pdf.setFontSize(10); pdf.setTextColor(107,114,128);
-      pdf.text(`Total Rows: ${displayConflicts.length}`, mX, 120);
+      pdf.text(`Total Rows: ${filteredConflicts.length}`, mX, 120);
       pdf.text(`Generated: ${new Date().toLocaleString()}`, pageW - mX, 120, { align: "right" });
 
-      const rows = displayConflicts.map((c) => [
-        c.roomName || "", c.floor || "", c.courseTitle || c.subject || "-",
-        c.faculty || "", c.section || "-", c.day || "", c.date || "",
+      const rows = filteredConflicts.map((c) => [
+        c.roomName || c.oldRoomName || c.newRoomName || "",
+        c.floor || "",
+        c.courseTitle || c.subject || "-",
+        c.faculty || c.facultyName || "",
+        c.section || "-", c.day || "", c.date || "",
         `${c.startTime || ""} - ${c.endTime || ""}`,
-        c.activityTitle || c.title || "",
+        c.activityTitle || c.eventTitle || c.title || "",
         `${c.conflictStartTime || ""} - ${c.conflictEndTime || ""}`,
         (c.status || "").toUpperCase(),
       ]);
@@ -324,7 +408,7 @@ function ClerkConflicts() {
       }
 
       pdf.save(`conflict-report-${activeTab}-${new Date().toISOString().slice(0,10)}.pdf`);
-      showToast("success", "PDF Exported", `${displayConflicts.length} row(s) downloaded.`);
+      showToast("success", "PDF Exported", `${filteredConflicts.length} row(s) downloaded.`);
     } catch (err) {
       console.error(err);
       showToast("error", "Export Failed", "Could not generate PDF.");
@@ -342,6 +426,23 @@ function ClerkConflicts() {
     navigate("/clerk/reassign-room", {
       state: { ...payload, from: "/clerk/conflicts" },
     });
+  };
+
+  // ── Pagination page numbers (with ellipsis) ──────────────────
+  const renderPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (safePage > 3) pages.push("...");
+    for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) {
+      pages.push(i);
+    }
+    if (safePage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
   };
 
   return (
@@ -400,6 +501,52 @@ function ClerkConflicts() {
           </div>
         </div>
 
+        {/* ── TOOLBAR: Search + Sort ─────────────────────────── */}
+        <div className="dept-conflict-toolbar">
+          <div className="dept-conflict-search">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              placeholder="Search room, faculty, course, section, or activity…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="dept-conflict-search-clear"
+                onClick={() => setSearchTerm("")}
+                aria-label="Clear search"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            )}
+          </div>
+
+          <div className="dept-conflict-sort">
+            <i className="fa-solid fa-arrow-down-short-wide"></i>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+            >
+              {SORT_OPTIONS.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+            <i className="fa-solid fa-angle-down dept-conflict-sort-chev"></i>
+          </div>
+
+          {hasActiveFilters && (
+            <button className="dept-conflict-clear-all" onClick={clearAllFilters}>
+              <i className="fa-solid fa-filter-circle-xmark"></i> Clear
+            </button>
+          )}
+
+          <span className="dept-conflict-result-count">
+            {filteredConflicts.length} result{filteredConflicts.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
         <div className="conflict-main-box">
           <div className="conflict-nav">
             <div className={`conflict-nav-item ${activeTab === "all" ? "active" : ""}`} onClick={() => setActiveTab("all")}>
@@ -423,18 +570,26 @@ function ClerkConflicts() {
                 <h2>Loading Conflicts</h2>
                 <p>Please wait while we retrieve active conflicts.</p>
               </div>
-            ) : displayConflicts.length === 0 ? (
+            ) : paginatedConflicts.length === 0 ? (
               <div className="no-conflicts">
                 <i className="fa-solid fa-calendar-check"></i>
-                <p>{emptyMessage}</p>
-                <span className="no-conflicts-hint">{emptyHint}</span>
+                <p>
+                  {hasActiveFilters
+                    ? "No matches for your filters."
+                    : emptyMessage}
+                </p>
+                <span className="no-conflicts-hint">
+                  {hasActiveFilters
+                    ? "Try clearing the search or sort filter."
+                    : emptyHint}
+                </span>
               </div>
             ) : activeTab === "pending" ? (
-              pendingList.map((p) => (
+              paginatedConflicts.map((p) => (
                 <PendingReassignCard key={p.id} item={p} />
               ))
             ) : (
-              displayConflicts.map((conflict, i) => (
+              paginatedConflicts.map((conflict, i) => (
                 <ConflictCard
                   key={`${conflict.schedule?.id}-${conflict.event?.id}-${i}`}
                   conflict={conflict}
@@ -445,6 +600,49 @@ function ClerkConflicts() {
               ))
             )}
           </div>
+
+          {/* ── Pagination ───────────────────────────────────────── */}
+          {!loading && totalPages > 1 && (
+            <div className="conflict-pagination">
+              <span className="conflict-pagination-info">
+                Showing {startIdx + 1}–{Math.min(startIdx + ITEMS_PER_PAGE, filteredConflicts.length)} of{" "}
+                {filteredConflicts.length}
+              </span>
+              <div className="conflict-pagination-controls">
+                <button
+                  className="conflict-pagination-nav"
+                  disabled={safePage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  aria-label="Previous page"
+                >
+                  <i className="fa-solid fa-chevron-left"></i>
+                </button>
+
+                {renderPageNumbers().map((p, idx) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${idx}`} className="conflict-pagination-ellipsis">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      className={`conflict-pagination-page ${safePage === p ? "is-active" : ""}`}
+                      onClick={() => setCurrentPage(p)}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+
+                <button
+                  className="conflict-pagination-nav"
+                  disabled={safePage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  aria-label="Next page"
+                >
+                  <i className="fa-solid fa-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -488,33 +686,12 @@ function ClerkConflicts() {
 }
 
 // ─── Pending reassign card ─────────────────────────────────────────
-// ─── Pending reassign card — SAME LOOK as ConflictCard ────────────
 function PendingReassignCard({ item }) {
   const statusMap = {
-    pending_admin:   {
-      label: "Needs Review",
-      cls: "status-pending",
-      note: "Waiting for the Admin's review.",
-      icon: "fa-hourglass-half",
-    },
-    pending:         {
-      label: "Needs Review",
-      cls: "status-pending",
-      note: "Waiting for the Admin's review.",
-      icon: "fa-hourglass-half",
-    },
-    pending_faculty: {
-      label: "With Faculty",
-      cls: "status-info",
-      note: "Waiting for the faculty's response.",
-      icon: "fa-user-clock",
-    },
-    needs_reassign:  {
-      label: "Returned to You",
-      cls: "status-danger",
-      note: "Please select a different room and resubmit.",
-      icon: "fa-rotate-left",
-    },
+    pending_admin:   { label: "Needs Review", cls: "status-pending", note: "Waiting for the Admin's review.", icon: "fa-hourglass-half" },
+    pending:         { label: "Needs Review", cls: "status-pending", note: "Waiting for the Admin's review.", icon: "fa-hourglass-half" },
+    pending_faculty: { label: "With Faculty", cls: "status-info", note: "Waiting for the faculty's response.", icon: "fa-user-clock" },
+    needs_reassign:  { label: "Returned to You", cls: "status-danger", note: "Please select a different room and resubmit.", icon: "fa-rotate-left" },
   };
   const meta = statusMap[item.status] || statusMap.pending_admin;
 
@@ -533,7 +710,6 @@ function PendingReassignCard({ item }) {
 
   return (
     <div className={`conflict-card ${meta.cls}`}>
-      {/* ── TOP ROW ─────────────────────────────────────────── */}
       <div className="conflict-card-top">
         <div className="conflict-card-header">
           <div className="conflict-card-icon">
@@ -547,20 +723,15 @@ function PendingReassignCard({ item }) {
             </span>
           </div>
         </div>
-        <span className={`conflict-status-badge ${meta.cls}`}>
-          {meta.label}
-        </span>
+        <span className={`conflict-status-badge ${meta.cls}`}>{meta.label}</span>
       </div>
 
-      {/* ── DETAIL GRID: From → New ──────────────────────────── */}
       <div className="conflict-detail-grid">
         <div className="conflict-detail-block">
           <div className="conflict-detail-label">
             <i className="fa-solid fa-door-open"></i> From Room
           </div>
-          <div className="conflict-detail-main">
-            {item.oldRoomName || "—"}
-          </div>
+          <div className="conflict-detail-main">{item.oldRoomName || "—"}</div>
           {item.facultyName && (
             <div className="conflict-detail-meta">
               <i className="fa-regular fa-user"></i> {item.facultyName}
@@ -580,9 +751,7 @@ function PendingReassignCard({ item }) {
           <div className="conflict-detail-label">
             <i className="fa-solid fa-location-dot"></i> New Room
           </div>
-          <div className="conflict-detail-main">
-            {item.newRoomName || "—"}
-          </div>
+          <div className="conflict-detail-main">{item.newRoomName || "—"}</div>
           <div className="conflict-detail-sub">{formatDate(item.date)}</div>
           {dayLabel && (
             <div className="conflict-detail-meta">
@@ -592,7 +761,6 @@ function PendingReassignCard({ item }) {
         </div>
       </div>
 
-      {/* ── ADMIN NOTE ───────────────────────────────────────── */}
       {item.adminNote && (
         <div className="conflict-admin-note">
           <i className="fa-solid fa-comment-dots"></i>
@@ -600,7 +768,6 @@ function PendingReassignCard({ item }) {
         </div>
       )}
 
-      {/* ── FOOTER NOTE ──────────────────────────────────────── */}
       <div className={`conflict-footer-note ${meta.cls}`}>
         <i className={`fa-solid ${meta.icon}`}></i>
         {meta.note}
