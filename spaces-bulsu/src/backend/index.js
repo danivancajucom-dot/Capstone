@@ -28,65 +28,88 @@ if (!GEMINI_API_KEY) {
   console.error("❌ GEMINI_API_KEY is not set");
 }
 
-const GEMINI_URL = GEMINI_API_KEY
-  ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`
-  : null;
+const GEMINI_MODELS = [
+  "gemini-flash-latest",     // always points to latest stable flash
+  "gemini-3.6-flash",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash-lite",
+];
+
+const buildGeminiUrl = (model) =>
+  GEMINI_API_KEY
+    ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
+    : null;
 
 // ---------- GEMINI WITH RETRY + TIMEOUT ----------
-async function generateWithRetry(prompt, maxRetries = 1) {
-  if (!GEMINI_URL) throw new Error("GEMINI_API_KEY is not configured on server.");
+async function generateWithRetry(prompt, maxRetries = 2) {
+  if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured on server.");
 
   let lastError;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // 8s — safe sa 10s Hobby cap
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7000);
 
-      const response = await fetch(GEMINI_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: "application/json",
-          },
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+  // Try each model in order — if one is overloaded (503), fall to the next
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6500);
 
-      const data = await response.json();
+        const response = await fetch(buildGeminiUrl(model), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: "application/json",
+            },
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const err = new Error(data?.error?.message || "Unknown Gemini error");
-        err.status = response.status;
-        throw err;
+        const data = await response.json();
+
+        if (!response.ok) {
+          const err = new Error(data?.error?.message || "Unknown Gemini error");
+          err.status = response.status;
+          err.model = model;
+          throw err;
+        }
+
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error("Empty response from Gemini");
+        console.log(`✅ Success via ${model} (attempt ${attempt})`);
+        return text;
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `Gemini ${model} attempt ${attempt} failed:`,
+          error.message
+        );
+
+        if (error.name === "AbortError") {
+          // timeout — try next model immediately
+          break;
+        }
+        if (error.status === 401 || error.status === 403) {
+          throw new Error("Invalid Gemini API key.");
+        }
+        if (error.status === 503 || error.status === 429) {
+          // overloaded/rate limited — short delay then retry same model
+          if (attempt < maxRetries) {
+            await new Promise((r) => setTimeout(r, 800 * attempt));
+            continue;
+          }
+          // exhausted retries on this model → try next model
+          break;
+        }
+        // other error → try next model
+        break;
       }
-
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error("Empty response from Gemini");
-      return text;
-    } catch (error) {
-      lastError = error;
-      console.error(`Gemini attempt ${attempt} failed:`, error.message);
-
-      if (error.name === "AbortError") {
-        throw new Error("Gemini request timed out. Try a smaller file.");
-      }
-      if ((error.status === 503 || error.status === 429) && attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000;
-        await new Promise((r) => setTimeout(r, delay));
-        continue;
-      }
-      if (error.status === 401 || error.status === 403) {
-        throw new Error("Invalid Gemini API key.");
-      }
-      throw error;
     }
   }
-  throw lastError;
+
+  throw lastError || new Error("All Gemini models failed.");
 }
 
 // ---------- SAFE JSON PARSER ----------

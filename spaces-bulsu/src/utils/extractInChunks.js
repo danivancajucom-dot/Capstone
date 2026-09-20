@@ -35,26 +35,51 @@ export async function extractInChunks({
   for (let i = 0; i < chunks.length; i++) {
     if (onProgress) onProgress(i + 1, chunks.length);
 
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, rawText: chunks[i] }),
-    });
+    const MAX_TRIES = 3;
+    let attempt = 0;
+    let data = null;
 
-    let data;
+    while (attempt < MAX_TRIES) {
+    attempt++;
     try {
-      data = await res.json();
-    } catch {
-      throw new Error(`Chunk ${i + 1}/${chunks.length}: non-JSON response.`);
+        const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, rawText: chunks[i] }),
+        });
+
+        data = await res.json();
+
+        // If 503/429 (overloaded), retry after short wait
+        if (
+        (res.status === 503 || res.status === 429) &&
+        attempt < MAX_TRIES
+        ) {
+        console.warn(
+            `Chunk ${i + 1} got ${res.status}. Retry ${attempt}/${MAX_TRIES}...`
+        );
+        if (onProgress) {
+            onProgress(`retry-${attempt}`, chunks.length);
+        }
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+        continue;
+        }
+
+        if (!res.ok || !data.success) {
+        throw new Error(
+            `Chunk ${i + 1}/${chunks.length}: ${data.message || res.statusText}`
+        );
+        }
+
+        // success
+        break;
+    } catch (err) {
+        if (attempt >= MAX_TRIES) throw err;
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
     }
 
-    if (!res.ok || !data.success) {
-      throw new Error(
-        `Chunk ${i + 1}/${chunks.length}: ${data.message || res.statusText}`
-      );
-    }
-
-    allSchedules.push(...(data.schedules || []));
+    allSchedules.push(...(data?.schedules || []));
   }
 
   // Dedupe
