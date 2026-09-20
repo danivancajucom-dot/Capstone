@@ -217,41 +217,75 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   .lr-vr-class-details — PASSTHROUGH WRAPPER
-   Walang positioning, walang size. Ang mga bata nito ay
-   nagpo-position ng sarili nila (ClassDetailsCard = fixed,
-   edit button = fixed).
+   .lr-vr-class-details — STACK WRAPPER (fixed, bottom-right)
+   ─────────────────────────────────────────────────────────────────
+   Holds the ClassDetailsCard + the Edit button, stacked vertically
+   with flexbox. The card and button are now guaranteed to be in the
+   same stacking context, so no more z-index/backdrop fights.
    ═══════════════════════════════════════════════════════════════════ */
 .lr-vr-class-details {
-  /* intentionally empty — passthrough only */
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* empty space around won't block clicks */
+}
+
+/* Re-enable clicks on actual children (card + button) */
+.lr-vr-class-details > * {
+  pointer-events: auto;
+}
+
+/* ── Hide the backdrop ONLY inside our wrapper ────────────────────
+   Backdrop is what caused the blur + click-through issues. Other
+   pages using <ClassDetailsCard> are unaffected. */
+.lr-vr-class-details .class-details-backdrop {
+  display: none;
+}
+
+/* ── Turn ClassDetailsCard into a normal flow child ───────────────
+   This override is SCOPED to .lr-vr-class-details, so it does not
+   affect any other usage of <ClassDetailsCard> elsewhere. */
+.lr-vr-class-details .class-details-card {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  margin: 0;
+  animation: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   EDIT BUTTON — standalone floating action button
-   • Desktop (>900px): nasa KALIWA ng ClassDetailsCard
-   • Tablet  (≤900px): nasa bottom-left ng screen
-   • Mobile  (≤640px): nasa top-right, sa ilalim ng header
+   EDIT BUTTON — now a normal flow child in the flex column
+   Sits BELOW the ClassDetailsCard. Full width, orange, obvious.
    ═══════════════════════════════════════════════════════════════════ */
 .lr-vr-edit-sched-btn {
-  position: fixed;
-  bottom: 24px;
-  right: 364px; /* 24 (card right) + 320 (card width) + 20 (gap) */
-  z-index: 1000; /* higher than the card's 999 */
+  width: 100%;
   background: #f57c00;
   color: #ffffff;
   border: none;
-  padding: 10px 18px;
+  padding: 12px 16px;
   border-radius: 10px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 13.5px;
   font-family: inherit;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(245, 124, 0, 0.35);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   transition: background 0.15s, transform 0.1s;
-  white-space: nowrap;
 }
 
 .lr-vr-edit-sched-btn:hover {
@@ -264,31 +298,7 @@
 }
 
 .lr-vr-edit-sched-btn i {
-  font-size: 12px;
-}
-
-/* ─── Tablet (≤900px): ClassDetailsCard is a centered modal ─────
-   Ilipat ang edit button sa bottom-left para hindi mag-overlap. */
-@media (max-width: 900px) {
-  .lr-vr-edit-sched-btn {
-    right: auto;
-    left: 24px;
-    bottom: 24px;
-  }
-}
-
-/* ─── Mobile (≤640px): ClassDetailsCard is a bottom sheet ──────
-   Ilipat ang edit button sa TOP-RIGHT, sa ilalim ng page header. */
-@media (max-width: 640px) {
-  .lr-vr-edit-sched-btn {
-    right: 12px;
-    left: auto;
-    bottom: auto;
-    top: 84px;
-    padding: 9px 14px;
-    font-size: 12px;
-    box-shadow: 0 3px 10px rgba(245, 124, 0, 0.35);
-  }
+  font-size: 13px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -303,6 +313,8 @@
   justify-content: center;
   z-index: 9999;
   animation: msdFade 0.2s ease;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .msd-modal {
@@ -314,7 +326,6 @@
   text-align: center;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
   animation: msdPop 0.22s ease;
-  margin: 0 16px;
 }
 
 .msd-modal-icon {
@@ -400,7 +411,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   RESPONSIVE — calendar layout
+   RESPONSIVE — calendar layout + stack wrapper
    ═══════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
@@ -471,6 +482,23 @@
 
   .lr-vr-no-schedule h3 {
     font-size: 18px;
+  }
+}
+
+/* ─── Narrow screens: full-width stack at the bottom ─────────── */
+@media (max-width: 640px) {
+  .lr-vr-class-details {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    max-width: none;
+    gap: 8px;
+  }
+
+  .lr-vr-edit-sched-btn {
+    font-size: 13px;
+    padding: 12px 14px;
   }
 }
 
