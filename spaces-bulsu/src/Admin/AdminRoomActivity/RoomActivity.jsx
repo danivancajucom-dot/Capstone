@@ -1,10 +1,16 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import "./room-activity.css";
 import { db, auth } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
 import {
-  collection, getDocs, doc, getDoc, updateDoc, addDoc,
-  serverTimestamp, onSnapshot,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
+  addDoc,
+  serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore";
 import { logActivity } from "../../utils/logActivity";
 import { findFacultyUserByName } from "../../utils/findFacultyUser";
@@ -38,6 +44,333 @@ const fmtDate = (d) => {
   });
 };
 
+// ═════════════════════════════════════════════════════════════════════
+// CALENDAR HELPERS
+// ═════════════════════════════════════════════════════════════════════
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+const WEEKDAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+const toDateInputValue = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+const formatDateLongLocal = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", {
+    month: "long", day: "numeric", year: "numeric",
+  });
+};
+const buildCalendarGrid = (year, month) => {
+  const first = new Date(year, month, 1);
+  const startOffset = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrev = new Date(year, month, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({
+      day: daysInPrev - startOffset + 1 + i,
+      inMonth: false,
+      date: new Date(year, month - 1, daysInPrev - startOffset + 1 + i),
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, inMonth: true, date: new Date(year, month, d) });
+  }
+  while (cells.length < 42) {
+    const idx = cells.length - startOffset - daysInMonth + 1;
+    cells.push({ day: idx, inMonth: false, date: new Date(year, month + 1, idx) });
+  }
+  return cells;
+};
+
+// ═════════════════════════════════════════════════════════════════════
+// INLINE DATE PICKER
+// ═════════════════════════════════════════════════════════════════════
+function InlineDatePicker({ value, onChange, placeholder = "Select date", icon = "fa-regular fa-calendar" }) {
+  const [open, setOpen] = useState(false);
+  const [cursor, setCursor] = useState(() => {
+    const base = value ? new Date(`${value}T00:00:00`) : new Date();
+    return { year: base.getFullYear(), month: base.getMonth() };
+  });
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handle = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  const todayStr = toDateInputValue(new Date());
+
+  const toggle = () => {
+    const base = value ? new Date(`${value}T00:00:00`) : new Date();
+    setCursor({ year: base.getFullYear(), month: base.getMonth() });
+    setOpen((v) => !v);
+  };
+  const pick = (v) => { onChange(v); setOpen(false); };
+
+  return (
+    <div className="ra-mp-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`ra-mp-trigger ${open ? "open" : ""}`}
+        onClick={toggle}
+      >
+        <i className={icon}></i>
+        <span className={`ra-mp-text ${!value ? "is-placeholder" : ""}`}>
+          {value ? formatDateLongLocal(value) : placeholder}
+        </span>
+        <i className={`fa-solid fa-chevron-down ra-mp-caret ${open ? "open" : ""}`}></i>
+      </button>
+
+      {open && (
+        <div className="ra-mp-popover ra-mp-date-popover">
+          <span className="ra-mp-arrow"></span>
+
+          <div className="ra-mp-quick">
+            <button
+              type="button"
+              className={value === todayStr ? "active" : ""}
+              onClick={() => pick(todayStr)}
+            >
+              Today
+            </button>
+            <button type="button" onClick={() => pick("")}>
+              Clear
+            </button>
+          </div>
+
+          <div className="ra-mp-cal-header">
+            <button
+              type="button"
+              className="ra-mp-cal-nav"
+              onClick={() =>
+                setCursor((c) =>
+                  c.month === 0
+                    ? { year: c.year - 1, month: 11 }
+                    : { year: c.year, month: c.month - 1 }
+                )
+              }
+            >
+              <i className="fa-solid fa-chevron-left"></i>
+            </button>
+            <span className="ra-mp-cal-title">
+              {MONTH_NAMES[cursor.month]} {cursor.year}
+            </span>
+            <button
+              type="button"
+              className="ra-mp-cal-nav"
+              onClick={() =>
+                setCursor((c) =>
+                  c.month === 11
+                    ? { year: c.year + 1, month: 0 }
+                    : { year: c.year, month: c.month + 1 }
+                )
+              }
+            >
+              <i className="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+
+          <div className="ra-mp-cal-weekdays">
+            {WEEKDAY_LABELS.map((w) => <span key={w}>{w}</span>)}
+          </div>
+
+          <div className="ra-mp-cal-grid">
+            {buildCalendarGrid(cursor.year, cursor.month).map((cell, i) => {
+              const cellStr = toDateInputValue(cell.date);
+              const isSelected = cellStr === value;
+              return (
+                <button
+                  type="button"
+                  key={i}
+                  className={`ra-mp-cal-day ${!cell.inMonth ? "is-outside" : ""} ${isSelected ? "is-selected" : ""}`}
+                  onClick={() => pick(cellStr)}
+                >
+                  {cell.day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// INLINE ROOM PICKER
+// ═════════════════════════════════════════════════════════════════════
+function InlineRoomPicker({ value, valueId, onChange, rooms = [], placeholder = "Select room" }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handle = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rooms;
+    return rooms.filter((r) => (r.roomName || "").toLowerCase().includes(q));
+  }, [rooms, search]);
+
+  const toggle = () => { setSearch(""); setOpen((v) => !v); };
+
+  return (
+    <div className="ra-mp-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`ra-mp-trigger ${open ? "open" : ""}`}
+        onClick={toggle}
+      >
+        <i className="fa-solid fa-door-open"></i>
+        <span className={`ra-mp-text ${!value ? "is-placeholder" : ""}`}>
+          {value || placeholder}
+        </span>
+        <i className={`fa-solid fa-chevron-down ra-mp-caret ${open ? "open" : ""}`}></i>
+      </button>
+
+      {open && (
+        <div className="ra-mp-popover ra-mp-room-popover">
+          <span className="ra-mp-arrow"></span>
+
+          <div className="ra-mp-search-wrap">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              className="ra-mp-search-input"
+              placeholder="Search room..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <button
+                type="button"
+                className="ra-mp-search-clear"
+                onClick={() => setSearch("")}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            )}
+          </div>
+
+          <div className="ra-mp-room-list">
+            {filtered.length === 0 ? (
+              <div className="ra-mp-empty">
+                <i className="fa-regular fa-face-frown"></i>
+                <span>No rooms match.</span>
+              </div>
+            ) : (
+              filtered.map((r) => {
+                const rId = r.id || r.docId || r.roomId;
+                const isActive = rId === valueId || r.roomName === value;
+                return (
+                  <button
+                    type="button"
+                    key={rId || r.roomName}
+                    className={`ra-mp-room-option ${isActive ? "is-active" : ""}`}
+                    onClick={() => {
+                      onChange(r.roomName, rId);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                  >
+                    <div className="ra-mp-room-icon">
+                      <i className="fa-solid fa-door-open"></i>
+                    </div>
+                    <div className="ra-mp-room-body">
+                      <span className="ra-mp-room-name">{r.roomName}</span>
+                      {(r.floor || r.building) && (
+                        <span className="ra-mp-room-meta">
+                          {r.floor && <>Floor {r.floor}</>}
+                          {r.floor && r.building && <span className="ra-mp-dot">•</span>}
+                          {r.building && <>{r.building}</>}
+                        </span>
+                      )}
+                    </div>
+                    {isActive && (
+                      <i className="fa-solid fa-circle-check ra-mp-room-check"></i>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// CONFLICT ROW — reusable, parehong data shape
+// ═════════════════════════════════════════════════════════════════════
+function ConflictRow({ conflict }) {
+  return (
+    <div className="ra-conflict-row">
+      <div className="ra-conflict-row-icon">
+        <i className="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <div className="ra-conflict-row-body">
+        <div className="ra-conflict-row-title">
+          {conflict.subject || "Untitled class"}
+        </div>
+        <div className="ra-conflict-row-meta">
+          {conflict.faculty && (
+            <span>
+              <i className="fa-regular fa-user"></i>
+              {conflict.faculty}
+            </span>
+          )}
+          {conflict.section && (
+            <span>
+              <i className="fa-solid fa-users"></i>
+              {conflict.section}
+            </span>
+          )}
+          {(conflict.startTime || conflict.endTime) && (
+            <span>
+              <i className="fa-regular fa-clock"></i>
+              {fmt12(conflict.startTime)} – {fmt12(conflict.endTime)}
+            </span>
+          )}
+          {conflict.roomName && (
+            <span>
+              <i className="fa-solid fa-door-open"></i>
+              {conflict.roomName}
+            </span>
+          )}
+          {conflict.date && (
+            <span>
+              <i className="fa-regular fa-calendar"></i>
+              {conflict.date}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═════════════════════════════════════════════════════════════════════
 function RoomActivity() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,9 +381,9 @@ function RoomActivity() {
   const [sortOrder, setSortOrder] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ── Room picker ──
   const [showRoomPicker, setShowRoomPicker] = useState(false);
   const [roomSearch, setRoomSearch] = useState("");
+  const [roomsList, setRoomsList] = useState([]);
 
   const [reviewing, setReviewing] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -76,6 +409,15 @@ function RoomActivity() {
         showToast("error", "Load Failed", "Could not load room activity requests.");
         setLoading(false);
       }
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "rooms"),
+      (snap) => setRoomsList(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => console.warn("Rooms listener failed:", err)
     );
     return () => unsub();
   }, []);
@@ -256,7 +598,6 @@ function RoomActivity() {
           </div>
 
           <div className="ra-review-filters">
-            {/* ROOM PICKER */}
             <div className="ra-review-roompicker">
               <button type="button"
                 className={`ra-review-room-trigger ${showRoomPicker ? "open" : ""}`}
@@ -387,6 +728,33 @@ function RoomActivity() {
               You can adjust details before approving. Only affected faculty will be notified.
             </p>
 
+            {/* ═════════ CONFLICT DETAILS ═════════ */}
+            {(reviewing.item.conflicts?.length || 0) > 0 && (
+              <div className="ra-conflict-panel">
+                <div className="ra-conflict-panel-header">
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                  <div>
+                    <strong>
+                      {reviewing.item.conflicts.length} conflicting{" "}
+                      {reviewing.item.conflicts.length === 1 ? "schedule" : "schedules"}
+                    </strong>
+                    <p>
+                      These classes will be overridden. Affected faculty will be notified.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="ra-conflict-panel-list">
+                  {reviewing.item.conflicts.map((conflict, i) => (
+                    <ConflictRow
+                      key={conflict.scheduleId || i}
+                      conflict={conflict}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button className="ra-edit-toggle" onClick={() => setEditMode((v) => !v)}>
               <i className={`fa-solid ${editMode ? "fa-eye" : "fa-pen-to-square"}`}></i>
               {editMode ? "Preview only" : "Edit before approving"}
@@ -394,14 +762,63 @@ function RoomActivity() {
 
             {editMode ? (
               <div className="ra-edit-grid">
-                <label>Title<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
-                <label>Room<input value={draft.roomName} onChange={(e) => setDraft({ ...draft, roomName: e.target.value })} /></label>
-                <label>Date<input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} /></label>
+                <label>
+                  Title
+                  <input
+                    value={draft.title}
+                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                  />
+                </label>
+
+                <label>
+                  Room
+                  <InlineRoomPicker
+                    value={draft.roomName}
+                    valueId={draft.roomId}
+                    rooms={roomsList}
+                    onChange={(roomName, roomId) =>
+                      setDraft({ ...draft, roomName, roomId })
+                    }
+                    placeholder="Select room"
+                  />
+                </label>
+
+                <label>
+                  Date
+                  <InlineDatePicker
+                    value={draft.date}
+                    onChange={(v) => setDraft({ ...draft, date: v })}
+                    placeholder="Select date"
+                  />
+                </label>
+
                 <div className="ra-row-2">
-                  <label>Start<input type="time" value={draft.startTime} onChange={(e) => setDraft({ ...draft, startTime: e.target.value })} /></label>
-                  <label>End<input type="time" value={draft.endTime} onChange={(e) => setDraft({ ...draft, endTime: e.target.value })} /></label>
+                  <label>
+                    Start
+                    <input
+                      type="time"
+                      value={draft.startTime}
+                      onChange={(e) => setDraft({ ...draft, startTime: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    End
+                    <input
+                      type="time"
+                      value={draft.endTime}
+                      onChange={(e) => setDraft({ ...draft, endTime: e.target.value })}
+                    />
+                  </label>
                 </div>
-                <label>Reason<textarea rows={3} value={draft.reason} onChange={(e) => setDraft({ ...draft, reason: e.target.value })} /></label>
+
+                <label>
+                  Reason
+                  <textarea
+                    rows={3}
+                    value={draft.reason}
+                    onChange={(e) => setDraft({ ...draft, reason: e.target.value })}
+                  />
+                </label>
               </div>
             ) : (
               <div className="ra-modal-summary">
@@ -440,6 +857,8 @@ function ReviewCard({ item, onReview }) {
     cls: "",
   };
 
+  const conflicts = item.conflicts || [];
+
   return (
     <div className={`ra-review-card ${statusMeta.cls}`}>
       <div className="ra-review-card-top">
@@ -459,12 +878,42 @@ function ReviewCard({ item, onReview }) {
           <i className="fa-regular fa-user"></i> {item.requestedByName}
           <span className="ra-role-pill">{item.requestedByRole}</span>
         </span>
-        {(item.conflicts?.length || 0) > 0 && (
+        {conflicts.length > 0 && (
           <span className="ra-review-conflict-chip">
-            <i className="fa-solid fa-triangle-exclamation"></i> {item.conflicts.length} conflict{item.conflicts.length > 1 ? "s" : ""}
+            <i className="fa-solid fa-triangle-exclamation"></i> {conflicts.length} conflict{conflicts.length > 1 ? "s" : ""}
           </span>
         )}
       </div>
+
+      {/* ═════════ Conflict preview sa card ═════════ */}
+      {conflicts.length > 0 && (
+        <div className="ra-review-conflict-preview">
+          <div className="ra-review-conflict-preview-title">
+            <i className="fa-solid fa-triangle-exclamation"></i>
+            Conflicts with:
+          </div>
+          {conflicts.slice(0, 3).map((conflict, i) => (
+            <div key={conflict.scheduleId || i} className="ra-review-conflict-line">
+              <span className="ra-cp-subject">{conflict.subject || "Untitled"}</span>
+              <span className="ra-cp-dot">•</span>
+              <span className="ra-cp-faculty">{conflict.faculty || "Unknown"}</span>
+              {(conflict.startTime || conflict.endTime) && (
+                <>
+                  <span className="ra-cp-dot">•</span>
+                  <span className="ra-cp-time">
+                    {fmt12(conflict.startTime)} – {fmt12(conflict.endTime)}
+                  </span>
+                </>
+              )}
+            </div>
+          ))}
+          {conflicts.length > 3 && (
+            <div className="ra-review-conflict-more">
+              +{conflicts.length - 3} more
+            </div>
+          )}
+        </div>
+      )}
 
       {item.reason && (
         <div className="ra-review-reason"><i className="fa-solid fa-note-sticky"></i><span>{item.reason}</span></div>

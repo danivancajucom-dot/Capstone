@@ -42,6 +42,26 @@ const minToTime = (mins) => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
+// ═══════════════════════════════════════════════════════════════
+// Room status helpers — para hindi mailagay sa available list
+// ang mga room na under maintenance / inactive
+// ═══════════════════════════════════════════════════════════════
+const isRoomMaintenance = (room) => {
+  const status = String(room.roomStatus || "").toLowerCase().trim();
+  const legacyStatus = String(room.status || "").toLowerCase().trim();
+  return (
+    room.maintenance === true ||
+    status === "maintenance" ||
+    legacyStatus === "under maintenance" ||
+    legacyStatus === "maintenance"
+  );
+};
+
+const isRoomInactive = (room) => {
+  const status = String(room.roomStatus || "").toLowerCase().trim();
+  return status === "inactive";
+};
+
 function ClerkReassignRoom() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -49,6 +69,7 @@ function ClerkReassignRoom() {
   const [availableRooms, setAvailableRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const [skippedRooms, setSkippedRooms] = useState({ maintenance: 0, inactive: 0 });
   const location = useLocation();
 
   const [alreadyPending, setAlreadyPending] = useState(false);
@@ -128,10 +149,29 @@ function ClerkReassignRoom() {
     const classStart = cvtMin(effectiveStart);
     const classEnd = cvtMin(effectiveEnd);
 
+    let maintenanceSkipped = 0;
+    let inactiveSkipped = 0;
+
     for (const roomDoc of roomSnap.docs) {
       const room = roomDoc.data();
+
+      // ✅ SKIP: floor filter
       if (floor && room.floor !== floor) continue;
+
+      // ✅ SKIP: yung original room (hindi pwedeng i-reassign sa sarili)
       if (roomDoc.id === conflict.roomId) continue;
+
+      // ✅ SKIP: rooms under maintenance — hindi pwedeng paglagyan
+      if (isRoomMaintenance(room)) {
+        maintenanceSkipped++;
+        continue;
+      }
+
+      // ✅ SKIP: inactive rooms — hindi available
+      if (isRoomInactive(room)) {
+        inactiveSkipped++;
+        continue;
+      }
 
       const blockers = [];
 
@@ -215,6 +255,7 @@ function ClerkReassignRoom() {
     }
 
     setAvailableRooms(available);
+    setSkippedRooms({ maintenance: maintenanceSkipped, inactive: inactiveSkipped });
     setRoomsLoading(false);
   };
 
@@ -577,6 +618,31 @@ function ClerkReassignRoom() {
                 <i className="fa-solid fa-angle-down dept-dropdown-icon-venue"></i>
               </div>
             </div>
+
+            {/* ✅ Note: kung may rooms na hindi naipakita dahil maintenance/inactive */}
+            {(skippedRooms.maintenance > 0 || skippedRooms.inactive > 0) &&
+              availableRooms.length === 0 &&
+              !roomsLoading && (
+                <div className="dept-reassign-hidden-note">
+                  <i className="fa-solid fa-circle-info"></i>
+                  <span>
+                    {skippedRooms.maintenance > 0 && (
+                      <>
+                        <b>{skippedRooms.maintenance}</b> room
+                        {skippedRooms.maintenance === 1 ? "" : "s"} hidden — under
+                        maintenance.
+                      </>
+                    )}
+                    {skippedRooms.maintenance > 0 && skippedRooms.inactive > 0 && " "}
+                    {skippedRooms.inactive > 0 && (
+                      <>
+                        <b>{skippedRooms.inactive}</b> room
+                        {skippedRooms.inactive === 1 ? "" : "s"} hidden — inactive.
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
 
             <div className="available-room-list">
               {roomsLoading ? (

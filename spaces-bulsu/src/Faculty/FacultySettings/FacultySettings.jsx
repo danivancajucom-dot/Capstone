@@ -35,15 +35,48 @@ const passwordChecks = (pw) => ({
 const isStrong = (pw) => Object.values(passwordChecks(pw)).every(Boolean);
 
 // ── FAQ items ─────────────────────────────────────────────────────
+// ── FAQ items ─────────────────────────────────────────────────────
 const FAQ_ITEMS = [
-  { question: "Ano ang SpaceS CICT?", answer: "Ang SpaceS CICT ay isang web at mobile-based platform para sa classroom allocation at scheduling ng College of Information and Communications Technology (CICT) sa Bulacan State University." },
-  { question: "Sino ang pwedeng gumawa ng account sa system?", answer: "Ang Admin lang ang may access na gumawa ng user accounts para sa Local Registrar, Clerk, at Faculty Members." },
-  { question: "Nakalimutan ko ang password ko, ano ang gagawin ko?", answer: "I-click lang ang 'Forgot Password?' sa login page. Makakatanggap ka ng password reset link sa iyong registered email address." },
-  { question: "Bakit naka-block ang account ko?", answer: "Awtomatikong ma-bblock ang account pagkatapos ng 5 sunod-sunod na maling login attempts, para sa seguridad." },
-  { question: "Paano mag-request ng room reservation?", answer: "Bilang Faculty, pumunta sa Reservations page at pindutin ang '+' button. Punan ang course title, purpose, petsa, at oras ng gagamitin." },
-  { question: "Paano ko malalaman kung available ang isang room?", answer: "Makikita mo ang real-time status ng bawat classroom sa Rooms page. Pwede mo ring i-scan ang QR code na nakadikit sa pinto ng bawat room." },
-  { question: "Ano ang gagawin ko kung hindi ko na gagamitin ang assigned room ko?", answer: "Sa Schedule page, piliin ang klase o booking na gusto mong i-release, bigyan ng dahilan, at kumpirmahin." },
-  { question: "Sino ang makokontak ko kung may problema ako sa system?", answer: "Pwede mong i-click ang 'Contact Support' o direktang mag-email sa spaces-bulsu@outlook.com o spacescict@gmail.com." },
+  {
+    question: "What is SpaceS CICT?",
+    answer:
+      "SpaceS CICT is a web and mobile-based platform for classroom allocation and scheduling at the College of Information and Communications Technology (CICT), Bulacan State University.",
+  },
+  {
+    question: "Who can create an account in the system?",
+    answer:
+      "Only the Admin has access to create user accounts for the Local Registrar, Clerk, and Faculty Members.",
+  },
+  {
+    question: "I forgot my password. What should I do?",
+    answer:
+      "Just click 'Forgot Password?' on the login page. You will receive a password reset link at your registered email address.",
+  },
+  {
+    question: "Why is my account blocked?",
+    answer:
+      "Your account is automatically blocked after 5 consecutive failed login attempts, for security purposes.",
+  },
+  {
+    question: "How do I request a room reservation?",
+    answer:
+      "As a Faculty member, go to the Reservations page and click the '+' button. Fill in the course title, purpose, date, and time slot you need.",
+  },
+  {
+    question: "How do I know if a room is available?",
+    answer:
+      "You can view the real-time status of each classroom on the Rooms page. You can also scan the QR code posted on each room's door.",
+  },
+  {
+    question: "What should I do if I won't be using my assigned room?",
+    answer:
+      "On the Schedule page, select the class or booking you want to release, provide a reason, and confirm.",
+  },
+  {
+    question: "Who can I contact if I have a problem with the system?",
+    answer:
+      "You can click 'Contact Support' or directly email us at spaces-bulsu@outlook.com or spacescict@gmail.com.",
+  },
 ];
 
 const DELETE_PHRASE = "DELETE MY ACCOUNT"; // mas mahabang phrase — deliberate
@@ -1160,7 +1193,7 @@ export default function FacultySettings() {
                 </div>
                 <h2>Frequently Asked Questions</h2>
                 <p className="info-modal-subtitle">
-                  Mabilisang sagot sa mga karaniwang tanong.
+                  Quick answers to the most common questions.
                 </p>
                 <div className="faq-list">
                   {FAQ_ITEMS.map((item, index) => {

@@ -48,44 +48,44 @@ export default function Login() {
 
   const FAQ_ITEMS = [
     {
-      question: "Ano ang SpaceS CICT?",
+      question: "What is SpaceS CICT?",
       answer:
-        "Ang SpaceS CICT ay isang web at mobile-based platform para sa classroom allocation at scheduling ng College of Information and Communications Technology (CICT) sa Bulacan State University. Pinapalitan nito ang manual, meeting-based na proseso ng pag-schedule gamit ang isang centralized system kung saan makikita ang lahat ng room schedules, reservations, at conflicts sa iisang lugar.",
+        "SpaceS CICT is a web and mobile-based platform for classroom allocation and scheduling at the College of Information and Communications Technology (CICT), Bulacan State University. It replaces the manual, meeting-based scheduling process with a centralized system where all room schedules, reservations, and conflicts can be viewed in one place.",
     },
     {
-      question: "Sino ang pwedeng gumawa ng account sa system?",
+      question: "Who can create an account in the system?",
       answer:
-        "Ang Admin lang ang may access na gumawa ng user accounts para sa Local Registrar, Clerk, at Faculty Members. Kapag nagawa na ang account, automatic na ipapadala ang temporary login credentials sa registered email address ng user.",
+        "Only the Admin has access to create user accounts for the Local Registrar, Clerk, and Faculty Members. Once an account is created, temporary login credentials are automatically sent to the user's registered email address.",
     },
     {
-      question: "Nakalimutan ko ang password ko, ano ang gagawin ko?",
+      question: "I forgot my password. What should I do?",
       answer:
-        "I-click lang ang 'Forgot Password?' sa login page. Makakatanggap ka ng password reset link sa iyong registered email address na pwede mong gamitin para mag-set ng bagong password.",
+        "Just click 'Forgot Password?' on the login page. You will receive a password reset link at your registered email address that you can use to set a new password.",
     },
     {
-      question: "Bakit naka-block ang account ko?",
+      question: "Why is my account blocked?",
       answer:
-        "Awtomatikong ma-bblock ang account pagkatapos ng 5 sunod-sunod na maling login attempts, para sa seguridad. Sa ika-3 attempt, may babalang notification ka na. Kung na-block na ang account mo, kontakin ang Admin para ma-reactivate ito.",
+        "Your account is automatically blocked after 5 consecutive failed login attempts, for security purposes. On the 3rd attempt, a warning notification is already issued. If your account has been blocked, please contact the Admin to have it reactivated.",
     },
     {
-      question: "Paano mag-request ng room reservation?",
+      question: "How do I request a room reservation?",
       answer:
-        "Bilang Faculty, pumunta sa Reservations page at pindutin ang '+' button. Punan ang course title, purpose, petsa, at oras ng gagamitin — automatic na magpapakita ang system ng mga available rooms na tugma sa iyong kailangan.",
+        "As a Faculty member, go to the Reservations page and click the '+' button. Fill in the course title, purpose, date, and time slot you need — the system will automatically show available rooms that match your requirements.",
     },
     {
-      question: "Paano ko malalaman kung available ang isang room?",
+      question: "How do I know if a room is available?",
       answer:
-        "Makikita mo ang real-time status ng bawat classroom (Available, Occupied, o Under Maintenance) sa Rooms page. Pwede mo ring i-scan ang QR code na nakadikit sa pinto ng bawat room para makita agad ang current at upcoming schedule nito, kahit hindi ka naka-login.",
+        "You can view the real-time status of each classroom (Available, Occupied, or Under Maintenance) on the Rooms page. You can also scan the QR code posted on each room's door to immediately view its current and upcoming schedule, even without logging in.",
     },
     {
-      question: "Ano ang gagawin ko kung hindi ko na gagamitin ang assigned room ko?",
+      question: "What should I do if I won't be using my assigned room?",
       answer:
-        "Sa Schedule page, piliin ang klase o booking na gusto mong i-release, bigyan ng dahilan (halimbawa: examination o class suspension), at kumpirmahin. Awtomatikong mano-notify ang Admin at Clerk para maibalik na available ang room para sa ibang users.",
+        "On the Schedule page, select the class or booking you want to release, provide a reason (for example: examination or class suspension), and confirm. The Admin and Clerk will be automatically notified so the room can be made available again to other users.",
     },
     {
-      question: "Sino ang makokontak ko kung may problema ako sa system?",
+      question: "Who can I contact if I have a problem with the system?",
       answer:
-        "Pwede mong i-click ang 'Contact Support' sa ibaba ng login form para makita ang aming official email addresses, o direktang mag-email sa spaces-bulsu@outlook.com o spacescict@gmail.com.",
+        "You can click 'Contact Support' at the bottom of the login form to see our official email addresses, or directly email us at spaces-bulsu@outlook.com or spacescict@gmail.com.",
     },
   ];
 
@@ -379,8 +379,6 @@ export default function Login() {
       const userSnap = await getDocs(userQuery);
 
       if (userSnap.empty) {
-        // Walang account — i-log sa securityLogs (enumeration detection)
-        // fire-and-forget; hindi na hintayin
         addDoc(collection(db, "securityLogs"), {
           uid: null,
           email,
@@ -423,7 +421,6 @@ export default function Login() {
           return;
         }
 
-        // Auto-unblock: nag-expire na ang cooldown
         try {
           await updateDoc(doc(db, "users", uid), {
             status: "Active",
@@ -440,7 +437,6 @@ export default function Login() {
           };
         } catch (e) {
           console.warn("[login] auto-unblock failed:", e);
-          // Tuloy pa rin — hindi ito blocking
           userData = { ...userData, status: "Active" };
         }
       }
@@ -519,7 +515,6 @@ export default function Login() {
       };
       const errorMessage = MSG[err.code] || "Login failed. Please try again.";
 
-      // Kung hindi pa naka-fetch ang userData, kunin muli (para sa counter)
       if (!userData) {
         try {
           const userQuery = query(
@@ -537,7 +532,6 @@ export default function Login() {
         }
       }
 
-      // ─── Compute next attempt — para malaman ang message ────────
       let shownTitle = "Login Failed";
       let shownMessage = errorMessage;
       let willBlockNow = false;
@@ -564,10 +558,8 @@ export default function Login() {
         }
       }
 
-      // ─── SHOW THE TOAST FIRST — hindi na mag-hang ───────────────
       showToast("error", shownTitle, shownMessage);
 
-      // ─── Ngayon, i-log sa background (fire-and-forget) ──────────
       if (userData && uid) {
         recordFailedAttempt({
           uid,
@@ -1146,8 +1138,7 @@ export default function Login() {
                 </div>
                 <h2>Frequently Asked Questions</h2>
                 <p className="info-modal-subtitle">
-                  Mabilisang sagot sa mga karaniwang tanong tungkol sa SpaceS
-                  CICT.
+                  Quick answers to the most common questions about SpaceS CICT.
                 </p>
                 <div className="faq-list">
                   {FAQ_ITEMS.map((item, index) => {

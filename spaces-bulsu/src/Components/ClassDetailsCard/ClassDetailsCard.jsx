@@ -46,185 +46,190 @@ function ClassDetailsCard({
   };
 
   return (
-    <div className="class-details-card">
+    <>
+      {/* Backdrop — dim effect sa tablet + mobile, hidden sa desktop */}
+      <div className="class-details-backdrop" onClick={onClose} />
 
-      <div className="class-details-header">
+      <div className="class-details-card">
 
-        <span className="class-details-title">
-          {schedule.isAdminEvent
-            ? "Room Activity Details"
-            : schedule.isReservation
-            ? "Reservation Details"
-            : "Class Details"}
-        </span>
+        <div className="class-details-header">
 
-        <span className="class-details-date">
-          {schedule.day || schedule.date || "-"}
-        </span>
-
-        <span
-          className="class-details-close"
-          onClick={onClose}
-          style={{ cursor: "pointer" }}
-        >
-          ✕
-        </span>
-
-      </div>
-
-      {/* SOURCE / STATUS BADGES */}
-      <div className="class-details-badges">
-
-        <span className="class-details-badge type">
-          {schedule.sourceType || "Class Schedule"}
-        </span>
-
-        {schedule.isReservation && (
-          <span
-            className={`class-details-badge status ${statusClass(
-              schedule.status
-            )}`}
-          >
-            {statusLabel(schedule.status)}
+          <span className="class-details-title">
+            {schedule.isAdminEvent
+              ? "Room Activity Details"
+              : schedule.isReservation
+              ? "Reservation Details"
+              : "Class Details"}
           </span>
-        )}
 
+          <span className="class-details-date">
+            {schedule.day || schedule.date || "-"}
+          </span>
+
+          <span
+            className="class-details-close"
+            onClick={onClose}
+            style={{ cursor: "pointer" }}
+          >
+            ✕
+          </span>
+
+        </div>
+
+        {/* SOURCE / STATUS BADGES */}
+        <div className="class-details-badges">
+
+          <span className="class-details-badge type">
+            {schedule.sourceType || "Class Schedule"}
+          </span>
+
+          {schedule.isReservation && (
+            <span
+              className={`class-details-badge status ${statusClass(
+                schedule.status
+              )}`}
+            >
+              {statusLabel(schedule.status)}
+            </span>
+          )}
+
+        </div>
+
+        <div className="class-details-body">
+
+          {/* FACULTY / REQUESTER */}
+          <div className="class-detail-item">
+            <div className="class-detail-icon">
+              <i className="fa-regular fa-user"></i>
+            </div>
+            <div className="class-detail-info">
+              <span className="class-detail-label">
+                {schedule.isAdminEvent
+                  ? "ISSUED BY"
+                  : schedule.isReservation
+                  ? "REQUESTED BY"
+                  : "FACULTY"}
+              </span>
+              <span className="class-detail-value">
+                {schedule.faculty || "-"}
+              </span>
+            </div>
+          </div>
+
+          {/* SUBJECT / PURPOSE */}
+          <div className="class-detail-item">
+            <div className="class-detail-icon">
+              <i className="fa-regular fa-bookmark"></i>
+            </div>
+            <div className="class-detail-info">
+              <span className="class-detail-label">
+                {schedule.isReservation ? "PURPOSE" : "SUBJECT"}
+              </span>
+              <span className="class-detail-value">
+                {schedule.subject || "-"}
+              </span>
+            </div>
+          </div>
+
+          {/* SECTION / ATTENDEES */}
+          <div className="class-detail-item">
+            <div className="class-detail-icon">
+              <i className="fa-solid fa-users"></i>
+            </div>
+            <div className="class-detail-info">
+              <span className="class-detail-label">
+                {schedule.isReservation ? "SECTION / ATTENDEES" : "SECTION"}
+              </span>
+              <span className="class-detail-value">
+                {schedule.section || "-"}
+              </span>
+            </div>
+          </div>
+
+          {/* REASON - admin override lang */}
+          {schedule.reason && (
+            <div className="class-detail-item">
+              <div className="class-detail-icon">
+                <i className="fa-solid fa-circle-info"></i>
+              </div>
+              <div className="class-detail-info">
+                <span className="class-detail-label">
+                  REASON
+                </span>
+                <span className="class-detail-value">
+                  {schedule.reason}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ROOM */}
+          <div className="class-detail-item">
+            <div className="class-detail-icon">
+              <i className="fa-solid fa-location-dot"></i>
+            </div>
+            <div className="class-detail-info">
+              <span className="class-detail-label">
+                ROOM
+              </span>
+              <span className="class-detail-value">
+                {roomName}
+              </span>
+            </div>
+          </div>
+
+          {/* TIME */}
+          <div className="class-detail-item">
+            <div className="class-detail-icon">
+              <i className="fa-regular fa-clock"></i>
+            </div>
+            <div className="class-detail-info">
+              <span className="class-detail-label">
+                TIME
+              </span>
+              <span className="class-detail-value">
+                {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+              </span>
+            </div>
+          </div>
+
+          {/* SEMESTER - class schedule lang */}
+          {!schedule.isReservation && (
+            <div className="class-detail-item">
+              <div className="class-detail-icon">
+                <i className="fa-solid fa-graduation-cap"></i>
+              </div>
+              <div className="class-detail-info">
+                <span className="class-detail-label">
+                  SEMESTER
+                </span>
+                <span className="class-detail-value">
+                  {schedule.semester}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* SCHOOL YEAR - class schedule lang */}
+          {!schedule.isReservation && (
+            <div className="class-detail-item">
+              <div className="class-detail-icon">
+                <i className="fa-solid fa-calendar-days"></i>
+              </div>
+              <div className="class-detail-info">
+                <span className="class-detail-label">
+                  SCHOOL YEAR
+                </span>
+                <span className="class-detail-value">
+                  {schedule.schoolYear}
+                </span>
+              </div>
+            </div>
+          )}
+
+        </div>
       </div>
-
-      <div className="class-details-body">
-
-        {/* FACULTY / REQUESTER */}
-        <div className="class-detail-item">
-          <div className="class-detail-icon">
-            <i className="fa-regular fa-user"></i>
-          </div>
-          <div className="class-detail-info">
-            <span className="class-detail-label">
-              {schedule.isAdminEvent
-                ? "ISSUED BY"
-                : schedule.isReservation
-                ? "REQUESTED BY"
-                : "FACULTY"}
-            </span>
-            <span className="class-detail-value">
-              {schedule.faculty || "-"}
-            </span>
-          </div>
-        </div>
-
-        {/* SUBJECT / PURPOSE */}
-        <div className="class-detail-item">
-          <div className="class-detail-icon">
-            <i className="fa-regular fa-bookmark"></i>
-          </div>
-          <div className="class-detail-info">
-            <span className="class-detail-label">
-              {schedule.isReservation ? "PURPOSE" : "SUBJECT"}
-            </span>
-            <span className="class-detail-value">
-              {schedule.subject || "-"}
-            </span>
-          </div>
-        </div>
-
-        {/* SECTION / ATTENDEES */}
-        <div className="class-detail-item">
-          <div className="class-detail-icon">
-            <i className="fa-solid fa-users"></i>
-          </div>
-          <div className="class-detail-info">
-            <span className="class-detail-label">
-              {schedule.isReservation ? "SECTION / ATTENDEES" : "SECTION"}
-            </span>
-            <span className="class-detail-value">
-              {schedule.section || "-"}
-            </span>
-          </div>
-        </div>
-
-        {/* REASON - admin override lang */}
-        {schedule.reason && (
-          <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-solid fa-circle-info"></i>
-            </div>
-            <div className="class-detail-info">
-              <span className="class-detail-label">
-                REASON
-              </span>
-              <span className="class-detail-value">
-                {schedule.reason}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* ROOM */}
-        <div className="class-detail-item">
-          <div className="class-detail-icon">
-            <i className="fa-solid fa-location-dot"></i>
-          </div>
-          <div className="class-detail-info">
-            <span className="class-detail-label">
-              ROOM
-            </span>
-            <span className="class-detail-value">
-              {roomName}
-            </span>
-          </div>
-        </div>
-
-        {/* TIME */}
-        <div className="class-detail-item">
-          <div className="class-detail-icon">
-            <i className="fa-regular fa-clock"></i>
-          </div>
-          <div className="class-detail-info">
-            <span className="class-detail-label">
-              TIME
-            </span>
-            <span className="class-detail-value">
-              {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
-            </span>
-          </div>
-        </div>
-
-        {/* SEMESTER - class schedule lang */}
-        {!schedule.isReservation && (
-          <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-solid fa-graduation-cap"></i>
-            </div>
-            <div className="class-detail-info">
-              <span className="class-detail-label">
-                SEMESTER
-              </span>
-              <span className="class-detail-value">
-                {schedule.semester}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* SCHOOL YEAR - class schedule lang */}
-        {!schedule.isReservation && (
-          <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-solid fa-calendar-days"></i>
-            </div>
-            <div className="class-detail-info">
-              <span className="class-detail-label">
-                SCHOOL YEAR
-              </span>
-              <span className="class-detail-value">
-                {schedule.schoolYear}
-              </span>
-            </div>
-          </div>
-        )}
-
-      </div>
-    </div>
+    </>
   );
 }
 

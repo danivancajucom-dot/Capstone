@@ -789,3 +789,32 @@
   color: #1e2430;
   font-weight: 800;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   HIDDEN ROOMS NOTE — kapag may nasala dahil maintenance/inactive
+   ═══════════════════════════════════════════════════════════════ */
+.dept-reassign-hidden-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fffbf5;
+  border: 1.5px solid #fde8c8;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #92621a;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.dept-reassign-hidden-note i {
+  color: #f57c00;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.dept-reassign-hidden-note b {
+  color: #c2601a;
+  font-weight: 800;
+}

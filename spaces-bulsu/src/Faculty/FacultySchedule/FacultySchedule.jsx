@@ -5,6 +5,7 @@
 // - Respects room-schedule activation windows
 // - Online classes tied to the active term
 // - Mid-class release preserves elapsed time (effectiveEndTime)
+// - Responsive: horizontal scroll on mobile (grid stays 7-day)
 // ============================================================
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./faculty-schedule.css";
@@ -278,7 +279,7 @@ export default function WeeklyCalendar() {
   }, []);
 
   // ════════════════════════════════════════════════════════════════
-  // MAIN SETUP — base fetch + realtime listeners
+  // MAIN SETUP
   // ════════════════════════════════════════════════════════════════
   useEffect(() => {
     let isCancelled = false;
@@ -314,7 +315,6 @@ export default function WeeklyCalendar() {
         );
         myNameRef.current = myName;
 
-        // ─── BASE: rooms + schedules (static) ───────────────────
         const roomsSnap = await getDocs(collection(db, "rooms"));
         const matchedSchedules = [];
 
@@ -346,7 +346,6 @@ export default function WeeklyCalendar() {
         let roomIds = [];
 
         if (matchedSchedules.length > 0) {
-          // ✅ Prefer schedules from the currently activated term
           const activeGroup = matchedSchedules.filter(
             (s) => s.isActive === true
           );
@@ -360,7 +359,6 @@ export default function WeeklyCalendar() {
             displaySem = activeGroup[0].semester;
             displaySY = activeGroup[0].schoolYear;
           } else {
-            // Fallback: newest term so faculty still sees something
             const rank = (s) => [
               schoolYearStart(s.schoolYear),
               semesterRank(s.semester),
@@ -395,7 +393,6 @@ export default function WeeklyCalendar() {
 
         setLoading(false);
 
-        // ─── REALTIME: Faculty online schedules ─────────────────
         const unsubOnline = onSnapshot(
           query(
             collection(db, "facultySchedules"),
@@ -417,7 +414,6 @@ export default function WeeklyCalendar() {
         );
         unsubsRef.current.push(unsubOnline);
 
-        // ─── REALTIME: Events ───────────────────────────────────
         const unsubEvents = onSnapshot(
           collection(db, "events"),
           (snap) => {
@@ -434,7 +430,6 @@ export default function WeeklyCalendar() {
         );
         unsubsRef.current.push(unsubEvents);
 
-        // ─── REALTIME: Reservations ─────────────────────────────
         const unsubReservations = onSnapshot(
           collection(db, "reservationRequests"),
           (snap) => {
@@ -459,7 +454,6 @@ export default function WeeklyCalendar() {
         );
         unsubsRef.current.push(unsubReservations);
 
-        // ─── REALTIME: Releases (Map with effectiveEndTime) ─────
         const unsubReleases = onSnapshot(
           query(
             collection(db, "roomReleases"),
@@ -480,7 +474,6 @@ export default function WeeklyCalendar() {
         );
         unsubsRef.current.push(unsubReleases);
 
-        // ─── REALTIME: Reassignments ────────────────────────────
         const unsubReassign = onSnapshot(
           query(
             collection(db, "roomReassignments"),
@@ -571,7 +564,6 @@ export default function WeeklyCalendar() {
       reassignedEvents.map((r) => `${r.scheduleId}_${r.date}`)
     );
 
-    // ── 1. Schedule items ──
     const scheduleItems = [];
     scheduleEvents.forEach((s) => {
       const dayIdx = DAYS.indexOf(s.day) + 1;
@@ -581,24 +573,18 @@ export default function WeeklyCalendar() {
       occurrenceDate.setDate(weekStart.getDate() + (dayIdx - 1));
       const occurrenceDateStr = toDateStr(occurrenceDate);
 
-      // ✅ Respect activation window per-occurrence
       if (!isActiveOnDate(s, occurrenceDateStr)) return;
-
-      // ✅ Reassigned-away → totally hidden
       if (reassignedKeys.has(`${s.id}_${occurrenceDateStr}`)) return;
 
-      // ✅ Release handling
       const releaseInfo = releasedMap.get(`${s.id}_${occurrenceDateStr}`);
-      // Upcoming release → totally hidden
       if (releaseInfo && !releaseInfo.effectiveEndTime) return;
 
       const [startH, startM] = parseTimeParts(s.startTime);
       let [endH, endM] = parseTimeParts(s.endTime);
 
-      // Ongoing release → truncate end time to release time
       if (releaseInfo?.effectiveEndTime) {
         const [rH, rM] = parseTimeParts(releaseInfo.effectiveEndTime);
-        if (rH * 60 + rM <= startH * 60 + startM) return; // no time was used
+        if (rH * 60 + rM <= startH * 60 + startM) return;
         endH = rH;
         endM = rM;
       }
@@ -634,7 +620,6 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 2. Room activities ──
     const activityItems = [];
     overrideEvents.forEach((e) => {
       if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
@@ -691,9 +676,7 @@ export default function WeeklyCalendar() {
 
     for (const activity of activityItems) items.push(activity);
 
-    // ── 3. Faculty online schedules ──
     facultyOnlineEvents.forEach((s) => {
-      // ✅ Only show online classes that belong to the active term
       if (activeTerm) {
         const sameTerm =
           (s.semester || "") === (activeTerm.semester || "") &&
@@ -738,7 +721,6 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 4. Reservations ──
     reservationEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
       const dayIdx = mondayIndexFromDate(r.date);
@@ -765,7 +747,6 @@ export default function WeeklyCalendar() {
       });
     });
 
-    // ── 5. Reassignments ──
     reassignedEvents.forEach((r) => {
       if (!isWithinWeek(r.date, weekStart, weekEnd)) return;
       const dayIdx = mondayIndexFromDate(r.date);
@@ -816,7 +797,6 @@ export default function WeeklyCalendar() {
     }
 
     if (ev.kind === "schedule") {
-      // Already released → just view details (no re-release)
       if (ev.isReleased) {
         setDetailsTarget({ ...ev, status });
         return;
@@ -877,7 +857,6 @@ export default function WeeklyCalendar() {
       const me = userSnap.exists() ? userSnap.data() : {};
       const fullName = `${me.firstName || ""} ${me.lastName || ""}`.trim();
 
-      // ── Compute effectiveEndTime if class is ongoing ──
       let effectiveEndTime = null;
       const nowD = new Date();
       const nowMin = nowD.getHours() * 60 + nowD.getMinutes();
@@ -903,7 +882,7 @@ export default function WeeklyCalendar() {
         section: releaseTarget.section || "",
         startTime: releaseTarget.startTime,
         endTime: releaseTarget.endTime,
-        effectiveEndTime, // null if upcoming, time if ongoing
+        effectiveEndTime,
         faculty: fullName,
         releasedBy: firebaseUser.uid,
         releasedByName: fullName,
@@ -942,8 +921,6 @@ export default function WeeklyCalendar() {
       } catch (logErr) {
         console.error("logActivity failed:", logErr);
       }
-
-      // NOTE: no manual setReleasedMap — onSnapshot handles it
 
       setReleaseTarget(null);
       showToast(
@@ -1026,22 +1003,6 @@ export default function WeeklyCalendar() {
             />
           </div>
 
-          <div className="wc-days-header">
-            <div className="wc-time-offset" />
-            {DAYS.map((d, i) => (
-              <div className="wc-day-cell" key={d}>
-                <span className="wc-day-name">{d}</span>
-                <span
-                  className={`wc-day-date ${i === todayIdx ? "today" : ""}`}
-                >
-                  {dayDates[i]}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="wc-divider" />
-
           {loading ? (
             <div className="wc-empty-state">
               <i className="fa-solid fa-spinner fa-spin"></i>
@@ -1057,114 +1018,152 @@ export default function WeeklyCalendar() {
               </p>
             </div>
           ) : (
-            <div className="wc-scroll-area">
-              <div className="wc-grid" style={{ height: totalH }}>
-                <div className="wc-time-col">
-                  {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
-                    <div className="wc-time-slot" key={i}>
-                      <span>{fmtHour(START_HOUR + i)}</span>
+            <div className="wc-scroll-x">
+              <div className="wc-scroll-inner">
+                <div className="wc-days-header">
+                  <div className="wc-time-offset" />
+                  {DAYS.map((d, i) => (
+                    <div className="wc-day-cell" key={d}>
+                      <span className="wc-day-name">{d}</span>
+                      <span
+                        className={`wc-day-date ${
+                          i === todayIdx ? "today" : ""
+                        }`}
+                      >
+                        {dayDates[i]}
+                      </span>
                     </div>
                   ))}
                 </div>
 
-                <div className="wc-events-layer">
-                  {DAYS.map((_, i) => (
-                    <div className="wc-day-col" key={i}>
+                <div className="wc-divider" />
+
+                <div className="wc-scroll-area">
+                  <div className="wc-grid" style={{ height: totalH }}>
+                    <div className="wc-time-col">
                       {Array.from(
                         { length: END_HOUR - START_HOUR },
-                        (_, j) => (
-                          <div
-                            className="wc-hour-line"
-                            key={j}
-                            style={{ top: j * HOUR_HEIGHT }}
-                          />
+                        (_, i) => (
+                          <div className="wc-time-slot" key={i}>
+                            <span>{fmtHour(START_HOUR + i)}</span>
+                          </div>
                         )
                       )}
                     </div>
-                  ))}
 
-                  {calendarEvents.map((ev) => {
-                    const color = CARD_COLORS[ev.colorIdx];
-                    const topPx =
-                      (ev.startH - START_HOUR + ev.startM / 60) * HOUR_HEIGHT;
-                    const heightPx =
-                      (ev.endH - ev.startH + (ev.endM - ev.startM) / 60) *
-                        HOUR_HEIGHT -
-                      4;
-                    const leftPct = ((ev.dayIdx - 1) / 7) * 100;
-                    const widthPct = (ev.daySpan / 7) * 100;
-                    const isClickable =
-                      ev.kind === "schedule" &&
-                      !ev.isReleased &&
-                      computeStatus(ev.date, ev.rawStartTime, ev.rawEndTime)
-                        .status !== "COMPLETED";
-                    const isOnline = ev.isOnline || false;
+                    <div className="wc-events-layer">
+                      {DAYS.map((_, i) => (
+                        <div className="wc-day-col" key={i}>
+                          {Array.from(
+                            { length: END_HOUR - START_HOUR },
+                            (_, j) => (
+                              <div
+                                className="wc-hour-line"
+                                key={j}
+                                style={{ top: j * HOUR_HEIGHT }}
+                              />
+                            )
+                          )}
+                        </div>
+                      ))}
 
-                    return (
-                      <div
-                        key={ev.id}
-                        className={`wc-event ${
-                          isClickable
-                            ? "wc-event--clickable"
-                            : "wc-event--viewable"
-                        } ${isOnline ? "wc-event--online" : ""} ${
-                          ev.isReleased ? "wc-event--released" : ""
-                        }`}
-                        onClick={() => handleEventClick(ev)}
-                        style={{
-                          top: topPx,
-                          height: Math.max(heightPx, 24),
-                          left: `${leftPct}%`,
-                          width: `calc(${widthPct}% - 4px)`,
-                          backgroundColor: color.bg,
-                          borderLeft: `4px solid ${color.border}`,
-                          cursor: isClickable ? "pointer" : "default",
-                        }}
-                      >
-                        <div className="wc-event-top">
-                          <span
-                            className="wc-event-title"
-                            style={{ color: color.text }}
-                          >
-                            {ev.title}
-                            {ev.section && (
-                              <span className="wc-event-section">
-                                {" "}
-                                ({ev.section})
-                              </span>
-                            )}
-                            {isOnline && (
-                              <span className="wc-online-badge">Online</span>
-                            )}
-                            {ev.isReleased && (
-                              <span
-                                className="wc-released-badge"
-                                title={`Released at ${ev.releasedAtTime}`}
-                              >
-                                Released {ev.releasedAtTime}
-                              </span>
-                            )}
-                          </span>
+                      {calendarEvents.map((ev) => {
+                        const color = CARD_COLORS[ev.colorIdx];
+                        const topPx =
+                          (ev.startH - START_HOUR + ev.startM / 60) *
+                          HOUR_HEIGHT;
+                        const heightPx =
+                          (ev.endH -
+                            ev.startH +
+                            (ev.endM - ev.startM) / 60) *
+                            HOUR_HEIGHT -
+                          4;
+                        const leftPct = ((ev.dayIdx - 1) / 7) * 100;
+                        const widthPct = (ev.daySpan / 7) * 100;
+                        const isClickable =
+                          ev.kind === "schedule" &&
+                          !ev.isReleased &&
+                          computeStatus(
+                            ev.date,
+                            ev.rawStartTime,
+                            ev.rawEndTime
+                          ).status !== "COMPLETED";
+                        const isOnline = ev.isOnline || false;
 
-                          <span
-                            className="wc-event-time"
+                        return (
+                          <div
+                            key={ev.id}
+                            className={`wc-event ${
+                              isClickable
+                                ? "wc-event--clickable"
+                                : "wc-event--viewable"
+                            } ${isOnline ? "wc-event--online" : ""} ${
+                              ev.isReleased ? "wc-event--released" : ""
+                            }`}
+                            onClick={() => handleEventClick(ev)}
                             style={{
-                              background: color.timeBg,
-                              color: color.text,
+                              top: topPx,
+                              height: Math.max(heightPx, 24),
+                              left: `${leftPct}%`,
+                              width: `calc(${widthPct}% - 4px)`,
+                              backgroundColor: color.bg,
+                              borderLeft: `4px solid ${color.border}`,
+                              cursor: isClickable ? "pointer" : "default",
                             }}
                           >
-                            {fmtTimeRange(ev.startH, ev.startM, ev.endH, ev.endM)}
-                          </span>
-                        </div>
-                        <span
-                          className="wc-event-loc"
-                          style={{ color: color.text }}
-                        >
-                          {ev.location}
-                        </span>
-                      </div>
-                    );
-                  })}
+                            <div className="wc-event-top">
+                              <span
+                                className="wc-event-title"
+                                style={{ color: color.text }}
+                              >
+                                {ev.title}
+                                {ev.section && (
+                                  <span className="wc-event-section">
+                                    {" "}
+                                    ({ev.section})
+                                  </span>
+                                )}
+                                {isOnline && (
+                                  <span className="wc-online-badge">
+                                    Online
+                                  </span>
+                                )}
+                                {ev.isReleased && (
+                                  <span
+                                    className="wc-released-badge"
+                                    title={`Released at ${ev.releasedAtTime}`}
+                                  >
+                                    Released {ev.releasedAtTime}
+                                  </span>
+                                )}
+                              </span>
+
+                              <span
+                                className="wc-event-time"
+                                style={{
+                                  background: color.timeBg,
+                                  color: color.text,
+                                }}
+                              >
+                                {fmtTimeRange(
+                                  ev.startH,
+                                  ev.startM,
+                                  ev.endH,
+                                  ev.endM
+                                )}
+                              </span>
+                            </div>
+                            <span
+                              className="wc-event-loc"
+                              style={{ color: color.text }}
+                            >
+                              {ev.location}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

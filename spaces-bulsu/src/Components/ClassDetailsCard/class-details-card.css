@@ -1,57 +1,144 @@
-.class-details-card {
-   border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
-  width: 300px;
-  background-color: #ffffff;
+/* ═══════════════════════════════════════════════════════════════
+   Class Details Card — Responsive
+   Desktop: floating card (bottom-right)
+   Tablet:  centered modal
+   Mobile:  bottom sheet
+   ═══════════════════════════════════════════════════════════════ */
 
+/* ── Backdrop (tablet + mobile only) ───────────────────────── */
+.class-details-backdrop {
   position: fixed;
-  bottom: 80px;
-  right: 120px;
-  z-index: 999;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 998;
+  animation: cdc-fade-in 0.2s ease;
 }
 
+@keyframes cdc-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Nasa desktop, hindi kailangan yung backdrop */
+@media (min-width: 901px) {
+  .class-details-backdrop { display: none; }
+}
+
+/* ── Main card ─────────────────────────────────────────────── */
+.class-details-card {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background-color: #ffffff;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+  animation: cdc-pop-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes cdc-pop-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── HEADER ────────────────────────────────────────────────── */
 .class-details-header {
   background-color: #FEF0E7;
-  padding: 20px;
+  padding: 18px 20px;
   position: relative;
+  flex-shrink: 0;
 }
 
 .class-details-title {
   display: block;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
-  color:  #f57c00;
+  color: #f57c00;
+  letter-spacing: -0.01em;
+  padding-right: 28px;
 }
 
 .class-details-date {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color:  #f57c00;
+  color: #f57c00;
   margin-top: 4px;
+  opacity: 0.85;
 }
 
 .class-details-close {
   position: absolute;
-  top: 15px;
-  right: 15px;
-  color:  #f57c00;
+  top: 14px;
+  right: 14px;
+  color: #f57c00;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 15px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  user-select: none;
+}
+.class-details-close:hover {
+  background: rgba(245, 124, 0, 0.12);
 }
 
+/* ── BADGES ────────────────────────────────────────────────── */
+.class-details-badges {
+  display: flex;
+  gap: 8px;
+  padding: 10px 20px 4px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.class-details-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.class-details-badge.type {
+  background: #FEF0E7;
+  color: #f57c00;
+}
+.class-details-badge.status.green  { background: #dcfce7; color: #16a34a; }
+.class-details-badge.status.yellow { background: #fef9c3; color: #ca8a04; }
+.class-details-badge.status.red    { background: #fee2e2; color: #dc2626; }
+.class-details-badge.status.gray   { background: #e5e7eb; color: #4b5563; }
+
+/* ── BODY (scrollable) ─────────────────────────────────────── */
 .class-details-body {
-  padding: 15px 20px 20px 20px;
+  padding: 12px 20px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.class-details-body::-webkit-scrollbar { width: 6px; }
+.class-details-body::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 999px;
 }
 
 .class-detail-item {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 14px;
 }
 
 .class-detail-icon {
@@ -62,7 +149,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 15px;
   color: #555555;
   flex-shrink: 0;
 }
@@ -71,6 +158,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .class-detail-label {
@@ -81,27 +169,174 @@
 }
 
 .class-detail-value {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   color: #333333;
+  word-break: break-word;
+  line-height: 1.35;
 }
 
-.class-details-badges {
-  display: flex;
-  gap: 8px;
-  padding: 8px 16px;
+/* ═══════════════════════════════════════════════════════════════
+   TABLET (max 900px) — centered modal
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .class-details-card {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    width: 90vw;
+    max-width: 480px;
+    max-height: 85vh;
+    animation: cdc-center-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes cdc-center-in {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  .class-details-body {
+    padding: 12px 22px 22px;
+    gap: 14px;
+  }
+  .class-detail-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 16px;
+  }
+  .class-detail-value {
+    font-size: 15px;
+  }
 }
-.class-details-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 20px;
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE (max 640px) — BOTTOM SHEET
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .class-details-card {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    max-height: 85vh;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.22);
+    animation: cdc-sheet-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes cdc-sheet-in {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+
+  /* Drag handle — visual indicator na bottom sheet */
+  .class-details-card::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(245, 124, 0, 0.35);
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  /* Header adjustments para sa drag handle */
+  .class-details-header {
+    padding: 22px 20px 16px;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .class-details-title {
+    font-size: 17px;
+    padding-right: 32px;
+  }
+
+  .class-details-date {
+    font-size: 12.5px;
+  }
+
+  .class-details-close {
+    top: 18px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
+  }
+
+  /* Badges row */
+  .class-details-badges {
+    padding: 12px 18px 4px;
+    gap: 6px;
+  }
+
+  .class-details-badge {
+    font-size: 10.5px;
+    padding: 4px 10px;
+  }
+
+  /* Body */
+  .class-details-body {
+    padding: 10px 18px 24px;
+    gap: 14px;
+    max-height: calc(85vh - 130px);
+  }
+
+  .class-detail-item {
+    gap: 12px;
+  }
+
+  .class-detail-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+
+  .class-detail-label {
+    font-size: 10.5px;
+  }
+
+  .class-detail-value {
+    font-size: 14px;
+  }
 }
-.class-details-badge.type {
-  background: #FEF0E7;
-  color: #f57c00;
+
+/* ═══════════════════════════════════════════════════════════════
+   VERY SMALL MOBILE (max 380px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 380px) {
+  .class-details-header {
+    padding: 20px 16px 14px;
+  }
+  .class-details-badges {
+    padding: 10px 16px 4px;
+  }
+  .class-details-body {
+    padding: 8px 16px 20px;
+    gap: 12px;
+  }
+  .class-detail-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+  .class-detail-value {
+    font-size: 13.5px;
+  }
 }
-.class-details-badge.status.green { background: #dcfce7; color: #16a34a; }
-.class-details-badge.status.yellow { background: #fef9c3; color: #ca8a04; }
-.class-details-badge.status.red { background: #fee2e2; color: #dc2626; }
-.class-details-badge.status.gray { background: #e5e7eb; color: #4b5563; }
+
+/* ── Reduced motion ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .class-details-card,
+  .class-details-backdrop {
+    animation: none;
+  }
+}

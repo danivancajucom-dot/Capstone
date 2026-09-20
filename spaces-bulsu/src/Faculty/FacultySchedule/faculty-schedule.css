@@ -6,12 +6,10 @@
   box-sizing: border-box; 
   font-family: 'Lexend', sans-serif; 
 }
-.today{
-  animation:pulseToday 2s infinite;
-}
-body { 
-  background-color: #F8F7F5; 
-}
+
+.today { animation: pulseToday 2s infinite; }
+
+body { background-color: #F8F7F5; }
 
 .wc-page {
   min-height: 100vh;
@@ -20,7 +18,7 @@ body {
   flex-direction: column;
 }
 
-/* ─── PAGE HEADER (title + subtitle + primary action) ────────────── */
+/* ─── PAGE HEADER ────────────────────────────────────────────────── */
 .wc-page-header {
   display: flex;
   justify-content: space-between;
@@ -45,9 +43,7 @@ body {
   max-width: 640px;
 }
 
-.wc-page-actions {
-  flex-shrink: 0;
-}
+.wc-page-actions { flex-shrink: 0; }
 
 /* ─── LEGEND ROW ──────────────────────────────────────────────────── */
 .wc-legend-row {
@@ -85,6 +81,16 @@ body {
   font-weight: 400;
 }
 
+.wc-legend-term {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #64748B;
+  background: #F1F0EE;
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .wc-card {
   background: #fff;
   border-radius: 16px;
@@ -120,6 +126,47 @@ body {
   color: #1a1a1a;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   SCROLL WRAPPER — pinapayagan ang horizontal scroll sa mobile
+   ═══════════════════════════════════════════════════════════════ */
+.wc-scroll-x {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wc-scroll-x::-webkit-scrollbar {
+  height: 8px;
+}
+
+.wc-scroll-x::-webkit-scrollbar-track {
+  background: #f1f1ef;
+  border-radius: 999px;
+}
+
+.wc-scroll-x::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+
+.wc-scroll-x::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.wc-scroll-inner {
+  min-width: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DESKTOP LAYOUT (> 768px) — 7-day grid na umaabot sa buong width
+   ═══════════════════════════════════════════════════════════════ */
 .wc-days-header {
   display: flex;
   width: 100%;
@@ -138,6 +185,7 @@ body {
   align-items: center;
   padding-bottom: 12px;
   gap: 4px;
+  min-width: 0;
 }
 
 .wc-day-name {
@@ -287,16 +335,6 @@ body {
   opacity: 0.8;
 }
 
-.wc-legend-term {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #64748B;
-  background: #F1F0EE;
-  padding: 4px 12px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
 .wc-empty-state {
   display: flex;
   flex-direction: column;
@@ -341,11 +379,9 @@ body {
   border: solid 1px #f57c00;
   color: #f57c00;
 }
-.wc-import-btn i {
-  font-size: 15px;
-}
+.wc-import-btn i { font-size: 15px; }
 
-/* ─── ONLINE BADGE ──────────────────────────────────────────────── */
+/* ─── ONLINE / RELEASED BADGES ──────────────────────────────────── */
 .wc-event--online {
   border-left: 4px solid #a855f7 !important;
 }
@@ -360,42 +396,6 @@ body {
   margin-left: 6px;
   letter-spacing: 0.3px;
   text-transform: uppercase;
-}
-
-/* ─── RESPONSIVE ────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .wc-page {
-    padding: 16px;
-    margin-top: 70px;
-  }
-
-  .wc-page-header-text h1 {
-    font-size: 26px;
-  }
-
-  .wc-page-subtitle {
-    font-size: 13px;
-  }
-
-  .wc-page-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 14px;
-  }
-
-  .wc-import-btn {
-    justify-content: center;
-    width: 100%;
-  }
-
-  .wc-legend-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .wc-legend-term {
-    align-self: flex-start;
-  }
 }
 
 .wc-event-section {
@@ -420,4 +420,229 @@ body {
 .wc-event--released {
   opacity: 0.85;
   filter: saturate(0.85);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TABLET (max-width: 900px) — bahagyang pagliit
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .wc-card {
+    padding: 20px 18px;
+  }
+
+  .wc-week-label {
+    font-size: 20px;
+  }
+
+  .wc-time-offset,
+  .wc-time-col {
+    width: 60px;
+  }
+
+  .wc-time-slot {
+    padding-right: 10px;
+  }
+
+  .wc-divider {
+    margin-left: 60px;
+  }
+
+  /* ✅ Minimum width para hindi sumikip — horizontal scroll na */
+  .wc-scroll-inner {
+    min-width: 780px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE (max-width: 768px) — horizontal scroll, hindi sumisikip
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .wc-page {
+    padding: 14px;
+    margin-top: 70px;
+  }
+
+  .wc-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .wc-page-header-text h1 {
+    font-size: 24px;
+  }
+
+  .wc-page-subtitle {
+    font-size: 13px;
+  }
+
+  .wc-import-btn {
+    justify-content: center;
+    width: 100%;
+    height: 46px;
+    font-size: 13.5px;
+  }
+
+  .wc-legend-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .wc-legend {
+    gap: 12px;
+  }
+
+  .wc-legend-label {
+    font-size: 12px;
+  }
+
+  .wc-legend-term {
+    align-self: flex-start;
+    font-size: 11.5px;
+  }
+
+  .wc-card {
+    padding: 16px 12px;
+    border-radius: 14px;
+  }
+
+  .wc-week-nav {
+    margin-bottom: 16px;
+    gap: 10px;
+  }
+
+  .wc-week-label {
+    font-size: 16px;
+  }
+
+  /* ✅ Grid stays intact pero may minimum width para maayos lahat */
+  .wc-scroll-inner {
+    min-width: 720px;
+  }
+
+  /* ✅ Bahagyang paliitin ang time column */
+  .wc-time-offset,
+  .wc-time-col {
+    width: 54px;
+  }
+
+  .wc-divider {
+    margin-left: 54px;
+  }
+
+  .wc-time-slot {
+    padding-right: 8px;
+  }
+
+  .wc-time-slot span {
+    font-size: 10px;
+  }
+
+  .wc-day-name {
+    font-size: 10px;
+  }
+
+  .wc-day-date {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+
+  /* ✅ Bahagyang paliitin ang event text para kasya lahat */
+  .wc-event {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+
+  .wc-event-title {
+    font-size: 12px;
+  }
+
+  .wc-event-time {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .wc-event-loc {
+    font-size: 11px;
+  }
+
+  .wc-online-badge {
+    font-size: 7px;
+    padding: 1px 5px;
+  }
+
+  .wc-released-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+
+  /* ✅ Malinaw na horizontal scroll hint */
+  .wc-scroll-x {
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #f1f1ef;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VERY SMALL MOBILE (max-width: 480px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .wc-page {
+    padding: 10px;
+  }
+
+  .wc-page-header-text h1 {
+    font-size: 22px;
+  }
+
+  .wc-card {
+    padding: 14px 10px;
+  }
+
+  .wc-week-label {
+    font-size: 15px;
+  }
+
+  .wc-scroll-inner {
+    min-width: 680px;
+  }
+
+  .wc-time-offset,
+  .wc-time-col {
+    width: 48px;
+  }
+
+  .wc-divider {
+    margin-left: 48px;
+  }
+
+  .wc-time-slot span {
+    font-size: 9.5px;
+  }
+
+  .wc-day-date {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+
+  .wc-event {
+    padding: 6px 8px;
+  }
+
+  .wc-event-title {
+    font-size: 11.5px;
+  }
+
+  .wc-event-loc {
+    font-size: 10.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today { animation: none; }
 }

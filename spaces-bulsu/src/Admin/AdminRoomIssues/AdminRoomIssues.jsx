@@ -2,12 +2,11 @@ import { useState, useEffect, useMemo } from "react";
 import "../../Components/IssueReportCard/issue-report-card.css";
 import "./room-issues.css";
 import IssueReportCard from "../../Components/IssueReportCard/IssueReportCard";
-import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
 import {
   collection, query, orderBy, onSnapshot, getDocs,
-  doc, updateDoc, serverTimestamp, getDoc,
+  doc, updateDoc, serverTimestamp, getDoc, addDoc,
 } from "firebase/firestore";
 import { logActivity } from "../../utils/logActivity";
 
@@ -31,7 +30,7 @@ export default function AdminRoomIssues() {
   const [currentPage, setCurrentPage]   = useState(1);
   const [maintenanceRooms, setMaintenanceRooms] = useState({});
   const [busy, setBusy]                 = useState(false);
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [acknowledgingId, setAcknowledgingId] = useState(null);
 
   // ── Room picker popover state ──────────────────────────────
   const [showRoomPicker, setShowRoomPicker] = useState(false);
@@ -92,58 +91,120 @@ export default function AdminRoomIssues() {
     };
   };
 
-  // ══════════════════════════════════════════════════════════════
-  // ACKNOWLEDGE — Admin forwards the issue to Clerk
-  // ══════════════════════════════════════════════════════════════
-  const acknowledge = (issue) => {
-    setConfirmAction({
-      title: "Acknowledge Issue?",
-      message: `This will acknowledge the ${issue.category} issue in ${issue.roomName} and forward it to the Clerk for action.`,
-      onConfirm: async () => {
-        setBusy(true);
-        try {
-          const u = await getCurrentUser();
-          await updateDoc(doc(db, "roomIssues", issue.id), {
-            status: "Acknowledged",
-            acknowledgedBy: u.name,
-            acknowledgedAt: serverTimestamp(),
-          });
-
-          await logActivity({
-            user: u.name,
-            role: u.role,
-            action: "Acknowledged room issue",
-            actionType: "edit",
-            target: `${issue.roomName} • ${issue.category || ""}`,
-            status: "Success",
-          });
-
-          if (issue.reporterId) {
-            await import("firebase/firestore").then(({ addDoc }) =>
-              addDoc(collection(db, "notifications"), {
-                userId: issue.reporterId,
-                ownerType: "faculty",
-                title: "Issue Acknowledged",
-                message: `Your reported issue in ${issue.roomName} has been acknowledged and is now being handled by the Clerk.`,
-                type: "issue-update",
-                unread: true,
-                archived: false,
-                badge: "INFO",
-                createdAt: serverTimestamp(),
-              })
-            );
-          }
-
-          showToast("success", "Acknowledged", "The issue has been forwarded to the Clerk.");
-        } catch (err) {
-          console.error(err);
-          showToast("error", "Failed", err.message);
-        } finally {
-          setBusy(false);
-          setConfirmAction(null);
+  // ── Notify all clerks ─────────────────────────────────────
+  const notifyAllClerks = async (title, message, issue) => {
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      const jobs = [];
+      usersSnap.forEach((d) => {
+        const role = (d.data().role || "").toLowerCase().trim();
+        if (role === "clerk") {
+          jobs.push(
+            addDoc(collection(db, "notifications"), {
+              userId: d.id,
+              ownerType: "clerk",
+              issueId: issue.id,
+              roomId: issue.roomId,
+              roomName: issue.roomName,
+              title,
+              message,
+              type: "issue-update",
+              unread: true,
+              archived: false,
+              badge: "NEW",
+              createdAt: serverTimestamp(),
+            })
+          );
         }
-      },
-    });
+      });
+      if (jobs.length) await Promise.all(jobs);
+    } catch (err) {
+      console.warn("notifyAllClerks failed:", err);
+    }
+  };
+
+  // ── Notify the faculty reporter ───────────────────────────
+  const notifyReporter = async (issue, title, message, badge = "INFO") => {
+    if (!issue?.reporterId) return;
+    try {
+      await addDoc(collection(db, "notifications"), {
+        userId: issue.reporterId,
+        ownerType: "faculty",
+        title,
+        message,
+        type: "issue-update",
+        issueId: issue.id,
+        roomName: issue.roomName,
+        unread: true,
+        archived: false,
+        badge,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn("notifyReporter failed:", err);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // ACKNOWLEDGE — direct, may loading sa button + toast feedback
+  // ══════════════════════════════════════════════════════════════
+  const acknowledge = async (issue) => {
+    if (busy || acknowledgingId) return;
+
+    setAcknowledgingId(issue.id);
+    setBusy(true);
+
+    // Show loading toast
+    showToast("loading", "Acknowledging…", `Processing ${issue.roomName} issue.`);
+
+    try {
+      const u = await getCurrentUser();
+
+      // 1. Update issue status
+      await updateDoc(doc(db, "roomIssues", issue.id), {
+        status: "Acknowledged",
+        acknowledgedBy: u.name,
+        acknowledgedAt: serverTimestamp(),
+      });
+
+      // 2. Activity log
+      await logActivity({
+        user: u.name,
+        role: u.role,
+        action: "Acknowledged room issue",
+        actionType: "edit",
+        target: `${issue.roomName} • ${issue.category || ""}`,
+        status: "Success",
+      });
+
+      // 3. Notify the FACULTY reporter
+      await notifyReporter(
+        issue,
+        "Issue Acknowledged",
+        `Your reported issue in ${issue.roomName} (${issue.category || "issue"}) has been acknowledged and forwarded to the Clerk for action.`,
+        "INFO"
+      );
+
+      // 4. Notify ALL CLERKS
+      await notifyAllClerks(
+        "New Acknowledged Issue",
+        `${u.name} acknowledged a ${issue.severity || ""} ${issue.category || "room"} issue in ${issue.roomName}. Please review and take action.`,
+        issue
+      );
+
+      // Success toast
+      showToast(
+        "success",
+        "Acknowledged",
+        `${issue.roomName} issue forwarded to Clerk. Reporter notified.`
+      );
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Failed", err.message || "Could not acknowledge issue.");
+    } finally {
+      setBusy(false);
+      setAcknowledgingId(null);
+    }
   };
 
   // ── Counts ─────────────────────────────────────────────────
@@ -167,7 +228,6 @@ export default function AdminRoomIssues() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [issues]);
 
-  // ── Filtered room list (for search inside picker) ──────────
   const filteredRoomOptions = useMemo(() => {
     const q = roomSearch.trim().toLowerCase();
     if (!q) return roomOptions;
@@ -238,36 +298,20 @@ export default function AdminRoomIssues() {
 
         {/* TABS */}
         <div className="ri-tabs ri-tabs-scroll">
-          <button
-            className={activeTab === "all" ? "active" : ""}
-            onClick={() => setActiveTab("all")}
-          >
+          <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>
             All <span className="ri-tab-count">{counts.all}</span>
           </button>
-          <button
-            className={activeTab === "pending" ? "active" : ""}
-            onClick={() => setActiveTab("pending")}
-          >
+          <button className={activeTab === "pending" ? "active" : ""} onClick={() => setActiveTab("pending")}>
             Pending <span className="ri-tab-count">{counts.pending}</span>
           </button>
-          <button
-            className={activeTab === "acknowledged" ? "active" : ""}
-            onClick={() => setActiveTab("acknowledged")}
-          >
+          <button className={activeTab === "acknowledged" ? "active" : ""} onClick={() => setActiveTab("acknowledged")}>
             Acknowledged <span className="ri-tab-count">{counts.acknowledged}</span>
           </button>
-          <button
-            className={activeTab === "resolved" ? "active" : ""}
-            onClick={() => setActiveTab("resolved")}
-          >
+          <button className={activeTab === "resolved" ? "active" : ""} onClick={() => setActiveTab("resolved")}>
             Resolved <span className="ri-tab-count">{counts.resolved}</span>
           </button>
-          <button
-            className={activeTab === "urgent" ? "active" : ""}
-            onClick={() => setActiveTab("urgent")}
-          >
-            Urgent{" "}
-            <span className="ri-tab-count ri-tab-count-urgent">{counts.urgent}</span>
+          <button className={activeTab === "urgent" ? "active" : ""} onClick={() => setActiveTab("urgent")}>
+            Urgent <span className="ri-tab-count ri-tab-count-urgent">{counts.urgent}</span>
           </button>
         </div>
 
@@ -282,11 +326,7 @@ export default function AdminRoomIssues() {
               onChange={(e) => setSearch(e.target.value)}
             />
             {search && (
-              <button
-                className="ri-search-clear"
-                onClick={() => setSearch("")}
-                aria-label="Clear"
-              >
+              <button className="ri-search-clear" onClick={() => setSearch("")} aria-label="Clear">
                 <i className="fa-solid fa-xmark" />
               </button>
             )}
@@ -347,9 +387,7 @@ export default function AdminRoomIssues() {
                     <div className="ri-room-list">
                       <button
                         type="button"
-                        className={`ri-room-option ${
-                          !roomFilter ? "is-active" : ""
-                        }`}
+                        className={`ri-room-option ${!roomFilter ? "is-active" : ""}`}
                         onClick={() => {
                           setRoomFilter("");
                           setShowRoomPicker(false);
@@ -377,9 +415,7 @@ export default function AdminRoomIssues() {
                             <button
                               type="button"
                               key={r}
-                              className={`ri-room-option ${
-                                isActive ? "is-active" : ""
-                              }`}
+                              className={`ri-room-option ${isActive ? "is-active" : ""}`}
                               onClick={() => {
                                 setRoomFilter(r);
                                 setShowRoomPicker(false);
@@ -403,17 +439,12 @@ export default function AdminRoomIssues() {
               )}
             </div>
 
-            {/* ── SORT (native select) ── */}
+            {/* ── SORT ── */}
             <div className="ri-select">
               <i className="fa-solid fa-arrow-down-short-wide" />
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-              >
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
                 {SORT_OPTIONS.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
+                  <option key={s.key} value={s.key}>{s.label}</option>
                 ))}
               </select>
               <i className="fa-solid fa-angle-down ri-select-chev" />
@@ -450,6 +481,7 @@ export default function AdminRoomIssues() {
                 issue={issue}
                 role="admin"
                 busy={busy}
+                acknowledging={acknowledgingId === issue.id}
                 roomIsUnderMaintenance={!!maintenanceRooms[issue.roomId]}
                 onAcknowledge={acknowledge}
               />
@@ -492,15 +524,6 @@ export default function AdminRoomIssues() {
           </div>
         )}
       </div>
-
-      {confirmAction && (
-        <ConfirmPopup
-          title={confirmAction.title}
-          message={confirmAction.message}
-          onCancel={() => setConfirmAction(null)}
-          onConfirm={busy ? null : confirmAction.onConfirm}
-        />
-      )}
 
       <Toast
         show={toast.show}

@@ -592,3 +592,24 @@
     transition: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ACKNOWLEDGE BUTTON SPINNER — para sa admin loading state
+   ═══════════════════════════════════════════════════════════════ */
+.irc-btn-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: irc-btn-spin 0.7s linear infinite;
+}
+
+@keyframes irc-btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .irc-btn-spinner { animation: none; }
+}
