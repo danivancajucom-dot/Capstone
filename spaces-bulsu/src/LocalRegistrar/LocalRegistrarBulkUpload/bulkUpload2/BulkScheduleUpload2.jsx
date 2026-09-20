@@ -410,7 +410,6 @@ export default function BulkScheduleUpload2() {
 
       showToast("loading", "Processing", "Parsing schedule files...");
 
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const roomData = [];
 
       for (const roomEntry of selectedRooms) {
@@ -423,7 +422,7 @@ export default function BulkScheduleUpload2() {
           schedules = await parseExcelFile(file);
         } else {
           const rawText = await extractRawText(file);
-          const response = await fetch(`${apiUrl}/api/extract-schedule`, {
+          const response = await fetch(`/api/extract-schedule`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ room: roomName, semester, schoolYear, rawText }),

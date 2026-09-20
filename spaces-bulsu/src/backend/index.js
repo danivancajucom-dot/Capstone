@@ -239,12 +239,14 @@ ${rawText}
 });
 
 // ---------- START ----------
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`🔑 API Key prefix: ${GEMINI_API_KEY?.slice(0, 10)}...`);
-  console.log("📌 Endpoints:");
-  console.log("   GET  /api/test-key                    - test API key");
-  console.log("   POST /api/extract-schedule           - with rooms (Local Registrar)");
-  console.log("   POST /api/extract-online-schedule    - online classes only (Faculty)");
-});
+// PARA SA VERCEL: I-export ang app imbes na mag-listen sa port
+export default app;
+
+// Kung gusto mo pa ring mag-test locally gamit ang "npm run dev:backend", 
+// pwede mong i-conditional yung listen:
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+  });
+}
