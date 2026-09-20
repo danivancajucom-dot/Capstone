@@ -9,8 +9,6 @@ if (!process.env.VERCEL) {
 
 import express from "express";
 import cors from "cors";
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 
 const app = express();
 app.use(cors());
@@ -21,25 +19,29 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // ---------- Boot diagnostics (visible in Vercel → Logs) ----------
 console.log("🚀 Boot:", {
   hasGemini: !!GEMINI_API_KEY,
-  hasFirebase: !!process.env.FIREBASE_SERVICE_ACCOUNT,
   onVercel: !!process.env.VERCEL,
   nodeEnv: process.env.NODE_ENV,
+  nodeVersion: process.version,
 });
+
+if (!GEMINI_API_KEY) {
+  console.error("❌ GEMINI_API_KEY is not set");
+}
 
 const GEMINI_URL = GEMINI_API_KEY
   ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
   : null;
 
 // ---------- GEMINI WITH RETRY + TIMEOUT ----------
-async function generateWithRetry(prompt, maxRetries = 2) {
+async function generateWithRetry(prompt, maxRetries = 1) {
   if (!GEMINI_URL) throw new Error("GEMINI_API_KEY is not configured on server.");
 
   let lastError;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // 6s — leaves room for cold start under the 10s Hobby cap
+      // 8s — safe sa 10s Hobby cap
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(GEMINI_URL, {
         method: "POST",
@@ -96,29 +98,6 @@ function extractJSON(text) {
     throw new Error("No JSON array found: " + cleaned.slice(0, 300));
   }
   return JSON.parse(cleaned.slice(start, end + 1));
-}
-
-// ---------- FIREBASE (LAZY — never crashes cold start) ----------
-let firebaseReady = false;
-function initFirebase() {
-  if (firebaseReady || getApps().length > 0) {
-    firebaseReady = true;
-    return true;
-  }
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-    console.warn("⚠️ FIREBASE_SERVICE_ACCOUNT not set");
-    return false;
-  }
-  try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    initializeApp({ credential: cert(serviceAccount) });
-    firebaseReady = true;
-    console.log("✅ Firebase Admin initialized");
-    return true;
-  } catch (err) {
-    console.error("❌ Firebase init failed:", err.message);
-    return false;
-  }
 }
 
 // =============================================================
@@ -287,44 +266,17 @@ ${rawText}
   }
 });
 
-// ---------- ENDPOINT 3: Reset Password ----------
-app.post("/api/reset-password", async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    if (!email || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and new password are required.",
-      });
-    }
-    if (newPassword.length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must be at least 8 characters.",
-      });
-    }
-    if (!initFirebase()) {
-      return res.status(500).json({
-        success: false,
-        message: "Firebase Admin not configured on server.",
-      });
-    }
-
-    const auth = getAuth();
-    const user = await auth.getUserByEmail(email);
-    await auth.updateUser(user.uid, { password: newPassword });
-
-    console.log(`✅ Password reset for: ${email}`);
-    res.json({ success: true, message: "Password updated successfully." });
-  } catch (error) {
-    console.error("❌ Reset password error:", error.message);
-    let message = "Failed to reset password.";
-    if (error.code === "auth/user-not-found") {
-      message = "No account found with that email.";
-    }
-    res.status(500).json({ success: false, message });
-  }
+// ---------- ENDPOINT 3: Reset Password — DISABLED ----------
+// Firebase Admin removed to fix the `jose` ESM crash on Vercel.
+// If you need password reset, do it from the client using Firebase SDK:
+//   import { sendPasswordResetEmail } from "firebase/auth";
+//   await sendPasswordResetEmail(auth, email);
+app.post("/api/reset-password", (req, res) => {
+  res.status(501).json({
+    success: false,
+    message:
+      "Password reset is disabled on the server. Use client-side Firebase reset instead.",
+  });
 });
 
 // ---------- GLOBAL ERROR HANDLER (must be last) ----------
