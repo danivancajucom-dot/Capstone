@@ -238,8 +238,60 @@ ${rawText}
   }
 });
 
+// ---------- FIREBASE ADMIN SETUP ----------
+import admin from "firebase-admin";
+
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      }),
+    });
+    console.log("✅ Firebase Admin initialized");
+  } catch (err) {
+    console.error("❌ Firebase Admin init failed:", err.message);
+  }
+}
+
+// ---------- ENDPOINT 3: Reset Password (Forgot Password flow) ----------
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and new password are required.",
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters.",
+      });
+    }
+
+    const user = await admin.auth().getUserByEmail(email);
+    await admin.auth().updateUser(user.uid, { password: newPassword });
+
+    console.log(`✅ Password reset for: ${email}`);
+    res.json({ success: true, message: "Password updated successfully." });
+
+  } catch (error) {
+    console.error("❌ Reset password error:", error.message);
+    let message = "Failed to reset password.";
+    if (error.code === "auth/user-not-found") {
+      message = "No account found with that email.";
+    }
+    res.status(500).json({ success: false, message });
+  }
+});
+
 // ---------- START ----------
-// PARA SA VERCEL: I-export ang app imbes na mag-listen sa port
 export default app;
 
 // Kung gusto mo pa ring mag-test locally gamit ang "npm run dev:backend", 
