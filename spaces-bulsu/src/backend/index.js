@@ -29,7 +29,7 @@ if (!GEMINI_API_KEY) {
 }
 
 const GEMINI_URL = GEMINI_API_KEY
-  ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+  ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`
   : null;
 
 // ---------- GEMINI WITH RETRY + TIMEOUT ----------
