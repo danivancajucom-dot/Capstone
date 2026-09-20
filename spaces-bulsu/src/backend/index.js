@@ -41,7 +41,7 @@ async function generateWithRetry(prompt, maxRetries = 1) {
     try {
       // 8s — safe sa 10s Hobby cap
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
 
       const response = await fetch(GEMINI_URL, {
         method: "POST",

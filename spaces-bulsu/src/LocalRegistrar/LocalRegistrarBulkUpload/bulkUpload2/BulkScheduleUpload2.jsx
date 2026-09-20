@@ -7,6 +7,7 @@ import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
 import "./bulk-schedule-upload2.css";
 import Toast from "../../../Popup/Toast/Toast";
+import { extractInChunks } from "../../../utils/extractInChunks";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -422,20 +423,14 @@ export default function BulkScheduleUpload2() {
           schedules = await parseExcelFile(file);
         } else {
           const rawText = await extractRawText(file);
-          const response = await fetch(`/api/extract-schedule`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ room: roomName, semester, schoolYear, rawText }),
+          schedules = await extractInChunks({
+            rawText,
+            endpoint: "/api/extract-schedule",
+            payload: { room: roomName, semester, schoolYear },
+            maxChunkChars: 2000,
+            onProgress: (i, total) =>
+              showToast("loading", "Processing", `${roomName}: ${i}/${total}...`),
           });
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`AI extraction failed: ${errorText}`);
-          }
-          const data = await response.json();
-          if (!data.success) {
-            throw new Error(data.message || "AI extraction failed.");
-          }
-          schedules = data.schedules || [];
         }
 
         roomData.push({ room: roomName, schedules });

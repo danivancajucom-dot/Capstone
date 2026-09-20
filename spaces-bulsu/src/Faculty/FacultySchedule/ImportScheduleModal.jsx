@@ -14,6 +14,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
 import "./import-schedule-modal.css";
+import { extractInChunks } from "../../utils/extractInChunks";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -292,27 +293,19 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
       if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
         schedules = await parseExcelFile(file);
       } else {
-        const rawText = await extractRawText(file);
-        
-        const response = await fetch(`/api/extract-online-schedule`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          const rawText = await extractRawText(file);
+          schedules = await extractInChunks({
             rawText,
-            semester: facultySemester,
-            schoolYear: facultySchoolYear,
-            faculty: facultyName,
-          }),
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "AI extraction failed.");
+            endpoint: "/api/extract-online-schedule",
+            payload: {
+              semester: facultySemester,
+              schoolYear: facultySchoolYear,
+              faculty: facultyName,
+            },
+            maxChunkChars: 2000,
+            onProgress: (i, total) => setProgress(`Extracting ${i}/${total}...`),
+          });
         }
-        const data = await response.json();
-        if (!data.success)
-          throw new Error(data.message || "Extraction failed.");
-        schedules = data.schedules || [];
-      }
 
       if (schedules.length === 0) {
         showToast(
