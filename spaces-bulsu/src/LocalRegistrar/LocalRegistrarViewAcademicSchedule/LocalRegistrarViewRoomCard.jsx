@@ -31,16 +31,8 @@ const SCHOOL_HEADER = {
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
-// Height of one (1) hour row — MUST match:
-//   • .lr-vr-time-slot { height: 60px }  (CSS)
-//   • .lr-vr-calendar-grid { height: 840px } = 14 slots × 60px  (CSS)
 const HOUR_HEIGHT = 60;
-
-// Calendar grid starts at 7:00 AM (first label = "07 AM").
 const CALENDAR_START_MINUTES = 7 * 60;
-
-// Small visual gap between stacked schedule cards so consecutive
-// 1-hour blocks don't visually merge and hour lines stay visible.
 const CARD_GAP = 2;
 
 const toDateStr = (date) => {
@@ -50,7 +42,6 @@ const toDateStr = (date) => {
   return `${y}-${m}-${d}`;
 };
 
-// ─── 12-hour format helper ──────────────────────────────────────────
 const format12Hour = (time) => {
   if (!time) return "-";
   const [hour, minute] = time.split(":").map(Number);
@@ -60,7 +51,6 @@ const format12Hour = (time) => {
   return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
 };
 
-// ─── Faculty name helpers (LastName, FirstName) ────────────────────
 const splitFacultyName = (full) => {
   const trimmed = (full || "").trim();
   if (!trimmed) return { lastName: "", firstName: "" };
@@ -94,7 +84,6 @@ const validateFaculty = (faculty) => {
   return null;
 };
 
-// ─── COLOR HELPERS (UI) ─────────────────────────────────────────────
 const getFacultyColor = (faculty) => {
   if (!faculty) return "#E0E0E0";
   let hash = 0;
@@ -107,19 +96,13 @@ const getFacultyColor = (faculty) => {
 
 const getCategoryColor = (source) => {
   switch (source) {
-    case "event":
-      return "#4DD0E1";
-    case "reservation":
-      return "#FFB74D";
-    case "reassignment":
-      return "#81C784";
-    case "walkin":
-      return "#FFD54F";
-    default:
-      return "#E0E0E0";
+    case "event": return "#4DD0E1";
+    case "reservation": return "#FFB74D";
+    case "reassignment": return "#81C784";
+    case "walkin": return "#FFD54F";
+    default: return "#E0E0E0";
   }
 };
-// ─────────────────────────────────────────────────────────────────────
 
 function LocalRegistrarViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -138,7 +121,6 @@ function LocalRegistrarViewRoomCard() {
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [exporting, setExporting] = useState(false);
 
-  // ─── Edit state ────────────────────────────────────────────────
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [editForm, setEditForm] = useState({ faculty: "", section: "" });
   const [editErrors, setEditErrors] = useState({});
@@ -205,7 +187,6 @@ function LocalRegistrarViewRoomCard() {
       );
     setReservations(reservationList);
 
-    // ── Releases as Map ──
     const releaseSnap = await getDocs(collection(db, "roomReleases"));
     const map = new Map();
     releaseSnap.docs
@@ -234,7 +215,6 @@ function LocalRegistrarViewRoomCard() {
     );
   };
 
-  // ─── Helper functions ──────────────────────────────────────────────
   const getSchedulesByDay = (day) => {
     return schedules.filter(
       (schedule) => schedule.day?.trim().toUpperCase() === day
@@ -247,19 +227,11 @@ function LocalRegistrarViewRoomCard() {
     return hour * 60 + minute;
   };
 
-  // ✅ Aligned with the hour lines (no more +10 offset).
-  // 7:00 AM → top = 0
-  // 8:00 AM → top = 60
-  // 9:30 AM → top = 150
   const getTopPosition = (startTime) => {
     const startMinutes = convertToMinutes(startTime);
-    return (
-      ((startMinutes - CALENDAR_START_MINUTES) / 60) * HOUR_HEIGHT
-    );
+    return ((startMinutes - CALENDAR_START_MINUTES) / 60) * HOUR_HEIGHT;
   };
 
-  // ✅ Exact duration height minus a small gap so stacked cards don't
-  // touch. Minimum 18px so very short sessions remain visible.
   const getCardHeight = (startTime, endTime) => {
     const startMinutes = convertToMinutes(startTime);
     const endMinutes = convertToMinutes(endTime);
@@ -319,7 +291,6 @@ function LocalRegistrarViewRoomCard() {
     ];
   };
 
-  // ─── Save an edited schedule ─────────────────────────────────────
   const handleSaveEdit = async () => {
     if (!editingSchedule || !selectedScheduleId) {
       showToast(
@@ -377,10 +348,6 @@ function LocalRegistrarViewRoomCard() {
             doc(db, "rooms", room.id, mirrorCol, match.id),
             updateData
           );
-        } else {
-          console.warn(
-            `[Edit] No match in ${mirrorCol} — skipping mirror update.`
-          );
         }
       } catch (mirrorErr) {
         console.warn("Mirror update failed:", mirrorErr);
@@ -401,11 +368,7 @@ function LocalRegistrarViewRoomCard() {
       );
       setSelectedSchedule((prev) =>
         prev && prev.id === selectedScheduleId
-          ? {
-              ...prev,
-              faculty: updateData.faculty,
-              section: updateData.section,
-            }
+          ? { ...prev, faculty: updateData.faculty, section: updateData.section }
           : prev
       );
 
@@ -421,14 +384,9 @@ function LocalRegistrarViewRoomCard() {
     }
   };
 
-  // ─── PDF EXPORT ─────────────────────────────────────────────────
   const handleExportPDF = async () => {
     if (schedules.length === 0) {
-      showToast(
-        "error",
-        "No Schedules",
-        "This room has no schedules to export."
-      );
+      showToast("error", "No Schedules", "This room has no schedules to export.");
       return;
     }
 
@@ -461,42 +419,22 @@ function LocalRegistrarViewRoomCard() {
       const logoSize = 30;
 
       if (SCHOOL_HEADER.universityLogoUrl) {
-        pdf.addImage(
-          SCHOOL_HEADER.universityLogoUrl,
-          "PNG",
-          marginX,
-          12,
-          logoSize,
-          logoSize
-        );
+        pdf.addImage(SCHOOL_HEADER.universityLogoUrl, "PNG", marginX, 12, logoSize, logoSize);
       }
       if (SCHOOL_HEADER.collegeLogoUrl) {
-        pdf.addImage(
-          SCHOOL_HEADER.collegeLogoUrl,
-          "PNG",
-          pageWidth - marginX - logoSize,
-          12,
-          logoSize,
-          logoSize
-        );
+        pdf.addImage(SCHOOL_HEADER.collegeLogoUrl, "PNG", pageWidth - marginX - logoSize, 12, logoSize, logoSize);
       }
 
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(11);
       pdf.setTextColor(20, 27, 45);
-      pdf.text(SCHOOL_HEADER.universityName, pageWidth / 2, 24, {
-        align: "center",
-      });
+      pdf.text(SCHOOL_HEADER.universityName, pageWidth / 2, 24, { align: "center" });
 
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(7.5);
       pdf.setTextColor(107, 114, 128);
-      pdf.text(SCHOOL_HEADER.collegeName, pageWidth / 2, 36, {
-        align: "center",
-      });
-      pdf.text(SCHOOL_HEADER.systemName, pageWidth / 2, 47, {
-        align: "center",
-      });
+      pdf.text(SCHOOL_HEADER.collegeName, pageWidth / 2, 36, { align: "center" });
+      pdf.text(SCHOOL_HEADER.systemName, pageWidth / 2, 47, { align: "center" });
 
       pdf.setDrawColor(245, 124, 0);
       pdf.setLineWidth(1.2);
@@ -505,35 +443,18 @@ function LocalRegistrarViewRoomCard() {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(12);
       pdf.setTextColor(245, 124, 0);
-      pdf.text(
-        `Classroom Schedule — ${room?.roomName || "Room"}`,
-        pageWidth / 2,
-        77,
-        { align: "center" }
-      );
+      pdf.text(`Classroom Schedule — ${room?.roomName || "Room"}`, pageWidth / 2, 77, { align: "center" });
 
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(7.5);
       pdf.setTextColor(107, 114, 128);
-      pdf.text(
-        `${schoolYear || "N/A"} | ${semester || "N/A"}`,
-        pageWidth / 2,
-        89,
-        { align: "center" }
-      );
+      pdf.text(`${schoolYear || "N/A"} | ${semester || "N/A"}`, pageWidth / 2, 89, { align: "center" });
 
       const facultyColors = {};
       const colorPalette = [
-        [255, 225, 210],
-        [220, 235, 255],
-        [220, 248, 220],
-        [255, 240, 205],
-        [235, 220, 255],
-        [255, 220, 230],
-        [215, 245, 245],
-        [255, 230, 205],
-        [220, 230, 255],
-        [230, 250, 225],
+        [255, 225, 210], [220, 235, 255], [220, 248, 220], [255, 240, 205],
+        [235, 220, 255], [255, 220, 230], [215, 245, 245], [255, 230, 205],
+        [220, 230, 255], [230, 250, 225],
       ];
       let colorIndex = 0;
       const getFacultyColorPDF = (faculty) => {
@@ -591,16 +512,14 @@ function LocalRegistrarViewRoomCard() {
         const startMin = convertToMinutes(schedule.startTime);
         const endMin = convertToMinutes(schedule.endTime);
         if (endMin <= startMin) continue;
-        if (endMin <= calendarStartMinutes || startMin >= calendarEndMinutes)
-          continue;
+        if (endMin <= calendarStartMinutes || startMin >= calendarEndMinutes) continue;
 
         const visibleStart = Math.max(startMin, calendarStartMinutes);
         const visibleEnd = Math.min(endMin, calendarEndMinutes);
         const duration = visibleEnd - visibleStart;
         if (duration <= 0) continue;
 
-        const topOffset =
-          ((visibleStart - calendarStartMinutes) / 60) * hourHeight;
+        const topOffset = ((visibleStart - calendarStartMinutes) / 60) * hourHeight;
         const rawHeight = (duration / 60) * hourHeight;
         const verticalGap = 2.5;
         const x = marginX + timeColWidth + dayIndex * dayWidth + verticalGap;
@@ -612,15 +531,10 @@ function LocalRegistrarViewRoomCard() {
         const [r, g, b] = getFacultyColorPDF(faculty);
         const averageColor = (r + g + b) / 3;
         const textColor = averageColor < 180 ? [255, 255, 255] : [35, 35, 35];
-        const secondaryTextColor =
-          averageColor < 180 ? [235, 235, 235] : [75, 75, 75];
+        const secondaryTextColor = averageColor < 180 ? [235, 235, 235] : [75, 75, 75];
 
         pdf.setFillColor(r, g, b);
-        pdf.setDrawColor(
-          Math.max(r - 25, 0),
-          Math.max(g - 25, 0),
-          Math.max(b - 25, 0)
-        );
+        pdf.setDrawColor(Math.max(r - 25, 0), Math.max(g - 25, 0), Math.max(b - 25, 0));
         pdf.setLineWidth(0.35);
         pdf.roundedRect(x, y, w, blockHeight, 3, 3, "FD");
 
@@ -628,23 +542,13 @@ function LocalRegistrarViewRoomCard() {
         const contentWidth = w - innerPaddingX * 2;
         const subject = schedule.courseTitle || schedule.subject || "Class";
         const section = schedule.section || "";
-        const timeLabel = `${format12Hour(
-          schedule.startTime
-        )} - ${format12Hour(schedule.endTime)}`;
+        const timeLabel = `${format12Hour(schedule.startTime)} - ${format12Hour(schedule.endTime)}`;
 
         let titleSize = 7;
         let detailSize = 5.5;
         let lineSpacing = 7;
-        if (blockHeight < 32) {
-          titleSize = 6.2;
-          detailSize = 4.8;
-          lineSpacing = 6;
-        }
-        if (blockHeight < 24) {
-          titleSize = 5.7;
-          detailSize = 4.4;
-          lineSpacing = 5.5;
-        }
+        if (blockHeight < 32) { titleSize = 6.2; detailSize = 4.8; lineSpacing = 6; }
+        if (blockHeight < 24) { titleSize = 5.7; detailSize = 4.4; lineSpacing = 5.5; }
 
         const fitText = (text, fontSize) => {
           if (!text) return "";
@@ -652,41 +556,22 @@ function LocalRegistrarViewRoomCard() {
           const maxWidth = contentWidth - 2;
           if (pdf.getTextWidth(text) <= maxWidth) return text;
           let result = text;
-          while (
-            result.length > 3 &&
-            pdf.getTextWidth(`${result}...`) > maxWidth
-          ) {
+          while (result.length > 3 && pdf.getTextWidth(`${result}...`) > maxWidth) {
             result = result.slice(0, -1);
           }
           return `${result}...`;
         };
 
         const contentLines = [];
-        contentLines.push({
-          text: fitText(subject, titleSize),
-          font: "bold",
-          size: titleSize,
-        });
+        contentLines.push({ text: fitText(subject, titleSize), font: "bold", size: titleSize });
         if (faculty && blockHeight >= 27) {
-          contentLines.push({
-            text: fitText(faculty, detailSize),
-            font: "normal",
-            size: detailSize,
-          });
+          contentLines.push({ text: fitText(faculty, detailSize), font: "normal", size: detailSize });
         }
         if (section && blockHeight >= 38) {
-          contentLines.push({
-            text: fitText(`[${section}]`, detailSize),
-            font: "normal",
-            size: detailSize,
-          });
+          contentLines.push({ text: fitText(`[${section}]`, detailSize), font: "normal", size: detailSize });
         }
         if (blockHeight >= 48) {
-          contentLines.push({
-            text: timeLabel,
-            font: "normal",
-            size: Math.max(detailSize - 0.3, 4),
-          });
+          contentLines.push({ text: timeLabel, font: "normal", size: Math.max(detailSize - 0.3, 4) });
         }
 
         const totalContentHeight = contentLines.length * lineSpacing;
@@ -708,24 +593,11 @@ function LocalRegistrarViewRoomCard() {
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(7);
         pdf.setTextColor(150, 150, 150);
-        pdf.text(
-          `${SCHOOL_HEADER.systemName} — Confidential`,
-          marginX,
-          pageHeight - 12
-        );
-        pdf.text(
-          `Generated: ${new Date().toLocaleString()}`,
-          pageWidth - marginX,
-          pageHeight - 12,
-          { align: "right" }
-        );
+        pdf.text(`${SCHOOL_HEADER.systemName} — Confidential`, marginX, pageHeight - 12);
+        pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - marginX, pageHeight - 12, { align: "right" });
       }
 
-      pdf.save(
-        `Room-Schedule-${room?.roomName || "Room"}-${new Date()
-          .toISOString()
-          .slice(0, 10)}.pdf`
-      );
+      pdf.save(`Room-Schedule-${room?.roomName || "Room"}-${new Date().toISOString().slice(0, 10)}.pdf`);
 
       showToast("success", "PDF Downloaded", "Schedule exported successfully.");
     } catch (err) {
@@ -736,7 +608,6 @@ function LocalRegistrarViewRoomCard() {
     }
   };
 
-  // ─── Render ────────────────────────────────────────────────────────
   return (
     <>
       <div className="lr-view-room">
@@ -815,20 +686,9 @@ function LocalRegistrarViewRoomCard() {
             <div className="lr-vr-schedule-container">
               <div className="lr-vr-time-column">
                 {[
-                  "07 AM",
-                  "08 AM",
-                  "09 AM",
-                  "10 AM",
-                  "11 AM",
-                  "12 PM",
-                  "01 PM",
-                  "02 PM",
-                  "03 PM",
-                  "04 PM",
-                  "05 PM",
-                  "06 PM",
-                  "07 PM",
-                  "08 PM",
+                  "07 AM", "08 AM", "09 AM", "10 AM", "11 AM", "12 PM",
+                  "01 PM", "02 PM", "03 PM", "04 PM", "05 PM", "06 PM",
+                  "07 PM", "08 PM",
                 ].map((label) => (
                   <div className="lr-vr-time-slot" key={label}>
                     {label}
@@ -856,27 +716,15 @@ function LocalRegistrarViewRoomCard() {
                       filteredSchedules = daySchedules
                         .map((schedule) => {
                           if (!isActiveOnDate(schedule, dateStr)) return null;
-                          if (
-                            reassignedAwayKeys.has(
-                              `${schedule.id}_${dateStr}`
-                            )
-                          )
-                            return null;
+                          if (reassignedAwayKeys.has(`${schedule.id}_${dateStr}`)) return null;
 
-                          // ✅ Release handling
-                          const releaseInfo = releasedMap.get(
-                            `${schedule.id}_${dateStr}`
-                          );
+                          const releaseInfo = releasedMap.get(`${schedule.id}_${dateStr}`);
                           let effectiveSchedule = schedule;
                           if (releaseInfo) {
                             if (!releaseInfo.effectiveEndTime) return null;
 
-                            const endMin = convertToMinutes(
-                              releaseInfo.effectiveEndTime
-                            );
-                            const startMin = convertToMinutes(
-                              schedule.startTime
-                            );
+                            const endMin = convertToMinutes(releaseInfo.effectiveEndTime);
+                            const startMin = convertToMinutes(schedule.startTime);
                             if (endMin <= startMin) return null;
 
                             effectiveSchedule = {
@@ -887,12 +735,8 @@ function LocalRegistrarViewRoomCard() {
                             };
                           }
 
-                          const sStart = convertToMinutes(
-                            effectiveSchedule.startTime
-                          );
-                          const sEnd = convertToMinutes(
-                            effectiveSchedule.endTime
-                          );
+                          const sStart = convertToMinutes(effectiveSchedule.startTime);
+                          const sEnd = convertToMinutes(effectiveSchedule.endTime);
                           const items = getItemsForDate(dateObj);
                           const conflict = items.some((ev) => {
                             const eStart = convertToMinutes(ev.startTime);
@@ -913,14 +757,9 @@ function LocalRegistrarViewRoomCard() {
                             key={schedule.id}
                             schedule={schedule}
                             top={getTopPosition(schedule.startTime)}
-                            height={getCardHeight(
-                              schedule.startTime,
-                              schedule.endTime
-                            )}
+                            height={getCardHeight(schedule.startTime, schedule.endTime)}
                             onClick={() => {
-                              setSelectedSchedule(
-                                normalizeScheduleItem(schedule, "schedule")
-                              );
+                              setSelectedSchedule(normalizeScheduleItem(schedule, "schedule"));
                               setSelectedScheduleId(schedule.id);
                             }}
                             facultyColor={getFacultyColor(schedule.faculty)}
@@ -934,18 +773,10 @@ function LocalRegistrarViewRoomCard() {
                             if (category === "event") {
                               facultyName = "ROOM ACTIVITY";
                             } else if (category === "reservation") {
-                              facultyName =
-                                item.requesterName ||
-                                item.facultyName ||
-                                "Walk-in";
-                              if (!item.requesterName && !item.facultyName) {
-                                category = "walkin";
-                              }
+                              facultyName = item.requesterName || item.facultyName || "Walk-in";
+                              if (!item.requesterName && !item.facultyName) category = "walkin";
                             } else if (category === "reassignment") {
-                              facultyName =
-                                item.facultyName ||
-                                item.courseTitle ||
-                                "Moved Class";
+                              facultyName = item.facultyName || item.courseTitle || "Moved Class";
                             } else {
                               category = "walkin";
                               facultyName = "Walk-in";
@@ -968,14 +799,9 @@ function LocalRegistrarViewRoomCard() {
                                   faculty: facultyName,
                                 }}
                                 top={getTopPosition(item.startTime)}
-                                height={getCardHeight(
-                                  item.startTime,
-                                  item.endTime
-                                )}
+                                height={getCardHeight(item.startTime, item.endTime)}
                                 onClick={() => {
-                                  setSelectedSchedule(
-                                    normalizeScheduleItem(item, item._source)
-                                  );
+                                  setSelectedSchedule(normalizeScheduleItem(item, item._source));
                                   setSelectedScheduleId(item.id);
                                 }}
                                 facultyColor={color}
@@ -990,6 +816,7 @@ function LocalRegistrarViewRoomCard() {
             </div>
           </div>
 
+          {/* ─── Wrapper (passthrough lang, walang CSS positioning) ─── */}
           <div className="lr-vr-class-details">
             <ClassDetailsCard
               schedule={selectedSchedule}
@@ -1002,6 +829,7 @@ function LocalRegistrarViewRoomCard() {
 
             {isOriginal && canEdit && selectedSchedule && selectedScheduleId && (
               <button
+                type="button"
                 className="lr-vr-edit-sched-btn"
                 onClick={() => {
                   setEditingSchedule(selectedSchedule);
@@ -1037,9 +865,7 @@ function LocalRegistrarViewRoomCard() {
               {editingSchedule.subject}
               {editingSchedule.day ? ` • ${editingSchedule.day}` : ""}{" "}
               {editingSchedule.startTime && editingSchedule.endTime
-                ? `• ${format12Hour(
-                    editingSchedule.startTime
-                  )} - ${format12Hour(editingSchedule.endTime)}`
+                ? `• ${format12Hour(editingSchedule.startTime)} - ${format12Hour(editingSchedule.endTime)}`
                 : ""}
             </p>
 

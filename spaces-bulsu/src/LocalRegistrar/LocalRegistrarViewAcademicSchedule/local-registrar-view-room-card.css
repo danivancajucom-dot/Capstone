@@ -29,6 +29,7 @@
   justify-content: space-between;
   align-items: center;
   margin: 20px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -183,16 +184,224 @@
   color: #888;
 }
 
-.lr-vr-class-details {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 999;
-  max-width: 360px;
-  width: calc(100% - 48px);
+/* ─── Header right cluster (room name + export btn) ─────────────── */
+.lr-vr-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-/* ============ RESPONSIVE ============ */
+.lr-vr-export-pdf-btn {
+  padding: 8px 16px;
+  background: #f57c00;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.lr-vr-export-pdf-btn:hover:not(:disabled) {
+  background: #e06b00;
+}
+
+.lr-vr-export-pdf-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   .lr-vr-class-details — PASSTHROUGH WRAPPER
+   Walang positioning, walang size. Ang mga bata nito ay
+   nagpo-position ng sarili nila (ClassDetailsCard = fixed,
+   edit button = fixed).
+   ═══════════════════════════════════════════════════════════════════ */
+.lr-vr-class-details {
+  /* intentionally empty — passthrough only */
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   EDIT BUTTON — standalone floating action button
+   • Desktop (>900px): nasa KALIWA ng ClassDetailsCard
+   • Tablet  (≤900px): nasa bottom-left ng screen
+   • Mobile  (≤640px): nasa top-right, sa ilalim ng header
+   ═══════════════════════════════════════════════════════════════════ */
+.lr-vr-edit-sched-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 364px; /* 24 (card right) + 320 (card width) + 20 (gap) */
+  z-index: 1000; /* higher than the card's 999 */
+  background: #f57c00;
+  color: #ffffff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(245, 124, 0, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.lr-vr-edit-sched-btn:hover {
+  background: #e06a00;
+  box-shadow: 0 6px 18px rgba(245, 124, 0, 0.45);
+}
+
+.lr-vr-edit-sched-btn:active {
+  transform: scale(0.97);
+}
+
+.lr-vr-edit-sched-btn i {
+  font-size: 12px;
+}
+
+/* ─── Tablet (≤900px): ClassDetailsCard is a centered modal ─────
+   Ilipat ang edit button sa bottom-left para hindi mag-overlap. */
+@media (max-width: 900px) {
+  .lr-vr-edit-sched-btn {
+    right: auto;
+    left: 24px;
+    bottom: 24px;
+  }
+}
+
+/* ─── Mobile (≤640px): ClassDetailsCard is a bottom sheet ──────
+   Ilipat ang edit button sa TOP-RIGHT, sa ilalim ng page header. */
+@media (max-width: 640px) {
+  .lr-vr-edit-sched-btn {
+    right: 12px;
+    left: auto;
+    bottom: auto;
+    top: 84px;
+    padding: 9px 14px;
+    font-size: 12px;
+    box-shadow: 0 3px 10px rgba(245, 124, 0, 0.35);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reusable confirm/edit modal (matches the Submitted Schedules one)
+   ═══════════════════════════════════════════════════════════════════ */
+.msd-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: msdFade 0.2s ease;
+}
+
+.msd-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 26px 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  animation: msdPop 0.22s ease;
+  margin: 0 16px;
+}
+
+.msd-modal-icon {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  font-size: 24px;
+}
+.msd-modal-icon.activate {
+  background: #fff7ed;
+  color: #f57c00;
+}
+.msd-modal-icon.deactivate {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.msd-modal h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #1e293b;
+}
+.msd-modal p {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #64748b;
+}
+.msd-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+.msd-cancel-btn,
+.msd-confirm-btn {
+  flex: 1;
+  padding: 11px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.msd-cancel-btn {
+  background: #f1f5f9;
+  color: #334155;
+}
+.msd-cancel-btn:hover {
+  background: #e2e8f0;
+}
+.msd-confirm-btn.activate {
+  background: #f57c00;
+  color: white;
+}
+.msd-confirm-btn.activate:hover {
+  background: #e06a00;
+}
+.msd-confirm-btn.deactivate {
+  background: #dc2626;
+  color: white;
+}
+.msd-confirm-btn.deactivate:hover {
+  background: #b91c1c;
+}
+.msd-confirm-btn:disabled,
+.msd-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes msdFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes msdPop {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — calendar layout
+   ═══════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
   .lr-view-room {
@@ -219,7 +428,6 @@
     padding: 8px 18px;
   }
 
- 
   .lr-vr-scroll-x {
     overflow-x: auto;
   }
@@ -264,14 +472,6 @@
   .lr-vr-no-schedule h3 {
     font-size: 18px;
   }
-
-  .lr-vr-class-details {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    max-width: none;
-    width: auto;
-  }
 }
 
 @media (max-width: 480px) {
@@ -288,164 +488,4 @@
     width: 100%;
     text-align: center;
   }
-}
-
-.lr-vr-box-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.lr-vr-header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.lr-vr-export-pdf-btn {
-  padding: 8px 16px;
-  background: #f57c00;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-
-.lr-vr-export-pdf-btn:hover:not(:disabled) {
-  background: #e06b00;
-}
-
-.lr-vr-export-pdf-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.lr-vr-class-details {
-  position: relative;
-}
-
-.lr-vr-edit-sched-btn {
-  position: absolute;
-  right: 24px;
-  bottom: 24px;
-  background: #f57c00;
-  color: white;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(245, 124, 0, 0.3);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: 0.2s;
-  z-index: 5;
-}
-
-.lr-vr-edit-sched-btn:hover {
-  background: #e06a00;
-}
-
-/* ─── Reusable confirm/edit modal (matches the Submitted Schedules one) ── */
-.msd-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  animation: msdFade 0.2s ease;
-}
-
-.msd-modal {
-  background: #fff;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 420px;
-  padding: 28px 26px 22px;
-  text-align: center;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
-  animation: msdPop 0.22s ease;
-}
-
-.msd-modal-icon {
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 14px;
-  font-size: 24px;
-}
-.msd-modal-icon.activate {
-  background: #fff7ed;
-  color: #f57c00;
-}
-.msd-modal h3 {
-  margin: 0 0 8px;
-  font-size: 20px;
-  font-weight: 800;
-  color: #1e293b;
-}
-.msd-modal p {
-  margin: 0 0 20px;
-  font-size: 14px;
-  line-height: 1.55;
-  color: #64748b;
-}
-.msd-modal-actions {
-  display: flex;
-  gap: 10px;
-}
-.msd-cancel-btn,
-.msd-confirm-btn {
-  flex: 1;
-  padding: 11px;
-  border: none;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-.msd-cancel-btn {
-  background: #f1f5f9;
-  color: #334155;
-}
-.msd-cancel-btn:hover {
-  background: #e2e8f0;
-}
-.msd-confirm-btn.activate {
-  background: #f57c00;
-  color: white;
-}
-.msd-confirm-btn.activate:hover {
-  background: #e06a00;
-}
-.msd-confirm-btn.activate:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-@keyframes msdFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes msdPop {
-  from { opacity: 0; transform: scale(0.94) translateY(8px); }
-  to { opacity: 1; transform: none; }
 }
