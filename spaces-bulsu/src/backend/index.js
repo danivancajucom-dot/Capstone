@@ -16,8 +16,7 @@ app.use(express.json({ limit: "20mb" }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
-  console.error("❌ GEMINI_API_KEY is not set in .env");
-  process.exit(1);
+  console.error("❌ GEMINI_API_KEY is not set in env vars");
 }
 
 // ✅ Use gemini-3.6-flash (original model)
@@ -100,6 +99,14 @@ app.get("/api/test-key", async (req, res) => {
 // ---------- ENDPOINT 1: With rooms (Local Registrar) ----------
 app.post("/api/extract-schedule", async (req, res) => {
   try {
+
+    if (!GEMINI_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: "Server config error: GEMINI_API_KEY missing.",
+      });
+    }
+
     const { rawText, room, semester, schoolYear } = req.body;
 
     if (!rawText || rawText.trim().length < 10) {
@@ -170,6 +177,14 @@ ${rawText}
 // ✅ Only extracts schedules WITHOUT room (online classes)
 app.post("/api/extract-online-schedule", async (req, res) => {
   try {
+
+    if (!GEMINI_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: "Server config error: GEMINI_API_KEY missing.",
+      });
+    }
+    
     const { rawText, semester, schoolYear, faculty } = req.body;
 
     if (!rawText || rawText.trim().length < 10) {
