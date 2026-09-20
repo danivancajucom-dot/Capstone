@@ -1,42 +1,49 @@
-import dotenv from "dotenv";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-dotenv.config({ path: join(__dirname, ".env") });
+// ---------- ENV: local dev only (Vercel injects env vars) ----------
+if (!process.env.VERCEL) {
+  const { config } = await import("dotenv");
+  const { fileURLToPath } = await import("url");
+  const { dirname, join } = await import("path");
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  config({ path: join(__dirname, ".env") });
+}
 
 import express from "express";
 import cors from "cors";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "4mb" })); // Vercel hard-caps ~4.5MB
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) {
-  console.error("❌ GEMINI_API_KEY is not set in env vars");
-}
 
-// ✅ Use gemini-3.6-flash (original model)
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-// ---------- RETRY FUNCTION ----------
-async function generateWithRetry(prompt, maxRetries = 1) {
-  // ↑ 3 → 1, para hindi mag-timeout
+// ---------- Boot diagnostics (visible in Vercel → Logs) ----------
+console.log("🚀 Boot:", {
+  hasGemini: !!GEMINI_API_KEY,
+  hasFirebase: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+  onVercel: !!process.env.VERCEL,
+  nodeEnv: process.env.NODE_ENV,
+});
+
+const GEMINI_URL = GEMINI_API_KEY
+  ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+  : null;
+
+// ---------- GEMINI WITH RETRY + TIMEOUT ----------
+async function generateWithRetry(prompt, maxRetries = 2) {
+  if (!GEMINI_URL) throw new Error("GEMINI_API_KEY is not configured on server.");
+
   let lastError;
-
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // Add timeout sa fetch (8 seconds — safe sa 10s Hobby limit)
+      // 6s — leaves room for cold start under the 10s Hobby cap
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       const response = await fetch(GEMINI_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -44,37 +51,35 @@ async function generateWithRetry(prompt, maxRetries = 1) {
             responseMimeType: "application/json",
           },
         }),
-        signal: controller.signal, // ← I-add ito
+        signal: controller.signal,
       });
-
       clearTimeout(timeoutId);
 
       const data = await response.json();
 
       if (!response.ok) {
-        const errMsg = data?.error?.message || "Unknown Gemini error";
-        const err = new Error(errMsg);
+        const err = new Error(data?.error?.message || "Unknown Gemini error");
         err.status = response.status;
         throw err;
       }
 
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text) throw new Error("Empty response from Gemini");
-
       return text;
     } catch (error) {
       lastError = error;
-      console.error(`Attempt ${attempt} failed:`, error.message);
+      console.error(`Gemini attempt ${attempt} failed:`, error.message);
 
-      const shouldRetry = (error.status === 503 || error.status === 429) && attempt < maxRetries;
-      if (shouldRetry) {
+      if (error.name === "AbortError") {
+        throw new Error("Gemini request timed out. Try a smaller file.");
+      }
+      if ((error.status === 503 || error.status === 429) && attempt < maxRetries) {
         const delay = Math.pow(2, attempt) * 1000;
-        console.log(`Retrying in ${delay}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((r) => setTimeout(r, delay));
         continue;
       }
       if (error.status === 401 || error.status === 403) {
-        throw new Error("Invalid API key. Please check your GEMINI_API_KEY in .env");
+        throw new Error("Invalid Gemini API key.");
       }
       throw error;
     }
@@ -84,7 +89,7 @@ async function generateWithRetry(prompt, maxRetries = 1) {
 
 // ---------- SAFE JSON PARSER ----------
 function extractJSON(text) {
-  let cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
   const start = cleaned.indexOf("[");
   const end = cleaned.lastIndexOf("]");
   if (start === -1 || end === -1) {
@@ -93,20 +98,45 @@ function extractJSON(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-// ---------- TEST ENDPOINT ----------
+// ---------- FIREBASE (LAZY — never crashes cold start) ----------
+let firebaseReady = false;
+function initFirebase() {
+  if (firebaseReady || getApps().length > 0) {
+    firebaseReady = true;
+    return true;
+  }
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+    console.warn("⚠️ FIREBASE_SERVICE_ACCOUNT not set");
+    return false;
+  }
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    initializeApp({ credential: cert(serviceAccount) });
+    firebaseReady = true;
+    console.log("✅ Firebase Admin initialized");
+    return true;
+  } catch (err) {
+    console.error("❌ Firebase init failed:", err.message);
+    return false;
+  }
+}
+
+// =============================================================
+//  ROUTES
+// =============================================================
+
 app.get("/api/test-key", async (req, res) => {
   try {
-    const text = await generateWithRetry("Say the word OK and nothing else.");
+    const text = await generateWithRetry("Say the word OK and nothing else.", 1);
     res.json({ success: true, response: text });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// ---------- ENDPOINT 1: With rooms (Local Registrar) ----------
+// ---------- ENDPOINT 1: With rooms ----------
 app.post("/api/extract-schedule", async (req, res) => {
   try {
-
     if (!GEMINI_API_KEY) {
       return res.status(500).json({
         success: false,
@@ -153,38 +183,34 @@ ${rawText}
     const text = await generateWithRetry(prompt);
     let schedules = extractJSON(text);
 
-    if (!Array.isArray(schedules)) {
-      throw new Error("Response is not an array");
-    }
+    if (!Array.isArray(schedules)) throw new Error("Response is not an array");
 
-    schedules = schedules.map((item) => ({
-      subject: item.subject || "",
-      section: item.section || "",
-      faculty: item.faculty || "TBA",
-      room: item.room || room,
-      day: item.day ? item.day.toUpperCase().trim() : "",
-      startTime: item.startTime || "",
-      endTime: item.endTime || "",
-    }));
-
-    schedules = schedules.filter((s) => s.subject || s.day);
+    schedules = schedules
+      .map((item) => ({
+        subject: item.subject || "",
+        section: item.section || "",
+        faculty: item.faculty || "TBA",
+        room: item.room || room,
+        day: item.day ? item.day.toUpperCase().trim() : "",
+        startTime: item.startTime || "",
+        endTime: item.endTime || "",
+      }))
+      .filter((s) => s.subject || s.day);
 
     console.log(`✅ Extracted ${schedules.length} schedule(s)`);
     res.json({ success: true, schedules });
-
   } catch (error) {
     console.error("❌ Extraction error:", error.message);
-    const status = error.status || 500;
-    const message = error.message || "Failed to extract schedule.";
-    res.status(status).json({ success: false, message });
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to extract schedule.",
+    });
   }
 });
 
-// ---------- ENDPOINT 2: Online classes (Faculty) ----------
-// ✅ Only extracts schedules WITHOUT room (online classes)
+// ---------- ENDPOINT 2: Online classes ----------
 app.post("/api/extract-online-schedule", async (req, res) => {
   try {
-
     if (!GEMINI_API_KEY) {
       return res.status(500).json({
         success: false,
@@ -208,7 +234,7 @@ Return ONLY a valid JSON array. No markdown, no extra text.
 Each object must have exactly these fields:
   "subject": string (course code)
   "section": string (section code)
-  "faculty": string (instructor name, use "${faculty || 'TBA'}" if not found)
+  "faculty": string (instructor name, use "${faculty || "TBA"}" if not found)
   "day": string (MON, TUE, WED, THU, FRI, SAT, SUN)
   "startTime": string (24-hour format HH:mm)
   "endTime": string (24-hour format HH:mm)
@@ -218,13 +244,13 @@ Rules:
 - If a field is missing, use empty string or "TBA" for faculty.
 - DO NOT include any schedule that has a room number/name.
 - ONLY include schedules that are online classes (no room assigned).
-- The faculty name should be "${faculty || 'TBA'}" for all schedules.
+- The faculty name should be "${faculty || "TBA"}" for all schedules.
 - If a schedule has a room, skip it entirely.
 - Parse ONLY online schedules listed.
 
 Semester: ${semester}
 School Year: ${schoolYear}
-Faculty: ${faculty || 'TBA'}
+Faculty: ${faculty || "TBA"}
 
 Schedule Text:
 ${rawText}
@@ -233,50 +259,35 @@ ${rawText}
     const text = await generateWithRetry(prompt);
     let schedules = extractJSON(text);
 
-    if (!Array.isArray(schedules)) {
-      throw new Error("Response is not an array");
-    }
+    if (!Array.isArray(schedules)) throw new Error("Response is not an array");
 
-    schedules = schedules.map((item) => ({
-      subject: item.subject || "",
-      section: item.section || "",
-      faculty: item.faculty || faculty || "TBA",
-      day: item.day ? item.day.toUpperCase().trim() : "",
-      startTime: item.startTime || "",
-      endTime: item.endTime || "",
-    }));
+    schedules = schedules
+      .map((item) => ({
+        subject: item.subject || "",
+        section: item.section || "",
+        faculty: item.faculty || faculty || "TBA",
+        day: item.day ? item.day.toUpperCase().trim() : "",
+        startTime: item.startTime || "",
+        endTime: item.endTime || "",
+      }))
+      .filter((s) => s.subject || s.day);
 
-    // Additional filter to ensure no room field accidentally appears
-    schedules = schedules.filter((s) => s.subject || s.day);
-
-    console.log(`✅ Extracted ${schedules.length} online schedule(s) for faculty: ${faculty || 'Unknown'}`);
+    console.log(
+      `✅ Extracted ${schedules.length} online schedule(s) for: ${
+        faculty || "Unknown"
+      }`
+    );
     res.json({ success: true, schedules });
-
   } catch (error) {
     console.error("❌ Extraction error:", error.message);
-    const status = error.status || 500;
-    const message = error.message || "Failed to extract online schedule.";
-    res.status(status).json({ success: false, message });
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to extract online schedule.",
+    });
   }
 });
 
-// ---------- FIREBASE ADMIN SETUP ----------
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-
-if (getApps().length === 0) {
-  try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    initializeApp({
-      credential: cert(serviceAccount),
-    });
-    console.log("✅ Firebase Admin initialized");
-  } catch (err) {
-    console.error("❌ Firebase Admin init failed:", err.message);
-  }
-}
-
-// ---------- ENDPOINT 3: Reset Password (Forgot Password flow) ----------
+// ---------- ENDPOINT 3: Reset Password ----------
 app.post("/api/reset-password", async (req, res) => {
   try {
     const { email, newPassword } = req.body;
@@ -287,11 +298,16 @@ app.post("/api/reset-password", async (req, res) => {
         message: "Email and new password are required.",
       });
     }
-
     if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
         message: "Password must be at least 8 characters.",
+      });
+    }
+    if (!initFirebase()) {
+      return res.status(500).json({
+        success: false,
+        message: "Firebase Admin not configured on server.",
       });
     }
 
@@ -301,7 +317,6 @@ app.post("/api/reset-password", async (req, res) => {
 
     console.log(`✅ Password reset for: ${email}`);
     res.json({ success: true, message: "Password updated successfully." });
-
   } catch (error) {
     console.error("❌ Reset password error:", error.message);
     let message = "Failed to reset password.";
@@ -312,14 +327,19 @@ app.post("/api/reset-password", async (req, res) => {
   }
 });
 
-// ---------- START ----------
-export default app;
-
-// Kung gusto mo pa ring mag-test locally gamit ang "npm run dev:backend", 
-// pwede mong i-conditional yung listen:
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
+// ---------- GLOBAL ERROR HANDLER (must be last) ----------
+app.use((err, req, res, next) => {
+  console.error("💥 Unhandled:", err);
+  res.status(500).json({
+    success: false,
+    message: err.message || "Internal server error.",
   });
+});
+
+// ---------- LOCAL DEV LISTEN ONLY ----------
+if (!process.env.VERCEL && process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
 }
+
+export default app;
