@@ -239,12 +239,13 @@ ${rawText}
 });
 
 // ---------- FIREBASE ADMIN SETUP ----------
-import admin from "firebase-admin";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 
-if (!admin.apps.length) {
+if (getApps().length === 0) {
   try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    initializeApp({
+      credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
@@ -275,8 +276,9 @@ app.post("/api/reset-password", async (req, res) => {
       });
     }
 
-    const user = await admin.auth().getUserByEmail(email);
-    await admin.auth().updateUser(user.uid, { password: newPassword });
+    const auth = getAuth();
+    const user = await auth.getUserByEmail(email);
+    await auth.updateUser(user.uid, { password: newPassword });
 
     console.log(`✅ Password reset for: ${email}`);
     res.json({ success: true, message: "Password updated successfully." });
