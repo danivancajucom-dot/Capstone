@@ -9,6 +9,7 @@ if (!process.env.VERCEL) {
 
 import express from "express";
 import cors from "cors";
+import crypto from "crypto";
 
 const app = express();
 app.use(cors());
@@ -19,6 +20,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // ---------- Boot diagnostics (visible in Vercel → Logs) ----------
 console.log("🚀 Boot:", {
   hasGemini: !!GEMINI_API_KEY,
+  hasFirebase: !!process.env.FIREBASE_SERVICE_ACCOUNT,
   onVercel: !!process.env.VERCEL,
   nodeEnv: process.env.NODE_ENV,
   nodeVersion: process.version,
@@ -40,13 +42,12 @@ const buildGeminiUrl = (model) =>
     ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
     : null;
 
-// ---------- GEMINI WITH RETRY + TIMEOUT ----------
+// ---------- GEMINI WITH RETRY + MODEL FALLBACK ----------
 async function generateWithRetry(prompt, maxRetries = 2) {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured on server.");
 
   let lastError;
 
-  // Try each model in order — if one is overloaded (503), fall to the next
   for (const model of GEMINI_MODELS) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -82,28 +83,19 @@ async function generateWithRetry(prompt, maxRetries = 2) {
         return text;
       } catch (error) {
         lastError = error;
-        console.error(
-          `Gemini ${model} attempt ${attempt} failed:`,
-          error.message
-        );
+        console.error(`Gemini ${model} attempt ${attempt} failed:`, error.message);
 
-        if (error.name === "AbortError") {
-          // timeout — try next model immediately
-          break;
-        }
+        if (error.name === "AbortError") break;
         if (error.status === 401 || error.status === 403) {
           throw new Error("Invalid Gemini API key.");
         }
         if (error.status === 503 || error.status === 429) {
-          // overloaded/rate limited — short delay then retry same model
           if (attempt < maxRetries) {
             await new Promise((r) => setTimeout(r, 800 * attempt));
             continue;
           }
-          // exhausted retries on this model → try next model
           break;
         }
-        // other error → try next model
         break;
       }
     }
@@ -121,6 +113,129 @@ function extractJSON(text) {
     throw new Error("No JSON array found: " + cleaned.slice(0, 300));
   }
   return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+// =============================================================
+//  FIREBASE ADMIN via NATIVE CRYPTO + REST API
+//  (no firebase-admin, no jose, no ESM crash)
+// =============================================================
+
+let cachedToken = null;
+let cachedTokenExpiry = 0;
+
+function base64url(input) {
+  return Buffer.from(input).toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+async function getGoogleAccessToken() {
+  const now = Math.floor(Date.now() / 1000);
+  if (cachedToken && cachedTokenExpiry > now + 60) return cachedToken;
+
+  const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+  const header = { alg: "RS256", typ: "JWT" };
+  const payload = {
+    iss: sa.client_email,
+    scope: "https://www.googleapis.com/auth/cloud-platform",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  };
+
+  const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
+
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(unsigned);
+  const signature = signer.sign(sa.private_key, "base64");
+  const sig64url = signature
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const jwt = `${unsigned}.${sig64url}`;
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }).toString(),
+  });
+
+  const tokenData = await tokenRes.json();
+  if (!tokenRes.ok) {
+    throw new Error(
+      tokenData.error_description || tokenData.error || "Google OAuth token exchange failed"
+    );
+  }
+
+  cachedToken = tokenData.access_token;
+  cachedTokenExpiry = now + (tokenData.expires_in || 3600);
+  console.log("✅ Google access token acquired");
+  return cachedToken;
+}
+
+async function updateUserPassword(email, newPassword) {
+  const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  const projectId = sa.project_id;
+  const accessToken = await getGoogleAccessToken();
+
+  // ── 1. Look up user by email ──
+  const lookupRes = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:lookup`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ email: [email] }),
+    }
+  );
+
+  const lookupData = await lookupRes.json();
+  if (!lookupRes.ok) {
+    const msg = lookupData?.error?.message || "User lookup failed";
+    const err = new Error(msg);
+    if (/USER_NOT_FOUND|not found/i.test(msg)) {
+      err.code = "auth/user-not-found";
+    }
+    throw err;
+  }
+
+  const user = lookupData?.users?.[0];
+  if (!user) {
+    const err = new Error("User not found");
+    err.code = "auth/user-not-found";
+    throw err;
+  }
+
+  // ── 2. Update password ──
+  const updateRes = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:update`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        localId: user.localId,
+        password: newPassword,
+      }),
+    }
+  );
+
+  const updateData = await updateRes.json();
+  if (!updateRes.ok) {
+    throw new Error(updateData?.error?.message || "Password update failed");
+  }
+
+  return { uid: user.localId, email: user.email };
 }
 
 // =============================================================
@@ -289,17 +404,48 @@ ${rawText}
   }
 });
 
-// ---------- ENDPOINT 3: Reset Password — DISABLED ----------
-// Firebase Admin removed to fix the `jose` ESM crash on Vercel.
-// If you need password reset, do it from the client using Firebase SDK:
-//   import { sendPasswordResetEmail } from "firebase/auth";
-//   await sendPasswordResetEmail(auth, email);
-app.post("/api/reset-password", (req, res) => {
-  res.status(501).json({
-    success: false,
-    message:
-      "Password reset is disabled on the server. Use client-side Firebase reset instead.",
-  });
+// ---------- ENDPOINT 3: Reset Password ----------
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and new password are required.",
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters.",
+      });
+    }
+
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+      return res.status(500).json({
+        success: false,
+        message: "Server config error: FIREBASE_SERVICE_ACCOUNT missing.",
+      });
+    }
+
+    const result = await updateUserPassword(email, newPassword);
+    console.log(`✅ Password reset for: ${email} (uid: ${result.uid})`);
+    res.json({ success: true, message: "Password updated successfully." });
+  } catch (error) {
+    console.error("❌ Reset password error:", error.message);
+    let message = "Failed to reset password.";
+    if (
+      error.code === "auth/user-not-found" ||
+      /USER_NOT_FOUND|not found/i.test(error.message)
+    ) {
+      message = "No account found with that email.";
+    } else if (/INVALID_PASSWORD|WEAK_PASSWORD/i.test(error.message)) {
+      message = "Password is too weak. Use a stronger one.";
+    }
+    res.status(500).json({ success: false, message });
+  }
 });
 
 // ---------- GLOBAL ERROR HANDLER (must be last) ----------
