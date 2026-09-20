@@ -20,14 +20,18 @@ if (!GEMINI_API_KEY) {
 }
 
 // ✅ Use gemini-3.6-flash (original model)
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
-
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 // ---------- RETRY FUNCTION ----------
-async function generateWithRetry(prompt, maxRetries = 3) {
+async function generateWithRetry(prompt, maxRetries = 1) {
+  // ↑ 3 → 1, para hindi mag-timeout
   let lastError;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      // Add timeout sa fetch (8 seconds — safe sa 10s Hobby limit)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
       const response = await fetch(GEMINI_URL, {
         method: "POST",
         headers: {
@@ -40,7 +44,10 @@ async function generateWithRetry(prompt, maxRetries = 3) {
             responseMimeType: "application/json",
           },
         }),
+        signal: controller.signal, // ← I-add ito
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -184,7 +191,7 @@ app.post("/api/extract-online-schedule", async (req, res) => {
         message: "Server config error: GEMINI_API_KEY missing.",
       });
     }
-    
+
     const { rawText, semester, schoolYear, faculty } = req.body;
 
     if (!rawText || rawText.trim().length < 10) {
