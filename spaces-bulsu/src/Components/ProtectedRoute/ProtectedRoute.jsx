@@ -1,48 +1,57 @@
 import { useEffect, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 
 /**
- * Wraps protected routes. Blocks access unless:
- *  - user is logged in (Firebase Auth)
- *  - user's Firestore role matches one of `allowedRoles`
+ * Route guard — renders child routes via <Outlet />.
+ * Use as a LAYOUT route wrapper:
  *
- * Usage:
  *   <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
- *     <Route path="/admin" element={<AdminLayout />}>...</Route>
+ *     <Route path="/admin" element={<AdminLayout />}>
+ *       ...
+ *     </Route>
  *   </Route>
  */
-export default function ProtectedRoute({ allowedRoles = [], children }) {
+export default function ProtectedRoute({ allowedRoles = [] }) {
   const location = useLocation();
   const [status, setStatus] = useState("checking");
   const [role, setRole] = useState(null);
+  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
+        setDebugInfo("No Firebase user");
         setStatus("unauthenticated");
         return;
       }
+
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (!snap.exists()) {
+          setDebugInfo(`No /users doc for uid ${user.uid}`);
           setStatus("no-profile");
           return;
         }
+
         const data = snap.data();
-        setRole(data.role || "");
+        const r = data.role || "";
+        setRole(r);
+        setDebugInfo(`role="${r}" (uid ${user.uid})`);
         setStatus("ok");
       } catch (err) {
         console.error("ProtectedRoute: failed to load profile:", err);
+        setDebugInfo(`Error: ${err.message}`);
         setStatus("error");
       }
     });
+
     return () => unsub();
   }, []);
 
-  // ── Loading state (avoid flash of wrong content) ──
+  // ── 1. Still checking auth + role ──
   if (status === "checking") {
     return (
       <div
@@ -67,34 +76,162 @@ export default function ProtectedRoute({ allowedRoles = [], children }) {
     );
   }
 
-  // ── Not logged in → send to login ──
+  // ── 2. Not logged in → send to login ──
   if (status === "unauthenticated") {
     return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ from: location.pathname }}
-      />
+      <Navigate to="/login" replace state={{ from: location.pathname }} />
     );
   }
 
-  // ── Logged in but no Firestore profile ──
+  // ── 3. Logged in but no profile / error ──
   if (status === "no-profile" || status === "error") {
-    return <Navigate to="/login" replace />;
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#F8F7F5",
+          padding: 24,
+          flexDirection: "column",
+          gap: 14,
+          fontFamily: "'Lexend', sans-serif",
+          textAlign: "center",
+        }}
+      >
+        <i
+          className="fa-solid fa-triangle-exclamation"
+          style={{ fontSize: 42, color: "#dc2626" }}
+        />
+        <h2
+          style={{
+            margin: 0,
+            color: "#16213e",
+            fontWeight: 800,
+            fontSize: 20,
+          }}
+        >
+          Account Not Configured
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            color: "#6b7280",
+            fontSize: 14,
+            maxWidth: 400,
+            lineHeight: 1.5,
+          }}
+        >
+          Your account does not have a profile set up. Please contact the
+          administrator.
+        </p>
+        <button
+          onClick={() => auth.signOut().then(() => window.location.replace("/login"))}
+          style={{
+            marginTop: 8,
+            background: "#f57c00",
+            color: "#fff",
+            border: "none",
+            padding: "10px 20px",
+            borderRadius: 10,
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          Back to Login
+        </button>
+      </div>
+    );
   }
 
-  // ── Role check ──
+  // ── 4. Role check ──
   const normalized = String(role || "").trim().toLowerCase();
   const allowed = allowedRoles.map((r) => String(r).toLowerCase());
 
   if (allowed.length > 0 && !allowed.includes(normalized)) {
     console.warn(
-      `ProtectedRoute: role "${role}" is not allowed. Needed one of:`,
+      `ProtectedRoute: role "${role}" not allowed. Needed one of:`,
       allowedRoles
     );
-    return <Navigate to="/login" replace />;
+
+    // Show access-denied page (NOT redirect — avoids infinite loop)
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#F8F7F5",
+          padding: 24,
+          flexDirection: "column",
+          gap: 14,
+          fontFamily: "'Lexend', sans-serif",
+          textAlign: "center",
+        }}
+      >
+        <i
+          className="fa-solid fa-lock"
+          style={{ fontSize: 42, color: "#dc2626" }}
+        />
+        <h2
+          style={{
+            margin: 0,
+            color: "#16213e",
+            fontWeight: 800,
+            fontSize: 20,
+          }}
+        >
+          Access Denied
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            color: "#6b7280",
+            fontSize: 14,
+            maxWidth: 400,
+            lineHeight: 1.5,
+          }}
+        >
+          Your role <strong>“{role}”</strong> does not have permission to view
+          this page.
+        </p>
+        <p
+          style={{
+            margin: 0,
+            color: "#9ca3af",
+            fontSize: 12,
+            maxWidth: 400,
+            lineHeight: 1.5,
+          }}
+        >
+          {debugInfo}
+        </p>
+        <button
+          onClick={() => auth.signOut().then(() => window.location.replace("/login"))}
+          style={{
+            marginTop: 8,
+            background: "#f57c00",
+            color: "#fff",
+            border: "none",
+            padding: "10px 20px",
+            borderRadius: 10,
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          Sign Out
+        </button>
+      </div>
+    );
   }
 
-  // ── All good → render the layout ──
-  return children;
+  // ── 5. All good → render child routes ──
+  // ✅ THIS is the fix: use <Outlet />, NOT `children`
+  return <Outlet />;
 }
