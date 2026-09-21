@@ -620,51 +620,48 @@ export default function WeeklyCalendar() {
       });
     });
 
-        const activityItems = [];
-        overrideEvents.forEach((e) => {
-          if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
-          const dayIdx = mondayIndexFromDate(e.date);
-          const [startH, startM] = parseTimeParts(e.startTime);
-          const [endH, endM] = parseTimeParts(e.endTime);
+    const activityItems = [];
+    overrideEvents.forEach((e) => {
+      if (!isWithinWeek(e.date, weekStart, weekEnd)) return;
+      const dayIdx = mondayIndexFromDate(e.date);
+      const [startH, startM] = parseTimeParts(e.startTime);
+      const [endH, endM] = parseTimeParts(e.endTime);
 
-          let conflictsWithSchedule = false;
-          let conflictingSchedule = null;
+      let conflictsWithSchedule = false;
+      let conflictingSchedule = null;
 
-          for (const s of scheduleItems) {
-            if (
-              s.dayIdx === dayIdx &&
-              eventsOverlap(s, { startH, startM, endH, endM, dayIdx })
-            ) {
-              conflictsWithSchedule = true;
-              conflictingSchedule = s;
-              break;
-            }
-          }
+      for (const s of scheduleItems) {
+        if (
+          s.dayIdx === dayIdx &&
+          eventsOverlap(s, { startH, startM, endH, endM, dayIdx })
+        ) {
+          conflictsWithSchedule = true;
+          conflictingSchedule = s;
+          break;
+        }
+      }
 
-          if (!conflictsWithSchedule) return;
-
-          activityItems.push({
-            id: `event-${e.id}`,
-            kind: "event",
-            title: e.title || e.purpose || "Room Activity",
-            reason: e.reason || e.activityReason || "",
-            location: `${e.roomName || "-"} | Room Activity`,
-            roomName: e.roomName || "-",
-            dayIdx,
-            daySpan: 1,
-            startH,
-            startM,
-            endH,
-            endM,
-            colorIdx: 1,
-            faculty: e.faculty || "Admin",
-            date: e.date,
-            rawStartTime: e.startTime,
-            rawEndTime: e.endTime,
-            conflictsWithSchedule,
-            conflictingSchedule,
-          });
-        });
+      activityItems.push({
+        id: `event-${e.id}`,
+        kind: "event",
+        title: e.title || e.purpose || "Room Activity",
+        location: `${e.roomName || "-"} | Room Activity`,
+        roomName: e.roomName || "-",
+        dayIdx,
+        daySpan: 1,
+        startH,
+        startM,
+        endH,
+        endM,
+        colorIdx: 1,
+        faculty: e.faculty || "Admin",
+        date: e.date,
+        rawStartTime: e.startTime,
+        rawEndTime: e.endTime,
+        conflictsWithSchedule,
+        conflictingSchedule,
+      });
+    });
 
     const overriddenScheduleIds = new Set();
     for (const activity of activityItems) {
