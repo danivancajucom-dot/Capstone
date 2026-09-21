@@ -84,104 +84,204 @@ import BroadcastChannel from "./Components/BroadcastChannel/BroadcastChannel";
 import ResetPassword from "./ResetPassword/ResetPassword";
 import PublicRoomSchedule from "./Pages/PublicRoomSchedule/PublicRoomSchedule";
 
+// ✅ NEW — route guard
+import ProtectedRoute from "./Components/ProtectedRoute/ProtectedRoute";
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Admin */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="profile" element={<AdminProfile />} />
-          <Route path="activity-log" element={<AdminActivityLog />} />
-          <Route path="conflicts" element={<AdminConflicts />} />
-          <Route path="reservations" element={<AdminReservations />} />
-          <Route path="view-reservation" element={<AdminViewReservation />} />
-          <Route path="view-reservation-approved" element={<AdminViewReservationApproved />} />
-          <Route path="edit-approved-reservation" element={<AdminEditApprovedReservation />} />
-          <Route path="view-reservation-denied" element={<AdminViewReservationDenied />} />
-          <Route path="view-reservation-cancelled" element={<AdminViewReservationCancelled />} />
-          <Route path="schedule-view-academic-schedule" element={<AdminViewAcademicSchedule />} />
-          <Route path="schedule-room-card" element={<AdminViewRoomCard />} />
-          <Route path="room-activity" element={<RoomActivity />} />
-          <Route path="user-management" element={<UserManagement />} />
-          <Route path="broadcast-channel" element={<BroadcastChannel />} />
-          <Route path="settings" element={<AdminSettings />} />
-          <Route path="room-issues" element={<AdminRoomIssues />} />
-          <Route path="reassign-room" element={<AdminReassignment />} />
-        </Route>
-
-        {/* Local Registrar */}
-        <Route path="/local-registrar" element={<LocalRegistrarLayout />}>
-          <Route path="profile" element={<LocalRegistrarProfile />} />
-          <Route index element={<LocalRegistrarDashboard />} />
-          <Route path="academic-schedule" element={<LocalRegistrarViewAcademicSchedule />} />
-          <Route path="room-card" element={<LocalRegistrarViewRoomCard />} />
-          <Route path="qr-code" element={<LocalRegistrarQRCode />} />
-          <Route path="activity-log" element={<LocalRegistrarActivityLog />} />
-          <Route path="my-submitted-schedules" element={<MySubmittedSchedules />} />
-          <Route path="bulk-upload-1" element={<BulkScheduleUpload1 />} />
-          <Route path="bulk-upload-2" element={<BulkScheduleUpload2 />} />
-          <Route path="bulk-upload-3" element={<BulkScheduleUpload3 />} />
-          <Route path="bulk-upload-4" element={<BulkScheduleUpload4 />} />
-          <Route path="broadcast-channel" element={<BroadcastChannel />} />
-          <Route path="settings" element={<LocalRegistrarSettings />} />
-        </Route>
-
-        {/* Login */}
+        {/* ═══════════════════════════════════════════════════════
+            PUBLIC ROUTES — walang login required
+            ═══════════════════════════════════════════════════════ */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-
-        {/* Reset Password */}
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/room/:roomId" element={<PublicRoomSchedule />} />
 
-        {/* Clerk */}
-        <Route path="/clerk" element={<ClerkLayout />}>
-          <Route path="profile" element={<ClerkProfile />} />
-          <Route index element={<ClerkDashboard />} />
-          <Route path="schedule-view-academic-schedule" element={<ClerkViewAcademicSchedule />} />
-          <Route path="schedule-room-card" element={<ClerkViewRoomCard />} />
-          <Route path="online-reservations" element={<ClerkReservations />} />
-          <Route path="view-online-reservation" element={<ClerkViewReservation />} />
-          <Route path="view-reservation-approved" element={<ClerkViewReservationApproved />} />
-          <Route path="view-reservation-denied" element={<ClerkViewReservationDenied />} />
-          <Route path="view-reservation-cancelled" element={<ClerkViewReservationCancelled />} />
-          <Route path="edit-approved-reservation" element={<ClerkEditApprovedReservation />} />
-          <Route path="walk-in-reservation" element={<WalkInReservation />} />
-          <Route path="released-rooms" element={<ReleasedRooms />} />
-          <Route path="room-details" element={<RoomDetails />} />
-          <Route path="broadcast-channel" element={<BroadcastChannel />} />
-          <Route path="room-usage" element={<ClerkRoomUsage />} />
-          <Route path="room-management" element={<ClerkRoomManagement />} />
-          <Route path="add-room" element={<ClerkAddRoom />} />
-          <Route path="edit-room/:id" element={<ClerkEditRoom />} />
-          <Route path="room-activity" element={<ClerkRoomActivity />} />
-          <Route path="conflicts" element={<ClerkConflicts />} />
-          <Route path="reassign-room" element={<ClerkReassignRoom />} />
-          <Route path="settings" element={<ClerkSettings />} />
-          <Route path="room-issues" element={<ClerkRoomIssues />} />
+        {/* ═══════════════════════════════════════════════════════
+            ADMIN — only role "admin" / "department-head"
+            ═══════════════════════════════════════════════════════ */}
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={["admin","Admin","department-head", "department head"]}
+            />
+          }
+        >
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="profile" element={<AdminProfile />} />
+            <Route path="activity-log" element={<AdminActivityLog />} />
+            <Route path="conflicts" element={<AdminConflicts />} />
+            <Route path="reservations" element={<AdminReservations />} />
+            <Route path="view-reservation" element={<AdminViewReservation />} />
+            <Route
+              path="view-reservation-approved"
+              element={<AdminViewReservationApproved />}
+            />
+            <Route
+              path="edit-approved-reservation"
+              element={<AdminEditApprovedReservation />}
+            />
+            <Route
+              path="view-reservation-denied"
+              element={<AdminViewReservationDenied />}
+            />
+            <Route
+              path="view-reservation-cancelled"
+              element={<AdminViewReservationCancelled />}
+            />
+            <Route
+              path="schedule-view-academic-schedule"
+              element={<AdminViewAcademicSchedule />}
+            />
+            <Route path="schedule-room-card" element={<AdminViewRoomCard />} />
+            <Route path="room-activity" element={<RoomActivity />} />
+            <Route path="user-management" element={<UserManagement />} />
+            <Route path="broadcast-channel" element={<BroadcastChannel />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="room-issues" element={<AdminRoomIssues />} />
+            <Route path="reassign-room" element={<AdminReassignment />} />
+          </Route>
         </Route>
 
-        {/* Faculty */}
-        <Route path="/faculty" element={<FacultyLayout />}>
-          <Route index element={<FacultyDashboard />} />
-          <Route path="schedule" element={<FacultySchedule />} />
-          <Route path="rooms" element={<FacultyRoom />} />
-          <Route path="view-room" element={<FacultyViewRoom />} />
-          <Route path="reservations" element={<FacultyReservations />} />
-          <Route path="room-reassignment/:assignmentId" element={<FacultyRoomReassignment />} />
-          <Route path="profile" element={<FacultyProfile />} />
-          <Route path="submit-reservation" element={<FacultySubmitReservation />} />
-          <Route path="view-approved-reservation" element={<FacultyViewApprovedReservation />} />
-          <Route path="view-pending-reservation" element={<FacultyViewPendingReservation />} />
-          <Route path="edit-pending-reservation" element={<FacultyEditPendingReservations />} />
-          <Route path="view-denied-reservation" element={<FacultyViewDenied />} />
-          <Route path="view-cancelled-reservation" element={<FacultyViewCancelledReservation />} />
-          <Route path="settings" element={<FacultySettings />} />
-          <Route path="broadcast-channel" element={<BroadcastChannel />} />
-          <Route path="room-issues" element={<FacultyRoomIssues />} />
+        {/* ═══════════════════════════════════════════════════════
+            LOCAL REGISTRAR
+            ═══════════════════════════════════════════════════════ */}
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={[
+                "local-registrar",
+                "local registrar",
+                "localregistrar",
+                "registrar",
+              ]}
+            />
+          }
+        >
+          <Route path="/local-registrar" element={<LocalRegistrarLayout />}>
+            <Route path="profile" element={<LocalRegistrarProfile />} />
+            <Route index element={<LocalRegistrarDashboard />} />
+            <Route
+              path="academic-schedule"
+              element={<LocalRegistrarViewAcademicSchedule />}
+            />
+            <Route path="room-card" element={<LocalRegistrarViewRoomCard />} />
+            <Route path="qr-code" element={<LocalRegistrarQRCode />} />
+            <Route path="activity-log" element={<LocalRegistrarActivityLog />} />
+            <Route
+              path="my-submitted-schedules"
+              element={<MySubmittedSchedules />}
+            />
+            <Route path="bulk-upload-1" element={<BulkScheduleUpload1 />} />
+            <Route path="bulk-upload-2" element={<BulkScheduleUpload2 />} />
+            <Route path="bulk-upload-3" element={<BulkScheduleUpload3 />} />
+            <Route path="bulk-upload-4" element={<BulkScheduleUpload4 />} />
+            <Route path="broadcast-channel" element={<BroadcastChannel />} />
+            <Route path="settings" element={<LocalRegistrarSettings />} />
+          </Route>
         </Route>
+
+        {/* ═══════════════════════════════════════════════════════
+            CLERK
+            ═══════════════════════════════════════════════════════ */}
+        <Route element={<ProtectedRoute allowedRoles={["clerk"]} />}>
+          <Route path="/clerk" element={<ClerkLayout />}>
+            <Route path="profile" element={<ClerkProfile />} />
+            <Route index element={<ClerkDashboard />} />
+            <Route
+              path="schedule-view-academic-schedule"
+              element={<ClerkViewAcademicSchedule />}
+            />
+            <Route path="schedule-room-card" element={<ClerkViewRoomCard />} />
+            <Route path="online-reservations" element={<ClerkReservations />} />
+            <Route
+              path="view-online-reservation"
+              element={<ClerkViewReservation />}
+            />
+            <Route
+              path="view-reservation-approved"
+              element={<ClerkViewReservationApproved />}
+            />
+            <Route
+              path="view-reservation-denied"
+              element={<ClerkViewReservationDenied />}
+            />
+            <Route
+              path="view-reservation-cancelled"
+              element={<ClerkViewReservationCancelled />}
+            />
+            <Route
+              path="edit-approved-reservation"
+              element={<ClerkEditApprovedReservation />}
+            />
+            <Route path="walk-in-reservation" element={<WalkInReservation />} />
+            <Route path="released-rooms" element={<ReleasedRooms />} />
+            <Route path="room-details" element={<RoomDetails />} />
+            <Route path="broadcast-channel" element={<BroadcastChannel />} />
+            <Route path="room-usage" element={<ClerkRoomUsage />} />
+            <Route path="room-management" element={<ClerkRoomManagement />} />
+            <Route path="add-room" element={<ClerkAddRoom />} />
+            <Route path="edit-room/:id" element={<ClerkEditRoom />} />
+            <Route path="room-activity" element={<ClerkRoomActivity />} />
+            <Route path="conflicts" element={<ClerkConflicts />} />
+            <Route path="reassign-room" element={<ClerkReassignRoom />} />
+            <Route path="settings" element={<ClerkSettings />} />
+            <Route path="room-issues" element={<ClerkRoomIssues />} />
+          </Route>
+        </Route>
+
+        {/* ═══════════════════════════════════════════════════════
+            FACULTY
+            ═══════════════════════════════════════════════════════ */}
+        <Route element={<ProtectedRoute allowedRoles={["faculty"]} />}>
+          <Route path="/faculty" element={<FacultyLayout />}>
+            <Route index element={<FacultyDashboard />} />
+            <Route path="schedule" element={<FacultySchedule />} />
+            <Route path="rooms" element={<FacultyRoom />} />
+            <Route path="view-room" element={<FacultyViewRoom />} />
+            <Route path="reservations" element={<FacultyReservations />} />
+            <Route
+              path="room-reassignment/:assignmentId"
+              element={<FacultyRoomReassignment />}
+            />
+            <Route path="profile" element={<FacultyProfile />} />
+            <Route
+              path="submit-reservation"
+              element={<FacultySubmitReservation />}
+            />
+            <Route
+              path="view-approved-reservation"
+              element={<FacultyViewApprovedReservation />}
+            />
+            <Route
+              path="view-pending-reservation"
+              element={<FacultyViewPendingReservation />}
+            />
+            <Route
+              path="edit-pending-reservation"
+              element={<FacultyEditPendingReservations />}
+            />
+            <Route
+              path="view-denied-reservation"
+              element={<FacultyViewDenied />}
+            />
+            <Route
+              path="view-cancelled-reservation"
+              element={<FacultyViewCancelledReservation />}
+            />
+            <Route path="settings" element={<FacultySettings />} />
+            <Route path="broadcast-channel" element={<BroadcastChannel />} />
+            <Route path="room-issues" element={<FacultyRoomIssues />} />
+          </Route>
+        </Route>
+
+        {/* ═══════════════════════════════════════════════════════
+            CATCH-ALL — redirect sa login kung walang match
+            ═══════════════════════════════════════════════════════ */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );
