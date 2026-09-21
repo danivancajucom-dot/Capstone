@@ -31,10 +31,11 @@ if (!GEMINI_API_KEY) {
 }
 
 const GEMINI_MODELS = [
-  "gemini-flash-latest",     // always points to latest stable flash
-  "gemini-3.6-flash",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash-lite",
+  "gemini-flash-latest",       
+  "gemini-3.6-flash",          
+  "gemini-3.5-flash",          
+  "gemini-2.5-flash",          
+  "gemini-flash-lite-latest", 
 ];
 
 const buildGeminiUrl = (model) =>
