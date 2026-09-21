@@ -8,6 +8,12 @@ function ClassDetailsCard({
 
   if (!schedule) return null;
 
+  // ✅ Reassignment detection
+  const isReassignment =
+    schedule.isReassignment === true ||
+    String(schedule.sourceType || "").toLowerCase().includes("reassign") ||
+    (!!schedule.oldRoomName && !!schedule.newRoomName);
+
   const formatTime = (time) => {
     if (!time || time === "-") return "-";
 
@@ -27,8 +33,14 @@ function ClassDetailsCard({
     const s = String(status).toLowerCase();
 
     if (s === "approved") return "Approved";
+    if (s === "accepted") return "Accepted";
     if (s === "pending") return "Pending";
+    if (s === "pending_admin") return "Needs Review";
+    if (s === "pending_faculty") return "With Faculty";
+    if (s === "needs_reassign") return "Returned to Clerk";
     if (s === "rejected") return "Rejected";
+    if (s === "declined") return "Declined";
+    if (s === "cancelled") return "Cancelled";
     if (s === "active") return "Active";
 
     return status;
@@ -37,13 +49,25 @@ function ClassDetailsCard({
   const statusClass = (status) => {
     const s = String(status || "").toLowerCase();
 
-    if (s === "approved") return "green";
-    if (s === "pending") return "yellow";
-    if (s === "rejected") return "red";
-    if (s === "active") return "green";
+    if (s === "approved" || s === "accepted" || s === "active") return "green";
+    if (s === "pending" || s === "pending_admin" || s === "pending_faculty" || s === "needs_reassign") return "yellow";
+    if (s === "rejected" || s === "declined" || s === "cancelled") return "red";
 
     return "gray";
   };
+
+  // ✅ Field fallbacks para sa reassignment docs
+  const displayFaculty =
+    schedule.faculty || schedule.facultyName || "-";
+
+  const displaySubject =
+    schedule.subject || schedule.courseTitle || schedule.title || "-";
+
+  const displaySemester =
+    schedule.semester || schedule.sem || "-";
+
+  const displaySchoolYear =
+    schedule.schoolYear || schedule.sy || "-";
 
   return (
     <>
@@ -55,7 +79,9 @@ function ClassDetailsCard({
         <div className="class-details-header">
 
           <span className="class-details-title">
-            {schedule.isAdminEvent
+            {isReassignment
+              ? "Reassignment Details"
+              : schedule.isAdminEvent
               ? "Room Activity Details"
               : schedule.isReservation
               ? "Reservation Details"
@@ -63,7 +89,7 @@ function ClassDetailsCard({
           </span>
 
           <span className="class-details-date">
-            {schedule.day || schedule.date || "-"}
+            {schedule.date || schedule.day || "-"}
           </span>
 
           <span
@@ -80,8 +106,18 @@ function ClassDetailsCard({
         <div className="class-details-badges">
 
           <span className="class-details-badge type">
-            {schedule.sourceType || "Class Schedule"}
+            {isReassignment
+              ? "Reassignment"
+              : schedule.sourceType || "Class Schedule"}
           </span>
+
+          {isReassignment && schedule.status && (
+            <span
+              className={`class-details-badge status ${statusClass(schedule.status)}`}
+            >
+              {statusLabel(schedule.status)}
+            </span>
+          )}
 
           {schedule.isReservation && (
             <span
@@ -111,7 +147,7 @@ function ClassDetailsCard({
                   : "FACULTY"}
               </span>
               <span className="class-detail-value">
-                {schedule.faculty || "-"}
+                {displayFaculty}
               </span>
             </div>
           </div>
@@ -126,7 +162,7 @@ function ClassDetailsCard({
                 {schedule.isReservation ? "PURPOSE" : "SUBJECT"}
               </span>
               <span className="class-detail-value">
-                {schedule.subject || "-"}
+                {displaySubject}
               </span>
             </div>
           </div>
@@ -146,18 +182,18 @@ function ClassDetailsCard({
             </div>
           </div>
 
-          {/* REASON - admin override lang */}
-          {schedule.reason && (
+          {/* REASON - admin override / reassignment note */}
+          {(schedule.reason || schedule.adminNote || schedule.denialReason) && (
             <div className="class-detail-item">
               <div className="class-detail-icon">
                 <i className="fa-solid fa-circle-info"></i>
               </div>
               <div className="class-detail-info">
                 <span className="class-detail-label">
-                  REASON
+                  {schedule.denialReason ? "DECLINE REASON" : "REASON"}
                 </span>
                 <span className="class-detail-value">
-                  {schedule.reason}
+                  {schedule.denialReason || schedule.adminNote || schedule.reason}
                 </span>
               </div>
             </div>
@@ -173,7 +209,7 @@ function ClassDetailsCard({
                 ROOM
               </span>
               <span className="class-detail-value">
-                {roomName}
+                {roomName || schedule.roomName || schedule.newRoomName || "-"}
               </span>
             </div>
           </div>
@@ -204,7 +240,7 @@ function ClassDetailsCard({
                   SEMESTER
                 </span>
                 <span className="class-detail-value">
-                  {schedule.semester}
+                  {displaySemester}
                 </span>
               </div>
             </div>
@@ -221,7 +257,7 @@ function ClassDetailsCard({
                   SCHOOL YEAR
                 </span>
                 <span className="class-detail-value">
-                  {schedule.schoolYear}
+                  {displaySchoolYear}
                 </span>
               </div>
             </div>
