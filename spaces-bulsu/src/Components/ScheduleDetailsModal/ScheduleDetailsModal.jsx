@@ -1,3 +1,4 @@
+import { useState } from "react";
 import "./schedule-details-modal.css";
 
 // ─── Helper (copy from parent) ──────────────────────────────────────
@@ -11,18 +12,25 @@ function fmt12Hour(time) {
 
 function getStatusLabel(status) {
   const map = {
-    "COMPLETED": { label: "Completed", className: "completed" },
-    "ONGOING":   { label: "Ongoing",   className: "ongoing" },
-    "UPCOMING":  { label: "Upcoming",  className: "upcoming" },
-    "SCHEDULED": { label: "Scheduled", className: "scheduled" },
+    COMPLETED: { label: "Completed", className: "completed" },
+    ONGOING:   { label: "Ongoing",   className: "ongoing" },
+    UPCOMING:  { label: "Upcoming",  className: "upcoming" },
+    SCHEDULED: { label: "Scheduled", className: "scheduled" },
   };
   return map[status] || { label: "Scheduled", className: "scheduled" };
 }
 
 function ScheduleDetailsModal({ target, onClose }) {
+  const [imgError, setImgError] = useState(false);
+
   if (!target) return null;
 
-  const statusInfo = target.status ? getStatusLabel(target.status) : { label: "Scheduled", className: "scheduled" };
+  const statusInfo = target.status
+    ? getStatusLabel(target.status)
+    : { label: "Scheduled", className: "scheduled" };
+
+  const isEvent = target.kind === "event";
+  const hasImage = target.image && !imgError;
 
   return (
     <div className="sdm-overlay" onClick={onClose}>
@@ -37,13 +45,18 @@ function ScheduleDetailsModal({ target, onClose }) {
 
         <div className="sdm-card">
           <div className="sdm-image-wrap">
-            <img
-              src={
-                target.image ||
-                "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=1200&auto=format&fit=crop"
-              }
-              alt={target.roomName}
-            />
+            {hasImage ? (
+              <img
+                src={target.image}
+                alt={target.roomName}
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div className="sdm-image-fallback">
+                <span>{target.roomName || "Room"}</span>
+              </div>
+            )}
+
             <div className="sdm-image-overlay">
               <h3>{target.roomName || "-"}</h3>
               <p>
@@ -74,7 +87,9 @@ function ScheduleDetailsModal({ target, onClose }) {
           <div className="sdm-detail-row">
             <i className="fa-solid fa-user"></i>
             <div>
-              <span className="sdm-detail-label">FACULTY</span>
+              <span className="sdm-detail-label">
+                {isEvent ? "ISSUED BY" : "FACULTY"}
+              </span>
               <strong className="sdm-detail-value">
                 {target.faculty || "-"}
               </strong>
@@ -94,13 +109,28 @@ function ScheduleDetailsModal({ target, onClose }) {
           <div className="sdm-detail-row">
             <i className="fa-solid fa-bookmark"></i>
             <div>
-              <span className="sdm-detail-label">SUBJECT / SECTION</span>
+              <span className="sdm-detail-label">
+                {isEvent ? "ACTIVITY TITLE" : "SUBJECT / SECTION"}
+              </span>
               <strong className="sdm-detail-value">
                 {target.subject || target.title || "-"}
-                {target.section ? ` • ${target.section}` : ""}
+                {target.section && !isEvent ? ` • ${target.section}` : ""}
               </strong>
             </div>
           </div>
+
+          {/* ─── Reason (only for room activities) ───────────────── */}
+          {isEvent && (target.reason || target.activityReason) && (
+            <div className="sdm-detail-row">
+              <i className="fa-solid fa-circle-info"></i>
+              <div>
+                <span className="sdm-detail-label">REASON</span>
+                <strong className="sdm-detail-value">
+                  {target.reason || target.activityReason}
+                </strong>
+              </div>
+            </div>
+          )}
 
           {/* ─── Date ──────────────────────────────────────────────── */}
           <div className="sdm-detail-row">
@@ -142,6 +172,20 @@ function ScheduleDetailsModal({ target, onClose }) {
               <div>
                 <span className="sdm-detail-label">ORIGINAL ROOM</span>
                 <strong className="sdm-detail-value">{target.originalRoom}</strong>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Affected Class (only for room activities that conflict) ─── */}
+          {isEvent && target.conflictingSchedule && (
+            <div className="sdm-detail-row">
+              <i className="fa-solid fa-triangle-exclamation" style={{ color: "#dc2626" }}></i>
+              <div>
+                <span className="sdm-detail-label">AFFECTED CLASS</span>
+                <strong className="sdm-detail-value" style={{ color: "#dc2626" }}>
+                  {target.conflictingSchedule.subject || target.conflictingSchedule.title || "-"}
+                  {target.conflictingSchedule.section ? ` • ${target.conflictingSchedule.section}` : ""}
+                </strong>
               </div>
             </div>
           )}
