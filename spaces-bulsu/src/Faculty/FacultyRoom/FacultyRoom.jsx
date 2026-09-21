@@ -52,6 +52,10 @@ const getDayFromDate = (dateStr) => {
   return days[new Date(dateStr + "T00:00:00").getDay()];
 };
 
+// ✅ Accepts BOTH "approved" and "accepted" reassignment statuses.
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
+
 const STATUS_OPTIONS = [
   "All Status",
   "Available",
@@ -236,9 +240,8 @@ export default function FacultyRoom() {
           setReassignmentsData(
             snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
-              .filter(
-                (r) => String(r.status || "").toLowerCase() === "approved"
-              )
+              // ✅ Now matches both "approved" AND "accepted"
+              .filter((r) => isApprovedReassignment(r.status))
           );
         },
         (err) => console.error("reassignments listener:", err)

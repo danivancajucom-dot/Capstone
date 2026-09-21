@@ -71,6 +71,10 @@ const getLatestSchedule = (schedules) => {
   }, schedules[0]);
 };
 
+// ✅ Accepts BOTH "approved" and "accepted" reassignment statuses.
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
+
 const STATUS_OPTIONS = [
   "All Status",
   "Available",
@@ -145,11 +149,9 @@ function ClerkViewAcademicSchedule() {
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-  // ─── Building picker popover ────────────────────────────
   const [showBuildingPicker, setShowBuildingPicker] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState("");
 
-  // ─── Date picker popover ────────────────────────────────
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calendarCursor, setCalendarCursor] = useState(() => {
     const d = new Date();
@@ -203,7 +205,8 @@ function ClerkViewAcademicSchedule() {
       (snap) => {
         const data = snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((r) => String(r.status || "").toLowerCase() === "approved");
+          // ✅ Now matches both "approved" AND "accepted"
+          .filter((r) => isApprovedReassignment(r.status));
         setReassignments(data);
       }
     );
@@ -628,7 +631,7 @@ function ClerkViewAcademicSchedule() {
               <LRRoomCard
                 key={room.id}
                 roomName={room.roomName}
-                photoUrl={room.photoUrl} 
+                photoUrl={room.photoUrl}
                 floor={room.floor}
                 capacity={room.capacity}
                 roomType={room.roomType}

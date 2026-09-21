@@ -59,6 +59,10 @@ const normalizeName = (name = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+// ✅ Accepts BOTH "approved" and "accepted" reassignment statuses.
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
+
 const semesterRank = (sem = "") => {
   const s = sem.toLowerCase();
   if (s.includes("2nd")) return 2;
@@ -419,15 +423,11 @@ export default function WeeklyCalendar() {
           (snap) => {
             const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             const mine = all.filter((e) => {
-              // Only events in rooms this faculty handles
               if (!roomIds.includes(e.roomId)) return false;
-
               if (e.status === "Cancelled") return false;
-
               if (String(e.source || "").toLowerCase() === "reservation") {
                 return false;
               }
-
               return true;
             });
             setOverrideEvents(mine);
@@ -489,11 +489,10 @@ export default function WeeklyCalendar() {
             where("facultyId", "==", user.uid)
           ),
           (snap) => {
+            // ✅ Now matches both "approved" AND "accepted"
             const myReassignments = snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
-              .filter(
-                (r) => String(r.status || "").toLowerCase() === "approved"
-              );
+              .filter((r) => isApprovedReassignment(r.status));
             setReassignedEvents(myReassignments);
           },
           (err) => {

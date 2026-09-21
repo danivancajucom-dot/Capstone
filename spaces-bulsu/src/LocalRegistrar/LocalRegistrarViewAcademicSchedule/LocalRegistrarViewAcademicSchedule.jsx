@@ -45,6 +45,10 @@ const isUnderMaintenance = (roomData) => {
   return roomStatus === "maintenance";
 };
 
+// ✅ Accepts BOTH "approved" and "accepted" reassignment statuses.
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
+
 const STATUS_OPTIONS = [
   "All Status",
   "Available",
@@ -241,7 +245,8 @@ function LocalRegistrarViewAcademicSchedule() {
     const reassignAwayMap = new Map();
     const reassignIntoMap = new Map();
     reassignmentsData.forEach((data) => {
-      if (String(data.status || "").toLowerCase() !== "approved") return;
+      // ✅ Accepts "approved" AND "accepted"
+      if (!isApprovedReassignment(data.status)) return;
       if (data.date !== selectedDate) return;
       const key = `${data.scheduleId}_${data.date}`;
       if (data.oldRoomId) {

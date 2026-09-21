@@ -104,6 +104,10 @@ const getCategoryColor = (source) => {
   }
 };
 
+// ✅ Accepts BOTH "approved" and "accepted" reassignment statuses.
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
+
 function LocalRegistrarViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const navigate = useNavigate();
@@ -200,7 +204,8 @@ function LocalRegistrarViewRoomCard() {
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter(
         (r) =>
-          String(r.status || "").toLowerCase() === "approved" &&
+          // ✅ Accepts "approved" AND "accepted"
+          isApprovedReassignment(r.status) &&
           (r.oldRoomId === room.id || r.newRoomId === room.id)
       );
     setReassignedAwayKeys(

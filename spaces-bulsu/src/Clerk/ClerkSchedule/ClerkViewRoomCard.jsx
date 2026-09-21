@@ -17,9 +17,6 @@ import { db } from "../../firebase";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
-// Must match CSS:
-//   • .clerk-time-slot { height: 60px }
-//   • .clerk-calendar-grid { height: 840px } = 14 × 60
 const HOUR_HEIGHT = 60;
 const CALENDAR_START_MINUTES = 7 * 60;
 const CARD_GAP = 2;
@@ -57,6 +54,10 @@ const getCategoryColor = (source) => {
   }
 };
 // ────────────────────────────────────────────────────────────────
+
+// ✅ Accepts BOTH "approved" and "accepted" reassignment statuses.
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
 
 function ClerkViewRoomCard() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -123,7 +124,8 @@ function ClerkViewRoomCard() {
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter(
         (r) =>
-          String(r.status || "").toLowerCase() === "approved" &&
+          // ✅ Accepts "approved" AND "accepted"
+          isApprovedReassignment(r.status) &&
           (r.oldRoomId === room.id || r.newRoomId === room.id)
       );
     setReassignedAwayKeys(
@@ -150,13 +152,11 @@ function ClerkViewRoomCard() {
     return hour * 60 + minute;
   };
 
-  // ✅ Aligned to hour lines (no more +30 offset)
   const getTopPosition = (startTime) => {
     const startMinutes = convertToMinutes(startTime);
     return ((startMinutes - CALENDAR_START_MINUTES) / 60) * HOUR_HEIGHT;
   };
 
-  // ✅ Exact duration height, minus a small gap
   const getCardHeight = (startTime, endTime) => {
     const startMinutes = convertToMinutes(startTime);
     const endMinutes = convertToMinutes(endTime);
@@ -310,7 +310,6 @@ function ClerkViewRoomCard() {
                       <div className="clerk-calendar-day" key={day}>
                         {getSchedulesByDay(day)
                           .map((schedule) => {
-                            // ✅ Respect activation window
                             if (!isActiveOnDate(schedule, occurrenceDateStr)) {
                               return null;
                             }
@@ -322,14 +321,12 @@ function ClerkViewRoomCard() {
                               return null;
                             }
 
-                            // ✅ Release handling
                             const releaseInfo = releasedMap.get(
                               `${schedule.id}_${occurrenceDateStr}`
                             );
                             let effectiveSchedule = schedule;
 
                             if (releaseInfo) {
-                              // Upcoming release → hide entirely
                               if (!releaseInfo.effectiveEndTime) return null;
 
                               const endMin = convertToMinutes(
@@ -340,7 +337,6 @@ function ClerkViewRoomCard() {
                               );
                               if (endMin <= startMin) return null;
 
-                              // Ongoing release → truncate end time
                               effectiveSchedule = {
                                 ...schedule,
                                 endTime: releaseInfo.effectiveEndTime,

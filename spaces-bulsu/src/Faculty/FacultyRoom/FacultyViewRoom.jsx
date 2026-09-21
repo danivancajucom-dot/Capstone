@@ -2,6 +2,7 @@
 // FILE: FacultyViewRoom.jsx
 // - Mid-class release preserves elapsed time
 // - Time-slot aligned (no vertical offset)
+// - Accepts both "approved" and "accepted" reassignments
 // ============================================================
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -19,15 +20,8 @@ import { db } from "../../firebase";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
-// Height of one (1) hour row — must match CSS:
-//   • .fa-time-slot { height: 60px }
-//   • .fa-calendar-grid { height: 840px } = 14 slots × 60px
 const HOUR_HEIGHT = 60;
-
-// Grid starts at 7:00 AM (first label = "07 AM").
 const CALENDAR_START_MINUTES = 7 * 60;
-
-// Small gap so consecutive cards don't visually merge.
 const CARD_GAP = 2;
 
 const toDateStr = (date) => {
@@ -63,6 +57,10 @@ const getCategoryColor = (source) => {
   }
 };
 // ────────────────────────────────────────────────────────────────
+
+// ✅ Accepts BOTH "approved" and "accepted" reassignment statuses.
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
 
 function FacultyViewRoom() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -129,7 +127,8 @@ function FacultyViewRoom() {
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter(
         (r) =>
-          String(r.status || "").toLowerCase() === "approved" &&
+          // ✅ Accepts "approved" AND "accepted"
+          isApprovedReassignment(r.status) &&
           (r.oldRoomId === room.id || r.newRoomId === room.id)
       );
     setReassignedAwayKeys(
@@ -156,16 +155,11 @@ function FacultyViewRoom() {
     return hour * 60 + minute;
   };
 
-  // ✅ Aligned to hour lines (no more +30 offset)
-  // 7:00 AM → top = 0
-  // 8:00 AM → top = 60
-  // 9:30 AM → top = 150
   const getTopPosition = (startTime) => {
     const startMinutes = convertToMinutes(startTime);
     return ((startMinutes - CALENDAR_START_MINUTES) / 60) * HOUR_HEIGHT;
   };
 
-  // ✅ Exact duration height, minus a small gap
   const getCardHeight = (startTime, endTime) => {
     const startMinutes = convertToMinutes(startTime);
     const endMinutes = convertToMinutes(endTime);
@@ -331,13 +325,11 @@ function FacultyViewRoom() {
                               return null;
                             }
 
-                            // ✅ Handle release / partial release
                             const releaseInfo = releasedMap.get(
                               `${schedule.id}_${occurrenceDateStr}`
                             );
                             let effectiveSchedule = schedule;
                             if (releaseInfo) {
-                              // Upcoming release → totally hidden
                               if (!releaseInfo.effectiveEndTime) return null;
 
                               const endMin = convertToMinutes(
@@ -346,9 +338,8 @@ function FacultyViewRoom() {
                               const startMin = convertToMinutes(
                                 schedule.startTime
                               );
-                              if (endMin <= startMin) return null; // nothing used
+                              if (endMin <= startMin) return null;
 
-                              // Truncate end time to release moment
                               effectiveSchedule = {
                                 ...schedule,
                                 endTime: releaseInfo.effectiveEndTime,
