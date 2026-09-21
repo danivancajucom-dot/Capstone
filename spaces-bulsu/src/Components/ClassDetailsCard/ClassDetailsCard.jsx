@@ -1,14 +1,9 @@
 import "./class-details-card.css";
 
-function ClassDetailsCard({
-  schedule,
-  roomName,
-  onClose,
-}) {
+function ClassDetailsCard({ schedule, roomName, onClose }) {
 
   if (!schedule) return null;
 
-  // ✅ Reassignment detection
   const isReassignment =
     schedule.isReassignment === true ||
     String(schedule.sourceType || "").toLowerCase().includes("reassign") ||
@@ -16,22 +11,16 @@ function ClassDetailsCard({
 
   const formatTime = (time) => {
     if (!time || time === "-") return "-";
-
     const [hour, minute] = time.split(":").map(Number);
-
     if (Number.isNaN(hour) || Number.isNaN(minute)) return time;
-
     const suffix = hour >= 12 ? "PM" : "AM";
     const h = hour % 12 || 12;
-
     return `${h}:${String(minute).padStart(2, "0")} ${suffix}`;
   };
 
   const statusLabel = (status) => {
     if (!status) return null;
-
     const s = String(status).toLowerCase();
-
     if (s === "approved") return "Approved";
     if (s === "accepted") return "Accepted";
     if (s === "pending") return "Pending";
@@ -42,42 +31,24 @@ function ClassDetailsCard({
     if (s === "declined") return "Declined";
     if (s === "cancelled") return "Cancelled";
     if (s === "active") return "Active";
-
     return status;
   };
 
   const statusClass = (status) => {
     const s = String(status || "").toLowerCase();
-
     if (s === "approved" || s === "accepted" || s === "active") return "green";
     if (s === "pending" || s === "pending_admin" || s === "pending_faculty" || s === "needs_reassign") return "yellow";
     if (s === "rejected" || s === "declined" || s === "cancelled") return "red";
-
     return "gray";
   };
 
-  // ✅ Field fallbacks para sa reassignment docs
-  const displayFaculty =
-    schedule.faculty || schedule.facultyName || "-";
-
-  const displaySubject =
-    schedule.subject || schedule.courseTitle || schedule.title || "-";
-
-  const displaySemester =
-    schedule.semester || schedule.sem || "-";
-
-  const displaySchoolYear =
-    schedule.schoolYear || schedule.sy || "-";
-
   return (
     <>
-      {/* Backdrop — dim effect sa tablet + mobile, hidden sa desktop */}
       <div className="class-details-backdrop" onClick={onClose} />
 
       <div className="class-details-card">
 
         <div className="class-details-header">
-
           <span className="class-details-title">
             {isReassignment
               ? "Reassignment Details"
@@ -87,107 +58,82 @@ function ClassDetailsCard({
               ? "Reservation Details"
               : "Class Details"}
           </span>
-
           <span className="class-details-date">
             {schedule.date || schedule.day || "-"}
           </span>
-
-          <span
-            className="class-details-close"
-            onClick={onClose}
-            style={{ cursor: "pointer" }}
-          >
-            ✕
-          </span>
-
+          <span className="class-details-close" onClick={onClose} style={{ cursor: "pointer" }}>✕</span>
         </div>
 
-        {/* SOURCE / STATUS BADGES */}
         <div className="class-details-badges">
-
           <span className="class-details-badge type">
-            {isReassignment
-              ? "Reassignment"
-              : schedule.sourceType || "Class Schedule"}
+            {isReassignment ? "Reassignment" : schedule.sourceType || "Class Schedule"}
           </span>
-
           {isReassignment && schedule.status && (
-            <span
-              className={`class-details-badge status ${statusClass(schedule.status)}`}
-            >
+            <span className={`class-details-badge status ${statusClass(schedule.status)}`}>
               {statusLabel(schedule.status)}
             </span>
           )}
-
           {schedule.isReservation && (
-            <span
-              className={`class-details-badge status ${statusClass(
-                schedule.status
-              )}`}
-            >
+            <span className={`class-details-badge status ${statusClass(schedule.status)}`}>
               {statusLabel(schedule.status)}
             </span>
           )}
-
         </div>
 
         <div className="class-details-body">
 
-          {/* FACULTY / REQUESTER */}
-          <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-regular fa-user"></i>
+          {/* ROOM CHANGE (reassignment only) */}
+          {isReassignment && (
+            <div className="class-detail-item">
+              <div className="class-detail-icon">
+                <i className="fa-solid fa-right-left"></i>
+              </div>
+              <div className="class-detail-info">
+                <span className="class-detail-label">ROOM CHANGE</span>
+                <span className="class-detail-value">
+                  {schedule.oldRoomName || "-"} → <strong>{schedule.newRoomName || roomName || "-"}</strong>
+                </span>
+              </div>
             </div>
+          )}
+
+          {/* FACULTY */}
+          <div className="class-detail-item">
+            <div className="class-detail-icon"><i className="fa-regular fa-user"></i></div>
             <div className="class-detail-info">
               <span className="class-detail-label">
-                {schedule.isAdminEvent
-                  ? "ISSUED BY"
-                  : schedule.isReservation
-                  ? "REQUESTED BY"
-                  : "FACULTY"}
+                {schedule.isAdminEvent ? "ISSUED BY" : schedule.isReservation ? "REQUESTED BY" : "FACULTY"}
               </span>
-              <span className="class-detail-value">
-                {displayFaculty}
-              </span>
+              <span className="class-detail-value">{schedule.faculty || "-"}</span>
             </div>
           </div>
 
-          {/* SUBJECT / PURPOSE */}
+          {/* SUBJECT */}
           <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-regular fa-bookmark"></i>
-            </div>
+            <div className="class-detail-icon"><i className="fa-regular fa-bookmark"></i></div>
             <div className="class-detail-info">
               <span className="class-detail-label">
                 {schedule.isReservation ? "PURPOSE" : "SUBJECT"}
               </span>
-              <span className="class-detail-value">
-                {displaySubject}
-              </span>
+              <span className="class-detail-value">{schedule.subject || "-"}</span>
             </div>
           </div>
 
-          {/* SECTION / ATTENDEES */}
+          {/* SECTION */}
           <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-solid fa-users"></i>
-            </div>
+            <div className="class-detail-icon"><i className="fa-solid fa-users"></i></div>
             <div className="class-detail-info">
               <span className="class-detail-label">
                 {schedule.isReservation ? "SECTION / ATTENDEES" : "SECTION"}
               </span>
-              <span className="class-detail-value">
-                {schedule.section || "-"}
-              </span>
+              <span className="class-detail-value">{schedule.section || "-"}</span>
             </div>
           </div>
 
-          {/* REASON - admin override / reassignment note */}
+          {/* REASON */}
           {(schedule.reason || schedule.adminNote || schedule.denialReason) && (
             <div className="class-detail-item">
-              <div className="class-detail-icon">
-                <i className="fa-solid fa-circle-info"></i>
-              </div>
+              <div className="class-detail-icon"><i className="fa-solid fa-circle-info"></i></div>
               <div className="class-detail-info">
                 <span className="class-detail-label">
                   {schedule.denialReason ? "DECLINE REASON" : "REASON"}
@@ -199,66 +145,46 @@ function ClassDetailsCard({
             </div>
           )}
 
-          {/* ROOM */}
-          <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-solid fa-location-dot"></i>
+          {/* ROOM (non-reassignment) */}
+          {!isReassignment && (
+            <div className="class-detail-item">
+              <div className="class-detail-icon"><i className="fa-solid fa-location-dot"></i></div>
+              <div className="class-detail-info">
+                <span className="class-detail-label">ROOM</span>
+                <span className="class-detail-value">{roomName || schedule.roomName || "-"}</span>
+              </div>
             </div>
-            <div className="class-detail-info">
-              <span className="class-detail-label">
-                ROOM
-              </span>
-              <span className="class-detail-value">
-                {roomName || schedule.roomName || schedule.newRoomName || "-"}
-              </span>
-            </div>
-          </div>
+          )}
 
           {/* TIME */}
           <div className="class-detail-item">
-            <div className="class-detail-icon">
-              <i className="fa-regular fa-clock"></i>
-            </div>
+            <div className="class-detail-icon"><i className="fa-regular fa-clock"></i></div>
             <div className="class-detail-info">
-              <span className="class-detail-label">
-                TIME
-              </span>
+              <span className="class-detail-label">TIME</span>
               <span className="class-detail-value">
                 {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
               </span>
             </div>
           </div>
 
-          {/* SEMESTER - class schedule lang */}
+          {/* SEMESTER */}
           {!schedule.isReservation && (
             <div className="class-detail-item">
-              <div className="class-detail-icon">
-                <i className="fa-solid fa-graduation-cap"></i>
-              </div>
+              <div className="class-detail-icon"><i className="fa-solid fa-graduation-cap"></i></div>
               <div className="class-detail-info">
-                <span className="class-detail-label">
-                  SEMESTER
-                </span>
-                <span className="class-detail-value">
-                  {displaySemester}
-                </span>
+                <span className="class-detail-label">SEMESTER</span>
+                <span className="class-detail-value">{schedule.semester || "-"}</span>
               </div>
             </div>
           )}
 
-          {/* SCHOOL YEAR - class schedule lang */}
+          {/* SCHOOL YEAR */}
           {!schedule.isReservation && (
             <div className="class-detail-item">
-              <div className="class-detail-icon">
-                <i className="fa-solid fa-calendar-days"></i>
-              </div>
+              <div className="class-detail-icon"><i className="fa-solid fa-calendar-days"></i></div>
               <div className="class-detail-info">
-                <span className="class-detail-label">
-                  SCHOOL YEAR
-                </span>
-                <span className="class-detail-value">
-                  {displaySchoolYear}
-                </span>
+                <span className="class-detail-label">SCHOOL YEAR</span>
+                <span className="class-detail-value">{schedule.schoolYear || "-"}</span>
               </div>
             </div>
           )}
