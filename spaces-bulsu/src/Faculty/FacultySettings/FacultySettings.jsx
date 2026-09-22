@@ -19,6 +19,7 @@ import {
   CODE_LENGTH,
   CODE_TTL_MIN,
 } from "../../utils/verification";
+import { logActivity } from "../../utils/logActivity"; // ✅ NEW
 
 // ── Cloud Function for self-delete ───────────────────────────────
 const functions = getFunctions();
@@ -34,7 +35,6 @@ const passwordChecks = (pw) => ({
 });
 const isStrong = (pw) => Object.values(passwordChecks(pw)).every(Boolean);
 
-// ── FAQ items ─────────────────────────────────────────────────────
 // ── FAQ items ─────────────────────────────────────────────────────
 const FAQ_ITEMS = [
   {
@@ -79,7 +79,7 @@ const FAQ_ITEMS = [
   },
 ];
 
-const DELETE_PHRASE = "DELETE MY ACCOUNT"; // mas mahabang phrase — deliberate
+const DELETE_PHRASE = "DELETE MY ACCOUNT";
 
 export default function FacultySettings() {
   const navigate = useNavigate();
@@ -109,7 +109,7 @@ export default function FacultySettings() {
   const [deleteForm, setDeleteForm] = useState({ currentPassword: "", confirmText: "" });
 
   // ── Delete flow — 2-step warning ───────────────────────────────
-  const [deleteStep, setDeleteStep] = useState(1); // 1 = warning, 2 = confirm
+  const [deleteStep, setDeleteStep] = useState(1);
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
 
   // Email sub-flow state
@@ -132,6 +132,35 @@ export default function FacultySettings() {
       () => setToast((prev) => ({ ...prev, show: false })),
       3500
     );
+  };
+
+  // ✅ Helper: build the activity log payload from current user data
+  const logSettingsActivity = async (action, target, details = {}) => {
+    try {
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser) return;
+
+      const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+      const userData = snap.exists() ? snap.data() : {};
+      const fullName =
+        `${userData.firstName || ""} ${userData.lastName || ""}`.trim() ||
+        firebaseUser.email ||
+        "Faculty";
+
+      await logActivity({
+        userId: firebaseUser.uid,
+        user: fullName,
+        role: userData.role || "Faculty",
+        action,
+        actionType: "edit",
+        target,
+        status: "Success",
+        details,
+      });
+    } catch (err) {
+      // Never block the user flow because of a log failure
+      console.error("logSettingsActivity failed:", err);
+    }
   };
 
   // ── Load user ──────────────────────────────────────────────────
@@ -199,7 +228,6 @@ export default function FacultySettings() {
     setDeleteForm({ currentPassword: "", confirmText: "" });
     setEmailStep("form");
     setEmailCode(Array(CODE_LENGTH).fill(""));
-    // Reset delete flow
     setDeleteStep(1);
     setDeleteAcknowledged(false);
   };
@@ -279,6 +307,13 @@ export default function FacultySettings() {
       await reauthenticate(currentPassword);
       await updatePassword(user, newPassword);
 
+      // ✅ Log the password change
+      await logSettingsActivity(
+        "Changed password",
+        "Account Security",
+        { method: "verified-code" }
+      );
+
       showToast("success", "Password Updated", "Your password has been changed successfully.");
       resetPwForm();
     } catch (err) {
@@ -352,6 +387,7 @@ export default function FacultySettings() {
       return showToast("error", "Invalid Code", `Enter the ${CODE_LENGTH}-digit code.`);
 
     const { currentPassword, newEmail } = emailForm;
+    const oldEmail = email; // capture before change
     setBusy(true);
     try {
       await verifyCode({ email: newEmail, purpose: "email-change", entered });
@@ -359,6 +395,13 @@ export default function FacultySettings() {
       await reauthenticate(currentPassword);
       await updateEmail(user, newEmail);
       await updateDoc(doc(db, "users", user.uid), { email: newEmail });
+
+      // ✅ Log the email change
+      await logSettingsActivity(
+        "Changed email address",
+        "Account Settings",
+        { oldEmail, newEmail }
+      );
 
       setEmail(newEmail);
       showToast("success", "Email Updated", "Your email address has been changed successfully.");
@@ -393,7 +436,7 @@ export default function FacultySettings() {
   };
 
   // ══════════════════════════════════════════════════════════════
-  // DELETE ACCOUNT — 2-step "grabihan" flow
+  // DELETE ACCOUNT — 2-step flow
   // ══════════════════════════════════════════════════════════════
   const handleDeleteAccount = async (e) => {
     e.preventDefault();
@@ -412,10 +455,8 @@ export default function FacultySettings() {
 
     setBusy(true);
     try {
-      // Step 1: Re-authenticate (required by Firebase)
       await reauthenticate(currentPassword);
 
-      // Step 2: Delete via Cloud Function (Auth + Firestore + cleanup)
       try {
         const result = await deleteUserFn({ userId: user.uid });
         if (!result.data?.success) {
@@ -424,7 +465,6 @@ export default function FacultySettings() {
       } catch (fnErr) {
         console.error("Cloud function delete failed:", fnErr);
 
-        // Fallback: if function not deployed, still try client-side self-delete
         const isFnUnavailable =
           fnErr?.code === "functions/not-found" ||
           fnErr?.code === "functions/unavailable";
@@ -434,11 +474,9 @@ export default function FacultySettings() {
           const { deleteUser } = await import("firebase/auth");
           const { deleteDoc } = await import("firebase/firestore");
 
-          // Best-effort Firestore cleanup
           try { await deleteDoc(doc(db, "users", user.uid)); }
           catch (fsErr) { console.warn("Firestore delete failed:", fsErr); }
 
-          // Delete from Auth (client SDK — works for CURRENT user)
           await deleteUser(user);
         } else {
           throw fnErr;
@@ -890,7 +928,7 @@ export default function FacultySettings() {
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          DELETE ACCOUNT — 2-STEP "GRABIHAN" CONFIRMATION
+          DELETE ACCOUNT — 2-STEP CONFIRMATION
           ══════════════════════════════════════════════════════════ */}
       {showDeleteModal && (
         <div className="fs-modal-overlay" onClick={() => !busy && closeModals()}>
@@ -898,7 +936,6 @@ export default function FacultySettings() {
             className="fs-modal fs-modal-delete-warning"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* ── STEP 1: WARNING ── */}
             {deleteStep === 1 && (
               <>
                 <div className="fs-modal-icon red fs-modal-icon-pulse">
@@ -973,7 +1010,6 @@ export default function FacultySettings() {
               </>
             )}
 
-            {/* ── STEP 2: FINAL CONFIRMATION ── */}
             {deleteStep === 2 && (
               <form onSubmit={handleDeleteAccount}>
                 <div className="fs-modal-icon red fs-modal-icon-pulse">

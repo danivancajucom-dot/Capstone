@@ -139,12 +139,23 @@ const timeAgo = (timestamp, now) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
+// One-liner preview for the compact announcement card.
+// Priority: text content → image indicator → file indicator
 const announcementPreview = (a) => {
-  if (a.content) return a.content;
+  if (a.content && a.content.trim()) return a.content.trim();
+
   const imgCount = (a.imageUrls || (a.imageUrl ? [a.imageUrl] : [])).length;
   const fileCount = (a.files || (a.fileUrl ? [1] : [])).length;
-  if (imgCount) return `📷 Sent ${imgCount} photo${imgCount > 1 ? "s" : ""}`;
-  if (fileCount) return `📎 Sent ${fileCount} file${fileCount > 1 ? "s" : ""}`;
+
+  if (imgCount && fileCount) {
+    return `📷 Sent ${imgCount} image${imgCount > 1 ? "s" : ""} and ${fileCount} attachment${fileCount > 1 ? "s" : ""}`;
+  }
+  if (imgCount) {
+    return `📷 Sent ${imgCount} image${imgCount > 1 ? "s" : ""}`;
+  }
+  if (fileCount) {
+    return `📎 Sent ${fileCount} attachment${fileCount > 1 ? "s" : ""}`;
+  }
   return "New announcement";
 };
 
@@ -183,7 +194,6 @@ export default function FacultyDashboard({ onLogout }) {
 
   const [adminAnnouncements, setAdminAnnouncements] = useState([]);
   const [announcementLoading, setAnnouncementLoading] = useState(true);
-  const [likeBusyId, setLikeBusyId] = useState(null);
 
   const [bannerIndex, setBannerIndex] = useState(0);
   const [, forceTick] = useState(0);
@@ -330,7 +340,6 @@ export default function FacultyDashboard({ onLogout }) {
             where("facultyId", "==", user.uid)
           ),
           (snap) => {
-            // ✅ Now matches both "approved" AND "accepted"
             const all = snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
               .filter((r) => isApprovedReassignment(r.status));
@@ -430,44 +439,6 @@ export default function FacultyDashboard({ onLogout }) {
 
     return () => unsubscribe();
   }, []);
-
-  const toggleAnnouncementLike = async (announcementId) => {
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser || likeBusyId) return;
-
-    const target = adminAnnouncements.find((a) => a.id === announcementId);
-    if (!target) return;
-
-    const currentLikes = target.reactions?.like || [];
-    const hasLiked = currentLikes.includes(firebaseUser.uid);
-
-    setLikeBusyId(announcementId);
-    setAdminAnnouncements((prev) =>
-      prev.map((a) => {
-        if (a.id !== announcementId) return a;
-        const likes = a.reactions?.like || [];
-        const nextLikes = hasLiked
-          ? likes.filter((uid) => uid !== firebaseUser.uid)
-          : [...likes, firebaseUser.uid];
-        return { ...a, reactions: { ...a.reactions, like: nextLikes } };
-      })
-    );
-
-    try {
-      await updateDoc(doc(db, "broadcastChannels", announcementId), {
-        "reactions.like": hasLiked
-          ? arrayRemove(firebaseUser.uid)
-          : arrayUnion(firebaseUser.uid),
-      });
-    } catch (err) {
-      console.error("Failed to toggle like:", err);
-      setAdminAnnouncements((prev) =>
-        prev.map((a) => (a.id === announcementId ? target : a))
-      );
-    } finally {
-      setLikeBusyId(null);
-    }
-  };
 
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -646,9 +617,6 @@ export default function FacultyDashboard({ onLogout }) {
 
   const nextClass = upcomingItems[0] || null;
   const latestAnnouncement = adminAnnouncements[0] || null;
-  const currentUid = auth.currentUser?.uid;
-  const latestLikes = latestAnnouncement?.reactions?.like || [];
-  const hasLikedLatest = latestLikes.includes(currentUid);
 
   return (
     <div className="dashboard-shell">
@@ -683,84 +651,80 @@ export default function FacultyDashboard({ onLogout }) {
             </button>
           </div>
 
-          {/* ─── ANNOUNCEMENT ─────────────── */}
+          {/* ─── ANNOUNCEMENT (compact, always visible) ─────────── */}
           {announcementLoading ? (
             <div className="announce-card is-skeleton">
               <div className="announce-skeleton-avatar"></div>
               <div className="announce-skeleton-lines">
                 <div className="announce-skeleton-line w-40"></div>
                 <div className="announce-skeleton-line w-90"></div>
-                <div className="announce-skeleton-line w-60"></div>
               </div>
             </div>
           ) : latestAnnouncement ? (
-            <div className="announce-card">
+            <button
+              type="button"
+              className="announce-card announce-card--compact"
+              onClick={() => navigate("/faculty/broadcast-channel")}
+            >
               <div className="announce-card-glow" aria-hidden="true" />
 
-              <div className="announce-top">
-                <div className="announce-avatar-wrap">
-                  <div className="announce-avatar">
-                    {getInitials(latestAnnouncement.senderName)}
-                  </div>
-                  <span className="announce-avatar-badge">
-                    <i className="fa-solid fa-bullhorn"></i>
-                  </span>
+              <div className="announce-avatar-wrap">
+                <div className="announce-avatar">
+                  {getInitials(latestAnnouncement.senderName)}
                 </div>
-
-                <div className="announce-meta">
-                  <div className="announce-meta-row">
-                    <strong>{latestAnnouncement.senderName || "Admin"}</strong>
-                    <span className="announce-role-chip">Admin</span>
-                    <span className="announce-live-dot" title="Live updates enabled"></span>
-                  </div>
-                  <span className="announce-subtext">
-                    {timeAgo(latestAnnouncement.createdAt, now)}
-                    <span className="announce-subtext-dot">•</span>
-                    College of Information and Communications Technology
-                  </span>
-                </div>
-
-                {adminAnnouncements.length > 1 && (
-                  <span className="announce-more-pill">
-                    +{adminAnnouncements.length - 1}
-                  </span>
-                )}
+                <span className="announce-avatar-badge">
+                  <i className="fa-solid fa-bullhorn"></i>
+                </span>
               </div>
 
-              <p className="announce-text">
-                {announcementPreview(latestAnnouncement)}
-              </p>
-
-              {(latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl) && (
-                <div className="announce-image-wrap">
-                  <img
-                    src={latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl}
-                    alt="Announcement attachment"
-                    className="announce-image"
-                  />
+              <div className="announce-meta">
+                <div className="announce-meta-row">
+                  <strong>{latestAnnouncement.senderName || "Admin"}</strong>
+                  <span className="announce-role-chip">Admin</span>
+                  <span
+                    className="announce-live-dot"
+                    title="Live updates enabled"
+                  ></span>
+                  <span className="announce-time-ago">
+                    {timeAgo(latestAnnouncement.createdAt, now)}
+                  </span>
                 </div>
+
+                <span className="announce-preview-line">
+                  {announcementPreview(latestAnnouncement)}
+                </span>
+              </div>
+
+              <span className="announce-chevron">
+                <i className="fa-solid fa-chevron-right"></i>
+              </span>
+
+              {adminAnnouncements.length > 1 && (
+                <span className="announce-more-pill">
+                  +{adminAnnouncements.length - 1}
+                </span>
               )}
+            </button>
+          ) : (
+            <div className="announce-card announce-card--empty">
+              <div className="announce-avatar-wrap announce-avatar-wrap--muted">
+                <div className="announce-avatar announce-avatar--muted">
+                  <i className="fa-regular fa-bell-slash"></i>
+                </div>
+              </div>
 
-              <div className="announce-actions">
-                <button
-                  className={`announce-like-btn ${hasLikedLatest ? "is-liked" : ""}`}
-                  onClick={() => toggleAnnouncementLike(latestAnnouncement.id)}
-                  disabled={likeBusyId === latestAnnouncement.id}
-                >
-                  <i className={hasLikedLatest ? "fa-solid fa-heart" : "fa-regular fa-heart"}></i>
-                  {latestLikes.length > 0 ? latestLikes.length : "Like"}
-                </button>
-
-                <button
-                  className="announce-view-btn"
-                  onClick={() => navigate("/faculty/broadcast-channel")}
-                >
-                  View announcement
-                  <i className="fa-solid fa-arrow-right"></i>
-                </button>
+              <div className="announce-meta">
+                <div className="announce-meta-row">
+                  <strong className="announce-meta-muted">
+                    No announcements yet
+                  </strong>
+                </div>
+                <span className="announce-preview-line announce-preview-line--muted">
+                  Admin updates will appear here.
+                </span>
               </div>
             </div>
-          ) : null}
+          )}
 
           {/* ─── STATS ROW ───────────────────────────────────────── */}
           {loading ? (

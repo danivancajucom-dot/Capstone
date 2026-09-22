@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import "../../Components/IssueReportCard/issue-report-card.css";
 import "./room-issues.css";
 import IssueReportCard from "../../Components/IssueReportCard/IssueReportCard";
 import SubmitIssueModal from "../../Components/SubmitIssueModal/SubmitIssueModal";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
+import { logActivity } from "../../utils/logActivity";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -38,6 +39,10 @@ export default function FacultyRoomIssues() {
     setToast({ show: true, type, title, message });
     setTimeout(() => setToast((p) => ({ ...p, show: false })), 3500);
   };
+
+  // ✅ Activity log tracking refs
+  const initializedIssueLogRef = useRef(false);
+  const knownIssueIds          = useRef(new Set());
 
   // ── Step 1: Wait for auth to be ready ──────────────────────
   useEffect(() => {
@@ -83,6 +88,59 @@ export default function FacultyRoomIssues() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUid]);
+
+  // ✅ Step 3: Auto-log activity for NEW issues ────────────────
+  // This runs whenever the issues list changes. On first load it just
+  // records existing IDs (so we don't spam the log). After that, any
+  // newly-appeared issue gets an activity log entry.
+  useEffect(() => {
+    if (loading || !myUid) return;
+
+    // First snapshot: just record baseline, don't log anything
+    if (!initializedIssueLogRef.current) {
+      issues.forEach((i) => knownIssueIds.current.add(i.id));
+      initializedIssueLogRef.current = true;
+      return;
+    }
+
+    const newIssues = issues.filter((i) => !knownIssueIds.current.has(i.id));
+    if (newIssues.length === 0) return;
+
+    // Mark as known immediately to avoid double-logging
+    newIssues.forEach((i) => knownIssueIds.current.add(i.id));
+
+    // Fire-and-forget logging
+    (async () => {
+      try {
+        const userSnap = await getDoc(doc(db, "users", myUid));
+        const userData = userSnap.exists() ? userSnap.data() : {};
+        const fullName =
+          `${userData.firstName || ""} ${userData.lastName || ""}`.trim() ||
+          "Faculty";
+
+        for (const issue of newIssues) {
+          await logActivity({
+            userId: myUid,
+            user: fullName,
+            role: userData.role || "Faculty",
+            action: "Reported room issue",
+            actionType: "create",
+            target: `${issue.roomName || "Room"} | ${issue.category || "Issue"}`,
+            status: "Success",
+            details: {
+              issueId: issue.id,
+              severity: issue.severity,
+              description: issue.description,
+              roomName: issue.roomName,
+              category: issue.category,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("Failed to log issue activity:", err);
+      }
+    })();
+  }, [issues, loading, myUid]);
 
   // ── Counts ─────────────────────────────────────────────────
   const counts = useMemo(

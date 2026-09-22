@@ -598,7 +598,6 @@ export default function Login() {
       <LoginNav
         activePage="login"
         onAboutClick={() => setActiveModal("about")}
-        onSupportClick={() => setActiveModal("faq")}
         onContactClick={() => setActiveModal("support")}
       />
       <Toast
