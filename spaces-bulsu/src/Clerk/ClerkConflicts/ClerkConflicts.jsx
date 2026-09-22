@@ -102,11 +102,31 @@ function ClerkConflicts() {
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((r) => PENDING_STATUSES.includes(String(r.status || "").toLowerCase()));
 
+      // Pending keys — EXCLUDES needs_reassign (para maging active ulit ang Reassign button)
       const pendingKeys = new Set(
         pending
           .filter((r) => r.status !== "needs_reassign")
           .map((r) => `${r.scheduleId}_${r.eventId}`)
       );
+
+      // ── NEW: latest needs_reassign per conflict key ──
+      // Para ipakita sa ConflictCard na "Returned by Admin" ito
+      const returnedMap = new Map();
+      pending
+        .filter((r) => r.status === "needs_reassign")
+        .forEach((r) => {
+          const key = `${r.scheduleId}_${r.eventId}`;
+          const prev = returnedMap.get(key);
+          const prevMs = prev?.decidedAt?.seconds || 0;
+          const currMs = r.decidedAt?.seconds || 0;
+          if (!prev || currMs > prevMs) {
+            returnedMap.set(key, {
+              adminNote: r.adminNote || "",
+              decidedByName: r.decidedByName || "",
+              decidedAt: r.decidedAt || null,
+            });
+          }
+        });
 
       const activeFound = [], unresolvedFound = [], resolvedFound = [];
       const now = new Date();
@@ -144,6 +164,7 @@ function ClerkConflicts() {
 
             const eventEnd = new Date(`${event.date}T${event.endTime}`);
             const ov = getOverlapTime(schedule.startTime, schedule.endTime, event.startTime, event.endTime);
+            const conflictKey = `${schedule.id}_${event.id}`;
 
             const conflict = {
               roomId: roomDoc.id, roomName: room.roomName, floor: room.floor, room,
@@ -154,7 +175,8 @@ function ClerkConflicts() {
               startTime: schedule.startTime, endTime: schedule.endTime,
               activityTitle: event.title, activityReason: event.reason,
               conflictStartTime: ov.start, conflictEndTime: ov.end,
-              reassignPending: pendingKeys.has(`${schedule.id}_${event.id}`),
+              reassignPending: pendingKeys.has(conflictKey),
+              returnedInfo: returnedMap.get(conflictKey) || null,   // ← NEW
               status: "",
               resolution: event.resolution || null,
               resolutionReason: event.resolutionReason || null,
@@ -219,7 +241,7 @@ function ClerkConflicts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset page kapag nagbago ang tab/search/sort
+  // Reset page when tab/search/sort changes
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm, sortOrder]);
@@ -236,7 +258,7 @@ function ClerkConflicts() {
     return resolved;
   }, [activeTab, conflicts, pendingList, unresolved, resolved]);
 
-  // ── Apply search + sort (BUONG filtered list) ────────────────
+  // ── Apply search + sort (WHOLE filtered list) ────────────────
   const filteredConflicts = useMemo(() => {
     let list = [...baseList];
 
@@ -596,6 +618,7 @@ function ClerkConflicts() {
                   showReassign={activeTab === "all" && !conflict.reassignPending}
                   onResolved={handleResolved}
                   onReassignClick={() => openChooser(conflict)}
+                  returnedInfo={conflict.returnedInfo}
                 />
               ))
             )}
