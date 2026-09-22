@@ -42,10 +42,6 @@ const minToTime = (mins) => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// Room status helpers — para hindi mailagay sa available list
-// ang mga room na under maintenance / inactive
-// ═══════════════════════════════════════════════════════════════
 const isRoomMaintenance = (room) => {
   const status = String(room.roomStatus || "").toLowerCase().trim();
   const legacyStatus = String(room.status || "").toLowerCase().trim();
@@ -62,6 +58,22 @@ const isRoomInactive = (room) => {
   return status === "inactive";
 };
 
+// ─── No-room modes ─────────────────────────────────────────────
+const NO_ROOM_LABELS = {
+  none_available: {
+    label: "No Room Available",
+    short: "No Room Available",
+    desc: "All rooms are fully occupied during this time slot.",
+    icon: "fa-door-closed",
+  },
+  none_suited: {
+    label: "No Suitable Room",
+    short: "No Suitable Room",
+    desc: "Available rooms don't fit the requirements (capacity, type, equipment, etc.).",
+    icon: "fa-circle-question",
+  },
+};
+
 function ClerkReassignRoom() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -76,6 +88,8 @@ function ClerkReassignRoom() {
   const [checkingPending, setCheckingPending] = useState(true);
 
   const [showPreview, setShowPreview] = useState(false);
+  const [noRoomMode, setNoRoomMode] = useState(null); // null | "none_available" | "none_suited"
+  const [noRoomReason, setNoRoomReason] = useState("");
 
   const conflict = location.state?.conflict;
   const reassignType = location.state?.reassignType || "class";
@@ -90,10 +104,7 @@ function ClerkReassignRoom() {
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
     if (type !== "loading") {
-      setTimeout(
-        () => setToast((prev) => ({ ...prev, show: false })),
-        4000,
-      );
+      setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
     }
   };
 
@@ -107,7 +118,6 @@ function ClerkReassignRoom() {
     ? (conflict?.event?.endTime || conflict?.endTime)
     : conflict?.endTime;
 
-  // ── Conflicting window (from the conflict info) ──
   const conflictWindow = useMemo(() => {
     if (!conflict?.conflictStartTime || !conflict?.conflictEndTime) return null;
     const cs = cvtMin(conflict.conflictStartTime);
@@ -137,9 +147,6 @@ function ClerkReassignRoom() {
 
   const formatTime = (time) => format12Hour(time);
 
-  // ══════════════════════════════════════════════════════════════
-  // Load rooms + compute free windows
-  // ══════════════════════════════════════════════════════════════
   const loadAvailableRooms = async () => {
     setRoomsLoading(true);
     const roomSnap = await getDocs(collection(db, "rooms"));
@@ -154,63 +161,34 @@ function ClerkReassignRoom() {
 
     for (const roomDoc of roomSnap.docs) {
       const room = roomDoc.data();
-
-      // ✅ SKIP: floor filter
       if (floor && room.floor !== floor) continue;
-
-      // ✅ SKIP: yung original room (hindi pwedeng i-reassign sa sarili)
       if (roomDoc.id === conflict.roomId) continue;
-
-      // ✅ SKIP: rooms under maintenance — hindi pwedeng paglagyan
-      if (isRoomMaintenance(room)) {
-        maintenanceSkipped++;
-        continue;
-      }
-
-      // ✅ SKIP: inactive rooms — hindi available
-      if (isRoomInactive(room)) {
-        inactiveSkipped++;
-        continue;
-      }
+      if (isRoomMaintenance(room)) { maintenanceSkipped++; continue; }
+      if (isRoomInactive(room)) { inactiveSkipped++; continue; }
 
       const blockers = [];
 
-      // Events in target room on the same date
       const roomEvents = eventSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((e) => e.roomId === roomDoc.id && e.date === effectiveDate);
       for (const event of roomEvents) {
         if (conflict?.event?.id && event.id === conflict.event.id) continue;
-        blockers.push({
-          start: cvtMin(event.startTime),
-          end: cvtMin(event.endTime),
-        });
+        blockers.push({ start: cvtMin(event.startTime), end: cvtMin(event.endTime) });
       }
 
-      // Schedules in target room for that day
-      const schedulesSnap = await getDocs(
-        collection(db, "rooms", roomDoc.id, "schedules")
-      );
+      const schedulesSnap = await getDocs(collection(db, "rooms", roomDoc.id, "schedules"));
       for (const schedDoc of schedulesSnap.docs) {
         const sched = schedDoc.data();
         if (schedDoc.id === conflict?.schedule?.id) continue;
         if (sched.day !== conflict.day) continue;
-        blockers.push({
-          start: cvtMin(sched.startTime),
-          end: cvtMin(sched.endTime),
-        });
+        blockers.push({ start: cvtMin(sched.startTime), end: cvtMin(sched.endTime) });
       }
 
-      // Overlaps with the class time
       const overlaps = blockers
         .filter((b) => b.start < classEnd && b.end > classStart)
-        .map((b) => ({
-          start: Math.max(b.start, classStart),
-          end: Math.min(b.end, classEnd),
-        }))
+        .map((b) => ({ start: Math.max(b.start, classStart), end: Math.min(b.end, classEnd) }))
         .sort((a, b) => a.start - b.start);
 
-      // Merge consecutive/overlapping blockers
       const merged = [];
       for (const o of overlaps) {
         if (merged.length === 0) merged.push({ ...o });
@@ -221,19 +199,13 @@ function ClerkReassignRoom() {
         }
       }
 
-      // Free windows within [classStart, classEnd]
       const freeWindows = [];
       let cursor = classStart;
       for (const block of merged) {
-        if (block.start > cursor) {
-          freeWindows.push({ start: cursor, end: block.start });
-        }
+        if (block.start > cursor) freeWindows.push({ start: cursor, end: block.start });
         cursor = Math.max(cursor, block.end);
       }
-      if (cursor < classEnd) {
-        freeWindows.push({ start: cursor, end: classEnd });
-      }
-
+      if (cursor < classEnd) freeWindows.push({ start: cursor, end: classEnd });
       if (freeWindows.length === 0) continue;
 
       const isFullyFree =
@@ -242,12 +214,10 @@ function ClerkReassignRoom() {
         freeWindows[0].end === classEnd;
 
       const primaryWindow = freeWindows.reduce((best, w) =>
-        w.end - w.start > best.end - best.start ? w : best
-      );
+        w.end - w.start > best.end - best.start ? w : best);
 
       available.push({
-        id: roomDoc.id,
-        ...room,
+        id: roomDoc.id, ...room,
         _freeWindows: freeWindows,
         _primaryWindow: primaryWindow,
         _isPartial: !isFullyFree,
@@ -259,24 +229,15 @@ function ClerkReassignRoom() {
     setRoomsLoading(false);
   };
 
-  // ── Readable labels for preview ─────────────────────────────────
-  const classSubject =
-    conflict?.subject || conflict?.schedule?.subject || "Unknown Subject";
-  const eventSubject =
-    conflict?.activityTitle || conflict?.event?.title || "Untitled Activity";
+  const classSubject = conflict?.subject || conflict?.schedule?.subject || "Unknown Subject";
+  const eventSubject = conflict?.activityTitle || conflict?.event?.title || "Untitled Activity";
   const displaySubject = isEventReassign ? eventSubject : classSubject;
+  const activityReason = conflict?.activityReason || conflict?.event?.reason || "";
 
-  const activityReason =
-    conflict?.activityReason || conflict?.event?.reason || "";
-
-  // Reassigned window (from selected room)
   const reassignedWindow = useMemo(() => {
     if (!selectedRoom?._primaryWindow) return null;
     const w = selectedRoom._primaryWindow;
-    return {
-      start: minToTime(w.start),
-      end: minToTime(w.end),
-    };
+    return { start: minToTime(w.start), end: minToTime(w.end) };
   }, [selectedRoom]);
 
   const previewData = useMemo(() => {
@@ -286,9 +247,7 @@ function ClerkReassignRoom() {
     return {
       type: isEventReassign ? "Activity" : "Class",
       title: displaySubject,
-      subtitle: isEventReassign
-        ? (activityReason || "—")
-        : (conflict?.section || "—"),
+      subtitle: isEventReassign ? (activityReason || "—") : (conflict?.section || "—"),
       faculty: conflict?.faculty || "TBA",
       day: conflict?.day || "—",
       date: effectiveDate || "—",
@@ -304,27 +263,35 @@ function ClerkReassignRoom() {
       oldRoom: conflict?.roomName || "—",
       newRoom: selectedRoom?.roomName || "—",
       newRoomFloor: selectedRoom?.floor || "",
-      newRoomType: selectedRoom?.roomType || "",
       newRoomCapacity: selectedRoom?.capacity || "",
     };
   }, [
     displaySubject, isEventReassign, activityReason, conflict,
-    effectiveDate, effectiveStart, effectiveEnd,
-    selectedRoom, reassignedWindow,
+    effectiveDate, effectiveStart, effectiveEnd, selectedRoom, reassignedWindow,
   ]);
 
-  // ── Open preview ───────────────────────────────────────────────
+  const handleSelectRoom = (room) => {
+    setSelectedRoom(room);
+    setNoRoomMode(null);
+    setNoRoomReason("");
+  };
+
+  const openNoRoomMode = (mode) => {
+    setNoRoomMode(mode);
+    setNoRoomReason("");
+    setSelectedRoom(null);
+    setShowPreview(true);
+  };
+
   const handleSubmitClick = () => {
+    if (noRoomMode) { setShowPreview(true); return; }
     if (!selectedRoom) {
       showToast("error", "Select a Room", "Please choose a room to reassign to.");
       return;
     }
     if (alreadyPending) {
-      showToast(
-        "error",
-        "Already Pending",
-        "There is already a pending reassignment for this class. Please wait.",
-      );
+      showToast("error", "Already Pending",
+        "There is already a pending reassignment for this class. Please wait.");
       return;
     }
     if (checkingPending) {
@@ -334,19 +301,138 @@ function ClerkReassignRoom() {
     setShowPreview(true);
   };
 
-  // ── Confirm & submit ──────────────────────────────────────────
+  const closePreview = () => {
+    if (loading) return;
+    setShowPreview(false);
+  };
+
   const handleConfirm = async () => {
-    if (!selectedRoom) {
-      showToast("error", "Select a Room", "Please choose a room first.");
+    if (alreadyPending) {
+      showToast("error", "Already Pending",
+        "There is already a pending reassignment for this class. Please wait.");
+      setShowPreview(false);
       return;
     }
-    if (alreadyPending) {
-      showToast(
-        "error",
-        "Already Pending",
-        "There is already a pending reassignment for this class. Please wait.",
-      );
-      setShowPreview(false);
+
+    // ══════════════════════════════════════════════════════════════
+    // NO-ROOM MODE — submit report to Admin
+    // ══════════════════════════════════════════════════════════════
+    if (noRoomMode) {
+      if (!noRoomReason.trim()) {
+        showToast("error", "Reason Required",
+          "Please provide a short reason for the Admin.");
+        return;
+      }
+      setLoading(true);
+      showToast("loading", "Submitting", "Sending to Admin for review...");
+
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        const facultyDoc = findFacultyUserByName(usersSnap, conflict.faculty);
+        let facultyId = null;
+        let facultyFullName = conflict.faculty || "TBA";
+        if (facultyDoc) {
+          facultyId = facultyDoc.id;
+          const fd = facultyDoc.data();
+          facultyFullName = formatFacultyName(`${fd.lastName}, ${fd.firstName}`);
+        }
+
+        const modeMeta = NO_ROOM_LABELS[noRoomMode];
+
+        const reassignmentRef = await addDoc(collection(db, "roomReassignments"), {
+          reassignType,
+          requestedBy: "clerk",
+          requestedById: auth.currentUser?.uid || null,
+
+          facultyId,
+          facultyName: conflict.faculty || "",
+
+          courseTitle: isEventReassign ? "" : classSubject,
+          section: isEventReassign ? "" : (conflict.section || ""),
+          day: conflict.day || "",
+
+          date: effectiveDate,
+          startTime: effectiveStart,
+          endTime: effectiveEnd,
+          originalStartTime: effectiveStart,
+          originalEndTime: effectiveEnd,
+
+          oldRoomId: conflict.roomId,
+          oldRoomName: conflict.roomName,
+
+          newRoomId: null,
+          newRoomName: null,
+
+          noRoomOption: noRoomMode,
+          clerkReason: noRoomReason.trim(),
+
+          eventId: conflict?.event?.id || null,
+          scheduleId: conflict?.schedule?.id || null,
+
+          eventTitle: isEventReassign ? eventSubject : "",
+          eventReason: isEventReassign ? activityReason : "",
+
+          status: "pending_admin",
+          adminNote: "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        const admins = usersSnap.docs.filter(
+          (d) => String(d.data().role || "").toLowerCase() === "admin"
+        );
+        await Promise.all(
+          admins.map((admin) =>
+            addDoc(collection(db, "notifications"), {
+              userId: admin.id,
+              ownerType: "admin",
+              reassignmentId: reassignmentRef.id,
+              title: `Clerk Report: ${modeMeta.short}`,
+              message: `${facultyFullName} • ${displaySubject} • ${conflict.roomName}. Reason: ${noRoomReason.trim()}`,
+              type: "room-reassignment-request",
+              unread: true,
+              archived: false,
+              badge: "ACTION",
+              createdAt: serverTimestamp(),
+            })
+          )
+        );
+
+        const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+        const userData = userDoc.data();
+        await logActivity({
+          user: `${userData.firstName} ${userData.lastName}`,
+          role: userData.role,
+          action: `Reported ${modeMeta.short.toLowerCase()}`,
+          actionType: "edit",
+          target: `${facultyFullName} • ${displaySubject} • ${conflict.roomName}`,
+          status: "PENDING",
+        });
+
+        setShowPreview(false);
+        setNoRoomMode(null);
+        setNoRoomReason("");
+        showToast(
+          "success",
+          "Submitted to Admin",
+          "The Admin will review this and decide on the next action."
+        );
+        setTimeout(() => navigate(from), 1500);
+      } catch (err) {
+        console.error(err);
+        showToast("error", "Submission Failed",
+          "Could not submit. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // NORMAL ROOM REASSIGNMENT
+    // ══════════════════════════════════════════════════════════════
+    if (!selectedRoom) {
+      showToast("error", "Select a Room", "Please choose a room first.");
       return;
     }
 
@@ -359,14 +445,12 @@ function ClerkReassignRoom() {
 
       let facultyId = null;
       let facultyFullName = conflict.faculty || "TBA";
-
       if (facultyDoc) {
         facultyId = facultyDoc.id;
         const fd = facultyDoc.data();
         facultyFullName = formatFacultyName(`${fd.lastName}, ${fd.firstName}`);
       }
 
-      // Use the free window (possibly partial) as the reassigned time
       const reassignStart = reassignedWindow?.start || effectiveStart;
       const reassignEnd = reassignedWindow?.end || effectiveEnd;
       const isPartial = !!selectedRoom._isPartial;
@@ -383,12 +467,10 @@ function ClerkReassignRoom() {
         section: isEventReassign ? "" : (conflict.section || ""),
         day: conflict.day || "",
 
-        // The actual time range being reassigned (may be a partial window)
         date: effectiveDate,
         startTime: reassignStart,
         endTime: reassignEnd,
 
-        // Record the original class time for reference
         originalStartTime: effectiveStart,
         originalEndTime: effectiveEnd,
         isPartialReassignment: isPartial,
@@ -403,6 +485,9 @@ function ClerkReassignRoom() {
         newRoomId: selectedRoom.id,
         newRoomName: selectedRoom.roomName,
 
+        noRoomOption: null,
+        clerkReason: "",
+
         eventId: conflict?.event?.id || null,
         scheduleId: conflict?.schedule?.id || null,
 
@@ -415,40 +500,37 @@ function ClerkReassignRoom() {
         updatedAt: serverTimestamp(),
       });
 
-      // Notify Admins
       const admins = usersSnap.docs.filter(
         (d) => String(d.data().role || "").toLowerCase() === "admin"
       );
       const partialNote = isPartial
         ? ` (partial: ${format12Hour(reassignStart)} – ${format12Hour(reassignEnd)} only)`
         : "";
-      const notifications = admins.map((admin) =>
-        addDoc(collection(db, "notifications"), {
-          userId: admin.id,
-          ownerType: "admin",
-          reassignmentId: reassignmentRef.id,
-          title: isPartial
-            ? "New Partial Room Reassignment Request"
-            : "New Room Reassignment Request",
-          message: `${facultyFullName} • ${displaySubject} • ${conflict.roomName} → ${selectedRoom.roomName}${partialNote}. Please review.`,
-          type: "room-reassignment-request",
-          unread: true,
-          archived: false,
-          badge: "NEW",
-          createdAt: serverTimestamp(),
-        })
+      await Promise.all(
+        admins.map((admin) =>
+          addDoc(collection(db, "notifications"), {
+            userId: admin.id,
+            ownerType: "admin",
+            reassignmentId: reassignmentRef.id,
+            title: isPartial
+              ? "New Partial Room Reassignment Request"
+              : "New Room Reassignment Request",
+            message: `${facultyFullName} • ${displaySubject} • ${conflict.roomName} → ${selectedRoom.roomName}${partialNote}. Please review.`,
+            type: "room-reassignment-request",
+            unread: true,
+            archived: false,
+            badge: "NEW",
+            createdAt: serverTimestamp(),
+          })
+        )
       );
-      await Promise.all(notifications);
 
-      // Activity log
       const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
       const userData = userDoc.data();
       await logActivity({
         user: `${userData.firstName} ${userData.lastName}`,
         role: userData.role,
-        action: `Submitted ${isEventReassign ? "activity" : "class"} room reassignment${
-          isPartial ? " (partial)" : ""
-        }`,
+        action: `Submitted ${isEventReassign ? "activity" : "class"} room reassignment${isPartial ? " (partial)" : ""}`,
         actionType: "edit",
         target: `${facultyFullName} • ${displaySubject} • ${conflict.roomName} → ${selectedRoom.roomName}${partialNote}`,
         status: "PENDING",
@@ -460,47 +542,34 @@ function ClerkReassignRoom() {
         "Submitted for Approval",
         isPartial
           ? `Partial reassignment (${format12Hour(reassignStart)} – ${format12Hour(reassignEnd)}) sent to Admin.`
-          : "Your reassignment request has been sent to the Admin for review.",
+          : "Your reassignment request has been sent to the Admin for review."
       );
-
       setTimeout(() => navigate(from), 1500);
     } catch (err) {
       console.error(err);
-      showToast(
-        "error",
-        "Submission Failed",
-        "Could not submit the reassignment. Please try again.",
-      );
+      showToast("error", "Submission Failed",
+        "Could not submit the reassignment. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const courseTitle = conflict?.subject || conflict?.schedule?.subject || "—";
-  const activityTitle =
-    conflict?.activityTitle || conflict?.event?.title || "—";
+  const activityTitle = conflict?.activityTitle || conflict?.event?.title || "—";
+
+  const showNoRoomButtons = !roomsLoading;
 
   return (
     <>
       <div className="dept-reassign-room">
         <div className="dept-reassign-white-box">
           <div className="dept-reassign-heading">
-            <span
-              className={`dept-reassign-type-pill ${
-                isEventReassign ? "is-event" : "is-class"
-              }`}
-            >
-              <i
-                className={`fa-solid ${
-                  isEventReassign ? "fa-calendar-plus" : "fa-chalkboard-user"
-                }`}
-              ></i>
+            <span className={`dept-reassign-type-pill ${isEventReassign ? "is-event" : "is-class"}`}>
+              <i className={`fa-solid ${isEventReassign ? "fa-calendar-plus" : "fa-chalkboard-user"}`}></i>
               {isEventReassign ? "Reassigning Activity" : "Reassigning Class"}
             </span>
             <h2 className="dept-reassign-title">
-              {isEventReassign
-                ? "Reassign Activity to New Room"
-                : "Reassign Class to New Room"}
+              {isEventReassign ? "Reassign Activity to New Room" : "Reassign Class to New Room"}
             </h2>
             <p className="dept-reassign-subtitle">
               {isEventReassign
@@ -518,46 +587,30 @@ function ClerkReassignRoom() {
                 {isEventReassign ? activityTitle : courseTitle}
               </span>
             </div>
-
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">
                 {isEventReassign ? "Reason" : "Section"}
               </span>
               <span className="dept-reassign-summary-value">
-                {isEventReassign
-                  ? activityReason || "—"
-                  : conflict?.section || "—"}
+                {isEventReassign ? (activityReason || "—") : (conflict?.section || "—")}
               </span>
             </div>
-
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Faculty</span>
-              <span className="dept-reassign-summary-value">
-                {conflict?.faculty || "—"}
-              </span>
+              <span className="dept-reassign-summary-value">{conflict?.faculty || "—"}</span>
             </div>
-
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Day</span>
-              <span className="dept-reassign-summary-value">
-                {conflict?.day || "—"}
-              </span>
+              <span className="dept-reassign-summary-value">{conflict?.day || "—"}</span>
             </div>
-
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Date</span>
-              <span className="dept-reassign-summary-value">
-                {effectiveDate || "—"}
-              </span>
+              <span className="dept-reassign-summary-value">{effectiveDate || "—"}</span>
             </div>
-
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Current Room</span>
-              <span className="dept-reassign-summary-value">
-                {conflict?.roomName || "—"}
-              </span>
+              <span className="dept-reassign-summary-value">{conflict?.roomName || "—"}</span>
             </div>
-
             <div className="dept-reassign-summary-item">
               <span className="dept-reassign-summary-label">Time</span>
               <span className="dept-reassign-summary-value">
@@ -566,12 +619,9 @@ function ClerkReassignRoom() {
                   : "—"}
               </span>
             </div>
-
             {conflictWindow && (
               <div className="dept-reassign-summary-item">
-                <span className="dept-reassign-summary-label">
-                  Conflicting Slot
-                </span>
+                <span className="dept-reassign-summary-label">Conflicting Slot</span>
                 <span className="dept-reassign-summary-value dept-reassign-conflict-value">
                   {format12Hour(minToTime(conflictWindow.start))} –{" "}
                   {format12Hour(minToTime(conflictWindow.end))}
@@ -597,9 +647,7 @@ function ClerkReassignRoom() {
                 <p className="dept-venue-hint">
                   Rooms tagged <b>Full</b> are free for the entire class.
                   Rooms tagged <b>Partial</b> are only free for part of the
-                  class — you can reassign to those for the free window only
-                  (e.g. class 7:00–10:00, room free 7:00–9:00 → reassign
-                  7:00–9:00 only).
+                  class — you can reassign to those for the free window only.
                 </p>
               </div>
               <div className="dept-dropdown-wrapper-venue">
@@ -619,18 +667,15 @@ function ClerkReassignRoom() {
               </div>
             </div>
 
-            {/* ✅ Note: kung may rooms na hindi naipakita dahil maintenance/inactive */}
             {(skippedRooms.maintenance > 0 || skippedRooms.inactive > 0) &&
-              availableRooms.length === 0 &&
-              !roomsLoading && (
+              availableRooms.length === 0 && !roomsLoading && (
                 <div className="dept-reassign-hidden-note">
                   <i className="fa-solid fa-circle-info"></i>
                   <span>
                     {skippedRooms.maintenance > 0 && (
                       <>
                         <b>{skippedRooms.maintenance}</b> room
-                        {skippedRooms.maintenance === 1 ? "" : "s"} hidden — under
-                        maintenance.
+                        {skippedRooms.maintenance === 1 ? "" : "s"} hidden — under maintenance.
                       </>
                     )}
                     {skippedRooms.maintenance > 0 && skippedRooms.inactive > 0 && " "}
@@ -665,46 +710,32 @@ function ClerkReassignRoom() {
                     <button
                       type="button"
                       key={room.id}
-                      className={`available-room-card ${
-                        isSelected ? "selected" : ""
-                      } ${partial ? "is-partial" : "is-full"}`}
-                      onClick={() => setSelectedRoom(room)}
+                      className={`available-room-card ${isSelected ? "selected" : ""} ${partial ? "is-partial" : "is-full"}`}
+                      onClick={() => handleSelectRoom(room)}
                     >
                       <div className="room-card-top">
                         <h4>{room.roomName}</h4>
-                        {isSelected && (
-                          <i className="fa-solid fa-circle-check"></i>
-                        )}
+                        {isSelected && <i className="fa-solid fa-circle-check"></i>}
                       </div>
                       <div className="room-card-meta">
                         <span className="room-card-floor">
-                          <i className="fa-solid fa-building"></i>
-                          {room.floor}
+                          <i className="fa-solid fa-building"></i>{room.floor}
                         </span>
                         {room.roomType && (
-                          <span className="room-card-type">
-                            {room.roomType}
-                          </span>
+                          <span className="room-card-type">{room.roomType}</span>
                         )}
                         {room.capacity && (
                           <span className="room-card-capacity">
-                            <i className="fa-solid fa-users"></i>
-                            {room.capacity}
+                            <i className="fa-solid fa-users"></i>{room.capacity}
                           </span>
                         )}
                       </div>
-
-                      <div
-                        className={`room-card-availability ${
-                          partial ? "is-partial" : "is-full"
-                        }`}
-                      >
+                      <div className={`room-card-availability ${partial ? "is-partial" : "is-full"}`}>
                         {partial ? (
                           <>
                             <i className="fa-solid fa-circle-half-stroke"></i>
                             <span>
-                              Partial — free{" "}
-                              {format12Hour(minToTime(w.start))} –{" "}
+                              Partial — free {format12Hour(minToTime(w.start))} –{" "}
                               {format12Hour(minToTime(w.end))}
                             </span>
                           </>
@@ -720,6 +751,52 @@ function ClerkReassignRoom() {
                 })
               )}
             </div>
+
+            {/* ══════════════════════════════════════════════════════
+                NO ROOM OPTION — submit a report to the Admin if
+                no room is available or none fit the requirements
+               ══════════════════════════════════════════════════════ */}
+            {showNoRoomButtons && (
+              <div className="no-room-options">
+                <div className="no-room-options-header">
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                  <div>
+                    <span className="no-room-title">Can't find a room?</span>
+                    <p className="no-room-subtitle">
+                      If no room is available or none fit the requirements,
+                      report it to the Admin. They will decide whether to
+                      cancel the class or ask for another reassignment.
+                    </p>
+                  </div>
+                </div>
+                <div className="no-room-buttons">
+                  <button
+                    type="button"
+                    className="no-room-btn is-unavailable"
+                    onClick={() => openNoRoomMode("none_available")}
+                    disabled={alreadyPending || checkingPending}
+                  >
+                    <i className="fa-solid fa-door-closed"></i>
+                    <div>
+                      <strong>No Room Available</strong>
+                      <span>All rooms are occupied</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="no-room-btn is-unsuited"
+                    onClick={() => openNoRoomMode("none_suited")}
+                    disabled={alreadyPending || checkingPending}
+                  >
+                    <i className="fa-solid fa-circle-question"></i>
+                    <div>
+                      <strong>No Suitable Room</strong>
+                      <span>None fit the requirements</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -735,7 +812,8 @@ function ClerkReassignRoom() {
             className="dept-reassign-confirm-btn"
             onClick={handleSubmitClick}
             disabled={
-              loading || !selectedRoom || alreadyPending || checkingPending
+              loading || (!selectedRoom && !noRoomMode) ||
+              alreadyPending || checkingPending
             }
           >
             {checkingPending ? (
@@ -751,190 +829,252 @@ function ClerkReassignRoom() {
         </div>
       </div>
 
-      {/* Preview modal */}
+      {/* ══════════════════════════════════════════════════════════
+          PREVIEW MODAL
+         ══════════════════════════════════════════════════════════ */}
       {showPreview && (
-        <div
-          className="crr-preview-overlay"
-          onClick={() => !loading && setShowPreview(false)}
-        >
-          <div
-            className="crr-preview-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="crr-preview-header">
-              <div
-                className={`crr-preview-icon ${
-                  previewData.isPartial ? "is-partial" : ""
-                }`}
-              >
-                <i
-                  className={`fa-solid ${
-                    isEventReassign ? "fa-calendar-plus" : "fa-chalkboard-user"
-                  }`}
-                ></i>
-              </div>
-              <h3>
-                {previewData.isPartial
-                  ? "Review Partial Reassignment"
-                  : "Review Reassignment"}
-              </h3>
-              <p className="crr-preview-subtitle">
-                {previewData.isPartial
-                  ? "This room is only free for part of the class. The reassignment will cover only that free window."
-                  : "Please confirm the details below before submitting to the Admin."}
-              </p>
-            </div>
-
-            <div className="crr-preview-body">
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">Type</span>
-                <span className="crr-preview-value">
-                  <span
-                    className={`crr-preview-type-pill ${
-                      isEventReassign ? "is-event" : "is-class"
-                    }`}
-                  >
-                    {previewData.type}
-                  </span>
-                </span>
-              </div>
-
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">
-                  {isEventReassign ? "Activity Title" : "Course Title"}
-                </span>
-                <span className="crr-preview-value">{previewData.title}</span>
-              </div>
-
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">
-                  {isEventReassign ? "Reason" : "Section"}
-                </span>
-                <span className="crr-preview-value">
-                  {previewData.subtitle}
-                </span>
-              </div>
-
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">Faculty</span>
-                <span className="crr-preview-value">{previewData.faculty}</span>
-              </div>
-
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">Day</span>
-                <span className="crr-preview-value">{previewData.day}</span>
-              </div>
-
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">Date</span>
-                <span className="crr-preview-value">
-                  {formatDateLong(previewData.date)}
-                </span>
-              </div>
-
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">Original Class Time</span>
-                <span className="crr-preview-value">
-                  {previewData.originalTime}
-                </span>
-              </div>
-
-              <div className="crr-preview-row">
-                <span className="crr-preview-label">
-                  {previewData.isPartial
-                    ? "Reassigned Window"
-                    : "Reassigned Time"}
-                </span>
-                <span
-                  className={`crr-preview-value ${
-                    previewData.isPartial
-                      ? "crr-preview-value--partial"
-                      : ""
-                  }`}
-                >
-                  {previewData.reassignTime}
-                  {previewData.isPartial && (
-                    <span className="crr-preview-partial-tag">Partial</span>
-                  )}
-                </span>
-              </div>
-
-              <div className="crr-preview-move">
-                <div className="crr-preview-move-item">
-                  <span className="crr-preview-move-label">From</span>
-                  <span className="crr-preview-move-value">
-                    {previewData.oldRoom}
-                  </span>
+        <div className="crr-preview-overlay" onClick={closePreview}>
+          <div className="crr-preview-modal" onClick={(e) => e.stopPropagation()}>
+            {noRoomMode ? (
+              // ── No-Room Preview ──────────────────────────────
+              <>
+                <div className="crr-preview-header">
+                  <div className="crr-preview-icon is-no-room">
+                    <i className={`fa-solid ${NO_ROOM_LABELS[noRoomMode].icon}`}></i>
+                  </div>
+                  <h3>Report {NO_ROOM_LABELS[noRoomMode].short}</h3>
+                  <p className="crr-preview-subtitle">
+                    {NO_ROOM_LABELS[noRoomMode].desc} This will be sent to the
+                    Admin for a decision.
+                  </p>
                 </div>
-                <div className="crr-preview-move-arrow">
-                  <i className="fa-solid fa-arrow-right"></i>
-                </div>
-                <div className="crr-preview-move-item crr-preview-move-item--to">
-                  <span className="crr-preview-move-label">To</span>
-                  <span className="crr-preview-move-value">
-                    {previewData.newRoom}
-                  </span>
-                  {previewData.newRoomFloor && (
-                    <span className="crr-preview-move-meta">
-                      {previewData.newRoomFloor}
-                      {previewData.newRoomCapacity
-                        ? ` • ${previewData.newRoomCapacity} Seats`
-                        : ""}
+
+                <div className="crr-preview-body">
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Type</span>
+                    <span className="crr-preview-value">
+                      <span className={`crr-preview-type-pill ${isEventReassign ? "is-event" : "is-class"}`}>
+                        {isEventReassign ? "Activity" : "Class"}
+                      </span>
                     </span>
-                  )}
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">
+                      {isEventReassign ? "Activity Title" : "Course Title"}
+                    </span>
+                    <span className="crr-preview-value">{displaySubject}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Faculty</span>
+                    <span className="crr-preview-value">{conflict?.faculty || "TBA"}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Day</span>
+                    <span className="crr-preview-value">{conflict?.day || "—"}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Date</span>
+                    <span className="crr-preview-value">{formatDateLong(effectiveDate)}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Time</span>
+                    <span className="crr-preview-value">
+                      {format12Hour(effectiveStart)} – {format12Hour(effectiveEnd)}
+                    </span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Current Room</span>
+                    <span className="crr-preview-value">{conflict?.roomName || "—"}</span>
+                  </div>
+
+                  <div className="no-room-reason-group">
+                    <label className="no-room-reason-label">
+                      Reason for Admin <span className="req">*</span>
+                    </label>
+                    <textarea
+                      className="no-room-reason-textarea"
+                      placeholder={
+                        noRoomMode === "none_available"
+                          ? "e.g. All rooms are occupied during this time slot — checked all floors."
+                          : "e.g. Available rooms are too small for the class size or lack needed equipment."
+                      }
+                      rows={3}
+                      value={noRoomReason}
+                      onChange={(e) => setNoRoomReason(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="crr-preview-note">
+                    <i className="fa-solid fa-circle-info"></i>
+                    <span>
+                      The Admin will review this report. They may either
+                      <strong> cancel the class</strong> (with a reason shared
+                      to you and the faculty) or <strong>ask you to reassign
+                      again</strong>.
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="crr-preview-note">
-                <i className="fa-solid fa-circle-info"></i>
-                <span>
-                  {previewData.isPartial ? (
-                    <>
-                      Only <strong>{previewData.reassignTime}</strong> will be
-                      reassigned to <strong>{previewData.newRoom}</strong>. The
-                      remaining time of{" "}
-                      <strong>{previewData.originalTime}</strong> stays in the
-                      original room. Admin will review before it takes effect.
-                    </>
-                  ) : (
-                    <>
-                      After submitting, this reassignment will be marked as{" "}
-                      <strong>Pending Admin Approval</strong>. The faculty and
-                      admin will be notified once it's processed.
-                    </>
-                  )}
-                </span>
-              </div>
-            </div>
+                <div className="crr-preview-actions">
+                  <button
+                    className="crr-preview-back-btn"
+                    onClick={closePreview}
+                    disabled={loading}
+                  >
+                    <i className="fa-solid fa-pen-to-square"></i> Cancel
+                  </button>
+                  <button
+                    className={`crr-preview-confirm-btn ${loading ? "is-loading" : ""}`}
+                    onClick={handleConfirm}
+                    disabled={loading || !noRoomReason.trim()}
+                  >
+                    {loading ? (
+                      <>
+                        <i className="fa-solid fa-circle-notch fa-spin"></i> Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-paper-plane"></i> Submit to Admin
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              // ── Normal Room Preview ──────────────────────────
+              <>
+                <div className="crr-preview-header">
+                  <div className={`crr-preview-icon ${previewData.isPartial ? "is-partial" : ""}`}>
+                    <i className={`fa-solid ${isEventReassign ? "fa-calendar-plus" : "fa-chalkboard-user"}`}></i>
+                  </div>
+                  <h3>
+                    {previewData.isPartial ? "Review Partial Reassignment" : "Review Reassignment"}
+                  </h3>
+                  <p className="crr-preview-subtitle">
+                    {previewData.isPartial
+                      ? "This room is only free for part of the class. The reassignment will cover only that free window."
+                      : "Please confirm the details below before submitting to the Admin."}
+                  </p>
+                </div>
 
-            <div className="crr-preview-actions">
-              <button
-                className="crr-preview-back-btn"
-                onClick={() => setShowPreview(false)}
-                disabled={loading}
-              >
-                <i className="fa-solid fa-pen-to-square"></i> Edit
-              </button>
-              <button
-                className={`crr-preview-confirm-btn ${
-                  loading ? "is-loading" : ""
-                }`}
-                onClick={handleConfirm}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <i className="fa-solid fa-circle-notch fa-spin"></i>{" "}
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <i className="fa-solid fa-circle-check"></i> Confirm &
-                    Submit
-                  </>
-                )}
-              </button>
-            </div>
+                <div className="crr-preview-body">
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Type</span>
+                    <span className="crr-preview-value">
+                      <span className={`crr-preview-type-pill ${isEventReassign ? "is-event" : "is-class"}`}>
+                        {previewData.type}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">
+                      {isEventReassign ? "Activity Title" : "Course Title"}
+                    </span>
+                    <span className="crr-preview-value">{previewData.title}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">
+                      {isEventReassign ? "Reason" : "Section"}
+                    </span>
+                    <span className="crr-preview-value">{previewData.subtitle}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Faculty</span>
+                    <span className="crr-preview-value">{previewData.faculty}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Day</span>
+                    <span className="crr-preview-value">{previewData.day}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Date</span>
+                    <span className="crr-preview-value">{formatDateLong(previewData.date)}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">Original Class Time</span>
+                    <span className="crr-preview-value">{previewData.originalTime}</span>
+                  </div>
+                  <div className="crr-preview-row">
+                    <span className="crr-preview-label">
+                      {previewData.isPartial ? "Reassigned Window" : "Reassigned Time"}
+                    </span>
+                    <span className={`crr-preview-value ${previewData.isPartial ? "crr-preview-value--partial" : ""}`}>
+                      {previewData.reassignTime}
+                      {previewData.isPartial && (
+                        <span className="crr-preview-partial-tag">Partial</span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="crr-preview-move">
+                    <div className="crr-preview-move-item">
+                      <span className="crr-preview-move-label">From</span>
+                      <span className="crr-preview-move-value">{previewData.oldRoom}</span>
+                    </div>
+                    <div className="crr-preview-move-arrow">
+                      <i className="fa-solid fa-arrow-right"></i>
+                    </div>
+                    <div className="crr-preview-move-item crr-preview-move-item--to">
+                      <span className="crr-preview-move-label">To</span>
+                      <span className="crr-preview-move-value">{previewData.newRoom}</span>
+                      {previewData.newRoomFloor && (
+                        <span className="crr-preview-move-meta">
+                          {previewData.newRoomFloor}
+                          {previewData.newRoomCapacity ? ` • ${previewData.newRoomCapacity} Seats` : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="crr-preview-note">
+                    <i className="fa-solid fa-circle-info"></i>
+                    <span>
+                      {previewData.isPartial ? (
+                        <>
+                          Only <strong>{previewData.reassignTime}</strong> will be
+                          reassigned to <strong>{previewData.newRoom}</strong>. The
+                          remaining time of <strong>{previewData.originalTime}</strong>{" "}
+                          stays in the original room. Admin will review before it
+                          takes effect.
+                        </>
+                      ) : (
+                        <>
+                          After submitting, this reassignment will be marked as{" "}
+                          <strong>Pending Admin Approval</strong>. The faculty and
+                          admin will be notified once it's processed.
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="crr-preview-actions">
+                  <button
+                    className="crr-preview-back-btn"
+                    onClick={closePreview}
+                    disabled={loading}
+                  >
+                    <i className="fa-solid fa-pen-to-square"></i> Edit
+                  </button>
+                  <button
+                    className={`crr-preview-confirm-btn ${loading ? "is-loading" : ""}`}
+                    onClick={handleConfirm}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <i className="fa-solid fa-circle-notch fa-spin"></i> Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-circle-check"></i> Confirm & Submit
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

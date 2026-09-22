@@ -546,3 +546,10 @@
   .dhr-room-trigger { width: 100%; }
   .dhr-room-popover { width: 100%; max-width: 100%; left: 0; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   NO ROOM CARD
+   ═══════════════════════════════════════════════════════════════ */
+.dhr-card.is-no-room {
+  border-left-color: #d97706;
+}

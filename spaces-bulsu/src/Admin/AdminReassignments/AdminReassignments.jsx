@@ -1,13 +1,7 @@
 import "./admin-reassignments.css";
 import { useEffect, useState, useMemo } from "react";
 import {
-  collection,
-  onSnapshot,
-  doc,
-  updateDoc,
-  addDoc,
-  getDoc,
-  serverTimestamp,
+  collection, onSnapshot, doc, updateDoc, addDoc, getDoc, serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import Toast from "../../Popup/Toast/Toast";
@@ -32,6 +26,11 @@ const SORT_OPTIONS = [
   { key: "date_desc", label: "Schedule Date ↓" },
 ];
 
+const NO_ROOM_META = {
+  none_available: { label: "No Room Available", short: "Unavailable", icon: "fa-door-closed" },
+  none_suited:    { label: "No Suitable Room",  short: "Unsuited",    icon: "fa-circle-question" },
+};
+
 const fmt12 = (t) => {
   if (!t) return "";
   const [h, m] = t.split(":").map(Number);
@@ -44,10 +43,7 @@ const fmtDate = (d) => {
   const dt = d?.toDate ? d.toDate() : new Date(d);
   if (Number.isNaN(dt.getTime())) return "";
   return dt.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+    weekday: "short", month: "short", day: "numeric", year: "numeric",
   });
 };
 
@@ -67,12 +63,7 @@ function AdminReassignments() {
   const [showRoomPicker, setShowRoomPicker] = useState(false);
   const [roomSearch, setRoomSearch] = useState("");
 
-  const [toast, setToast] = useState({
-    show: false,
-    type: "success",
-    title: "",
-    message: "",
-  });
+  const [toast, setToast] = useState({ show: false, type: "success", title: "", message: "" });
   const showToast = (type, title, message) => {
     setToast({ show: true, type, title, message });
     if (type !== "loading")
@@ -99,10 +90,9 @@ function AdminReassignments() {
   const counts = useMemo(
     () =>
       TABS.reduce((acc, t) => {
-        acc[t.key] =
-          t.key === "all"
-            ? items.length
-            : items.filter((i) => i.status === t.key).length;
+        acc[t.key] = t.key === "all"
+          ? items.length
+          : items.filter((i) => i.status === t.key).length;
         return acc;
       }, {}),
     [items]
@@ -124,8 +114,7 @@ function AdminReassignments() {
   }, [roomOptions, roomSearch]);
 
   const filtered = useMemo(() => {
-    let list =
-      activeTab === "all" ? items : items.filter((i) => i.status === activeTab);
+    let list = activeTab === "all" ? items : items.filter((i) => i.status === activeTab);
     if (roomFilter)
       list = list.filter(
         (i) => i.oldRoomName === roomFilter || i.newRoomName === roomFilter
@@ -139,40 +128,30 @@ function AdminReassignments() {
           (i.facultyName || "").toLowerCase().includes(s) ||
           (i.section || "").toLowerCase().includes(s) ||
           (i.oldRoomName || "").toLowerCase().includes(s) ||
-          (i.newRoomName || "").toLowerCase().includes(s)
+          (i.newRoomName || "").toLowerCase().includes(s) ||
+          (i.clerkReason || "").toLowerCase().includes(s)
       );
     }
     const sorted = [...list];
     if (sortOrder === "newest")
-      sorted.sort(
-        (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
-      );
+      sorted.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     else if (sortOrder === "oldest")
-      sorted.sort(
-        (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
-      );
+      sorted.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
     else if (sortOrder === "date_asc")
-      sorted.sort((a, b) =>
-        String(a.date || "").localeCompare(String(b.date || ""))
-      );
+      sorted.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
     else if (sortOrder === "date_desc")
-      sorted.sort((a, b) =>
-        String(b.date || "").localeCompare(String(a.date || ""))
-      );
+      sorted.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     return sorted;
   }, [items, activeTab, searchTerm, roomFilter, sortOrder]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchTerm, roomFilter, sortOrder]);
+  useEffect(() => { setCurrentPage(1); }, [activeTab, searchTerm, roomFilter, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
   const startIdx = (safePage - 1) * ITEMS_PER_PAGE;
   const paginated = filtered.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
-  const hasActiveFilters =
-    searchTerm || roomFilter || sortOrder !== "newest";
+  const hasActiveFilters = searchTerm || roomFilter || sortOrder !== "newest";
   const clearAllFilters = () => {
     setSearchTerm("");
     setRoomFilter("");
@@ -185,7 +164,7 @@ function AdminReassignments() {
   };
 
   // ══════════════════════════════════════════════════════════════
-  // DECIDE — Approve / Cancel Class / Reassign Again
+  // DECIDE — Approve / Cancel / Reassign Again
   // ══════════════════════════════════════════════════════════════
   const decide = async () => {
     if (!actionModal) return;
@@ -193,11 +172,13 @@ function AdminReassignments() {
     setProcessing(true);
 
     const isEvent = item.reassignType === "event";
+    const isNoRoom = !!item.noRoomOption;
     const displayTitle = isEvent
       ? item.eventTitle || item.courseTitle || "Untitled Activity"
       : item.courseTitle || "Untitled Class";
     const entryLabel = isEvent ? "activity" : "class";
     const isDeclinedItem = item.status === "declined";
+    const isNoRoomItem = isNoRoom;
 
     try {
       const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
@@ -205,9 +186,16 @@ function AdminReassignments() {
       const myName = `${me.firstName} ${me.lastName}`;
 
       // ══════════════════════════════════════════════════════════
-      // 1. APPROVE → send to faculty
+      // 1. APPROVE → send to faculty (N/A for no-room items)
       // ══════════════════════════════════════════════════════════
       if (type === "approve") {
+        if (isNoRoom) {
+          showToast("error", "Cannot Approve",
+            "There is no new room to approve. Please choose Cancel or Reassign Again.");
+          setProcessing(false);
+          return;
+        }
+
         await updateDoc(doc(db, "roomReassignments", item.id), {
           status: "pending_faculty",
           adminNote: noteText || "",
@@ -226,9 +214,7 @@ function AdminReassignments() {
             title: `Room Reassignment — Please Respond`,
             message: `Your ${entryLabel} "${displayTitle}" has been moved from ${item.oldRoomName} to ${item.newRoomName} on ${item.date} (${fmt12(item.startTime)} – ${fmt12(item.endTime)}). Please review and respond.`,
             type: "room-reassignment",
-            unread: true,
-            archived: false,
-            badge: "NEW",
+            unread: true, archived: false, badge: "NEW",
             createdAt: serverTimestamp(),
           });
         }
@@ -242,16 +228,13 @@ function AdminReassignments() {
             title: "Reassignment Approved",
             message: `Your reassignment request (${item.oldRoomName} → ${item.newRoomName}) for "${displayTitle}" was approved. Waiting for faculty response.`,
             type: "room-reassignment-status",
-            unread: true,
-            archived: false,
-            badge: "INFO",
+            unread: true, archived: false, badge: "INFO",
             createdAt: serverTimestamp(),
           });
         }
 
         await logActivity({
-          user: myName,
-          role: me.role,
+          user: myName, role: me.role,
           action: "Approved room reassignment",
           actionType: "approve",
           target: `${displayTitle} • ${item.oldRoomName} → ${item.newRoomName}`,
@@ -262,10 +245,10 @@ function AdminReassignments() {
       }
 
       // ══════════════════════════════════════════════════════════
-      // 2. CANCEL CLASS → resolve conflict, notify clerk + faculty
+      // 2. CANCEL CLASS / ACTIVITY → resolve conflict
+      //    (works for pending, declined, and no-room items)
       // ══════════════════════════════════════════════════════════
       else if (type === "cancel_class") {
-        // Cancel the event
         if (item.eventId) {
           const evRef = doc(db, "events", item.eventId);
           const evSnap = await getDoc(evRef);
@@ -274,36 +257,29 @@ function AdminReassignments() {
           await updateDoc(evRef, {
             conflictResolved: true,
             resolution: "cancelled_class",
-            resolutionReason:
-              noteText ||
+            resolutionReason: noteText ||
               `${isEvent ? "Activity" : "Class"} cancelled by Admin${
-                isDeclinedItem ? " (faculty declined reassignment)" : ""
+                isDeclinedItem ? " (faculty declined reassignment)" :
+                isNoRoomItem ? " (no suitable room found)" : ""
               }.`,
             updatedAt: serverTimestamp(),
           });
 
-          // Cancel the conflicting schedule too
           if (item.scheduleId && evData.roomId) {
-            const schedRef = doc(
-              db,
-              "rooms",
-              evData.roomId,
-              "schedules",
-              item.scheduleId
-            );
+            const schedRef = doc(db, "rooms", evData.roomId, "schedules", item.scheduleId);
             const schedSnap = await getDoc(schedRef);
             if (schedSnap.exists()) {
               await updateDoc(schedRef, {
                 cancelled: true,
                 cancelledReason: `Cancelled by Admin${
-                  isDeclinedItem ? " — faculty declined reassignment" : ""
+                  isDeclinedItem ? " — faculty declined reassignment" :
+                  isNoRoomItem ? " — no suitable room" : ""
                 }`,
               });
             }
           }
         }
 
-        // Update the reassignment to cancelled
         await updateDoc(doc(db, "roomReassignments", item.id), {
           status: "cancelled",
           adminNote: noteText || "",
@@ -313,7 +289,7 @@ function AdminReassignments() {
           updatedAt: serverTimestamp(),
         });
 
-        // ── Notify the Clerk ─────────────────────────────────
+        // Notify Clerk
         if (item.requestedById) {
           await addDoc(collection(db, "notifications"), {
             userId: item.requestedById,
@@ -321,20 +297,14 @@ function AdminReassignments() {
             assignmentId: item.id,
             reassignmentId: item.id,
             title: isEvent ? "Activity Cancelled" : "Class Cancelled",
-            message: `The ${entryLabel} "${displayTitle}" on ${item.date} was cancelled by the Admin.${
-              isDeclinedItem
-                ? " (Faculty declined the reassignment proposal.)"
-                : ""
-            } No further action needed.`,
+            message: `The ${entryLabel} "${displayTitle}" on ${item.date} was cancelled by the Admin.${noteText ? ` Reason: ${noteText}` : ""} No further action needed.`,
             type: "room-reassignment-status",
-            unread: true,
-            archived: false,
-            badge: "INFO",
+            unread: true, archived: false, badge: "INFO",
             createdAt: serverTimestamp(),
           });
         }
 
-        // ── Notify the Faculty (NEW) ─────────────────────────
+        // Notify Faculty (with reason)
         if (item.facultyId) {
           await addDoc(collection(db, "notifications"), {
             userId: item.facultyId,
@@ -343,23 +313,18 @@ function AdminReassignments() {
             reassignmentId: item.id,
             title: isEvent ? "Activity Cancelled" : "Class Cancelled",
             message: isDeclinedItem
-              ? `Your ${entryLabel} "${displayTitle}" on ${item.date} (${fmt12(
-                  item.startTime
-                )} – ${fmt12(item.endTime)}) has been cancelled by the Admin after your reassignment was declined.${noteText ? ` Reason: ${noteText}` : ""}`
-              : `Your ${entryLabel} "${displayTitle}" on ${item.date} (${fmt12(
-                  item.startTime
-                )} – ${fmt12(item.endTime)}) has been cancelled by the Admin.${noteText ? ` Reason: ${noteText}` : ""}`,
+              ? `Your ${entryLabel} "${displayTitle}" on ${item.date} (${fmt12(item.startTime)} – ${fmt12(item.endTime)}) has been cancelled by the Admin after your reassignment was declined.${noteText ? ` Reason: ${noteText}` : ""}`
+              : isNoRoomItem
+              ? `Your ${entryLabel} "${displayTitle}" on ${item.date} (${fmt12(item.startTime)} – ${fmt12(item.endTime)}) has been cancelled by the Admin — no suitable room was available.${noteText ? ` Reason: ${noteText}` : ""}`
+              : `Your ${entryLabel} "${displayTitle}" on ${item.date} (${fmt12(item.startTime)} – ${fmt12(item.endTime)}) has been cancelled by the Admin.${noteText ? ` Reason: ${noteText}` : ""}`,
             type: "room-reassignment-status",
-            unread: true,
-            archived: false,
-            badge: "CANCELLED",
+            unread: true, archived: false, badge: "CANCELLED",
             createdAt: serverTimestamp(),
           });
         }
 
         await logActivity({
-          user: myName,
-          role: me.role,
+          user: myName, role: me.role,
           action: `Cancelled ${entryLabel} (via reassignment)`,
           actionType: "cancel",
           target: `${displayTitle} • ${item.oldRoomName}`,
@@ -374,12 +339,15 @@ function AdminReassignments() {
       }
 
       // ══════════════════════════════════════════════════════════
-      // 3. REASSIGN AGAIN → back to clerk
+      // 3. REASSIGN AGAIN → send back to clerk
+      //    (works for pending, declined, and no-room items)
       // ══════════════════════════════════════════════════════════
       else if (type === "reassign_again") {
         await updateDoc(doc(db, "roomReassignments", item.id), {
           status: "needs_reassign",
-          adminNote: noteText || "Please select another room.",
+          adminNote: noteText || (isNoRoomItem
+            ? "Please try again — check other floors or re-verify room availability."
+            : "Please select another room."),
           decidedById: auth.currentUser.uid,
           decidedByName: myName,
           decidedAt: serverTimestamp(),
@@ -393,31 +361,23 @@ function AdminReassignments() {
             assignmentId: item.id,
             reassignmentId: item.id,
             title: "Reassign Again",
-            message: `Please reassign this ${entryLabel} to a different room.${
-              noteText ? ` Reason: ${noteText}` : ""
-            }`,
+            message: `Please reassign this ${entryLabel} to a different room.${noteText ? ` Reason: ${noteText}` : ""}`,
             type: "room-reassignment-status",
-            unread: true,
-            archived: false,
-            badge: "ACTION",
+            unread: true, archived: false, badge: "ACTION",
             createdAt: serverTimestamp(),
           });
         }
 
         await logActivity({
-          user: myName,
-          role: me.role,
+          user: myName, role: me.role,
           action: "Requested reassignment again",
           actionType: "edit",
-          target: `${displayTitle} • ${item.oldRoomName} → ${item.newRoomName}`,
+          target: `${displayTitle} • ${item.oldRoomName}`,
           status: "PENDING",
         });
 
-        showToast(
-          "success",
-          "Sent back to Clerk",
-          "Clerk has been notified to reassign."
-        );
+        showToast("success", "Sent back to Clerk",
+          "Clerk has been notified to reassign.");
       }
 
       setActionModal(null);
@@ -465,11 +425,7 @@ function AdminReassignments() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             {searchTerm && (
-              <button
-                className="dhr-search-clear"
-                onClick={() => setSearchTerm("")}
-                aria-label="Clear"
-              >
+              <button className="dhr-search-clear" onClick={() => setSearchTerm("")} aria-label="Clear">
                 <i className="fa-solid fa-xmark"></i>
               </button>
             )}
@@ -489,22 +445,14 @@ function AdminReassignments() {
                 <span className="dhr-room-trigger-text">
                   {roomFilter || "All Rooms"}
                 </span>
-                <i
-                  className={`fa-solid fa-chevron-down dhr-room-caret ${
-                    showRoomPicker ? "open" : ""
-                  }`}
-                ></i>
+                <i className={`fa-solid fa-chevron-down dhr-room-caret ${showRoomPicker ? "open" : ""}`}></i>
               </button>
 
               {showRoomPicker && (
                 <>
-                  <div
-                    className="dhr-picker-clickaway"
-                    onClick={() => setShowRoomPicker(false)}
-                  ></div>
+                  <div className="dhr-picker-clickaway" onClick={() => setShowRoomPicker(false)}></div>
                   <div className="dhr-room-popover">
                     <span className="dhr-popover-arrow"></span>
-
                     <div className="dhr-search-wrap">
                       <i className="fa-solid fa-magnifying-glass"></i>
                       <input
@@ -529,9 +477,7 @@ function AdminReassignments() {
                     <div className="dhr-room-list">
                       <button
                         type="button"
-                        className={`dhr-room-option ${
-                          !roomFilter ? "is-active" : ""
-                        }`}
+                        className={`dhr-room-option ${!roomFilter ? "is-active" : ""}`}
                         onClick={() => {
                           setRoomFilter("");
                           setShowRoomPicker(false);
@@ -559,9 +505,7 @@ function AdminReassignments() {
                             <button
                               type="button"
                               key={r}
-                              className={`dhr-room-option ${
-                                isActive ? "is-active" : ""
-                              }`}
+                              className={`dhr-room-option ${isActive ? "is-active" : ""}`}
                               onClick={() => {
                                 setRoomFilter(r);
                                 setShowRoomPicker(false);
@@ -587,14 +531,9 @@ function AdminReassignments() {
 
             <div className="dhr-select">
               <i className="fa-solid fa-arrow-down-short-wide"></i>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-              >
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
                 {SORT_OPTIONS.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
+                  <option key={s.key} value={s.key}>{s.label}</option>
                 ))}
               </select>
               <i className="fa-solid fa-angle-down dhr-select-chev"></i>
@@ -629,11 +568,7 @@ function AdminReassignments() {
             </div>
           ) : (
             paginated.map((item) => (
-              <ReassignmentCard
-                key={item.id}
-                item={item}
-                onAction={openAction}
-              />
+              <ReassignmentCard key={item.id} item={item} onAction={openAction} />
             ))
           )}
         </div>
@@ -641,9 +576,7 @@ function AdminReassignments() {
         {!loading && totalPages > 1 && (
           <div className="dhr-pagination">
             <span className="dhr-page-info">
-              Showing {startIdx + 1}–
-              {Math.min(startIdx + ITEMS_PER_PAGE, filtered.length)} of{" "}
-              {filtered.length}
+              Showing {startIdx + 1}–{Math.min(startIdx + ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
             </span>
             <div className="dhr-page-controls">
               <button
@@ -663,9 +596,7 @@ function AdminReassignments() {
               ))}
               <button
                 disabled={safePage === totalPages}
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               >
                 <i className="fa-solid fa-chevron-right"></i>
               </button>
@@ -674,11 +605,11 @@ function AdminReassignments() {
         )}
       </div>
 
+      {/* ══════════════════════════════════════════════════════════
+          ACTION MODAL
+         ══════════════════════════════════════════════════════════ */}
       {actionModal && (
-        <div
-          className="dhr-modal-overlay"
-          onClick={() => !processing && setActionModal(null)}
-        >
+        <div className="dhr-modal-overlay" onClick={() => !processing && setActionModal(null)}>
           <div className="dhr-modal" onClick={(e) => e.stopPropagation()}>
             <div className={`dhr-modal-icon is-${actionModal.type}`}>
               <i
@@ -691,6 +622,7 @@ function AdminReassignments() {
                 }
               ></i>
             </div>
+
             <h3 className="dhr-modal-title">
               {actionModal.type === "approve"
                 ? "Approve Reassignment?"
@@ -700,12 +632,15 @@ function AdminReassignments() {
                   : "Cancel the Class?"
                 : "Reassign Again?"}
             </h3>
+
             <p className="dhr-modal-text">
               {actionModal.type === "approve"
                 ? "The affected faculty will be notified and can accept or decline."
                 : actionModal.type === "cancel_class"
                 ? actionModal.item.status === "declined"
-                  ? "The faculty declined this reassignment. Cancelling the class will resolve the conflict and notify both the faculty and the clerk."
+                  ? "The faculty declined this reassignment. Cancelling will resolve the conflict and notify both the faculty and the clerk with the reason you provide."
+                  : actionModal.item.noRoomOption
+                  ? "The Clerk reported no suitable room. Cancelling will resolve the conflict and notify both faculty and the clerk."
                   : actionModal.item.reassignType === "event"
                   ? "The activity will be cancelled immediately. No further response is needed."
                   : "The class will be cancelled immediately. The faculty is aware and no further response is needed."
@@ -714,57 +649,58 @@ function AdminReassignments() {
 
             <div className="dhr-modal-summary">
               <div className="dhr-modal-summary-row">
-                <i
-                  className={`fa-solid ${
-                    actionModal.item.reassignType === "event"
-                      ? "fa-calendar-plus"
-                      : "fa-chalkboard-user"
-                  }`}
-                ></i>
+                <i className={`fa-solid ${actionModal.item.reassignType === "event" ? "fa-calendar-plus" : "fa-chalkboard-user"}`}></i>
                 <span>
                   {actionModal.item.reassignType === "event"
                     ? actionModal.item.eventTitle || "Untitled Activity"
                     : actionModal.item.courseTitle || "—"}
-                  {actionModal.item.reassignType !== "event" &&
-                  actionModal.item.section
+                  {actionModal.item.reassignType !== "event" && actionModal.item.section
                     ? ` · ${actionModal.item.section}`
                     : ""}
                 </span>
               </div>
+
               <div className="dhr-modal-summary-row">
                 <i className="fa-solid fa-door-open"></i>
                 <span>
                   {actionModal.item.oldRoomName} →{" "}
-                  <strong>{actionModal.item.newRoomName}</strong>
+                  {actionModal.item.noRoomOption ? (
+                    <strong style={{ color: "#b45309" }}>
+                      {NO_ROOM_META[actionModal.item.noRoomOption]?.label || "No Room"}
+                    </strong>
+                  ) : (
+                    <strong>{actionModal.item.newRoomName || "—"}</strong>
+                  )}
                 </span>
               </div>
+
               <div className="dhr-modal-summary-row">
                 <i className="fa-regular fa-calendar"></i>
                 <span>{fmtDate(actionModal.item.date)}</span>
               </div>
+
               <div className="dhr-modal-summary-row">
                 <i className="fa-regular fa-clock"></i>
                 <span>
-                  {fmt12(actionModal.item.startTime)} –{" "}
-                  {fmt12(actionModal.item.endTime)}
+                  {fmt12(actionModal.item.startTime)} – {fmt12(actionModal.item.endTime)}
                 </span>
               </div>
 
-              {actionModal.item.status === "declined" &&
-                actionModal.item.denialReason && (
-                  <div
-                    className="dhr-modal-summary-row"
-                    style={{ color: "#b91c1c" }}
-                  >
-                    <i
-                      className="fa-solid fa-circle-xmark"
-                      style={{ color: "#dc2626" }}
-                    ></i>
-                    <span>
-                      Faculty decline reason: {actionModal.item.denialReason}
-                    </span>
-                  </div>
-                )}
+              {/* Clerk reason (no-room submissions) */}
+              {actionModal.item.noRoomOption && actionModal.item.clerkReason && (
+                <div className="dhr-modal-summary-row" style={{ color: "#92400e" }}>
+                  <i className="fa-solid fa-comment-dots" style={{ color: "#d97706" }}></i>
+                  <span>Clerk reason: {actionModal.item.clerkReason}</span>
+                </div>
+              )}
+
+              {/* Faculty decline reason */}
+              {actionModal.item.status === "declined" && actionModal.item.denialReason && (
+                <div className="dhr-modal-summary-row" style={{ color: "#b91c1c" }}>
+                  <i className="fa-solid fa-circle-xmark" style={{ color: "#dc2626" }}></i>
+                  <span>Faculty decline reason: {actionModal.item.denialReason}</span>
+                </div>
+              )}
             </div>
 
             <textarea
@@ -773,7 +709,7 @@ function AdminReassignments() {
                 actionModal.type === "reassign_again"
                   ? "Optional note for the Clerk…"
                   : actionModal.type === "cancel_class"
-                  ? "Optional reason (added to record)…"
+                  ? "Reason for cancellation (will be shown to faculty & clerk)…"
                   : "Optional note (added to record)…"
               }
               value={noteText}
@@ -823,45 +759,40 @@ function AdminReassignments() {
 // ─── Card ────────────────────────────────────────────────────────
 function ReassignmentCard({ item, onAction }) {
   const statusMap = {
-    pending_admin: { label: "Needs Review", cls: "is-pending-admin" },
-    pending: { label: "Needs Review", cls: "is-pending-admin" },
-    pending_faculty: { label: "With Faculty", cls: "is-pending-faculty" },
-    needs_reassign: { label: "Returned to Clerk", cls: "is-needs-reassign" },
-    accepted: { label: "Confirmed", cls: "is-accepted" },
-    declined: { label: "Declined", cls: "is-declined" },
-    cancelled: { label: "Cancelled", cls: "is-cancelled" },
+    pending_admin:   { label: "Needs Review",       cls: "is-pending-admin" },
+    pending:         { label: "Needs Review",       cls: "is-pending-admin" },
+    pending_faculty: { label: "With Faculty",       cls: "is-pending-faculty" },
+    needs_reassign:  { label: "Returned to Clerk",  cls: "is-needs-reassign" },
+    accepted:        { label: "Confirmed",          cls: "is-accepted" },
+    declined:        { label: "Declined",           cls: "is-declined" },
+    cancelled:       { label: "Cancelled",          cls: "is-cancelled" },
   };
   const meta = statusMap[item.status] || statusMap.pending_admin;
 
-  const isPending =
-    item.status === "pending_admin" || item.status === "pending";
+  const isPending = item.status === "pending_admin" || item.status === "pending";
   const isDeclined = item.status === "declined";
   const isEvent = item.reassignType === "event";
+  const isNoRoom = !!item.noRoomOption;
+  const noRoomMeta = isNoRoom ? NO_ROOM_META[item.noRoomOption] : null;
 
   const displayTitle = isEvent
     ? item.eventTitle || item.courseTitle || "Untitled Activity"
     : item.courseTitle || "Untitled Class";
 
-  const displaySubtitle = isEvent ? item.eventReason || "" : item.section || "";
+  const displaySubtitle = isEvent
+    ? item.eventReason || ""
+    : item.section || "";
 
   const acceptedDate = item.acceptedAt?.toDate?.() || item.acceptedAt || null;
   const declinedDate = item.declinedAt?.toDate?.() || item.declinedAt || null;
 
   return (
-    <div className={`dhr-card ${meta.cls}`}>
+    <div className={`dhr-card ${meta.cls} ${isNoRoom ? "is-no-room" : ""}`}>
       <div className="dhr-card-top">
         <div className="dhr-card-title-block">
           <div className="dhr-card-title">
-            <span
-              className={`dhr-type-chip ${
-                isEvent ? "is-event" : "is-class"
-              }`}
-            >
-              <i
-                className={`fa-solid ${
-                  isEvent ? "fa-calendar-plus" : "fa-chalkboard-user"
-                }`}
-              ></i>
+            <span className={`dhr-type-chip ${isEvent ? "is-event" : "is-class"}`}>
+              <i className={`fa-solid ${isEvent ? "fa-calendar-plus" : "fa-chalkboard-user"}`}></i>
               {isEvent ? "Activity" : "Class"}
             </span>
             {displayTitle}
@@ -885,7 +816,11 @@ function ReassignmentCard({ item, onAction }) {
         </div>
         <div className="dhr-info">
           <span className="dhr-info-label">To</span>
-          <span className="dhr-info-value">{item.newRoomName || "—"}</span>
+          <span className="dhr-info-value" style={isNoRoom ? { color: "#b45309" } : undefined}>
+            {isNoRoom
+              ? (noRoomMeta?.label || "No Room")
+              : (item.newRoomName || "—")}
+          </span>
         </div>
         <div className="dhr-info">
           <span className="dhr-info-label">Date</span>
@@ -898,6 +833,19 @@ function ReassignmentCard({ item, onAction }) {
           </span>
         </div>
       </div>
+
+      {/* Clerk "no room" reason banner */}
+      {isNoRoom && item.clerkReason && (
+        <div
+          className="dhr-note"
+          style={{ background: "#fffbeb", color: "#92400e" }}
+        >
+          <i className={`fa-solid ${noRoomMeta?.icon || "fa-circle-info"}`}></i>
+          <span>
+            <strong>Clerk report — {noRoomMeta?.label}:</strong> {item.clerkReason}
+          </span>
+        </div>
+      )}
 
       {item.adminNote && (
         <div className="dhr-note">
@@ -928,9 +876,7 @@ function ReassignmentCard({ item, onAction }) {
             <strong>Accepted by faculty</strong>
             {item.facultyName ? ` — ${item.facultyName}` : ""}
             {acceptedDate ? ` · ${fmtDate(acceptedDate)}` : ""}
-            {` · ${isEvent ? "Activity" : "Class"} moved to ${
-              item.newRoomName || "new room"
-            }.`}
+            {` · ${isEvent ? "Activity" : "Class"} moved to ${item.newRoomName || "new room"}.`}
           </span>
         </div>
       )}
@@ -950,15 +896,17 @@ function ReassignmentCard({ item, onAction }) {
         </div>
       )}
 
-      {/* ── Pending: Approve / Cancel / Reassign Again ── */}
+      {/* ── Pending: Approve (only if may new room) / Cancel / Reassign Again ── */}
       {isPending && (
         <div className="dhr-actions">
-          <button
-            className="dhr-btn dhr-btn-approve"
-            onClick={() => onAction(item, "approve")}
-          >
-            <i className="fa-solid fa-circle-check"></i> Approve
-          </button>
+          {!isNoRoom && (
+            <button
+              className="dhr-btn dhr-btn-approve"
+              onClick={() => onAction(item, "approve")}
+            >
+              <i className="fa-solid fa-circle-check"></i> Approve
+            </button>
+          )}
           <button
             className="dhr-btn dhr-btn-cancel"
             onClick={() => onAction(item, "cancel_class")}
@@ -975,7 +923,7 @@ function ReassignmentCard({ item, onAction }) {
         </div>
       )}
 
-      {/* ── Declined: only Cancel to resolve the conflict ── */}
+      {/* ── Declined: 2 buttons → Cancel Class | Reassign Again ── */}
       {isDeclined && (
         <div className="dhr-actions">
           <button
@@ -984,6 +932,12 @@ function ReassignmentCard({ item, onAction }) {
           >
             <i className="fa-solid fa-ban"></i>{" "}
             {isEvent ? "Cancel Activity" : "Cancel Class"}
+          </button>
+          <button
+            className="dhr-btn dhr-btn-reassign"
+            onClick={() => onAction(item, "reassign_again")}
+          >
+            <i className="fa-solid fa-rotate-left"></i> Reassign Again
           </button>
         </div>
       )}

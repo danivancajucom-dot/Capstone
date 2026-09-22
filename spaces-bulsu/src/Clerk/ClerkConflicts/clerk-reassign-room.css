@@ -818,3 +818,141 @@
   color: #c2601a;
   font-weight: 800;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   NO ROOM OPTIONS
+   ═══════════════════════════════════════════════════════════════ */
+.no-room-options {
+  margin-top: 20px;
+  padding: 18px 20px;
+  background: #fffbeb;
+  border: 1.5px dashed #fcd34d;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.no-room-options-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.no-room-options-header > i {
+  color: #d97706;
+  font-size: 18px;
+  margin-top: 2px;
+}
+.no-room-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #78350f;
+}
+.no-room-subtitle {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #92400e;
+  line-height: 1.5;
+}
+.no-room-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.no-room-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid #fcd34d;
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: 0.15s;
+}
+.no-room-btn:hover:not(:disabled) {
+  border-color: #f57c00;
+  background: #fff7ed;
+  transform: translateY(-1px);
+}
+.no-room-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.no-room-btn > i {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.no-room-btn.is-unavailable > i {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.no-room-btn.is-unsuited > i {
+  background: #fff7ed;
+  color: #b45309;
+}
+.no-room-btn strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1e2430;
+}
+.no-room-btn span {
+  display: block;
+  font-size: 11.5px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  .no-room-buttons { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NO-ROOM REASON (inside preview modal)
+   ═══════════════════════════════════════════════════════════════ */
+.crr-preview-icon.is-no-room {
+  background: #fef3c7;
+  color: #b45309;
+}
+.no-room-reason-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed #e7e2dc;
+}
+.no-room-reason-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #7a4a1f;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.no-room-reason-label .req {
+  color: #dc2626;
+}
+.no-room-reason-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  background: #fff;
+  box-sizing: border-box;
+}
+.no-room-reason-textarea:focus {
+  border-color: #f57c00;
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.12);
+}
