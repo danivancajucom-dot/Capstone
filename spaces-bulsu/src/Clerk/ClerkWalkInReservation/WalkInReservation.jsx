@@ -24,6 +24,7 @@ const MAX_HOUR = 20;
 const MIN_MINUTES = MIN_HOUR * 60; // 420
 const MAX_MINUTES = MAX_HOUR * 60; // 1200
 const ITEMS_PER_PAGE = 6;
+const LIVE_ITEMS_PER_PAGE = 4; // ✅ bagong constant para sa sidebar
 
 // ─── Helpers ────────────────────────────────────────────────────────
 const convertToMinutes = (time) => {
@@ -178,10 +179,11 @@ export default function WalkInReservation() {
   const [showModal, setShowModal] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
 
-  // ─── NEW: filters + pagination ─────────────────────────────────────
+  // ─── Filters + pagination ──────────────────────────────────────────
   const [selectedBuilding, setSelectedBuilding] = useState("All Buildings");
   const [selectedFloor, setSelectedFloor] = useState("All Floors");
   const [currentPage, setCurrentPage] = useState(1);
+  const [liveCurrentPage, setLiveCurrentPage] = useState(1); // ✅ para sa sidebar
 
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -442,7 +444,7 @@ export default function WalkInReservation() {
   ]);
 
   // ═══════════════════════════════════════════════════════════════════
-  //  NEW: BUILDING + FLOOR OPTIONS
+  //  BUILDING + FLOOR OPTIONS
   // ═══════════════════════════════════════════════════════════════════
   const buildingOptions = useMemo(() => {
     const set = new Set();
@@ -464,7 +466,6 @@ export default function WalkInReservation() {
     return ["All Floors", ...Array.from(set).sort()];
   }, [rooms, selectedBuilding]);
 
-  // Reset floor if it's no longer valid under the current building
   useEffect(() => {
     if (!floorOptions.includes(selectedFloor)) {
       setSelectedFloor("All Floors");
@@ -472,7 +473,7 @@ export default function WalkInReservation() {
   }, [floorOptions, selectedFloor]);
 
   // ═══════════════════════════════════════════════════════════════════
-  //  NEW: FILTERED + PAGINATED ROOMS
+  //  FILTERED + PAGINATED ROOMS
   // ═══════════════════════════════════════════════════════════════════
   const filteredAvailableRooms = useMemo(() => {
     let list = availableRooms;
@@ -498,12 +499,10 @@ export default function WalkInReservation() {
   );
   const paginatedRooms = filteredAvailableRooms.slice(startIndex, endIndex);
 
-  // Reset to page 1 whenever the filters/date change
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedBuilding, selectedFloor, selectedDate]);
 
-  // If current page became invalid (e.g. fewer items after filter)
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -559,6 +558,34 @@ export default function WalkInReservation() {
     selectedDate,
     currentMinutes,
   ]);
+
+  // ✅ Pagination para sa live availability sidebar
+  const totalLivePages = Math.max(
+    1,
+    Math.ceil(liveAvailability.length / LIVE_ITEMS_PER_PAGE),
+  );
+  const safeLivePage = Math.min(liveCurrentPage, totalLivePages);
+  const liveStartIndex = (safeLivePage - 1) * LIVE_ITEMS_PER_PAGE;
+  const liveEndIndex = Math.min(
+    liveStartIndex + LIVE_ITEMS_PER_PAGE,
+    liveAvailability.length,
+  );
+  const paginatedLiveAvailability = liveAvailability.slice(
+    liveStartIndex,
+    liveEndIndex,
+  );
+
+  // ✅ Reset live page sa page 1 kapag nagbago ang date
+  useEffect(() => {
+    setLiveCurrentPage(1);
+  }, [selectedDate]);
+
+  // ✅ Kung naging invalid ang live page
+  useEffect(() => {
+    if (liveCurrentPage > totalLivePages) {
+      setLiveCurrentPage(totalLivePages);
+    }
+  }, [liveCurrentPage, totalLivePages]);
 
   // ═══════════════════════════════════════════════════════════════════
   //  START TIME OPTIONS
@@ -1244,9 +1271,7 @@ export default function WalkInReservation() {
               </div>
             </div>
 
-            {/* ═══════════════════════════════════════════════════════
-                NEW: SLOTS HEADER — label + building + floor filters
-               ═══════════════════════════════════════════════════════ */}
+            {/* SLOTS HEADER — label + building + floor filters */}
             <div className="wir-slots-header">
               <span className="wir-slots-label">Available Room Slots</span>
 
@@ -1362,9 +1387,7 @@ export default function WalkInReservation() {
               )}
             </div>
 
-            {/* ═══════════════════════════════════════════════════════
-                NEW: PAGINATION
-               ═══════════════════════════════════════════════════════ */}
+            {/* PAGINATION */}
             {!loadingRooms && filteredAvailableRooms.length > 0 && totalPages > 1 && (
               <div className="wir-pagination">
                 <span className="wir-page-info">
@@ -1527,7 +1550,7 @@ export default function WalkInReservation() {
               </div>
 
               <div className="wir-avail-list">
-                {liveAvailability.map((room) => (
+                {paginatedLiveAvailability.map((room) => (
                   <div
                     key={room.id}
                     className={`wir-live-room ${
@@ -1584,6 +1607,46 @@ export default function WalkInReservation() {
                   </div>
                 ))}
               </div>
+
+              {/* ✅ PAGINATION — live availability sidebar */}
+              {totalLivePages > 1 && (
+                <div className="wir-live-pagination">
+                  <button
+                    type="button"
+                    className="wir-live-page-btn"
+                    disabled={safeLivePage === 1}
+                    onClick={() => setLiveCurrentPage((p) => Math.max(1, p - 1))}
+                    aria-label="Previous"
+                  >
+                    <i className="fa-solid fa-chevron-left"></i>
+                  </button>
+
+                  {Array.from({ length: totalLivePages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`wir-live-page-btn ${safeLivePage === p ? "active" : ""}`}
+                      onClick={() => setLiveCurrentPage(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="wir-live-page-btn"
+                    disabled={safeLivePage === totalLivePages}
+                    onClick={() => setLiveCurrentPage((p) => Math.min(totalLivePages, p + 1))}
+                    aria-label="Next"
+                  >
+                    <i className="fa-solid fa-chevron-right"></i>
+                  </button>
+
+                  <span className="wir-live-page-info">
+                    {liveStartIndex + 1}–{liveEndIndex} of {liveAvailability.length}
+                  </span>
+                </div>
+              )}
 
               <button
                 className="wir-view-btn"
