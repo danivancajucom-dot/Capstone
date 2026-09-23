@@ -29,19 +29,19 @@ if (!GEMINI_API_KEY) {
   console.error("❌ GEMINI_API_KEY is not set");
 }
 
-// ✅ KEEP MANY MODELS — budget-based timeout will protect the wall-clock time
+// ✅ KEEP MANY MODELS — budget-based timeout will protect wall-clock time
 const GEMINI_MODELS = [
-  "gemini-flash-latest",       // primary — always latest stable
+  "gemini-flash-latest",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-2.5-flash",
-  "gemini-flash-lite-latest",  // last resort — lite (fastest)
+  "gemini-flash-lite-latest",
 ];
 
 // Total wall-clock budget for the whole fallback chain.
-// Vercel Hobby cap = 10s. Leave 2s headroom for cold start + body parse + response.
-const TOTAL_BUDGET_MS = 8000;
-const PER_MODEL_MAX_MS = 4000;
+// Vercel Hobby cap = 10s. Leave 1s headroom for cold start + body parse + response.
+const TOTAL_BUDGET_MS = 9000;
+const PER_MODEL_MAX_MS = 4500;
 
 const buildGeminiUrl = (model) =>
   GEMINI_API_KEY
@@ -60,7 +60,6 @@ async function generateWithRetry(prompt) {
     const elapsed = Date.now() - startTime;
     const remaining = TOTAL_BUDGET_MS - elapsed;
 
-    // Not enough time left for another attempt — stop
     if (remaining < 800) {
       console.warn(
         `⏱️ Budget exhausted after ${elapsed}ms — stopping (tried: ${tried.join(", ")})`
@@ -108,16 +107,22 @@ async function generateWithRetry(prompt) {
       lastError = error;
       const totalMs = Date.now() - startTime;
 
-      // Timeout — try next model, but budget check at top will handle
+      // Timeout — try next model immediately
       if (error.name === "AbortError") {
-        console.warn(`⏱️ ${model} timed out after ${timeoutMs}ms (total ${totalMs}ms) — trying next`);
+        console.warn(
+          `⏱️ ${model} timed out after ${timeoutMs}ms (total ${totalMs}ms) — trying next`
+        );
         continue;
       }
       if (error.status === 401 || error.status === 403) {
         throw new Error("Invalid Gemini API key.");
       }
-      if (error.status === 503 || error.status === 429) {
-        console.warn(`🔄 ${model} returned ${error.status} (overloaded) — trying next`);
+      if (error.status === 429) {
+        console.warn(`🚫 ${model} rate limited (429) — trying next`);
+        continue;
+      }
+      if (error.status === 503) {
+        console.warn(`🔄 ${model} overloaded (503) — trying next`);
         continue;
       }
 
@@ -127,10 +132,20 @@ async function generateWithRetry(prompt) {
     }
   }
 
-  // All attempts exhausted
+  // All attempts exhausted — detect error type for clearer message
+  if (lastError?.status === 429) {
+    throw new Error(
+      "Too many requests to AI right now. Please wait 1 minute and try again."
+    );
+  }
+  if (lastError?.status === 503) {
+    throw new Error(
+      "AI service is temporarily overloaded. Please try again in a few seconds."
+    );
+  }
   if (lastError?.name === "AbortError") {
     throw new Error(
-      "AI service is slow right now. Please try again in a few seconds."
+      "AI is taking too long. Please try again, or upload a smaller file."
     );
   }
   throw lastError || new Error("All AI models failed. Please try again.");
