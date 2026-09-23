@@ -54,6 +54,8 @@ const SORT_OPTIONS = [
 
 const steps = [{ number: 1, label: "DETAILS" }, { number: 2, label: "CONFIRM" }];
 
+const DELETE_PHRASE = "DELETE USER";
+
 async function createUserSecondaryApp(email, password) {
   const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
@@ -163,7 +165,25 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
   const [deleting, setDeleting] = useState(false);
   const [unblocking, setUnblocking] = useState(false);
 
-  const handleDeleteUser = (user) => setDeleteTarget(user);
+  // ── NEW: 2-step strong warning delete ──
+  const [deleteStep, setDeleteStep] = useState(1);
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const handleDeleteUser = (user) => {
+    setDeleteTarget(user);
+    setDeleteStep(1);
+    setDeleteAcknowledged(false);
+    setDeleteConfirmText("");
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setDeleteTarget(null);
+    setDeleteStep(1);
+    setDeleteAcknowledged(false);
+    setDeleteConfirmText("");
+  };
 
   const confirmDeleteUser = async () => {
     if (!deleteTarget) return;
@@ -187,6 +207,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
       });
 
       showToast("success", "User Deleted", `${targetUser.email} was removed. The email can now be reused.`);
+      closeDeleteModal();
     } catch (e) {
       console.error("Delete error:", e);
       if (e?.code === "functions/not-found" || e?.code === "functions/unavailable") {
@@ -200,9 +221,13 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
       }
     } finally {
       setDeleting(false);
-      setDeleteTarget(null);
     }
   };
+
+  const isDeleteReady =
+    deleteStep === 2 &&
+    deleteAcknowledged &&
+    deleteConfirmText.trim() === DELETE_PHRASE;
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -525,7 +550,6 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
                       </td>
                       <td>
                         <div className="um-actions">
-                          {/* Unblock button — lalabas lang kapag Blocked */}
                           {isBlocked && (
                             <button
                               className="um-action-icon unlock"
@@ -577,28 +601,165 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         )}
       </div>
 
+      {/* ═══════════════════════════════════════════════════════
+          DELETE USER — 2-step strong warning modal
+          ═══════════════════════════════════════════════════════ */}
       {deleteTarget && (
-        <div className="um-modal-overlay">
-          <div className="um-modal">
-            <div className="um-modal-icon is-danger"><i className="fa-solid fa-trash" /></div>
-            <h3 className="um-modal-title">Delete User</h3>
-            <p className="um-modal-text">
-              Are you sure you want to permanently delete<br />
-              <strong>{deleteTarget.email}</strong>?<br /><br />
-              This will <strong>remove the account from Authentication</strong> so the email can be reused for a new account.
-              All associated watches and notifications will also be deleted.<br /><br />
-              This action <strong>cannot be undone</strong>.
-            </p>
-            <div className="um-modal-actions">
-              <button className="um-modal-cancel" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
-              <button className="um-modal-confirm is-danger" onClick={confirmDeleteUser} disabled={deleting}>
-                {deleting ? (<><i className="fa-solid fa-spinner fa-spin" /> Deleting…</>) : ("Yes, Delete Permanently")}
-              </button>
-            </div>
+        <div className="um-modal-overlay" onClick={closeDeleteModal}>
+          <div className="um-modal um-modal-delete-warning" onClick={(e) => e.stopPropagation()}>
+            {deleteStep === 1 && (
+              <>
+                <div className="um-modal-icon is-danger um-modal-icon-pulse">
+                  <i className="fa-solid fa-triangle-exclamation" />
+                </div>
+                <h3 className="um-modal-title">Delete User Account?</h3>
+                <p className="um-modal-text">
+                  This is a <strong>permanent and irreversible</strong> action.
+                  Please read carefully before continuing.
+                </p>
+
+                <div className="um-modal-target">
+                  <i className="fa-solid fa-user-xmark" />
+                  <div>
+                    <span className="um-target-label">Target Account</span>
+                    <span className="um-target-value">{deleteTarget.email}</span>
+                  </div>
+                </div>
+
+                <div className="um-delete-warning-box">
+                  <div className="um-delete-warning-title">
+                    <i className="fa-solid fa-circle-exclamation" />
+                    What will be permanently destroyed
+                  </div>
+                  <ul className="um-delete-warning-list">
+                    <li><i className="fa-solid fa-xmark" />The Firebase Authentication account (email becomes reusable)</li>
+                    <li><i className="fa-solid fa-xmark" />All profile data — name, role, status, temp password</li>
+                    <li><i className="fa-solid fa-xmark" />All rooms the user is currently watching ("Notify Me")</li>
+                    <li><i className="fa-solid fa-xmark" />Entire notification history and unread alerts</li>
+                    <li><i className="fa-solid fa-xmark" />All class schedules, reservations, and bookings tied to this account</li>
+                    <li><i className="fa-solid fa-xmark" />Login audit trail and account activity logs</li>
+                  </ul>
+                </div>
+
+                <label className="um-delete-ack">
+                  <input
+                    type="checkbox"
+                    checked={deleteAcknowledged}
+                    onChange={(e) => setDeleteAcknowledged(e.target.checked)}
+                  />
+                  <span>
+                    I understand this action is <strong>permanent</strong> and
+                    cannot be undone. All data associated with{" "}
+                    <strong>{deleteTarget.email}</strong> will be erased.
+                  </span>
+                </label>
+
+                <div className="um-modal-actions">
+                  <button
+                    type="button"
+                    className="um-modal-cancel"
+                    onClick={closeDeleteModal}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="um-modal-confirm is-danger"
+                    disabled={!deleteAcknowledged}
+                    onClick={() => setDeleteStep(2)}
+                  >
+                    Continue to Confirmation <i className="fa-solid fa-arrow-right" />
+                  </button>
+                </div>
+              </>
+            )}
+
+            {deleteStep === 2 && (
+              <>
+                <div className="um-modal-icon is-danger um-modal-icon-pulse">
+                  <i className="fa-solid fa-trash-can" />
+                </div>
+                <h3 className="um-modal-title">Final Confirmation</h3>
+                <p className="um-modal-text">
+                  This is your <strong>last chance</strong>. Once you click the delete
+                  button below, this account is gone forever.
+                </p>
+
+                <div className="um-delete-danger-banner">
+                  <i className="fa-solid fa-skull-crossbones" />
+                  <span>Point of no return</span>
+                </div>
+
+                <div className="um-modal-target is-danger">
+                  <i className="fa-solid fa-user-xmark" />
+                  <div>
+                    <span className="um-target-label">Deleting</span>
+                    <span className="um-target-value">{deleteTarget.email}</span>
+                  </div>
+                </div>
+
+                <div className="um-form-group" style={{ width: "100%", textAlign: "left" }}>
+                  <label>
+                    Type <span className="um-danger-text">{DELETE_PHRASE}</span> to confirm
+                  </label>
+                  <input
+                    type="text"
+                    className="um-input"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder={DELETE_PHRASE}
+                    autoComplete="off"
+                    spellCheck="false"
+                  />
+                  <small
+                    className={
+                      deleteConfirmText === DELETE_PHRASE
+                        ? "um-phrase-ok"
+                        : deleteConfirmText.length > 0
+                        ? "um-phrase-bad"
+                        : ""
+                    }
+                  >
+                    {deleteConfirmText === DELETE_PHRASE ? (
+                      <><i className="fa-solid fa-circle-check" /> Phrase matched</>
+                    ) : deleteConfirmText.length > 0 ? (
+                      <><i className="fa-solid fa-circle-xmark" /> Phrase doesn't match</>
+                    ) : (
+                      "Type the exact phrase to enable the delete button."
+                    )}
+                  </small>
+                </div>
+
+                <div className="um-modal-actions">
+                  <button
+                    type="button"
+                    className="um-modal-cancel"
+                    onClick={() => setDeleteStep(1)}
+                    disabled={deleting}
+                  >
+                    <i className="fa-solid fa-arrow-left" /> Back
+                  </button>
+                  <button
+                    type="button"
+                    className="um-modal-confirm is-danger"
+                    onClick={confirmDeleteUser}
+                    disabled={!isDeleteReady || deleting}
+                  >
+                    {deleting ? (
+                      <><i className="fa-solid fa-spinner fa-spin" /> Deleting…</>
+                    ) : (
+                      <><i className="fa-solid fa-trash-can" /> Delete Forever</>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
 
+      {/* ── Reset password modal ── */}
       {resetTarget && (
         <div className="um-modal-overlay">
           <div className="um-modal">
@@ -615,6 +776,7 @@ function UserList({ onCreateAccount, logActivity, getFullName, showToast }) {
         </div>
       )}
 
+      {/* ── Unblock modal ── */}
       {unblockTarget && (
         <div className="um-modal-overlay">
           <div className="um-modal">

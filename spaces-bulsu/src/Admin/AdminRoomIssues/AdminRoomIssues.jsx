@@ -20,6 +20,78 @@ const SORT_OPTIONS = [
 
 const SEVERITY_ORDER = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
 
+// ══════════════════════════════════════════════════════════════
+// Inline Confirm Modal — may built-in loading state
+// ══════════════════════════════════════════════════════════════
+function ConfirmModal({
+  title,
+  message,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  loadingText = "Processing…",
+  variant = "primary", // primary | warning | danger | success
+  icon = "fa-solid fa-circle-question",
+  loading = false,
+  onCancel,
+  onConfirm,
+}) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape" && !loading) onCancel?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loading, onCancel]);
+
+  return (
+    <div
+      className="ri-cm-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={() => !loading && onCancel?.()}
+    >
+      <div
+        className={`ri-cm-card ri-cm-${variant}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ri-cm-icon">
+          <i className={icon} />
+        </div>
+
+        <h3 className="ri-cm-title">{title}</h3>
+        {message && <p className="ri-cm-message">{message}</p>}
+
+        <div className="ri-cm-actions">
+          <button
+            type="button"
+            className="ri-cm-btn ri-cm-btn-cancel"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            {cancelText}
+          </button>
+
+          <button
+            type="button"
+            className="ri-cm-btn ri-cm-btn-confirm"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="ri-cm-spinner" />
+                <span>{loadingText}</span>
+              </>
+            ) : (
+              <span>{confirmText}</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminRoomIssues() {
   const [issues, setIssues]             = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -31,6 +103,7 @@ export default function AdminRoomIssues() {
   const [maintenanceRooms, setMaintenanceRooms] = useState({});
   const [busy, setBusy]                 = useState(false);
   const [acknowledgingId, setAcknowledgingId] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   // ── Room picker popover state ──────────────────────────────
   const [showRoomPicker, setShowRoomPicker] = useState(false);
@@ -146,65 +219,67 @@ export default function AdminRoomIssues() {
   };
 
   // ══════════════════════════════════════════════════════════════
-  // ACKNOWLEDGE — direct, may loading sa button + toast feedback
+  // ACKNOWLEDGE — may confirm modal + loading state
   // ══════════════════════════════════════════════════════════════
-  const acknowledge = async (issue) => {
-    if (busy || acknowledgingId) return;
+  const acknowledge = (issue) => {
+    if (busy) return;
 
-    setAcknowledgingId(issue.id);
-    setBusy(true);
+    setConfirmAction({
+      title: "Acknowledge Issue?",
+      message: `Acknowledge the ${issue.severity || ""} ${issue.category || "room"} issue in ${issue.roomName}? This will forward it to the Clerk and notify all clerks.`,
+      confirmText: "Acknowledge",
+      loadingText: "Acknowledging…",
+      variant: "primary",
+      icon: "fa-solid fa-circle-check",
+      onConfirm: async () => {
+        setAcknowledgingId(issue.id);
+        setBusy(true);
+        try {
+          const u = await getCurrentUser();
 
-    // Show loading toast
-    showToast("loading", "Acknowledging…", `Processing ${issue.roomName} issue.`);
+          await updateDoc(doc(db, "roomIssues", issue.id), {
+            status: "Acknowledged",
+            acknowledgedBy: u.name,
+            acknowledgedAt: serverTimestamp(),
+          });
 
-    try {
-      const u = await getCurrentUser();
+          await logActivity({
+            user: u.name,
+            role: u.role,
+            action: "Acknowledged room issue",
+            actionType: "edit",
+            target: `${issue.roomName} • ${issue.category || ""}`,
+            status: "Success",
+          });
 
-      // 1. Update issue status
-      await updateDoc(doc(db, "roomIssues", issue.id), {
-        status: "Acknowledged",
-        acknowledgedBy: u.name,
-        acknowledgedAt: serverTimestamp(),
-      });
+          await notifyReporter(
+            issue,
+            "Issue Acknowledged",
+            `Your reported issue in ${issue.roomName} (${issue.category || "issue"}) has been acknowledged and forwarded to the Clerk for action.`,
+            "INFO"
+          );
 
-      // 2. Activity log
-      await logActivity({
-        user: u.name,
-        role: u.role,
-        action: "Acknowledged room issue",
-        actionType: "edit",
-        target: `${issue.roomName} • ${issue.category || ""}`,
-        status: "Success",
-      });
+          await notifyAllClerks(
+            "New Acknowledged Issue",
+            `${u.name} acknowledged a ${issue.severity || ""} ${issue.category || "room"} issue in ${issue.roomName}. Please review and take action.`,
+            issue
+          );
 
-      // 3. Notify the FACULTY reporter
-      await notifyReporter(
-        issue,
-        "Issue Acknowledged",
-        `Your reported issue in ${issue.roomName} (${issue.category || "issue"}) has been acknowledged and forwarded to the Clerk for action.`,
-        "INFO"
-      );
-
-      // 4. Notify ALL CLERKS
-      await notifyAllClerks(
-        "New Acknowledged Issue",
-        `${u.name} acknowledged a ${issue.severity || ""} ${issue.category || "room"} issue in ${issue.roomName}. Please review and take action.`,
-        issue
-      );
-
-      // Success toast
-      showToast(
-        "success",
-        "Acknowledged",
-        `${issue.roomName} issue forwarded to Clerk. Reporter notified.`
-      );
-    } catch (err) {
-      console.error(err);
-      showToast("error", "Failed", err.message || "Could not acknowledge issue.");
-    } finally {
-      setBusy(false);
-      setAcknowledgingId(null);
-    }
+          showToast(
+            "success",
+            "Acknowledged",
+            `${issue.roomName} issue forwarded to Clerk. Reporter notified.`
+          );
+        } catch (err) {
+          console.error(err);
+          showToast("error", "Failed", err.message || "Could not acknowledge issue.");
+        } finally {
+          setBusy(false);
+          setAcknowledgingId(null);
+          setConfirmAction(null);
+        }
+      },
+    });
   };
 
   // ── Counts ─────────────────────────────────────────────────
@@ -524,6 +599,20 @@ export default function AdminRoomIssues() {
           </div>
         )}
       </div>
+
+      {confirmAction && (
+        <ConfirmModal
+          title={confirmAction.title}
+          message={confirmAction.message}
+          confirmText={confirmAction.confirmText}
+          loadingText={confirmAction.loadingText}
+          variant={confirmAction.variant}
+          icon={confirmAction.icon}
+          loading={busy}
+          onCancel={() => !busy && setConfirmAction(null)}
+          onConfirm={confirmAction.onConfirm}
+        />
+      )}
 
       <Toast
         show={toast.show}

@@ -3,7 +3,6 @@ import "../../Components/IssueReportCard/issue-report-card.css";
 import "./room-issues.css";
 import IssueReportCard from "../../Components/IssueReportCard/IssueReportCard";
 import SubmitIssueModal from "../../Components/SubmitIssueModal/SubmitIssueModal";
-import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
 import {
@@ -69,6 +68,78 @@ const getTodayISO = () => {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${dd}`;
 };
+
+// ══════════════════════════════════════════════════════════════
+// Inline Confirm Modal — may built-in loading state
+// ══════════════════════════════════════════════════════════════
+function ConfirmModal({
+  title,
+  message,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  loadingText = "Processing…",
+  variant = "primary", // primary | warning | danger | success
+  icon = "fa-solid fa-circle-question",
+  loading = false,
+  onCancel,
+  onConfirm,
+}) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape" && !loading) onCancel?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loading, onCancel]);
+
+  return (
+    <div
+      className="ri-cm-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={() => !loading && onCancel?.()}
+    >
+      <div
+        className={`ri-cm-card ri-cm-${variant}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ri-cm-icon">
+          <i className={icon} />
+        </div>
+
+        <h3 className="ri-cm-title">{title}</h3>
+        {message && <p className="ri-cm-message">{message}</p>}
+
+        <div className="ri-cm-actions">
+          <button
+            type="button"
+            className="ri-cm-btn ri-cm-btn-cancel"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            {cancelText}
+          </button>
+
+          <button
+            type="button"
+            className="ri-cm-btn ri-cm-btn-confirm"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="ri-cm-spinner" />
+                <span>{loadingText}</span>
+              </>
+            ) : (
+              <span>{confirmText}</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ClerkRoomIssues() {
   const [issues, setIssues]             = useState([]);
@@ -176,13 +247,11 @@ export default function ClerkRoomIssues() {
     if (!roomId) return { notifiedCount: 0, totalSchedules: 0 };
 
     try {
-      // 1. Fetch schedules from room
       const scheduleSnap = await getDocs(
         collection(db, "rooms", roomId, "schedules")
       );
       const today = getTodayISO();
 
-      // Only consider active schedules (not initialized, active on today's date)
       const activeSchedules = scheduleSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((s) => {
@@ -190,7 +259,7 @@ export default function ClerkRoomIssues() {
           try {
             if (!isActiveOnDate(s, today)) return false;
           } catch (e) {
-            // if isActiveOnDate throws for any reason, still include
+            // ignore
           }
           return true;
         });
@@ -199,10 +268,8 @@ export default function ClerkRoomIssues() {
         return { notifiedCount: 0, totalSchedules: 0 };
       }
 
-      // 2. Fetch all users to map faculty names → user IDs
       const usersSnap = await getDocs(collection(db, "users"));
 
-      // 3. Group schedules by faculty user
       const facultySchedulesMap = new Map();
 
       for (const schedule of activeSchedules) {
@@ -225,7 +292,6 @@ export default function ClerkRoomIssues() {
         facultySchedulesMap.get(facultyDoc.id).schedules.push(schedule);
       }
 
-      // 4. Send ONE notification per faculty
       let notifiedCount = 0;
       let totalSchedules = 0;
 
@@ -307,13 +373,16 @@ export default function ClerkRoomIssues() {
     setConfirmAction({
       title: "Mark Room Under Maintenance?",
       message: `This will flag ${issue.roomName} as Under Maintenance and notify all faculty with schedules in this room.`,
+      confirmText: "Mark Under Maintenance",
+      loadingText: "Flagging room…",
+      variant: "warning",
+      icon: "fa-solid fa-triangle-exclamation",
       onConfirm: async () => {
         setBusy(true);
         try {
           const u = await getCurrentUser();
           const today = getTodayISO();
 
-          // 1. Update room status
           await updateDoc(doc(db, "rooms", issue.roomId), {
             status: "Under Maintenance",
             roomStatus: "maintenance",
@@ -326,14 +395,12 @@ export default function ClerkRoomIssues() {
             maintenanceStartDate: today,
           });
 
-          // 2. Update issue status
           await updateDoc(doc(db, "roomIssues", issue.id), {
             status: "In Progress",
             inProgressBy: u.name,
             inProgressAt: serverTimestamp(),
           });
 
-          // 3. Activity log
           await logActivity({
             user: u.name, role: u.role,
             action: "Marked room under maintenance",
@@ -342,14 +409,12 @@ export default function ClerkRoomIssues() {
             status: "Success",
           });
 
-          // 4. Notify the reporter
           await notifyReporter(
             issue,
             "Room Under Maintenance",
             `Your reported issue in ${issue.roomName} is now being addressed. The room has been flagged as Under Maintenance.`
           );
 
-          // 5. ✅ Notify ALL affected faculty
           const { notifiedCount, totalSchedules } = await notifyAffectedFaculty({
             roomId: issue.roomId,
             roomName: issue.roomName,
@@ -358,7 +423,6 @@ export default function ClerkRoomIssues() {
             actorName: u.name,
           });
 
-          // 6. Toast summary
           showToast(
             "success",
             "Room Flagged",
@@ -382,13 +446,16 @@ export default function ClerkRoomIssues() {
     setConfirmAction({
       title: "Restore Room?",
       message: `Remove the Under Maintenance flag from ${issue.roomName}? All affected faculty will be notified that the room is available again.`,
+      confirmText: "Restore Room",
+      loadingText: "Restoring room…",
+      variant: "success",
+      icon: "fa-solid fa-circle-check",
       onConfirm: async () => {
         setBusy(true);
         try {
           const u = await getCurrentUser();
           const today = getTodayISO();
 
-          // 1. Update room status
           await updateDoc(doc(db, "rooms", issue.roomId), {
             status: "Available",
             roomStatus: "active",
@@ -401,7 +468,6 @@ export default function ClerkRoomIssues() {
             maintenanceEndDate: null,
           });
 
-          // 2. Activity log
           await logActivity({
             user: u.name, role: u.role,
             action: "Restored room from maintenance",
@@ -410,14 +476,12 @@ export default function ClerkRoomIssues() {
             status: "Success",
           });
 
-          // 3. Notify the reporter
           await notifyReporter(
             issue,
             "Room Restored",
             `${issue.roomName} has been restored and is now available again.`
           );
 
-          // 4. ✅ Notify ALL affected faculty
           const { notifiedCount, totalSchedules } = await notifyAffectedFaculty({
             roomId: issue.roomId,
             roomName: issue.roomName,
@@ -425,7 +489,6 @@ export default function ClerkRoomIssues() {
             actorName: u.name,
           });
 
-          // 5. Toast summary
           showToast(
             "success",
             "Room Restored",
@@ -449,6 +512,10 @@ export default function ClerkRoomIssues() {
     setConfirmAction({
       title: "Mark as Resolved?",
       message: `Mark the ${issue.category} issue in ${issue.roomName} as Resolved?`,
+      confirmText: "Mark as Resolved",
+      loadingText: "Resolving…",
+      variant: "success",
+      icon: "fa-solid fa-check",
       onConfirm: async () => {
         setBusy(true);
         try {
@@ -850,11 +917,16 @@ export default function ClerkRoomIssues() {
       />
 
       {confirmAction && (
-        <ConfirmPopup
+        <ConfirmModal
           title={confirmAction.title}
           message={confirmAction.message}
-          onCancel={() => setConfirmAction(null)}
-          onConfirm={busy ? null : confirmAction.onConfirm}
+          confirmText={confirmAction.confirmText}
+          loadingText={confirmAction.loadingText}
+          variant={confirmAction.variant}
+          icon={confirmAction.icon}
+          loading={busy}
+          onCancel={() => !busy && setConfirmAction(null)}
+          onConfirm={confirmAction.onConfirm}
         />
       )}
 
