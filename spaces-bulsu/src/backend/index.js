@@ -13,11 +13,10 @@ import crypto from "crypto";
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "4mb" })); // Vercel hard-caps ~4.5MB
+app.use(express.json({ limit: "4mb" }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// ---------- Boot diagnostics (visible in Vercel → Logs) ----------
 console.log("🚀 Boot:", {
   hasGemini: !!GEMINI_API_KEY,
   hasFirebase: !!process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -30,79 +29,111 @@ if (!GEMINI_API_KEY) {
   console.error("❌ GEMINI_API_KEY is not set");
 }
 
+// ✅ KEEP MANY MODELS — budget-based timeout will protect the wall-clock time
 const GEMINI_MODELS = [
-  "gemini-flash-latest",       
-  "gemini-3.6-flash",          
-  "gemini-3.5-flash",          
-  "gemini-2.5-flash",          
-  "gemini-flash-lite-latest", 
+  "gemini-flash-latest",       // primary — always latest stable
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-2.5-flash",
+  "gemini-flash-lite-latest",  // last resort — lite (fastest)
 ];
+
+// Total wall-clock budget for the whole fallback chain.
+// Vercel Hobby cap = 10s. Leave 2s headroom for cold start + body parse + response.
+const TOTAL_BUDGET_MS = 8000;
+const PER_MODEL_MAX_MS = 4000;
 
 const buildGeminiUrl = (model) =>
   GEMINI_API_KEY
     ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
     : null;
 
-// ---------- GEMINI WITH RETRY + MODEL FALLBACK ----------
-async function generateWithRetry(prompt, maxRetries = 2) {
+// ---------- GEMINI WITH BUDGET-BASED FALLBACK ----------
+async function generateWithRetry(prompt) {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured on server.");
 
+  const startTime = Date.now();
   let lastError;
+  const tried = [];
 
   for (const model of GEMINI_MODELS) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6500);
+    const elapsed = Date.now() - startTime;
+    const remaining = TOTAL_BUDGET_MS - elapsed;
 
-        const response = await fetch(buildGeminiUrl(model), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.1,
-              responseMimeType: "application/json",
-            },
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+    // Not enough time left for another attempt — stop
+    if (remaining < 800) {
+      console.warn(
+        `⏱️ Budget exhausted after ${elapsed}ms — stopping (tried: ${tried.join(", ")})`
+      );
+      break;
+    }
 
-        const data = await response.json();
+    const timeoutMs = Math.min(remaining, PER_MODEL_MAX_MS);
+    tried.push(`${model}(${timeoutMs}ms)`);
 
-        if (!response.ok) {
-          const err = new Error(data?.error?.message || "Unknown Gemini error");
-          err.status = response.status;
-          err.model = model;
-          throw err;
-        }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error("Empty response from Gemini");
-        console.log(`✅ Success via ${model} (attempt ${attempt})`);
-        return text;
-      } catch (error) {
-        lastError = error;
-        console.error(`Gemini ${model} attempt ${attempt} failed:`, error.message);
+      const response = await fetch(buildGeminiUrl(model), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: "application/json",
+          },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
-        if (error.name === "AbortError") break;
-        if (error.status === 401 || error.status === 403) {
-          throw new Error("Invalid Gemini API key.");
-        }
-        if (error.status === 503 || error.status === 429) {
-          if (attempt < maxRetries) {
-            await new Promise((r) => setTimeout(r, 800 * attempt));
-            continue;
-          }
-          break;
-        }
-        break;
+      const data = await response.json();
+
+      if (!response.ok) {
+        const err = new Error(data?.error?.message || "Unknown Gemini error");
+        err.status = response.status;
+        err.model = model;
+        throw err;
       }
+
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Empty response from Gemini");
+
+      const totalMs = Date.now() - startTime;
+      console.log(`✅ Success via ${model} in ${totalMs}ms`);
+      return text;
+    } catch (error) {
+      lastError = error;
+      const totalMs = Date.now() - startTime;
+
+      // Timeout — try next model, but budget check at top will handle
+      if (error.name === "AbortError") {
+        console.warn(`⏱️ ${model} timed out after ${timeoutMs}ms (total ${totalMs}ms) — trying next`);
+        continue;
+      }
+      if (error.status === 401 || error.status === 403) {
+        throw new Error("Invalid Gemini API key.");
+      }
+      if (error.status === 503 || error.status === 429) {
+        console.warn(`🔄 ${model} returned ${error.status} (overloaded) — trying next`);
+        continue;
+      }
+
+      // Other error (404 model not found, etc.) — try next
+      console.warn(`⚠️ ${model} failed: ${error.message} — trying next`);
+      continue;
     }
   }
 
-  throw lastError || new Error("All Gemini models failed.");
+  // All attempts exhausted
+  if (lastError?.name === "AbortError") {
+    throw new Error(
+      "AI service is slow right now. Please try again in a few seconds."
+    );
+  }
+  throw lastError || new Error("All AI models failed. Please try again.");
 }
 
 // ---------- SAFE JSON PARSER ----------
@@ -118,7 +149,6 @@ function extractJSON(text) {
 
 // =============================================================
 //  FIREBASE ADMIN via NATIVE CRYPTO + REST API
-//  (no firebase-admin, no jose, no ESM crash)
 // =============================================================
 
 let cachedToken = null;
@@ -185,7 +215,6 @@ async function updateUserPassword(email, newPassword) {
   const projectId = sa.project_id;
   const accessToken = await getGoogleAccessToken();
 
-  // ── 1. Look up user by email ──
   const lookupRes = await fetch(
     `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:lookup`,
     {
@@ -215,7 +244,6 @@ async function updateUserPassword(email, newPassword) {
     throw err;
   }
 
-  // ── 2. Update password ──
   const updateRes = await fetch(
     `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:update`,
     {
@@ -245,7 +273,7 @@ async function updateUserPassword(email, newPassword) {
 
 app.get("/api/test-key", async (req, res) => {
   try {
-    const text = await generateWithRetry("Say the word OK and nothing else.", 1);
+    const text = await generateWithRetry("Say the word OK and nothing else.");
     res.json({ success: true, response: text });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -449,7 +477,7 @@ app.post("/api/reset-password", async (req, res) => {
   }
 });
 
-// ---------- GLOBAL ERROR HANDLER (must be last) ----------
+// ---------- GLOBAL ERROR HANDLER ----------
 app.use((err, req, res, next) => {
   console.error("💥 Unhandled:", err);
   res.status(500).json({
