@@ -14,6 +14,8 @@ import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
 import "./import-schedule-modal.css";
+import { extractInChunks } from "../../utils/extractInChunks";
+import { logActivity } from "../../utils/logActivity"; // ✅ NEW
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -197,7 +199,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
         if (normalizeName(data.faculty) !== normalizedFaculty) return;
         if (!data.semester || !data.schoolYear) return;
 
-        // ✅ Prefer active term by adding a large bonus
         const activeBonus = data.isActive ? 1000 : 0;
         const rank =
           activeBonus +
@@ -219,6 +220,19 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
     }
 
     return { semester: latestSemester, schoolYear: latestSchoolYear };
+  };
+
+  // ─── Check if faculty already uploaded for a term ────────────
+  const hasFacultyUploadedForTerm = async (userId, semester, schoolYear) => {
+    if (!userId || !semester || !schoolYear) return false;
+    const q = query(
+      collection(db, "facultySchedules"),
+      where("userId", "==", userId),
+      where("semester", "==", semester),
+      where("schoolYear", "==", schoolYear)
+    );
+    const snap = await getDocs(q);
+    return !snap.empty;
   };
 
   // ─── Validate a single schedule ────────────────────────────────
@@ -288,31 +302,38 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
         await getFacultyLatestTerm(facultyName);
       setProgress(`Latest term: ${facultySemester} ${facultySchoolYear}`);
 
+      const alreadyUploaded = await hasFacultyUploadedForTerm(
+        firebaseUser.uid,
+        facultySemester,
+        facultySchoolYear
+      );
+
+      if (alreadyUploaded) {
+        showToast(
+          "error",
+          "Already Uploaded",
+          `You already submitted your schedule for ${facultySemester} ${facultySchoolYear}. You can only upload once per term. Wait for the registrar to activate a new term before uploading again.`
+        );
+        setLoading(false);
+        return;
+      }
+
       let schedules = [];
       if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
         schedules = await parseExcelFile(file);
       } else {
         const rawText = await extractRawText(file);
-        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-        const response = await fetch(`${apiUrl}/api/extract-online-schedule`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rawText,
+        schedules = await extractInChunks({
+          rawText,
+          endpoint: "/api/extract-online-schedule",
+          payload: {
             semester: facultySemester,
             schoolYear: facultySchoolYear,
             faculty: facultyName,
-          }),
+          },
+          maxChunkChars: 2000,
+          onProgress: (i, total) => setProgress(`Extracting ${i}/${total}...`),
         });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "AI extraction failed.");
-        }
-        const data = await response.json();
-        if (!data.success)
-          throw new Error(data.message || "Extraction failed.");
-        schedules = data.schedules || [];
       }
 
       if (schedules.length === 0) {
@@ -428,6 +449,7 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
       let added = 0;
       let skipped = 0;
       let onlineAdded = 0;
+      let onlineSkipped = 0;
 
       for (const item of extractedSchedules) {
         const roomName = item.room?.trim();
@@ -497,7 +519,6 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
             endTime: item.endTime || "",
             semester: latestSemester,
             schoolYear: latestSchoolYear,
-            // ✅ Not live until registrar activates the term
             isActive: false,
             activeFrom: null,
             activeUntil: null,
@@ -511,6 +532,22 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
           const sem = item._semester || "1st Semester";
           const sy = item._schoolYear || "";
 
+          const dupOnlineQ = query(
+            collection(db, "facultySchedules"),
+            where("userId", "==", firebaseUser.uid),
+            where("semester", "==", sem),
+            where("schoolYear", "==", sy),
+            where("subject", "==", item.subject || ""),
+            where("day", "==", item.day || ""),
+            where("startTime", "==", item.startTime || ""),
+            where("endTime", "==", item.endTime || "")
+          );
+          const dupOnlineSnap = await getDocs(dupOnlineQ);
+          if (!dupOnlineSnap.empty) {
+            onlineSkipped++;
+            continue;
+          }
+
           await addDoc(collection(db, "facultySchedules"), {
             userId: firebaseUser.uid,
             facultyName: facultyName,
@@ -522,19 +559,57 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
             semester: sem,
             schoolYear: sy,
             isOnline: true,
+            isActive: false,
+            activeFrom: null,
+            activeUntil: null,
             createdAt: serverTimestamp(),
           });
           onlineAdded++;
         }
       }
 
-      setProgress(
-        `Done: ${added} room schedules, ${onlineAdded} online classes, ${skipped} skipped.`
-      );
+      const summaryParts = [];
+      if (added > 0) summaryParts.push(`${added} room schedules`);
+      if (onlineAdded > 0) summaryParts.push(`${onlineAdded} online classes`);
+      if (skipped > 0) summaryParts.push(`${skipped} room duplicates skipped`);
+      if (onlineSkipped > 0)
+        summaryParts.push(`${onlineSkipped} online duplicates skipped`);
+
+      // ✅ Log activity (only if something happened)
+      if (added > 0 || onlineAdded > 0 || skipped > 0 || onlineSkipped > 0) {
+        const firstItem = extractedSchedules[0] || {};
+        const semester = firstItem._semester || "1st Semester";
+        const schoolYear = firstItem._schoolYear || "";
+
+        try {
+          await logActivity({
+            userId: firebaseUser.uid,
+            user: facultyName,
+            role: userData.role || "Faculty",
+            action: "Imported class schedule",
+            actionType: "create",
+            target: summaryParts.join(", "),
+            status: "Success",
+            details: {
+              semester,
+              schoolYear,
+              roomSchedulesAdded: added,
+              onlineClassesAdded: onlineAdded,
+              roomDuplicatesSkipped: skipped,
+              onlineDuplicatesSkipped: onlineSkipped,
+              fileName: file?.name || "",
+            },
+          });
+        } catch (logErr) {
+          console.error("Failed to log activity:", logErr);
+        }
+      }
+
+      setProgress(`Done: ${summaryParts.join(", ")}.`);
       showToast(
         "success",
         "Import Complete",
-        `${added} room schedules + ${onlineAdded} online classes added. ${skipped} duplicates skipped.`
+        summaryParts.join(", ") + "."
       );
 
       setTimeout(() => {
@@ -704,9 +779,7 @@ export default function ImportScheduleModal({ show, onClose, onSuccess }) {
               return (
                 <div
                   key={item._id || index}
-                  className={`ism-preview-item ${
-                    hasErrors ? "has-error" : ""
-                  }`}
+                  className={`ism-preview-item ${hasErrors ? "has-error" : ""}`}
                 >
                   {editingIndex === index ? (
                     <div className="ism-edit-form">

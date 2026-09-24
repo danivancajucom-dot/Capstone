@@ -281,3 +281,27 @@
     font-size: 14px;
   }
 }
+
+/* ─── Disabled states habang submitting ──────────────── */
+.approve-btn-reservation:disabled,
+.deny-btn-reservation:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none !important;
+  filter: saturate(0.85);
+}
+
+.approve-btn-reservation:disabled:hover,
+.deny-btn-reservation:disabled:hover {
+  background-color: inherit;
+  border: none;
+  color: #ffffff;
+}
+
+.approve-btn-reservation:disabled:hover {
+  background-color: #16a34a;
+}
+
+.deny-btn-reservation:disabled:hover {
+  background-color: #dc2626;
+}

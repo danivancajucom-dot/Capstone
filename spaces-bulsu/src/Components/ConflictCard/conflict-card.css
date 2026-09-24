@@ -354,3 +354,87 @@
   flex-shrink: 0;
   color: #ea580c;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   RETURNED STATE — kapag ni-return ng Admin via Reassign Again
+   ═══════════════════════════════════════════════════════════════ */
+.conflict-card.is-returned {
+  border-left: 4px solid #f97316;
+}
+
+.conflict-card.is-returned .conflict-card-icon {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.conflict-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.conflict-status-badge.status-returned {
+  background: #ffedd5;
+  color: #c2410c;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 5px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.conflict-returned-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff7ed;
+  border-left: 3px solid #f97316;
+  border-radius: 10px;
+  color: #9a3412;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.conflict-returned-note > i {
+  color: #ea580c;
+  font-size: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.conflict-returned-note-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.conflict-returned-note-body strong {
+  font-weight: 800;
+  color: #7c2d12;
+  font-size: 12.5px;
+}
+
+.conflict-returned-reason {
+  font-size: 12px;
+  color: #9a3412;
+  word-break: break-word;
+}
+
+.reassign-btn.is-returned {
+  background: #f97316;
+  color: #fff;
+  border-color: #f97316;
+}
+
+.reassign-btn.is-returned:hover {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #f97316;
+}

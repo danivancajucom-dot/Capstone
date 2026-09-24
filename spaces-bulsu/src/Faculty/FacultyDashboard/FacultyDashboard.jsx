@@ -29,6 +29,9 @@ const normalizeName = (name = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const isApprovedReassignment = (status) =>
+  ["approved", "accepted"].includes(String(status || "").toLowerCase());
+
 const semesterRank = (sem = "") => {
   const s = sem.toLowerCase();
   if (s.includes("2nd")) return 2;
@@ -135,12 +138,17 @@ const timeAgo = (timestamp, now) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
+// ✅ Text-only preview — never renders images/attachments, so the card
+//    stays the same height regardless of what was attached.
 const announcementPreview = (a) => {
-  if (a.content) return a.content;
+  if (a.content && a.content.trim()) return a.content.trim();
   const imgCount = (a.imageUrls || (a.imageUrl ? [a.imageUrl] : [])).length;
   const fileCount = (a.files || (a.fileUrl ? [1] : [])).length;
-  if (imgCount) return `📷 Sent ${imgCount} photo${imgCount > 1 ? "s" : ""}`;
-  if (fileCount) return `📎 Sent ${fileCount} file${fileCount > 1 ? "s" : ""}`;
+  if (imgCount && fileCount) {
+    return `📷 Sent ${imgCount} image${imgCount > 1 ? "s" : ""} and ${fileCount} attachment${fileCount > 1 ? "s" : ""}`;
+  }
+  if (imgCount) return `📷 Sent ${imgCount} image${imgCount > 1 ? "s" : ""}`;
+  if (fileCount) return `📎 Sent ${fileCount} attachment${fileCount > 1 ? "s" : ""}`;
   return "New announcement";
 };
 
@@ -328,9 +336,7 @@ export default function FacultyDashboard({ onLogout }) {
           (snap) => {
             const all = snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
-              .filter(
-                (r) => String(r.status || "").toLowerCase() === "approved"
-              );
+              .filter((r) => isApprovedReassignment(r.status));
 
             const away = new Set(
               all
@@ -680,7 +686,7 @@ export default function FacultyDashboard({ onLogout }) {
             </button>
           </div>
 
-          {/* ─── ANNOUNCEMENT (now below the greeting) ─────────────── */}
+          {/* ─── ANNOUNCEMENT (PERMANENT — text preview only) ────── */}
           {announcementLoading ? (
             <div className="announce-card is-skeleton">
               <div className="announce-skeleton-avatar"></div>
@@ -724,19 +730,11 @@ export default function FacultyDashboard({ onLogout }) {
                 )}
               </div>
 
+              {/* ✅ Text-only preview — no image / attachment rendering.
+                  Layout stays identical no matter what was attached. */}
               <p className="announce-text">
                 {announcementPreview(latestAnnouncement)}
               </p>
-
-              {(latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl) && (
-                <div className="announce-image-wrap">
-                  <img
-                    src={latestAnnouncement.imageUrls?.[0] || latestAnnouncement.imageUrl}
-                    alt="Announcement attachment"
-                    className="announce-image"
-                  />
-                </div>
-              )}
 
               <div className="announce-actions">
                 <button

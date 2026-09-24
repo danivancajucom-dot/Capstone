@@ -8,7 +8,6 @@ export default function LoginNav({
   onSignIn,
   onLogout,
   onAboutClick,
-  onSupportClick,
   onContactClick,
 }) {
   const handleSignInClick = () => {
@@ -32,21 +31,18 @@ export default function LoginNav({
           <p className="brand-name">SpaceS CICT</p>
         </div>
       </div>
-      
+
       <div className="nav-right">
         {activePage === 'login' ? (
           <>
             <button type="button" className="nav-link" onClick={onAboutClick}>
               About
             </button>
-            <button type="button" className="nav-link" onClick={onSupportClick}>
-              Support
-            </button>
             <button type="button" className="nav-link" onClick={onContactClick}>
               Contact
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="nav-signin-text"
               onClick={handleSignInClick}
             >

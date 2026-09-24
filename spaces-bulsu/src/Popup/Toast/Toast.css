@@ -1,3 +1,10 @@
+/* ═══════════════════════════════════════════════════════════════
+   Toast — Responsive
+   Desktop: top-right, 350px wide
+   Tablet:  top-right, narrower
+   Mobile:  top → full-width-ish, smaller fonts
+   ═══════════════════════════════════════════════════════════════ */
+
 .toast-container {
   position: fixed;
   top: 20px;
@@ -13,6 +20,8 @@
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   z-index: 9999;
   animation: slideIn 0.3s ease;
+  box-sizing: border-box;
+  max-width: calc(100vw - 40px);
 }
 
 .toast-container.success {
@@ -58,22 +67,26 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0; /* so text can truncate if needed */
 }
 
 .toast-content h3,
 .toast-content p {
   margin: 0;
+  word-break: break-word;
 }
 
 .toast-content h3 {
   font-size: 20px;
   font-weight: 700;
   color: #0f172a;
+  line-height: 1.25;
 }
 
 .toast-content p {
   font-size: 18px;
   color: #64748b;
+  line-height: 1.35;
 }
 
 .toast-close {
@@ -82,6 +95,10 @@
   cursor: pointer;
   font-size: 28px;
   color: #94a3b8;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
 }
 
 .toast-close:hover {
@@ -93,7 +110,6 @@
     opacity: 0;
     transform: translateX(100%);
   }
-
   to {
     opacity: 1;
     transform: translateX(0);
@@ -104,8 +120,141 @@
   from {
     transform: rotate(0deg);
   }
-
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TABLET (≤768px) — slimmer, smaller type
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .toast-container {
+    top: 16px;
+    right: 16px;
+    width: 320px;
+    min-height: 70px;
+    padding: 16px;
+    gap: 14px;
+    border-radius: 16px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .toast-container.success { border-left-width: 7px; }
+  .toast-container.error   { border-left-width: 7px; }
+  .toast-container.loading { border-left-width: 7px; }
+
+  .toast-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 22px;
+  }
+
+  .toast-content h3 {
+    font-size: 17px;
+  }
+
+  .toast-content p {
+    font-size: 15px;
+  }
+
+  .toast-close {
+    font-size: 22px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE (≤600px) — full-width-ish, stacked-ish, tighter
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .toast-container {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    min-height: 60px;
+    padding: 14px;
+    gap: 12px;
+    border-radius: 14px;
+    animation: slideDown 0.3s ease;
+  }
+
+  .toast-container.success { border-left-width: 6px; }
+  .toast-container.error   { border-left-width: 6px; }
+  .toast-container.loading { border-left-width: 6px; }
+
+  .toast-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 20px;
+  }
+
+  .toast-content {
+    gap: 3px;
+  }
+
+  .toast-content h3 {
+    font-size: 15.5px;
+  }
+
+  .toast-content p {
+    font-size: 13.5px;
+  }
+
+  .toast-close {
+    font-size: 20px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VERY SMALL MOBILE (≤380px) — most compact
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 380px) {
+  .toast-container {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    padding: 12px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .toast-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 17px;
+  }
+
+  .toast-content h3 {
+    font-size: 14px;
+  }
+
+  .toast-content p {
+    font-size: 12.5px;
+  }
+
+  .toast-close {
+    font-size: 18px;
+  }
+}
+
+/* ─── On mobile, slide in from the top (full-width bar) ────── */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Reduced motion preference ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .toast-container,
+  .loading .toast-icon {
+    animation: none;
   }
 }

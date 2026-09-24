@@ -8,7 +8,7 @@ import classroomImg from "../../assets/Classroom.jpeg";
 const ROOMS_PER_PAGE = 8;
 
 // ═════════════════════════════════════════════════════════════════════
-// INLINE SEARCH SELECT — popover with search (from Room Usage Tracking)
+// INLINE SEARCH SELECT — popover with search
 // ═════════════════════════════════════════════════════════════════════
 function InlineSearchSelect({
   value,
@@ -158,6 +158,15 @@ const format12Hour = (time) => {
   return `${hour}:${minute.toString().padStart(2, "0")} ${ampm}`;
 };
 
+// Kunin yung photo URL mula sa iba't-ibang possible fields
+const getRoomPhoto = (room) =>
+  room?.photoUrl ||
+  room?.image ||
+  room?.roomPhoto ||
+  room?.photo ||
+  room?.roomImage ||
+  null;
+
 const getActivityIcon = (type) => {
   switch (type) {
     case "success": return "fa-solid fa-circle-check";
@@ -232,7 +241,7 @@ export default function AdminDashboard() {
               building: room.building || room.bldg || "",
               floor: room.floor,
               statusField: room.roomStatus,
-              image: room.image || null,
+              image: getRoomPhoto(room),     // ← use helper
               schedules,
             });
 
@@ -642,7 +651,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Compact filters */}
           {(buildingOptions.length > 1 || floorOptions.length > 1) && (
             <div className="dept-db-filter-inline">
               {buildingOptions.length > 1 && (
@@ -704,11 +712,23 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="dept-db-room-card-img">
-                    <img
-                      src={room.image || classroomImg}
-                      alt={room.roomName}
-                      className="dept-db-room-img"
-                    />
+                    {room.image ? (
+                      <img
+                        src={room.image}
+                        alt={room.roomName}
+                        className="dept-db-room-img"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          e.currentTarget.parentElement.classList.add(
+                            "dept-db-room-img-fallback"
+                          );
+                        }}
+                      />
+                    ) : (
+                      <div className="dept-db-room-img-fallback">
+                        <span>{room.roomName}</span>
+                      </div>
+                    )}
                   </div>
 
                   <p className="dept-db-room-type">{room.roomType}</p>

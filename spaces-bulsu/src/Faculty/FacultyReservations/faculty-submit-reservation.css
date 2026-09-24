@@ -1410,3 +1410,105 @@ body {
     flex-direction: column;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   VENUE FILTERS (Status + Floor) — side by side
+   ═══════════════════════════════════════════════════════════ */
+.faculty-submit-venue-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ROOM PAGINATION
+   ═══════════════════════════════════════════════════════════ */
+.room-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid #EEF1F5;
+  flex-wrap: wrap;
+}
+
+.room-page-btn,
+.room-page-nav {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid #E5E7EB;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .15s, background .15s, color .15s, transform .1s;
+}
+
+.room-page-btn:hover,
+.room-page-nav:hover:not(:disabled) {
+  border-color: #F2690D;
+  color: #F2690D;
+  background: #FFF9F3;
+  transform: translateY(-1px);
+}
+
+.room-page-btn.active {
+  background: #F2690D;
+  border-color: #F2690D;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(242, 105, 13, 0.28);
+}
+
+.room-page-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.room-page-nav i {
+  font-size: 11px;
+}
+
+.room-page-info {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94A3B8;
+  white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 520px) {
+  .faculty-submit-venue-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .faculty-submit-venue-filters {
+    width: 100%;
+  }
+
+  .faculty-submit-venue-filters .faculty-submit-venue-dropdown-wrapper {
+    flex: 1;
+  }
+
+  .faculty-submit-venue-filters .faculty-submit-venue-dropdown {
+    width: 100%;
+  }
+
+  .room-page-info {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+  }
+}

@@ -33,7 +33,8 @@ const formatDate = (dateStr) => {
 function ConflictCard({
   conflict,
   showReassign = true,
-  onReassignClick,   // called when Reassign pressed — parent opens chooser modal
+  onReassignClick,          // parent opens chooser modal
+  returnedInfo = null,      // { adminNote, decidedByName, decidedAt } kung needs_reassign
 }) {
   const formatTime = (time) => {
     if (!time) return "";
@@ -49,13 +50,14 @@ function ConflictCard({
 
   const isResolved = conflict.status === "resolved";
   const isApproved = conflict.resolution === "approved";
+  const isReturned = !!returnedInfo;   // ← Admin returned it via "Reassign Again"
 
   return (
-    <div className={`conflict-card ${status.className}`}>
+    <div className={`conflict-card ${status.className} ${isReturned ? "is-returned" : ""}`}>
       <div className="conflict-card-top">
         <div className="conflict-card-header">
           <div className="conflict-card-icon">
-            <i className="fa-solid fa-triangle-exclamation"></i>
+            <i className={`fa-solid ${isReturned ? "fa-rotate-left" : "fa-triangle-exclamation"}`}></i>
           </div>
           <div className="conflict-card-info">
             <span className="conflict-card-title">
@@ -68,7 +70,14 @@ function ConflictCard({
             </span>
           </div>
         </div>
-        <span className={`conflict-status-badge ${status.className}`}>{status.label}</span>
+        <div className="conflict-card-badges">
+          {isReturned && (
+            <span className="conflict-status-badge status-returned">
+              <i className="fa-solid fa-rotate-left"></i> Returned
+            </span>
+          )}
+          <span className={`conflict-status-badge ${status.className}`}>{status.label}</span>
+        </div>
       </div>
 
       <div className="conflict-detail-grid">
@@ -114,6 +123,24 @@ function ConflictCard({
         </div>
       )}
 
+      {/* Admin's return note (kapag needs_reassign) */}
+      {isReturned && (
+        <div className="conflict-returned-note">
+          <i className="fa-solid fa-rotate-left"></i>
+          <div className="conflict-returned-note-body">
+            <strong>
+              Returned by Admin
+              {returnedInfo.decidedByName ? ` — ${returnedInfo.decidedByName}` : ""}
+            </strong>
+            {returnedInfo.adminNote && (
+              <span className="conflict-returned-reason">
+                Reason: {returnedInfo.adminNote}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {isResolved && conflict.resolutionReason && (
         <div className="conflict-resolution-box">
           <span className={`resolution-badge ${isApproved ? "approved" : "denied"}`}>
@@ -131,8 +158,12 @@ function ConflictCard({
             <i className="fa-solid fa-hourglass-half"></i> Reassignment Pending
           </div>
         ) : showReassign ? (
-          <button className="reassign-btn" onClick={onReassignClick}>
-            <i className="fa-solid fa-right-left"></i> Reassign Room
+          <button
+            className={`reassign-btn ${isReturned ? "is-returned" : ""}`}
+            onClick={onReassignClick}
+          >
+            <i className={`fa-solid ${isReturned ? "fa-rotate-left" : "fa-right-left"}`}></i>
+            {isReturned ? "Reassign Again" : "Reassign Room"}
           </button>
         ) : null
       ) : (

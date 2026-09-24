@@ -13,6 +13,10 @@
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
     "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.1",
+    "express": "^5.2.1",
+    "firebase-admin": "^14.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^1.27.0",
     "react": "^19.2.5",

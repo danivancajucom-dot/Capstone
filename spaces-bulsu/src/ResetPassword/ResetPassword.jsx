@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import "./reset-password.css";
-import OtpInput from "../components/OtpInput/OtpInput";
+import OtpInput from "../Components/OtpInput/OtpInput";
 import {
   createAndSendCode,
   verifyCode,

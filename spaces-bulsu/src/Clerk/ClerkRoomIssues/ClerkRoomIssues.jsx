@@ -3,7 +3,6 @@ import "../../Components/IssueReportCard/issue-report-card.css";
 import "./room-issues.css";
 import IssueReportCard from "../../Components/IssueReportCard/IssueReportCard";
 import SubmitIssueModal from "../../Components/SubmitIssueModal/SubmitIssueModal";
-import ConfirmPopup from "../../Popup/ConfirmPopup/ConfirmPopup";
 import Toast from "../../Popup/Toast/Toast";
 import { auth, db } from "../../firebase";
 import {
@@ -11,6 +10,7 @@ import {
   serverTimestamp, getDoc, getDocs,
 } from "firebase/firestore";
 import { logActivity } from "../../utils/logActivity";
+import { isActiveOnDate } from "../../utils/scheduleActivePeriod";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -21,6 +21,125 @@ const SORT_OPTIONS = [
 ];
 
 const SEVERITY_ORDER = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
+
+// ═══════════════════════════════════════════════════════════════
+// Helper: determine if a room is under maintenance
+// ═══════════════════════════════════════════════════════════════
+const isRoomMaintenance = (room) => {
+  const status = String(room.roomStatus || "").toLowerCase().trim();
+  const legacyStatus = String(room.status || "").toLowerCase().trim();
+  return (
+    room.maintenance === true ||
+    status === "maintenance" ||
+    legacyStatus === "under maintenance"
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Helpers for matching faculty names to user accounts
+// ═══════════════════════════════════════════════════════════════
+const normalizeName = (name) =>
+  name
+    ?.toLowerCase()
+    .replace(/\./g, "")
+    .replace(/,/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const flipName = (name) => {
+  if (!name) return "";
+  const parts = name.split(",");
+  if (parts.length !== 2) return normalizeName(name);
+  return normalizeName(`${parts[1]} ${parts[0]}`);
+};
+
+const fmt12 = (t) => {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const p = h >= 12 ? "PM" : "AM";
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${String(m).padStart(2, "0")} ${p}`;
+};
+
+const getTodayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+};
+
+// ══════════════════════════════════════════════════════════════
+// Inline Confirm Modal — may built-in loading state
+// ══════════════════════════════════════════════════════════════
+function ConfirmModal({
+  title,
+  message,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  loadingText = "Processing…",
+  variant = "primary", // primary | warning | danger | success
+  icon = "fa-solid fa-circle-question",
+  loading = false,
+  onCancel,
+  onConfirm,
+}) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape" && !loading) onCancel?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loading, onCancel]);
+
+  return (
+    <div
+      className="ri-cm-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={() => !loading && onCancel?.()}
+    >
+      <div
+        className={`ri-cm-card ri-cm-${variant}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ri-cm-icon">
+          <i className={icon} />
+        </div>
+
+        <h3 className="ri-cm-title">{title}</h3>
+        {message && <p className="ri-cm-message">{message}</p>}
+
+        <div className="ri-cm-actions">
+          <button
+            type="button"
+            className="ri-cm-btn ri-cm-btn-cancel"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            {cancelText}
+          </button>
+
+          <button
+            type="button"
+            className="ri-cm-btn ri-cm-btn-confirm"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="ri-cm-spinner" />
+                <span>{loadingText}</span>
+              </>
+            ) : (
+              <span>{confirmText}</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ClerkRoomIssues() {
   const [issues, setIssues]             = useState([]);
@@ -62,25 +181,24 @@ export default function ClerkRoomIssues() {
     return () => unsub();
   }, []);
 
-  // ── Load which rooms are under maintenance ─────────────────
+  // ── REAL-TIME: Load which rooms are under maintenance ─────
   useEffect(() => {
-    const load = async () => {
-      const snap = await getDocs(collection(db, "rooms"));
-      const map = {};
-      snap.docs.forEach((d) => {
-        const r = d.data();
-        if (
-          r.maintenance ||
-          r.status === "Under Maintenance" ||
-          r.roomStatus === "maintenance"
-        ) {
-          map[d.id] = true;
-        }
-      });
-      setMaintenanceRooms(map);
-    };
-    load();
-  }, [issues]);
+    const unsub = onSnapshot(
+      collection(db, "rooms"),
+      (snap) => {
+        const map = {};
+        snap.docs.forEach((d) => {
+          const r = d.data();
+          if (isRoomMaintenance(r)) {
+            map[d.id] = true;
+          }
+        });
+        setMaintenanceRooms(map);
+      },
+      (err) => console.warn("Rooms listener failed:", err)
+    );
+    return () => unsub();
+  }, []);
 
   const getCurrentUser = async () => {
     const user = auth.currentUser;
@@ -116,17 +234,154 @@ export default function ClerkRoomIssues() {
     }
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // Notify ALL affected faculty (those with schedules in the room)
+  // ══════════════════════════════════════════════════════════════
+  const notifyAffectedFaculty = async ({
+    roomId,
+    roomName,
+    eventType, // "maintenance" | "restored"
+    reason = "",
+    actorName = "",
+  }) => {
+    if (!roomId) return { notifiedCount: 0, totalSchedules: 0 };
+
+    try {
+      const scheduleSnap = await getDocs(
+        collection(db, "rooms", roomId, "schedules")
+      );
+      const today = getTodayISO();
+
+      const activeSchedules = scheduleSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((s) => {
+          if (s.initialized) return false;
+          try {
+            if (!isActiveOnDate(s, today)) return false;
+          } catch (e) {
+            // ignore
+          }
+          return true;
+        });
+
+      if (activeSchedules.length === 0) {
+        return { notifiedCount: 0, totalSchedules: 0 };
+      }
+
+      const usersSnap = await getDocs(collection(db, "users"));
+
+      const facultySchedulesMap = new Map();
+
+      for (const schedule of activeSchedules) {
+        if (!schedule.faculty) continue;
+        const facultyDoc = usersSnap.docs.find((docUser) => {
+          const user = docUser.data();
+          const fullname = normalizeName(
+            `${user.firstName || ""} ${user.lastName || ""}`
+          );
+          return fullname === flipName(schedule.faculty);
+        });
+        if (!facultyDoc) continue;
+
+        if (!facultySchedulesMap.has(facultyDoc.id)) {
+          facultySchedulesMap.set(facultyDoc.id, {
+            userData: facultyDoc.data(),
+            schedules: [],
+          });
+        }
+        facultySchedulesMap.get(facultyDoc.id).schedules.push(schedule);
+      }
+
+      let notifiedCount = 0;
+      let totalSchedules = 0;
+
+      for (const [facultyId, { schedules }] of facultySchedulesMap) {
+        const scheduleLines = schedules
+          .map((s) => {
+            const subject = s.subject || s.courseTitle || "Class";
+            const section = s.section ? ` (${s.section})` : "";
+            return `• ${subject}${section} — ${s.day || ""} ${fmt12(s.startTime)}–${fmt12(s.endTime)}`;
+          })
+          .join("\n");
+
+        const isMaintenance = eventType === "maintenance";
+
+        const title = isMaintenance
+          ? "Room Under Maintenance"
+          : "Room Available Again";
+
+        const message = isMaintenance
+          ? `Room ${roomName} is now under maintenance. ` +
+            `The following ${schedules.length === 1 ? "class" : "classes"} may be affected:\n` +
+            `${scheduleLines}\n\n` +
+            (reason ? `Reason: ${reason}\n\n` : "") +
+            `Please coordinate with the Clerk for a possible room reassignment.`
+          : `Good news! Room ${roomName} is now active and available again. ` +
+            `Your following ${schedules.length === 1 ? "class is" : "classes are"} back on track:\n` +
+            `${scheduleLines}\n\n` +
+            `You may resume your classes in this room as originally scheduled.`;
+
+        await addDoc(collection(db, "notifications"), {
+          userId: facultyId,
+          ownerType: "faculty",
+          title,
+          message,
+          type: isMaintenance ? "room-maintenance" : "room-restored",
+          roomId,
+          roomName,
+          ...(isMaintenance
+            ? {
+                maintenanceReason: reason,
+                maintenanceSetBy: actorName,
+                maintenanceStartDate: today,
+              }
+            : {
+                restoredBy: actorName,
+                restoredDate: today,
+              }),
+          schedulesAffected: schedules.map((s) => ({
+            scheduleId: s.id,
+            subject: s.subject || s.courseTitle || "",
+            section: s.section || "",
+            day: s.day || "",
+            startTime: s.startTime || "",
+            endTime: s.endTime || "",
+            semester: s.semester || "",
+            schoolYear: s.schoolYear || "",
+          })),
+          unread: true,
+          archived: false,
+          badge: isMaintenance ? "URGENT" : "RESOLVED",
+          createdAt: serverTimestamp(),
+        });
+
+        notifiedCount++;
+        totalSchedules += schedules.length;
+      }
+
+      return { notifiedCount, totalSchedules };
+    } catch (err) {
+      console.warn("notifyAffectedFaculty failed:", err);
+      return { notifiedCount: 0, totalSchedules: 0 };
+    }
+  };
+
   // ══════════════════════════════════════════════════════════
   // ACTION: Mark Under Maintenance
   // ══════════════════════════════════════════════════════════
   const markUnderMaintenance = (issue) => {
     setConfirmAction({
       title: "Mark Room Under Maintenance?",
-      message: `This will flag ${issue.roomName} as Under Maintenance. Faculty and students will see this room as unavailable.`,
+      message: `This will flag ${issue.roomName} as Under Maintenance and notify all faculty with schedules in this room.`,
+      confirmText: "Mark Under Maintenance",
+      loadingText: "Flagging room…",
+      variant: "warning",
+      icon: "fa-solid fa-triangle-exclamation",
       onConfirm: async () => {
         setBusy(true);
         try {
           const u = await getCurrentUser();
+          const today = getTodayISO();
 
           await updateDoc(doc(db, "rooms", issue.roomId), {
             status: "Under Maintenance",
@@ -137,6 +392,7 @@ export default function ClerkRoomIssues() {
             maintenanceCategory: issue.category || "",
             maintenanceSetBy: u.name,
             maintenanceSetAt: serverTimestamp(),
+            maintenanceStartDate: today,
           });
 
           await updateDoc(doc(db, "roomIssues", issue.id), {
@@ -159,7 +415,19 @@ export default function ClerkRoomIssues() {
             `Your reported issue in ${issue.roomName} is now being addressed. The room has been flagged as Under Maintenance.`
           );
 
-          showToast("success", "Room Flagged", `${issue.roomName} is now Under Maintenance.`);
+          const { notifiedCount, totalSchedules } = await notifyAffectedFaculty({
+            roomId: issue.roomId,
+            roomName: issue.roomName,
+            eventType: "maintenance",
+            reason: issue.description || "",
+            actorName: u.name,
+          });
+
+          showToast(
+            "success",
+            "Room Flagged",
+            `${issue.roomName} is now Under Maintenance. ${notifiedCount} faculty notified (${totalSchedules} schedule${totalSchedules === 1 ? "" : "s"} affected).`
+          );
         } catch (err) {
           console.error(err);
           showToast("error", "Update Failed", err.message);
@@ -177,11 +445,16 @@ export default function ClerkRoomIssues() {
   const restoreRoom = (issue) => {
     setConfirmAction({
       title: "Restore Room?",
-      message: `Remove the Under Maintenance flag from ${issue.roomName}? The room will become available again.`,
+      message: `Remove the Under Maintenance flag from ${issue.roomName}? All affected faculty will be notified that the room is available again.`,
+      confirmText: "Restore Room",
+      loadingText: "Restoring room…",
+      variant: "success",
+      icon: "fa-solid fa-circle-check",
       onConfirm: async () => {
         setBusy(true);
         try {
           const u = await getCurrentUser();
+          const today = getTodayISO();
 
           await updateDoc(doc(db, "rooms", issue.roomId), {
             status: "Available",
@@ -191,6 +464,8 @@ export default function ClerkRoomIssues() {
             maintenanceReportId: "",
             maintenanceRestoredBy: u.name,
             maintenanceRestoredAt: serverTimestamp(),
+            maintenanceStartDate: null,
+            maintenanceEndDate: null,
           });
 
           await logActivity({
@@ -207,7 +482,18 @@ export default function ClerkRoomIssues() {
             `${issue.roomName} has been restored and is now available again.`
           );
 
-          showToast("success", "Room Restored", `${issue.roomName} is now Available.`);
+          const { notifiedCount, totalSchedules } = await notifyAffectedFaculty({
+            roomId: issue.roomId,
+            roomName: issue.roomName,
+            eventType: "restored",
+            actorName: u.name,
+          });
+
+          showToast(
+            "success",
+            "Room Restored",
+            `${issue.roomName} is now Available. ${notifiedCount} faculty notified (${totalSchedules} schedule${totalSchedules === 1 ? "" : "s"} back on track).`
+          );
         } catch (err) {
           console.error(err);
           showToast("error", "Update Failed", err.message);
@@ -226,6 +512,10 @@ export default function ClerkRoomIssues() {
     setConfirmAction({
       title: "Mark as Resolved?",
       message: `Mark the ${issue.category} issue in ${issue.roomName} as Resolved?`,
+      confirmText: "Mark as Resolved",
+      loadingText: "Resolving…",
+      variant: "success",
+      icon: "fa-solid fa-check",
       onConfirm: async () => {
         setBusy(true);
         try {
@@ -286,7 +576,6 @@ export default function ClerkRoomIssues() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [issues]);
 
-  // ── Filtered room list (for search inside picker) ──────────
   const filteredRoomOptions = useMemo(() => {
     const q = roomSearch.trim().toLowerCase();
     if (!q) return roomOptions;
@@ -334,7 +623,6 @@ export default function ClerkRoomIssues() {
     setCurrentPage(1);
   }, [activeTab, roomFilter, search, sortOrder]);
 
-  // ── Pagination ─────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
   const startIdx = (safePage - 1) * ITEMS_PER_PAGE;
@@ -347,7 +635,6 @@ export default function ClerkRoomIssues() {
     setSortOrder("newest");
   };
 
-  // ── Render ─────────────────────────────────────────────────
   return (
     <>
       <div className="ri-page">
@@ -531,7 +818,7 @@ export default function ClerkRoomIssues() {
               )}
             </div>
 
-            {/* ── SORT (native select — keep as is) ── */}
+            {/* ── SORT ── */}
             <div className="ri-select">
               <i className="fa-solid fa-arrow-down-short-wide" />
               <select
@@ -630,11 +917,16 @@ export default function ClerkRoomIssues() {
       />
 
       {confirmAction && (
-        <ConfirmPopup
+        <ConfirmModal
           title={confirmAction.title}
           message={confirmAction.message}
-          onCancel={() => setConfirmAction(null)}
-          onConfirm={busy ? null : confirmAction.onConfirm}
+          confirmText={confirmAction.confirmText}
+          loadingText={confirmAction.loadingText}
+          variant={confirmAction.variant}
+          icon={confirmAction.icon}
+          loading={busy}
+          onCancel={() => !busy && setConfirmAction(null)}
+          onConfirm={confirmAction.onConfirm}
         />
       )}
 

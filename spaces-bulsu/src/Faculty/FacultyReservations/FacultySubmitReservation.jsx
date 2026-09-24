@@ -1,7 +1,7 @@
 // ============================================================
-// FILE: FacultySubmitReservation.jsx (with preview modal)
+// FILE: FacultySubmitReservation.jsx (with preview modal + room pagination & floor filter)
 // ============================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./faculty-submit-reservation.css";
 import Toast from "../../Popup/Toast/Toast";
@@ -107,6 +107,9 @@ const PRESET_SLOTS = [
   { label: "5:30 – 7:00 PM",   start: "17:30", end: "19:00" },
 ];
 
+// ─── Pagination ─────────────────────────────────────────────
+const ROOMS_PER_PAGE = 6;
+
 // ─── Equipment label lookup (for preview) ─────────────────
 const EQUIPMENT_LABELS = {
   projector: "Projector",
@@ -137,6 +140,7 @@ function FacultySubmitReservation() {
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   const [selectedFloor, setSelectedFloor] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -151,7 +155,6 @@ function FacultySubmitReservation() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // ✅ Renamed from showConfirm → showPreview
   const [showPreview, setShowPreview] = useState(false);
 
   const [validationAttempted, setValidationAttempted] = useState(false);
@@ -195,6 +198,14 @@ function FacultySubmitReservation() {
     setSelectedEquipment((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+  };
+
+  // ✅ Derive room status label (single source of truth)
+  const getRoomStatus = (room) => {
+    if (room.maintenance) return "Under Maintenance";
+    if (room.reservedByUser) return "Reserved";
+    if (!room.available) return "Occupied";
+    return "Available";
   };
 
   const checkUserConflict = async () => {
@@ -417,6 +428,25 @@ function FacultySubmitReservation() {
     setLoading(false);
   };
 
+  // ✅ Only show rooms that are Available
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((r) => getRoomStatus(r) === "Available");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rooms]);
+
+  const totalRoomPages = Math.max(1, Math.ceil(filteredRooms.length / ROOMS_PER_PAGE));
+  const safeRoomPage = Math.min(currentPage, totalRoomPages);
+  const roomStartIdx = (safeRoomPage - 1) * ROOMS_PER_PAGE;
+  const paginatedRooms = filteredRooms.slice(
+    roomStartIdx,
+    roomStartIdx + ROOMS_PER_PAGE
+  );
+
+  // Reset page kapag nagbago ang filters o rooms
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedFloor, date, startTime, endTime, rooms.length]);
+
   const validateFields = () => {
     const errors = {};
 
@@ -472,9 +502,6 @@ function FacultySubmitReservation() {
     }
 
     if (!selectedRoom) errors.selectedRoom = "Select an available room.";
-    else if (selectedRoom.maintenance) {
-      errors.selectedRoom = "This room is under maintenance during the selected time.";
-    }
 
     return errors;
   };
@@ -669,7 +696,6 @@ function FacultySubmitReservation() {
       showToast("error", "Validation Error", firstError);
       return;
     }
-    // ✅ Show preview modal instead of plain confirm
     setShowPreview(true);
   };
 
@@ -713,7 +739,7 @@ function FacultySubmitReservation() {
   }, [nowTick]);
 
   // ═══════════════════════════════════════════════════════════
-  // Preview payload — computed for the preview modal
+  // Preview payload
   // ═══════════════════════════════════════════════════════════
   const previewData = {
     courseTitle,
@@ -1295,21 +1321,25 @@ function FacultySubmitReservation() {
             <div className="faculty-submit-section">
               <div className="faculty-submit-venue-header">
                 <span className="faculty-submit-venue-title">Available Rooms</span>
-                <div className="faculty-submit-venue-dropdown-wrapper">
-                  <select
-                    className="faculty-submit-venue-dropdown"
-                    value={selectedFloor}
-                    onChange={(e) => {
-                      setSelectedFloor(e.target.value);
-                      revalidate();
-                    }}
-                  >
-                    <option value="">All Floors</option>
-                    <option value="1st">1st Floor</option>
-                    <option value="3rd">3rd Floor</option>
-                    <option value="4th">4th Floor</option>
-                  </select>
-                  <i className="fa-solid fa-angle-down faculty-submit-venue-dropdown-icon"></i>
+
+                {/* ✅ Floor filter only (status filter removed) */}
+                <div className="faculty-submit-venue-filters">
+                  <div className="faculty-submit-venue-dropdown-wrapper">
+                    <select
+                      className="faculty-submit-venue-dropdown"
+                      value={selectedFloor}
+                      onChange={(e) => {
+                        setSelectedFloor(e.target.value);
+                        revalidate();
+                      }}
+                    >
+                      <option value="">All Floors</option>
+                      <option value="1st">1st Floor</option>
+                      <option value="3rd">3rd Floor</option>
+                      <option value="4th">4th Floor</option>
+                    </select>
+                    <i className="fa-solid fa-angle-down faculty-submit-venue-dropdown-icon"></i>
+                  </div>
                 </div>
               </div>
 
@@ -1320,64 +1350,97 @@ function FacultySubmitReservation() {
                   <i className="fa-regular fa-calendar"></i>
                   <p>Select a date and reservation time first.</p>
                 </div>
-              ) : rooms.length === 0 ? (
+              ) : filteredRooms.length === 0 ? (
                 <div className="faculty-empty">
                   <i className="fa-solid fa-circle-xmark"></i>
-                  <p>No rooms match your selected schedule, purpose, equipment, capacity, or floor.</p>
+                  <p>
+                    No available rooms match your selected schedule, purpose,
+                    equipment, capacity, or floor.
+                  </p>
                 </div>
               ) : (
-                <div className="room-grid">
-                  {rooms.map((room) => {
-                    let statusLabel = "Available";
-                    let statusIcon = "fa-circle-check";
-                    if (room.maintenance) {
-                      statusLabel = "Under Maintenance";
-                      statusIcon = "fa-triangle-exclamation";
-                    } else if (room.reservedByUser) {
-                      statusLabel = "Reserved";
-                      statusIcon = "fa-clock";
-                    } else if (!room.available) {
-                      statusLabel = "Occupied";
-                      statusIcon = "fa-circle-xmark";
-                    }
+                <>
+                  <div className="room-grid">
+                    {paginatedRooms.map((room) => {
+                      const isSelected = selectedRoom?.id === room.id;
+                      const isError = validationAttempted && fieldErrors.selectedRoom && !isSelected;
 
-                    const isSelected = selectedRoom?.id === room.id;
-                    const isError = validationAttempted && fieldErrors.selectedRoom && !isSelected;
-
-                    return (
-                      <div
-                        key={room.id}
-                        className={`
-                          room-card
-                          ${room.maintenance ? "maintenance" : room.available ? "available" : "occupied"}
-                          ${isSelected ? "selected" : ""}
-                          ${isError ? "error" : ""}
-                        `}
-                        onClick={() => {
-                          if (!room.available || room.maintenance || room.reservedByUser) return;
-                          setSelectedRoom(room);
-                          revalidate();
-                        }}
-                      >
-                        <div className="room-name">
-                          <i className="fa-solid fa-door-open"></i> {room.roomName}
-                        </div>
-                        <div className="room-floor">
-                          <i className="fa-solid fa-building"></i> {room.floor} Floor
-                        </div>
-                        {room.capacity && (
-                          <div className="room-floor">
-                            <i className="fa-solid fa-users"></i> {room.capacity} Seats
+                      return (
+                        <div
+                          key={room.id}
+                          className={`
+                            room-card available
+                            ${isSelected ? "selected" : ""}
+                            ${isError ? "error" : ""}
+                          `}
+                          onClick={() => {
+                            setSelectedRoom(room);
+                            revalidate();
+                          }}
+                        >
+                          <div className="room-name">
+                            <i className="fa-solid fa-door-open"></i> {room.roomName}
                           </div>
-                        )}
-                        <div className="room-status">
-                          <i className={`fa-solid ${statusIcon}`}></i> {statusLabel}
+                          <div className="room-floor">
+                            <i className="fa-solid fa-building"></i> {room.floor} Floor
+                          </div>
+                          {room.capacity && (
+                            <div className="room-floor">
+                              <i className="fa-solid fa-users"></i> {room.capacity} Seats
+                            </div>
+                          )}
+                          <div className="room-status">
+                            <i className="fa-solid fa-circle-check"></i> Available
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* ✅ Pagination controls */}
+                  {totalRoomPages > 1 && (
+                    <div className="room-pagination">
+                      <button
+                        type="button"
+                        className="room-page-nav"
+                        disabled={safeRoomPage === 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        aria-label="Previous page"
+                      >
+                        <i className="fa-solid fa-chevron-left"></i>
+                      </button>
+
+                      {Array.from({ length: totalRoomPages }, (_, i) => i + 1).map((p) => (
+                        <button
+                          type="button"
+                          key={p}
+                          className={`room-page-btn ${safeRoomPage === p ? "active" : ""}`}
+                          onClick={() => setCurrentPage(p)}
+                        >
+                          {p}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="room-page-nav"
+                        disabled={safeRoomPage === totalRoomPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalRoomPages, p + 1))}
+                        aria-label="Next page"
+                      >
+                        <i className="fa-solid fa-chevron-right"></i>
+                      </button>
+
+                      <span className="room-page-info">
+                        Showing {roomStartIdx + 1}–
+                        {Math.min(roomStartIdx + ROOMS_PER_PAGE, filteredRooms.length)} of{" "}
+                        {filteredRooms.length}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
+
               {validationAttempted && fieldErrors.selectedRoom && (
                 <span className="field-error-message" style={{ marginTop: "10px" }}>
                   {fieldErrors.selectedRoom}
@@ -1401,9 +1464,7 @@ function FacultySubmitReservation() {
           </button>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════
-            PREVIEW MODAL — bago mag-submit
-           ═══════════════════════════════════════════════════════ */}
+        {/* PREVIEW MODAL */}
         {showPreview && (
           <div
             className="fsr-preview-overlay"
@@ -1413,7 +1474,6 @@ function FacultySubmitReservation() {
               className="fsr-preview-modal"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="fsr-preview-header">
                 <div className="fsr-preview-icon">
                   <i className="fa-solid fa-clipboard-check"></i>
@@ -1424,15 +1484,12 @@ function FacultySubmitReservation() {
                 </p>
               </div>
 
-              {/* Details */}
               <div className="fsr-preview-body">
-                {/* Course Title */}
                 <div className="fsr-preview-row">
                   <span className="fsr-preview-label">Course Title</span>
                   <span className="fsr-preview-value">{previewData.courseTitle || "—"}</span>
                 </div>
 
-                {/* Audience */}
                 <div className="fsr-preview-row">
                   <span className="fsr-preview-label">Audience</span>
                   <span className="fsr-preview-value">
@@ -1447,13 +1504,11 @@ function FacultySubmitReservation() {
                   </span>
                 </div>
 
-                {/* Purpose */}
                 <div className="fsr-preview-row">
                   <span className="fsr-preview-label">Purpose</span>
                   <span className="fsr-preview-value">{previewData.purpose || "—"}</span>
                 </div>
 
-                {/* Room */}
                 <div className="fsr-preview-row">
                   <span className="fsr-preview-label">Room</span>
                   <span className="fsr-preview-value">
@@ -1463,13 +1518,11 @@ function FacultySubmitReservation() {
                   </span>
                 </div>
 
-                {/* Date */}
                 <div className="fsr-preview-row">
                   <span className="fsr-preview-label">Date</span>
                   <span className="fsr-preview-value">{formatDateLong(previewData.date)}</span>
                 </div>
 
-                {/* Time */}
                 <div className="fsr-preview-row">
                   <span className="fsr-preview-label">Time</span>
                   <span className="fsr-preview-value">
@@ -1477,7 +1530,6 @@ function FacultySubmitReservation() {
                   </span>
                 </div>
 
-                {/* Equipment — only if may napili */}
                 {previewData.equipment && (
                   <div className="fsr-preview-row">
                     <span className="fsr-preview-label">Equipment</span>
@@ -1485,7 +1537,6 @@ function FacultySubmitReservation() {
                   </div>
                 )}
 
-                {/* Attendees */}
                 {previewData.studentRange && (
                   <div className="fsr-preview-row">
                     <span className="fsr-preview-label">
@@ -1497,7 +1548,6 @@ function FacultySubmitReservation() {
                   </div>
                 )}
 
-                {/* Status note */}
                 <div className="fsr-preview-note">
                   <i className="fa-solid fa-circle-info"></i>
                   <span>
@@ -1507,7 +1557,6 @@ function FacultySubmitReservation() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="fsr-preview-actions">
                 <button
                   className="fsr-preview-back-btn"

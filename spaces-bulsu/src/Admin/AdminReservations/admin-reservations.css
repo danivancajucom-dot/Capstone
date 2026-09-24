@@ -575,3 +575,11 @@
   from { opacity: 0; transform: translateY(-4px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+.dph-reservations-content {
+  gap: 0;
+}
+
+.dph-reservations-content .reservation-card {
+  margin: 6px 20px;
+}

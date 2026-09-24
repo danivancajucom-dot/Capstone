@@ -796,6 +796,7 @@
   justify-content: center;
   z-index: 999;
   animation: um-fade-in 0.15s ease;
+  padding: 20px;
 }
 
 @keyframes um-fade-in {
@@ -813,6 +814,8 @@
   padding: 36px 32px;
   width: 360px;
   max-width: calc(100vw - 32px);
+  max-height: 90vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -924,7 +927,7 @@
   border-color: var(--um-danger);
   background-color: var(--um-danger);
 }
-.um-modal-confirm.is-danger:hover {
+.um-modal-confirm.is-danger:hover:not(:disabled) {
   background: #fff0f0;
   border: 1px solid var(--um-danger);
   color: var(--um-danger);
@@ -1240,7 +1243,6 @@
   color: #dc2626;
 }
 
-/* 4-column stats row kapag may Blocked card na */
 .um-stats-row-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -1252,13 +1254,11 @@
   .um-stats-row-4 { grid-template-columns: 1fr; }
 }
 
-/* Blocked avatar */
 .um-avatar.blocked {
   background: #fef2f2;
   color: #b91c1c;
 }
 
-/* Blocked status text + dot */
 .um-status.blocked {
   color: #b91c1c;
 }
@@ -1267,7 +1267,6 @@
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
 }
 
-/* Small info line sa ilalim ng status */
 .um-block-info {
   margin-top: 4px;
   font-size: 11px;
@@ -1283,7 +1282,6 @@
   color: #f97316;
 }
 
-/* Unblock action button */
 .um-action-icon.unlock {
   color: #16a34a;
   border-color: #bbf7d0;
@@ -1295,7 +1293,6 @@
   color: #15803d;
 }
 
-/* Status filter row — separate mula sa role chips */
 .um-status-chip-row {
   margin-top: -6px;
 }
@@ -1338,4 +1335,232 @@
   color: #f97316;
   margin-top: 2px;
   flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STRONG DELETE WARNING MODAL (matches AdminSettings style)
+   ═══════════════════════════════════════════════════════════════ */
+.um-modal-delete-warning {
+  max-width: 470px;
+  padding: 34px 30px 26px;
+  width: 100%;
+}
+
+/* Pulsing danger icon */
+.um-modal-icon-pulse {
+  animation: um-icon-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes um-icon-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0    rgba(239, 68, 68, 0.5); }
+  50%      { transform: scale(1.06); box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);   }
+}
+
+/* Target account pill */
+.um-modal-target {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff7ed;
+  border: 1.5px solid #fed7aa;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 4px 0 8px;
+  text-align: left;
+}
+
+.um-modal-target i {
+  font-size: 18px;
+  color: #f97316;
+  background: #ffedd5;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.um-modal-target > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.um-target-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #9a3412;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.um-target-value {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #7c2d12;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.um-modal-target.is-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.um-modal-target.is-danger i {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.um-modal-target.is-danger .um-target-label { color: #b91c1c; }
+.um-modal-target.is-danger .um-target-value { color: #991b1b; }
+
+/* Warning box with checklist */
+.um-delete-warning-box {
+  width: 100%;
+  background: #fef2f2;
+  border: 1.5px solid #fecaca;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 4px 0 14px;
+  text-align: left;
+}
+
+.um-delete-warning-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #b91c1c;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+.um-delete-warning-title i { font-size: 14px; color: #dc2626; }
+
+.um-delete-warning-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.um-delete-warning-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12px;
+  color: #7f1d1d;
+  line-height: 1.45;
+}
+
+.um-delete-warning-list li i {
+  color: #dc2626;
+  font-size: 10px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+/* Acknowledgment checkbox */
+.um-delete-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1.5px solid #fed7aa;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: #7c2d12;
+  line-height: 1.5;
+  text-align: left;
+  margin-bottom: 14px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.um-delete-ack:hover { background: #ffedd5; }
+
+.um-delete-ack input {
+  margin-top: 2px;
+  accent-color: #dc2626;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.um-delete-ack span strong { color: #991b1b; }
+
+/* Point-of-no-return banner */
+.um-delete-danger-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: linear-gradient(90deg, #dc2626, #991b1b);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 4px 0 14px;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+.um-delete-danger-banner i { font-size: 13px; }
+
+/* Phrase match indicator */
+.um-phrase-ok,
+.um-phrase-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.um-phrase-ok  { color: #16a34a; }
+.um-phrase-bad { color: #dc2626; }
+.um-phrase-ok i,
+.um-phrase-bad i { font-size: 11px; }
+
+.um-danger-text {
+  color: #dc2626;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+/* Disabled danger button visual */
+.um-modal-confirm.is-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+/* Back button icon spacing */
+.um-modal-cancel i { margin-right: 6px; }
+.um-modal-confirm i { margin-right: 6px; }
+
+/* Mobile */
+@media (max-width: 520px) {
+  .um-modal-delete-warning {
+    padding: 26px 20px 20px;
+    max-width: calc(100vw - 24px);
+  }
+  .um-modal-delete-warning .um-modal-actions {
+    flex-direction: column-reverse;
+  }
+  .um-modal-delete-warning .um-modal-actions button {
+    width: 100%;
+  }
+  .um-modal-title { font-size: 18px; }
+  .um-modal-text  { font-size: 13px; }
 }

@@ -243,32 +243,49 @@
   width: calc(100% + 60px);
 }
 
-/* MODAL */
+/* ═══════════════════════════════════════════════════════════════
+   LOGOUT CONFIRMATION MODAL — fully responsive
+   ═══════════════════════════════════════════════════════════════ */
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.35);
+  background: rgba(8, 16, 31, 0.45);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 999;
-  padding: 16px;
+  padding: 20px;
+  animation: modalOverlayIn 0.18s ease;
+}
+
+@keyframes modalOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .logout-modal {
   width: 420px;
   max-width: 100%;
   background: #fff;
-  padding: 32px;
+  padding: 34px 32px 30px;
   border-radius: 24px;
   text-align: center;
+  box-shadow: 0 24px 60px rgba(8, 16, 31, 0.22);
+  animation: modalPop 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .modal-icon {
-  width: 70px;
-  height: 70px;
-  margin: auto;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
   border-radius: 50%;
   background: #FEF0E7;
   display: flex;
@@ -276,28 +293,226 @@
   justify-content: center;
   color: #f57c00;
   font-size: 28px;
+  flex-shrink: 0;
+  animation: modalIconPulse 2s ease infinite;
 }
 
-.logout-modal h2 { margin: 20px 0; }
+@keyframes modalIconPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 124, 0, 0.28); }
+  50%      { box-shadow: 0 0 0 12px rgba(245, 124, 0, 0); }
+}
+
+.logout-modal h2 {
+  margin: 22px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #16213e;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
 
 .modal-actions {
   display: flex;
   gap: 12px;
-  margin-top: 20px;
+  margin-top: 28px;
 }
 
 .modal-btn {
   flex: 1;
-  height: 50px;
+  height: 52px;
   border: none;
   border-radius: 14px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: 'Lexend', sans-serif;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
 }
 
-.modal-btn.cancel { background: #eee; }
-.modal-btn.confirm { background: #f57c00; color: #fff; }
-.modal-btn:hover { opacity: .9; }
+.modal-btn:hover { opacity: 0.92; }
+.modal-btn:active { transform: scale(0.98); }
+
+.modal-btn.cancel {
+  background: #f1f3f7;
+  color: #4b5563;
+}
+.modal-btn.cancel:hover {
+  background: #e5e7eb;
+  opacity: 1;
+}
+
+.modal-btn.confirm {
+  background: #f57c00;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(245, 124, 0, 0.28);
+}
+.modal-btn.confirm:hover {
+  background: #e06c00;
+  box-shadow: 0 10px 24px rgba(245, 124, 0, 0.34);
+  opacity: 1;
+}
+
+/* ─── Tablet (max 600px) — row pa rin, pero mas compact ─────── */
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logout-modal {
+    padding: 28px 22px 22px;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .modal-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 23px;
+  }
+
+  .logout-modal h2 {
+    margin: 18px 0 0;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+
+  .modal-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .modal-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 48px;
+    font-size: 14.5px;
+    border-radius: 12px;
+    padding: 0 12px;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+}
+
+/* ─── Small mobile (max 420px) — STACKED buttons ──────────────
+   Confirm sa ibaba (thumb-friendly), Cancel sa itaas (outlined). */
+@media (max-width: 420px) {
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .logout-modal {
+    padding: 24px 18px 18px;
+    border-radius: 18px;
+    max-width: 100%;
+  }
+
+  .modal-icon {
+    width: 54px;
+    height: 54px;
+    font-size: 21px;
+  }
+
+  .logout-modal h2 {
+    margin-top: 16px;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse; /* Confirm sa ibaba */
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .modal-btn {
+    width: 100%;
+    height: 50px;
+    font-size: 15px;
+    border-radius: 12px;
+    flex: 0 0 auto; /* para hindi mag-stretch sa column */
+  }
+
+  .modal-btn.cancel {
+    background: transparent;
+    color: #6b7280;
+    border: 1.5px solid #e5e7eb;
+    box-shadow: none;
+    font-weight: 600;
+  }
+
+  .modal-btn.cancel:hover {
+    background: #f9fafb;
+    opacity: 1;
+  }
+
+  .modal-btn.confirm {
+    box-shadow: 0 8px 20px rgba(245, 124, 0, 0.3);
+  }
+}
+
+/* ─── Very small mobile (max 340px) ─────────────────────────── */
+@media (max-width: 340px) {
+  .logout-modal {
+    padding: 20px 14px 16px;
+  }
+
+  .modal-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 19px;
+  }
+
+  .logout-modal h2 {
+    margin-top: 12px;
+    font-size: 15px;
+  }
+
+  .modal-btn {
+    height: 46px;
+    font-size: 14px;
+  }
+
+  .modal-actions {
+    margin-top: 18px;
+  }
+}
+
+/* ─── Landscape mobile (max-height 500px) — side-by-side ────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .logout-modal {
+    padding: 20px 24px;
+    max-width: 480px;
+    border-radius: 18px;
+  }
+
+  .modal-icon {
+    width: 46px;
+    height: 46px;
+    font-size: 18px;
+  }
+
+  .logout-modal h2 {
+    margin-top: 10px;
+    font-size: 15px;
+  }
+
+  .modal-actions {
+    flex-direction: row; /* row sa landscape para tipid sa height */
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .modal-btn {
+    height: 44px;
+    font-size: 14px;
+    flex: 1 1 0;
+  }
+}
 
 /* LOGOUT LOADING SCREEN */
 
@@ -936,8 +1151,6 @@
   .loading-card h2 { font-size: 22px; }
   .loading-card p { font-size: 13px; }
   .spinner { width: 56px; height: 56px; }
-
-  .logout-modal { padding: 26px 22px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -948,4 +1161,16 @@
   .faculty-sidebar { width: 88vw; }
   .notif-top-title h2 { font-size: 16px; }
   .notif-tab-count { display: none; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .logout-modal,
+  .modal-icon,
+  .bell-active,
+  .notif-panel,
+  .profile-dropdown {
+    animation: none;
+  }
 }

@@ -61,7 +61,7 @@ function normalizeEquipment(equipment) {
 
 function LRRoomCard({
   roomName,
-  photoUrl,        // ← optional photo
+  photoUrl,
   floor,
   capacity,
   roomType,
@@ -120,24 +120,29 @@ function LRRoomCard({
             <span>{roomType}</span>
           </div>
 
-          {equipmentList.length > 0 && (
-            <div className="detail-row equipment-row">
-              <i className="fa-solid fa-toolbox"></i>
-              <div className="equipment-tags">
-                {equipmentList.slice(0, MAX_VISIBLE).map((item) => (
-                  <span key={item.id} className="equipment-tag">
-                    <i className={item.icon}></i>
-                    {item.label}
-                  </span>
-                ))}
-                {equipmentList.length > MAX_VISIBLE && (
-                  <span className="equipment-tag more">
-                    +{equipmentList.length - MAX_VISIBLE} more
-                  </span>
-                )}
-              </div>
+          {/* ✅ Always rendered — reserved space para consistent height */}
+          <div className="detail-row equipment-row">
+            <i className="fa-solid fa-toolbox"></i>
+            <div className="equipment-tags">
+              {equipmentList.length === 0 ? (
+                <span className="equipment-tag empty">No equipment</span>
+              ) : (
+                <>
+                  {equipmentList.slice(0, MAX_VISIBLE).map((item) => (
+                    <span key={item.id} className="equipment-tag">
+                      <i className={item.icon}></i>
+                      {item.label}
+                    </span>
+                  ))}
+                  {equipmentList.length > MAX_VISIBLE && (
+                    <span className="equipment-tag more">
+                      +{equipmentList.length - MAX_VISIBLE} more
+                    </span>
+                  )}
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

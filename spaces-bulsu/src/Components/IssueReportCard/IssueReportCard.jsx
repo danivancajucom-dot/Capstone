@@ -8,20 +8,15 @@ const STATUS_META = {
   Resolved:      { label: "Resolved",     cls: "resolved",     icon: "fa-circle-check" },
 };
 
-// ═══════════════════════════════════════════════════════════════
-// ROBUST STATUS NORMALIZATION
-// Handles: undefined, null, empty, lowercase, extra spaces,
-// and different spellings — para hindi mag-fallback ng mali.
-// ═══════════════════════════════════════════════════════════════
 const normalizeStatus = (raw) => {
   const v = String(raw ?? "").trim().toLowerCase();
-  if (!v) return "pending";                       // default
+  if (!v) return "pending";
   if (v === "pending") return "pending";
   if (v === "acknowledged" || v === "ack") return "acknowledged";
   if (v === "in progress" || v === "in-progress" || v === "inprogress" || v === "progress")
     return "progress";
   if (v === "resolved") return "resolved";
-  return "pending";                               // unknown → treat as pending
+  return "pending";
 };
 
 const STATUS_KEY_TO_META = {
@@ -65,10 +60,10 @@ export default function IssueReportCard({
   onMarkResolved,
   roomIsUnderMaintenance = false,
   busy = false,
+  acknowledging = false,        // ← BAGO (optional, default false)
 }) {
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
-  // ── Normalize status (single source of truth) ──────────────
   const statusKey = normalizeStatus(issue.status);
   const status = STATUS_KEY_TO_META[statusKey];
 
@@ -81,7 +76,6 @@ export default function IssueReportCard({
   const isAdmin   = role === "admin";
   const isFaculty = role === "faculty";
 
-  // ── Role gating ───────────────────────────────────────────────
   const canAcknowledge = isAdmin && isPending;
   const clerkCanAct    = isClerk && (isAcknowledged || isInProgress) && !isResolved;
 
@@ -89,7 +83,6 @@ export default function IssueReportCard({
   const canRestore         = clerkCanAct && roomIsUnderMaintenance;
   const canResolve         = clerkCanAct;
 
-  // ── Photos ────────────────────────────────────────────────────
   const photos = Array.isArray(issue.photoUrls) && issue.photoUrls.length > 0
     ? issue.photoUrls
     : (issue.photoUrl ? [issue.photoUrl] : []);
@@ -228,7 +221,6 @@ export default function IssueReportCard({
 
         {/* ── ACTIONS ─────────────────────────────────────── */}
         <div className="irc-actions">
-          {/* FACULTY — view only */}
           {isFaculty && (
             <span className="irc-hint">
               {isResolved
@@ -241,16 +233,23 @@ export default function IssueReportCard({
             </span>
           )}
 
-          {/* ADMIN — status-aware actions/hints */}
           {isAdmin && (
             <>
               {canAcknowledge && (
                 <button
                   className="irc-btn primary"
                   onClick={() => onAcknowledge?.(issue)}
-                  disabled={busy}
+                  disabled={busy || acknowledging}
                 >
-                  <i className="fa-solid fa-eye" /> Acknowledge Issue
+                  {acknowledging ? (
+                    <>
+                      <span className="irc-btn-spinner" /> Acknowledging…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-eye" /> Acknowledge Issue
+                    </>
+                  )}
                 </button>
               )}
 
@@ -277,7 +276,6 @@ export default function IssueReportCard({
             </>
           )}
 
-          {/* CLERK — actions only after Admin acknowledges */}
           {isClerk && (
             <>
               {isPending && (

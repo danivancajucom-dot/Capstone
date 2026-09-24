@@ -34,10 +34,13 @@ const ACTIVITY_ICON = {
   login:   "fa-solid fa-right-to-bracket",
   logout:  "fa-solid fa-right-from-bracket",
   reserve: "fa-solid fa-bookmark",
+  cancel:  "fa-solid fa-ban",
   default: "fa-solid fa-circle-info",
 };
 
-function formatLogTime(ts) {
+// ✅ Accepts the whole log object (works with timestamp OR createdAt fallback)
+function formatLogTime(log) {
+  const ts = log?.timestamp || log?.createdAt;
   if (!ts) return "";
   const date = ts.toDate ? ts.toDate() : new Date(ts);
   const now  = new Date();
@@ -50,7 +53,7 @@ function formatLogTime(ts) {
 }
 
 export default function FacultyProfile() {
-  const [activeTab, setActiveTab]   = useState("details"); // "details" | "activity"
+  const [activeTab, setActiveTab]   = useState("details");
   const [editing, setEditing]       = useState(false);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -120,11 +123,15 @@ export default function FacultyProfile() {
   useEffect(() => {
     if (!form.firstName && !form.lastName) return;
 
-    const fullName = `${form.firstName} ${form.lastName}`.trim();
+    // ✅ Normalize name (collapse multiple spaces) so it matches logActivity output
+    const fullName = `${form.firstName} ${form.lastName}`
+      .replace(/\s+/g, " ")
+      .trim();
     if (!fullName) return;
 
     setActivityLoading(true);
 
+    // ✅ orderBy restored — requires composite index on (user ASC, timestamp DESC)
     const q = query(
       collection(db, "activityLogs"),
       where("user", "==", fullName),
@@ -441,7 +448,8 @@ export default function FacultyProfile() {
                         )}
                       </div>
                       {log.target && <p className="up-activity-target">{log.target}</p>}
-                      <span className="up-activity-time">{formatLogTime(log.timestamp)}</span>
+                      {/* ✅ Pass whole log object (supports timestamp OR createdAt fallback) */}
+                      <span className="up-activity-time">{formatLogTime(log)}</span>
                     </div>
                   </div>
                 ))}
