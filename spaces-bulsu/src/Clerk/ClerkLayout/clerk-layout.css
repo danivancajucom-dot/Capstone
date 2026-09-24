@@ -7,6 +7,10 @@
   font-family: 'Lexend', sans-serif;
 }
 
+.clerk-content .fs-page{
+   margin-top: 80px;
+}
+
 /* ═══════════════ SIDEBAR ═══════════════ */
 
 .clerk-sidebar {

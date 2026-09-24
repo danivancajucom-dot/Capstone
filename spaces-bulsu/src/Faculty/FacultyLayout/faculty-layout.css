@@ -11,6 +11,10 @@
   font-family: 'Lexend', sans-serif;
 }
 
+.faculty-content .fs-page{
+   margin-top: 80px;
+}
+
 /* SIDEBAR */
 
 .faculty-sidebar {
