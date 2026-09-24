@@ -1,5 +1,5 @@
 // ============================================================
-// FILE: FacultySubmitReservation.jsx (with preview modal + room pagination & status filter)
+// FILE: FacultySubmitReservation.jsx (with preview modal + room pagination & floor filter)
 // ============================================================
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -107,16 +107,8 @@ const PRESET_SLOTS = [
   { label: "5:30 – 7:00 PM",   start: "17:30", end: "19:00" },
 ];
 
-// ─── Pagination & status filter ─────────────────────────────
+// ─── Pagination ─────────────────────────────────────────────
 const ROOMS_PER_PAGE = 6;
-
-const ROOM_STATUS_OPTIONS = [
-  "All Status",
-  "Available",
-  "Occupied",
-  "Reserved",
-  "Under Maintenance",
-];
 
 // ─── Equipment label lookup (for preview) ─────────────────
 const EQUIPMENT_LABELS = {
@@ -148,8 +140,7 @@ function FacultySubmitReservation() {
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   const [selectedFloor, setSelectedFloor] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status"); // ✅ NEW
-  const [currentPage, setCurrentPage] = useState(1);              // ✅ NEW
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -437,12 +428,11 @@ function FacultySubmitReservation() {
     setLoading(false);
   };
 
-  // ✅ Status filter + pagination
+  // ✅ Only show rooms that are Available
   const filteredRooms = useMemo(() => {
-    if (statusFilter === "All Status") return rooms;
-    return rooms.filter((r) => getRoomStatus(r) === statusFilter);
+    return rooms.filter((r) => getRoomStatus(r) === "Available");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rooms, statusFilter]);
+  }, [rooms]);
 
   const totalRoomPages = Math.max(1, Math.ceil(filteredRooms.length / ROOMS_PER_PAGE));
   const safeRoomPage = Math.min(currentPage, totalRoomPages);
@@ -455,7 +445,7 @@ function FacultySubmitReservation() {
   // Reset page kapag nagbago ang filters o rooms
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, selectedFloor, date, startTime, endTime, rooms.length]);
+  }, [selectedFloor, date, startTime, endTime, rooms.length]);
 
   const validateFields = () => {
     const errors = {};
@@ -512,9 +502,6 @@ function FacultySubmitReservation() {
     }
 
     if (!selectedRoom) errors.selectedRoom = "Select an available room.";
-    else if (selectedRoom.maintenance) {
-      errors.selectedRoom = "This room is under maintenance during the selected time.";
-    }
 
     return errors;
   };
@@ -1335,21 +1322,8 @@ function FacultySubmitReservation() {
               <div className="faculty-submit-venue-header">
                 <span className="faculty-submit-venue-title">Available Rooms</span>
 
-                {/* ✅ Status filter + Floor filter */}
+                {/* ✅ Floor filter only (status filter removed) */}
                 <div className="faculty-submit-venue-filters">
-                  <div className="faculty-submit-venue-dropdown-wrapper">
-                    <select
-                      className="faculty-submit-venue-dropdown"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                      {ROOM_STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    <i className="fa-solid fa-angle-down faculty-submit-venue-dropdown-icon"></i>
-                  </div>
-
                   <div className="faculty-submit-venue-dropdown-wrapper">
                     <select
                       className="faculty-submit-venue-dropdown"
@@ -1380,28 +1354,14 @@ function FacultySubmitReservation() {
                 <div className="faculty-empty">
                   <i className="fa-solid fa-circle-xmark"></i>
                   <p>
-                    {rooms.length === 0
-                      ? "No rooms match your selected schedule, purpose, equipment, capacity, or floor."
-                      : `No rooms with status "${statusFilter}".`}
+                    No available rooms match your selected schedule, purpose,
+                    equipment, capacity, or floor.
                   </p>
                 </div>
               ) : (
                 <>
                   <div className="room-grid">
                     {paginatedRooms.map((room) => {
-                      let statusLabel = "Available";
-                      let statusIcon = "fa-circle-check";
-                      if (room.maintenance) {
-                        statusLabel = "Under Maintenance";
-                        statusIcon = "fa-triangle-exclamation";
-                      } else if (room.reservedByUser) {
-                        statusLabel = "Reserved";
-                        statusIcon = "fa-clock";
-                      } else if (!room.available) {
-                        statusLabel = "Occupied";
-                        statusIcon = "fa-circle-xmark";
-                      }
-
                       const isSelected = selectedRoom?.id === room.id;
                       const isError = validationAttempted && fieldErrors.selectedRoom && !isSelected;
 
@@ -1409,13 +1369,11 @@ function FacultySubmitReservation() {
                         <div
                           key={room.id}
                           className={`
-                            room-card
-                            ${room.maintenance ? "maintenance" : room.available ? "available" : "occupied"}
+                            room-card available
                             ${isSelected ? "selected" : ""}
                             ${isError ? "error" : ""}
                           `}
                           onClick={() => {
-                            if (!room.available || room.maintenance || room.reservedByUser) return;
                             setSelectedRoom(room);
                             revalidate();
                           }}
@@ -1432,7 +1390,7 @@ function FacultySubmitReservation() {
                             </div>
                           )}
                           <div className="room-status">
-                            <i className={`fa-solid ${statusIcon}`}></i> {statusLabel}
+                            <i className="fa-solid fa-circle-check"></i> Available
                           </div>
                         </div>
                       );
